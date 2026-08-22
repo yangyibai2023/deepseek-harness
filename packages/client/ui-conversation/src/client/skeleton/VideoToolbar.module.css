@@ -1,0 +1,198 @@
+.toolbar {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+  margin: 0 2px;
+  flex: none;
+}
+
+/* 与权限/模型选择同款原生胶囊触发器 */
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 220px;
+  height: 28px;
+  padding: 0 4px 0 10px;
+  border: none;
+  border-radius: 24px;
+  outline: none;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.triggerIcon {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.triggerIcon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.triggerText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trigger:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.trigger:focus-visible {
+  box-shadow: 0 0 0 2px var(--dsw-alias-border-l3);
+}
+
+.chevron {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--dsw-alias-label-caption);
+  transition: transform 120ms ease;
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+/* 模式滑块：选中黑底白字，未选中白底黑字；高度与 COLIN 一致 */
+.segmented {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  height: 26px;
+  padding: 2px;
+  border: 1px solid var(--dsw-alias-border-l3, rgba(0, 0, 0, 0.12));
+  border-radius: 999px;
+  background: #fff;
+}
+
+.segment {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 20px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: #000;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.segmentActive {
+  background: #000;
+  color: #fff;
+}
+
+/* HeightLab：空间自适应（JS 测量）——空间不够时切换为纯图标 */
+.compact .triggerText {
+  display: none;
+}
+
+.compact .trigger {
+  padding: 0 4px 0 8px;
+}
+
+.compact .segment {
+  padding: 0 8px;
+  font-size: 10px;
+}
+
+/* 隐藏的“全展开”测量副本：不参与布局、不可交互 */
+.measure {
+  position: absolute;
+  left: 0;
+  top: -9999px;
+  visibility: hidden;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+@container (max-width: 480px) {
+  .chevron {
+    display: none;
+  }
+  .segment {
+    padding: 0 10px;
+    font-size: 10px;
+  }
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 180px;
+  position: relative;
+}
+
+/* HeightLab：悬浮缩略图——形象/人物/场景预览、声音波形；默认隐藏，
+   鼠标悬浮选项时在行尾显示，不改变行布局。 */
+.itemThumb {
+  display: none;
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  object-fit: cover;
+  align-items: center;
+  justify-content: center;
+  color: var(--dsw-alias-label-tertiary);
+  background: var(--dsw-alias-interactive-bg-hover);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.item:hover .itemThumb {
+  display: flex;
+}
+
+.itemDot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--dsw-alias-state-business-primary);
+}
+
+.itemName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.itemState {
+  margin-left: auto;
+  color: var(--dsw-alias-label-caption);
+  font-size: 12px;
+}
+
+.sectionLabel {
+  font-size: 12px;
+  color: var(--dsw-alias-label-caption);
+  font-weight: 600;
+}

@@ -1,0 +1,134 @@
+.toolbar {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+  margin: 0 2px;
+  flex: none;
+}
+
+/* 与权限/模型选择同款原生胶囊触发器 */
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 220px;
+  height: 28px;
+  padding: 0 4px 0 10px;
+  border: none;
+  border-radius: 24px;
+  outline: none;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.triggerIcon {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.triggerIcon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.triggerText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trigger:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.trigger:focus-visible {
+  box-shadow: 0 0 0 2px var(--dsw-alias-border-l3);
+}
+
+.chevron {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--dsw-alias-label-caption);
+  transition: transform 120ms ease;
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+/* HeightLab：空间自适应（JS 测量）——空间不够时切换为纯图标 */
+.compact .triggerText {
+  display: none;
+}
+
+.compact .trigger {
+  padding: 0 6px;
+}
+
+.compact .chevron {
+  display: none;
+}
+
+.compact {
+  flex-wrap: nowrap;
+}
+
+/* 隐藏的“全展开”测量副本：不参与布局、不可交互 */
+.measure {
+  position: absolute;
+  left: 0;
+  top: -9999px;
+  visibility: hidden;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+@container (max-width: 480px) {
+  .chevron {
+    display: none;
+  }
+}
+
+/* 要求菜单里的补充说明输入行 */
+.extraWrap {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  width: 100%;
+}
+
+.extraInput {
+  width: 220px;
+  height: 26px;
+  padding: 0 8px;
+  border: none;
+  border-bottom: 1px solid var(--dsw-alias-border-l3);
+  border-radius: 0;
+  outline: none;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.extraInput::placeholder {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.extraInput:focus {
+  border-bottom-color: var(--dsw-alias-state-business-primary);
+}
