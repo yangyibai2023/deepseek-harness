@@ -78,123 +78,7 @@ function editRangeOf(pending: PendingEdit | null, prevLength: number, nextLength
   return undefined
 }
 
-/** Minimal video lightbox: inline preview player for uploaded video drafts. */
-function VideoLightbox({ src, name, labels, onClose }: {
-  src: string
-  name: string
-  labels: { dialog: string; close: string }
-  onClose: () => void
-}) {
-  useEffect(() => {
-    const onKey = (event: globalThis.KeyboardEvent): void => {
-      if (event.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
-  return (
-    <div
-      role="dialog"
-      aria-label={labels.dialog}
-      onClick={onClose}
-      style={{
-        position: 'fixed', inset: 0, zIndex: 60,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: 'rgba(0,0,0,0.72)', padding: 24,
-      }}
-    >
-      <div
-        role="document"
-        onClick={event => event.stopPropagation()}
-        style={{ maxWidth: 'min(92vw, 760px)', width: '100%' }}
-      >
-        <video
-          src={src}
-          controls
-          autoPlay
-          playsInline
-          aria-label={name}
-          style={{ display: 'block', width: '100%', maxHeight: '78vh', borderRadius: 12, background: '#000' }}
-        />
-        <div style={{ marginTop: 8, textAlign: 'right' }}>
-          <button
-            type="button"
-            onClick={onClose}
-            style={{
-              color: '#fff', background: 'rgba(255,255,255,0.16)', border: 'none',
-              borderRadius: 8, padding: '6px 14px', cursor: 'pointer', fontSize: 13,
-            }}
-          >
-            {labels.close}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-/** Minimal audio lightbox: inline player for recorded/uploaded audio drafts. */
-function AudioLightbox({ src, name, labels, onClose }: {
-  src: string
-  name: string
-  labels: { dialog: string; close: string }
-  onClose: () => void
-}) {
-  useEffect(() => {
-    const onKey = (event: globalThis.KeyboardEvent): void => {
-      if (event.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
-  return (
-    <div
-      role="dialog"
-      aria-label={labels.dialog}
-      onClick={onClose}
-      style={{
-        position: 'fixed', inset: 0, zIndex: 60,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: 'rgba(0,0,0,0.72)', padding: 24,
-      }}
-    >
-      <div
-        role="document"
-        onClick={event => event.stopPropagation()}
-        style={{ maxWidth: 'min(420px, 92vw)', width: '100%' }}
-      >
-        <audio
-          src={src}
-          controls
-          autoPlay
-          aria-label={name}
-          style={{ display: 'block', width: '100%', borderRadius: 10, background: '#fff' }}
-        />
-        <div style={{ marginTop: 8, textAlign: 'right' }}>
-          <button
-            type="button"
-            onClick={onClose}
-            style={{
-              color: '#fff', background: 'rgba(255,255,255,0.16)', border: 'none',
-              borderRadius: 8, padding: '6px 14px', cursor: 'pointer', fontSize: 13,
-            }}
-          >
-            {labels.close}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 export type InputBarProps = ComposerBarProps
-
-/** Video detection: MIME type, with an extension fallback for files whose
- * browser-declared type is generic (e.g. iPhone .mov -> octet-stream). */
-function isVideoFile(file: File): boolean {
-  if (file.type.startsWith('video/')) return true
-  return /\.(mp4|webm|mov)$/i.test(file.name || '')
-}
 
 export function InputBar({
   useSession, useInput, inputActions, keyboard, addImages, removeImage, draftImages,
@@ -269,7 +153,6 @@ export function InputBar({
       if (typeof detail?.text !== 'string' || detail.text === '') return
       if (keyboard === undefined) return
       keyboard.setDraft(detail.text)
-      // 延迟到 React 提交后聚焦，避免与推荐区收起时序互相覆盖。
       window.setTimeout(() => {
         inputRef.current?.focus({ preventScroll: true })
       }, 50)
@@ -284,7 +167,6 @@ export function InputBar({
       if (typeof detail?.text !== 'string' || detail.text === '') return
       if (keyboard === undefined || inputActions === undefined) return
       keyboard.setDraft(detail.text)
-      // 等 draft 写入机器状态后再提交。
       window.setTimeout(() => {
         inputActions?.submit()
       }, 80)
@@ -306,8 +188,6 @@ export function InputBar({
   // HeightLab：当前草稿是否含模板胶囊（用于清空后自动切回 Colin）。
   const hadTemplateRef = useRef(false)
   // HeightLab：模板胶囊已插入 → 标记“渲染完成后把光标放到末尾”。
-  // 不能用 setTimeout 立即取 el.value：机器草稿的 React 提交可能还没发生，
-  // 取到的是旧长度，光标会落在胶囊中间/前面。
   useEffect(() => {
     const onChipInserted = (): void => {
       pendingCaretEndRef.current = true
@@ -584,53 +464,6 @@ export function InputBar({
       else keyboard.undo()
       return
     }
-    // HeightLab：模板胶囊整颗删除——光标在模板名前/后按 Backspace/Delete
-    // 时一次删掉整个模板名（含尾随空格）。
-    if (e.key === 'Backspace' || e.key === 'Delete') {
-      if (composing || machineBusy || locked) return
-      const draft = keyboard.snapshot.draft
-      const el = e.currentTarget
-      const caret = el.selectionStart ?? draft.length
-      const end = el.selectionEnd ?? caret
-      if (caret !== end) return
-      if (e.key === 'Backspace') {
-        const before = draft.slice(0, caret)
-        const trimmed = before.replace(/\s+$/, '')
-        for (const name of TEMPLATE_NAMES) {
-          if (trimmed.length >= name.length
-            && trimmed.endsWith(name)
-            && (trimmed.length === name.length
-              || /[\s，。、！？：；）】]/.test(trimmed[trimmed.length - name.length - 1]!))) {
-            e.preventDefault()
-            const start = caret - (before.length - trimmed.length) - name.length
-            keyboard.setDraft(draft.slice(0, start) + draft.slice(caret), {
-              start, end: caret, insertedLength: 0,
-            })
-            if ((draft.slice(0, start) + draft.slice(caret)).trim() === '') {
-              hadTemplateRef.current = false
-              window.dispatchEvent(new CustomEvent('hl:template-removed'))
-            }
-            break
-          }
-        }
-      } else {
-        const after = draft.slice(caret)
-        for (const name of TEMPLATE_NAMES) {
-          if (after.length >= name.length
-            && after.startsWith(name)
-            && (after.length === name.length
-              || /[\s，。、！？：；）】]/.test(after[name.length]!))) {
-            e.preventDefault()
-            const markerEnd = caret + name.length
-            keyboard.setDraft(draft.slice(0, caret) + draft.slice(markerEnd), {
-              start: caret, end: markerEnd, insertedLength: 0,
-            })
-            break
-          }
-        }
-      }
-      return
-    }
     if (e.key === ' ') {
       if (composing) return
       if (keyboard.space()) e.preventDefault() // claim token already carries the trailing separator
@@ -673,7 +506,7 @@ export function InputBar({
     pendingEditRef.current = null
     safariNativeShrinkRef.current = safari && next.length < draft.length
     keyboard.setDraft(next, editRangeOf(pending, draft.length, next.length))
-    // 模板胶囊被全部删除（输入框清空）→ 通知智能体选择框切回 Colin。
+    // HeightLab：模板胶囊被全部删除（输入框清空）→ 通知智能体选择框切回 Colin。
     const hasTemplate = TEMPLATE_NAMES.some(name => name !== '' && next.includes(name))
     if (!hasTemplate && hadTemplateRef.current && next.trim() === '') {
       hadTemplateRef.current = false
@@ -747,36 +580,22 @@ export function InputBar({
   // this composer.
   const intakeImages = useCallback((files: readonly File[]): void => {
     if (addImages === undefined || files.length === 0) return
-    const images = files.filter(file => !isVideoFile(file))
-    const videos = files.filter(file => isVideoFile(file))
     const rejected = ((): string | null => {
-      if (videos.length > 0) {
-        const MAX_VIDEO_BYTES = 110 * 1024 * 1024
-        const MAX_VIDEOS_PER_MESSAGE = 2
-        if (videos.some(file => file.size > MAX_VIDEO_BYTES)) {
-          return '视频文件过大（最大约 110MB）'
-        }
-        if (videos.length > MAX_VIDEOS_PER_MESSAGE) {
-          return '每条消息最多上传 2 个视频'
-        }
-      }
-      if (images.length > 0 && imageLimits !== undefined) {
+      if (imageLimits !== undefined) {
         // Format precedes limits (DeepSeek Chat's filter order): a batch with
         // a non-image must announce the format problem, not a count or size
         // it could never pass anyway — addImages rejects it authoritatively.
-        if (images.some(file => !(imageLimits.mediaTypes as readonly string[]).includes(file.type))) {
-          return addImages(images)
+        if (files.some(file => !(imageLimits.mediaTypes as readonly string[]).includes(file.type))) {
+          return addImages(files)
         }
-        if (attachments.filter(attachment => attachment.kind === 'image').length + images.length > imageLimits.maxImagesPerMessage) {
+        if (attachments.length + files.length > imageLimits.maxImagesPerMessage) {
           return t('image.tooMany', { count: imageLimits.maxImagesPerMessage })
         }
-        if (images.some(file => file.size > imageLimits.maxImageBytes)) {
+        if (files.some(file => file.size > imageLimits.maxImageBytes)) {
           return t('image.fileTooLarge', { size: imageSizeText(imageLimits.maxImageBytes) })
         }
-        const total = attachments
-          .filter(attachment => attachment.kind === 'image')
-          .reduce((sum, attachment) => sum + attachment.file.size, 0)
-          + images.reduce((sum, file) => sum + file.size, 0)
+        const total = attachments.reduce((sum, attachment) => sum + attachment.file.size, 0)
+          + files.reduce((sum, file) => sum + file.size, 0)
         if (total > imageLimits.maxMessageImageBytes) {
           return t('image.totalTooLarge', { size: imageSizeText(imageLimits.maxMessageImageBytes) })
         }
@@ -787,67 +606,6 @@ export function InputBar({
   }, [addImages, attachments, imageLimits, showToast, t])
 
   const canAcceptDrop = !locked && !machineBusy && addImages !== undefined
-  useEffect(() => {
-    const hasFiles = (event: globalThis.DragEvent): boolean =>
-      event.dataTransfer?.types.includes('Files') ?? false
-    const reset = (): void => {
-      dragDepthRef.current = 0
-      setDragActive(false)
-    }
-    const onDragEnter = (event: globalThis.DragEvent): void => {
-      if (!hasFiles(event)) return
-      event.preventDefault()
-      dragDepthRef.current += 1
-      setDragActive(true)
-    }
-    const onDragOver = (event: globalThis.DragEvent): void => {
-      if (!hasFiles(event) || event.dataTransfer === null) return
-      event.preventDefault()
-      event.dataTransfer.dropEffect = canAcceptDrop ? 'copy' : 'none'
-    }
-    const onDragLeave = (event: globalThis.DragEvent): void => {
-      if (!hasFiles(event)) return
-      dragDepthRef.current = Math.max(0, dragDepthRef.current - 1)
-      if (dragDepthRef.current === 0) setDragActive(false)
-      // Leaving through the viewport edge does not balance the count on every
-      // engine; a page-root leave at the border means the drag left the window.
-      const leavingViewport = event.clientX <= 0 || event.clientY <= 0
-        || event.clientX >= window.innerWidth || event.clientY >= window.innerHeight
-      if ((event.target === document.documentElement || event.target === document.body) && leavingViewport) reset()
-    }
-    const onDrop = (event: globalThis.DragEvent): void => {
-      if (!hasFiles(event)) return
-      event.preventDefault()
-      reset()
-      if (!canAcceptDrop) return
-      intakeImages([...(event.dataTransfer?.files ?? [])])
-    }
-    document.addEventListener('dragenter', onDragEnter)
-    document.addEventListener('dragover', onDragOver)
-    document.addEventListener('dragleave', onDragLeave)
-    document.addEventListener('drop', onDrop)
-    window.addEventListener('dragend', reset)
-    return () => {
-      document.removeEventListener('dragenter', onDragEnter)
-      document.removeEventListener('dragover', onDragOver)
-      document.removeEventListener('dragleave', onDragLeave)
-      document.removeEventListener('drop', onDrop)
-      window.removeEventListener('dragend', reset)
-    }
-  }, [canAcceptDrop, intakeImages])
-
-  const closePreview = useCallback(() => { setPreview(null) }, [])
-
-  // Rail thumbnails with their strings resolved here: the attachment atoms are
-  // zero-cordis and read no locale.
-  const railItems = useMemo<ComposerRailItem[]>(() => attachments.map(attachment => ({
-    id: attachment.id,
-    previewUrl: attachment.previewUrl,
-    alt: attachment.file.name || t('image.pending'),
-    removeLabel: t('image.remove', { name: attachment.file.name }),
-    attachment,
-    kind: attachment.kind,
-  })), [attachments, t])
 
   const onSelect = (e: React.SyntheticEvent<HTMLTextAreaElement>): void => {
     // Any caret/selection gesture ends a live paste attempt (the machine
@@ -1102,6 +860,9 @@ export function InputBar({
             </Tooltip>
             <div className={css.modes}>
               {accessSelect}
+              {/* HeightLab：智能体选择框（Colin / 专家）接到 rc.2 输入栏。
+                  rc.2 默认把 agentPreset 放在 hero 页，这里接入输入栏 tools。 */}
+              {renderSlot('conversation.input.agentPreset', {})}
               {renderSlot('conversation.input.plan', { locked })}
             </div>
             {leftItems}
@@ -1114,14 +875,7 @@ export function InputBar({
           <div className={css.trailing}>
             {rightItems}
             {renderSlot('conversation.input.model', { locked: modelSeatLocked })}
-            <ContextMeter useSession={useSession} useProjection={useProjection} t={t} />
-            {renderSlot('conversation.input.agentPreset', {
-              triggerLabel: 'COLIN',
-              triggerClassName: (empty || disabled || machineBusy
-                ? `${css.colin} ${css.colinEmpty}`
-                : css.colin) as string,
-              triggerDisabled: false,
-            })}
+            <ContextMeter useProjection={useProjection} t={t} />
             {interruptible && (
               <Tooltip label={t('input.stop')} side="top" delayMs={500}>
                 <button
@@ -1161,28 +915,6 @@ export function InputBar({
           </div>
         </div>
       </div>
-      {preview !== null && preview.kind === 'video' ? (
-        <VideoLightbox
-          src={preview.previewUrl}
-          name={preview.file.name || t('image.original')}
-          labels={lightboxLabels(t)}
-          onClose={closePreview}
-        />
-      ) : preview !== null && preview.kind === 'audio' ? (
-        <AudioLightbox
-          src={preview.previewUrl}
-          name={preview.file.name || t('image.original')}
-          labels={lightboxLabels(t)}
-          onClose={closePreview}
-        />
-      ) : preview !== null && (
-        <ImageLightbox
-          src={preview.previewUrl}
-          alt={preview.file.name || t('image.original')}
-          labels={lightboxLabels(t)}
-          onClose={closePreview}
-        />
-      )}
       {footer}
     </div>
   )

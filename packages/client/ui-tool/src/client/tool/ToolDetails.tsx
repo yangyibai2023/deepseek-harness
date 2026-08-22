@@ -10,13 +10,6 @@ import { resultText } from './models/tool-call-model.ts'
 import { webCardModel } from './models/web-card-model.ts'
 import css from './ToolDetails.module.css'
 
-/** Pure details-body inputs; framework session seats stay at the slot boundary. */
-interface ToolDetailsContentProps {
-  block: ToolDetailsProps['block']
-  cwd?: ToolDetailsProps['cwd']
-  t: ToolDetailsProps['t']
-}
-
 /** Render tool-result content blocks: text inline, image blocks as <img>. */
 function renderContentBlocks(block: ToolDetailsProps['block']): ReactNode {
   if (!('kind' in block) || !Array.isArray(block.content)) return null

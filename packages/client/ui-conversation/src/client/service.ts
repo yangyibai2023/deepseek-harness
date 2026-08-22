@@ -225,6 +225,15 @@ export class ConversationController extends Service implements IConversation {
     return Promise.all(attachments.map(attachment => this.encodeImage(attachment.file)))
   }
 
+  /** Canonical base64 wire form of one browser image file. */
+  private async encodeImage(file: File): Promise<SubmitImageAttachment> {
+    return {
+      mediaType: imageMediaType(file.type),
+      data: bytesToBase64(new Uint8Array(await file.arrayBuffer())),
+      ...(file.name === '' ? {} : { name: file.name }),
+    }
+  }
+
   /**
    * Release one browser-owned draft image and preview URL.
    * @param id - draft attachment id.
@@ -447,6 +456,18 @@ function bytesToBase64(data: Uint8Array): string {
     binary += String.fromCharCode(...data.subarray(offset, offset + chunk))
   }
   return btoa(binary)
+}
+
+function imageMediaType(value: string): ImageMediaType {
+  switch (value) {
+    case 'image/png':
+    case 'image/jpeg':
+    case 'image/webp':
+    case 'image/gif':
+      return value
+    default:
+      throw new UnsupportedImageMediaTypeError(value)
+  }
 }
 
 function revokePreview(url: string): void {

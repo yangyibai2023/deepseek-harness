@@ -18,7 +18,6 @@ import {
 import type { MarkdownFileMentions } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ChatNodeOwnerProps, ChatViewSlotProps } from '../contract/slots.ts'
 import { HEIGHTLAB_UNKNOWN_BLOCK_TEXT } from './heightlab-friendly.ts'
-import { messageImageLabels } from '../image-labels.ts'
 import { ReasoningRow } from './ReasoningRow.tsx'
 import css from './AssistantMarkdown.module.css'
 

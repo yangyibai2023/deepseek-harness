@@ -116,7 +116,7 @@ export interface HeroShellProps {
  * @param props - see {@link HeroShellProps}.
  * @returns the centered hero element tree.
  */
-export function HeroShell({ t, renderSlot, children }: HeroShellProps) {
+export function HeroShell({ t, children }: HeroShellProps) {
   return (
     /* HeightLab：新对话页顶部/空白区域作为透明拖拽区（无可见条、不占布局），
        让覆盖式标题栏下也能拖拽移动窗口；输入卡片位于其上层，不影响交互。 */

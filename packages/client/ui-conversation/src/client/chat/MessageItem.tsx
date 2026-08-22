@@ -8,7 +8,7 @@ import type { ReactNode } from 'react'
 import type {
   ModelRetryNode, TurnErrorNode, UserMessageNode,
 } from '@deepseek-ai/dsh-client-runtime/client'
-import { JsonBlock, MessageText, StateDot } from '@deepseek-ai/dsh-client-ui-primitives'
+import { MessageText, StateDot } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ChatNodeOwnerProps, ChatNodeViewProps, ChatViewSlotProps } from '../contract/slots.ts'
 import { ReferenceIcon } from '../reference/ReferenceIcon.tsx'
 import { CompactionItem } from './CompactionItem.tsx'
@@ -183,7 +183,7 @@ function TurnMaxTokensItem({ t }: {
  * scan as the composer, minus the lexicon: sent tokens were validated at
  * compose time, so shape alone decorates).
  */
-function projectUserText(text: string, sessionLabels: readonly string[]): ReactNode {
+function projectUserText(text: string, sessionLabels: readonly string[] = []): ReactNode {
   const ranges: { start: number; end: number; label: string; kind: 'session' | 'plain' }[] = []
   for (const rawLabel of [...new Set(sessionLabels)].sort((a, b) => b.length - a.length)) {
     const label = `@${rawLabel}`
