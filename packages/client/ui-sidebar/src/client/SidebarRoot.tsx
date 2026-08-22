@@ -18,10 +18,13 @@
 import { useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import {
-  FishLogo, IconNewChatOutline16, IconPanelLeftOutline16, Tooltip,
+  IconNewChatOutline16, IconPanelLeftOutline16, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SidebarRootComponentProps } from './contract/slots.ts'
 import css from './SidebarRoot.module.css'
+import {
+  IconInspirationStroke16, IconLibraryStroke16, IconAutomationStroke16,
+} from './sidebar-icons.tsx'
 
 /** Wide-content unmount delay; matches the 150ms wide-content fade-out. */
 const COLLAPSE_SETTLE_MS = 150
@@ -137,16 +140,13 @@ export function SidebarRoot({
           >
             <span className={css.brandIdentity} aria-hidden="true">
               <span className={css.brandMark}>
-                {renderSlot('sidebar.brand.mark', { size: 24 }, { fallback: <FishLogo size={24} /> })}
+                {renderSlot('sidebar.brand.mark', { size: 24 }, { fallback: <img src="/heightlab-logo.png?v=2" alt="" width={24} height={24} draggable={false} style={{ width: 24, height: 24, objectFit: 'contain' }} /> })}
               </span>
               <span className={css.brandName}>
                 {renderSlot('sidebar.brand.name', {}, {
                   fallback: (
                     <>
-                      <span className={css.fallbackBrandName}>DSH Local Build</span>
-                      {process.env.DSH_CLIENT_COMMIT_HASH
-                        ? <span className={css.buildRevision}>{process.env.DSH_CLIENT_COMMIT_HASH}</span>
-                        : null}
+                      <span className={css.fallbackBrandName}>HEIGHTLAB</span>
                     </>
                   ),
                 })}
@@ -165,7 +165,9 @@ export function SidebarRoot({
           >
             {!wide && (
               <span className={css.railMark} aria-hidden="true">
-                {renderSlot('sidebar.brand.mark', { size: 24 }, { fallback: <FishLogo size={24} /> })}
+                {/* HeightLab 2026-08-22：折叠态鲸鱼 fallback 换成本 HeightLab logo，
+                   与展开态同款、大小一致(24)。 */}
+                {renderSlot('sidebar.brand.mark', { size: 24 }, { fallback: <img src="/heightlab-logo.png?v=2" alt="" width={24} height={24} draggable={false} style={{ width: 24, height: 24, objectFit: 'contain' }} /> })}
               </span>
             )}
             {/* Rail icons render at 18 (figma rail spec); expanded keeps the glyph-native sizes. */}
@@ -190,6 +192,27 @@ export function SidebarRoot({
       {/* The browsing region fills the column between the controls and the
           foot in both states; its rail icon column rides the same slot. */}
       <div className={css.regionArea}>
+        {/* HeightLab：自定义导航（创意灵感 / 资料库 / 自动化）。
+           去 emoji、去内联样式，改用 rc.2 原生 SVG 描边图标 + 主题 token
+           (css.hlNav* 用 var(--dsw-alias-*) 定义，与侧边栏原生风格统一)。 */}
+        <div className={css.hlNav}>
+          {[
+            { key: 'inspiration', label: '创意灵感', Icon: IconInspirationStroke16, dispatch: 'hl:open-hub', detail: { page: 'inspiration' } },
+            { key: 'library', label: '资料库', Icon: IconLibraryStroke16, dispatch: 'hl:open-hub', detail: { page: 'library' } },
+            { key: 'automation', label: '自动化', Icon: IconAutomationStroke16, dispatch: 'hl:open-automation', detail: {} },
+          ].map(item => (
+            <button
+              key={item.key}
+              type="button"
+              className={css.hlNavItem}
+              onClick={() => window.dispatchEvent(new CustomEvent(item.dispatch, { detail: item.detail }))}
+              title={item.label}
+            >
+              <item.Icon size={16} className={css.hlNavIcon} />
+              {wide && <span className={css.hlNavLabel}>{item.label}</span>}
+            </button>
+          ))}
+        </div>
         {renderSlot('sidebar.workspaces', {
           wide,
           expandSidebar: () => { if (collapsed) toggleSidebar() },

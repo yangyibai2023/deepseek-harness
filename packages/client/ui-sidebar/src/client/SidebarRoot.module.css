@@ -27,6 +27,9 @@
    the whale's box (24px to the 24-wide whale glyph itself). */
 .root.collapsed {
   padding: 18px 10px 6px;
+  /* HeightLab 2026-08-22：折叠态图标直接浮在背景上（去底色条），
+     与 0.3.17 观感一致；展开态保留侧边栏填充底色。 */
+  background: transparent;
 }
 
 /* Scrollbars in the column are a pointer affordance: the shell adds this
@@ -125,7 +128,8 @@
 }
 
 /* Mark and name are independent slots; the shell owns their shared baseline,
-   spacing, and height so either occupant can vary in width. */
+   spacing, and height so either occupant can vary in width.
+   (HeightLab 2026-08-22：补回官方 rc.2 品牌类——曾被误删导致品牌位置偏。) */
 .brandIdentity {
   display: inline-flex;
   align-items: center;
@@ -288,6 +292,89 @@
   margin-right: calc(-1 * var(--dsh-sidebar-inline-padding));
   padding-left: 4px;
   overflow: hidden;
+}
+
+/* HeightLab 自定义导航（创意灵感 / 资料库 / 自动化）。
+   与侧边栏原生 New Session / iconButton 同款样式：
+   rc.2 主题 token 控制文字色、悬停底、圆角；收起时只留图标。 */
+.hlNav {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 4px 8px;
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
+  margin-bottom: 8px;
+}
+
+.hlNavItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  /* HeightLab 2026-08-22：与下方工作区文件夹名一致（14px）。 */
+  font-size: 14px;
+  line-height: 22px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.hlNavItem:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.hlNavItem:focus-visible {
+  box-shadow: 0 0 0 2px var(--dsw-alias-border-l3);
+}
+
+.hlNavIcon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.hlNavLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ===== 折叠态：对齐原生折叠按钮（搜索/新建工作区 36px 圆形图标）=====
+   折叠(rail)时，创意灵感/资料库/自动化 变成竖向 36px 圆形图标按钮，
+   颜色(黑色 label-primary)/大小(36)/悬停 与原生按钮一致，竖排在一列。 */
+.collapsed .hlNav {
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  margin: 0 0 8px;
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
+}
+
+.collapsed .hlNavItem {
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  min-width: 0;
+  padding: 0;
+  border-radius: 50%;
+  color: var(--dsw-alias-label-primary);
+}
+
+.collapsed .hlNavIcon {
+  width: 16px;
+  height: 16px;
+  color: var(--dsw-alias-label-primary);
 }
 
 .collapsed .regionArea {
