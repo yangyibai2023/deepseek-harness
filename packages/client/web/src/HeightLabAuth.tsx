@@ -182,17 +182,24 @@ async function exchangeCode(code: string): Promise<{ token: string; refreshToken
     // silently destroyed the PKCE verifier and made the callback flash back.
     const verifier = localStorage.getItem(PKCE_VERIFIER_KEY) ?? ''
     localStorage.removeItem(PKCE_VERIFIER_KEY)
-    const res = await fetch(`${LOGTO_ENDPOINT}/oidc/token`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'authorization_code',
-        client_id: LOGTO_APP_ID,
-        redirect_uri: REDIRECT_URI,
-        code,
-        code_verifier: verifier,
-      }).toString(),
-    })
+    const res = await Promise.race([
+      fetch(`${LOGTO_ENDPOINT}/oidc/token`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'authorization_code',
+          client_id: LOGTO_APP_ID,
+          redirect_uri: REDIRECT_URI,
+          code,
+          code_verifier: verifier,
+        }).toString(),
+      }),
+      new Promise<Response>((_resolve, reject) => {
+        // 换码请求挂起时不能让登录门永远停在 checking（卡粒子）：15s 后
+        // 按失败处理并落到登录页，用户可重试。
+        window.setTimeout(() => reject(new Error('exchange timeout')), 15_000)
+      }),
+    ])
     if (!res.ok) return null
     const data = await res.json()
     // HeightLab cloud APIs authenticate with the Logto ID token (JWT), the
@@ -449,7 +456,8 @@ export function HeightLabAuthGate({
         else onReady('signed-out', errorMessage)
       }
 
-      if (code) {
+      try {
+        if (code) {
         const auth = await exchangeCode(code)
         if (auth && await hostAcceptsToken(auth.token)) {
           const inviteCode = storedInviteCode()
@@ -489,28 +497,40 @@ export function HeightLabAuthGate({
           finish('signed-in')
           return
         }
-        try {
-          localStorage.removeItem(TOKEN_KEY)
-          localStorage.removeItem(ACCOUNT_TOKEN_KEY)
-        } catch { /* ignore */ }
-      }
-      const existing = storedToken()
-      if (existing) {
-        if (await hostAcceptsToken(existing)) {
-          clearInviteState()
-          await pushTokenToHost(existing, storedRefreshToken() ?? undefined, storedAccountToken() ?? undefined)
-          finish('signed-in')
-          return
+          try {
+            localStorage.removeItem(TOKEN_KEY)
+            localStorage.removeItem(ACCOUNT_TOKEN_KEY)
+          } catch { /* ignore */ }
         }
-        // Invalid or expired credential: never grant access, clear it.
+        const existing = storedToken()
+        if (existing) {
+          if (await hostAcceptsToken(existing)) {
+            clearInviteState()
+            await pushTokenToHost(existing, storedRefreshToken() ?? undefined, storedAccountToken() ?? undefined)
+            finish('signed-in')
+            return
+          }
+          // Invalid or expired credential: never grant access, clear it.
+          try {
+            localStorage.removeItem(TOKEN_KEY)
+            localStorage.removeItem(ACCOUNT_TOKEN_KEY)
+          } catch { /* ignore */ }
+        }
+        clearInviteState()
+        window.history.replaceState({}, '', window.location.pathname)
+        finish('signed-out')
+      } catch (error) {
+        // 登录门任何未预期异常都不能卡在 checking（粒子页）：清理凭据、
+        // 剥离回调参数后落到登录页，用户可重试。
         try {
           localStorage.removeItem(TOKEN_KEY)
           localStorage.removeItem(ACCOUNT_TOKEN_KEY)
         } catch { /* ignore */ }
+        try {
+          window.history.replaceState({}, '', window.location.pathname)
+        } catch { /* ignore */ }
+        finish('signed-out', error instanceof Error ? error.message : String(error))
       }
-      clearInviteState()
-      window.history.replaceState({}, '', window.location.pathname)
-      finish('signed-out')
     })()
   }, [onReady])
 
