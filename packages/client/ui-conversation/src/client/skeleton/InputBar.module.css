@@ -281,6 +281,8 @@
      on purpose: CSS modules hash container-name per module, so a name declared
      here can never match a query in another module's sheet. */
   container-type: inline-size;
+  /* HeightLab：三块之间保持最小间距，避免贴住/重叠。 */
+  gap: 8px;
 }
 
 .tools,
@@ -296,6 +298,7 @@
    controls. */
 .tools {
   gap: 16px;
+  overflow: hidden;
 }
 
 .modes {
@@ -303,14 +306,19 @@
 }
 
 .trailing {
-  flex: none;
-  /* Wrap keeps the left mode chips and the right controls apart when the card
-     runs out of row width: the trailing group (model + send) moves to its own
-     line instead of the left group shrinking until its chip overlaps the
-     model trigger (external:107). The auto margin re-anchors it right on the
-     wrapped line; on a single line space-between already pins it right. */
-  margin-left: auto;
+  flex: 0 1 auto;
+  min-width: 0;
   gap: 12px;
+}
+
+/* 视频智能体上下文选项：占据输入行中部空位，左右工具不受影响 */
+.videoTools {
+  flex: 1 1 auto;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-width: 0;
+  overflow: visible;
 }
 
 /* Attach circle (figma + control): 28px, selector fill, primary glyph. */
@@ -375,29 +383,64 @@
   display: grid;
   place-items: center;
   flex: none;
-  width: 34px;
-  height: 34px;
+  /* HeightLab：与「数字人/视频生成」胶囊同高 26px，仍与模型/工作区同线居中。 */
+  width: 26px;
+  height: 26px;
   border: none;
   border-radius: 999px;
-  background: var(--dsw-alias-button-info-fill);
-  /* Static white, not the foreground token: the arrow stays white on the blue
-     fill in both themes (design 34:10465). */
+  background: #000;
+  /* 黑底白箭头 */
   color: #fff;
   cursor: pointer;
   transition: background-color 100ms ease;
-  /* Opts out of the row's 2px downward shift (.row top pad): the send circle
-     keeps its original seat while the smaller chips sit lower. Transform, not
-     margin, so flex centering math is untouched. */
-  transform: translateY(-2px);
 }
 
 .primary:hover:not(:disabled) {
-  background: var(--dsw-alias-button-info-hover);
+  background: #1a1a1a;
 }
 
 .primary:disabled {
-  opacity: 0.4;
+  background: #3a3a3a;
+  opacity: 0.55;
   cursor: default;
+}
+
+.primary svg {
+  display: block;
+  width: 11px;
+  height: 11px;
+}
+
+/* COLIN 胶囊：黑底白字，高度与输入栏「当前工作区」等控件统一 28px */
+.colin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  /* HeightLab：与「数字人/视频生成」胶囊同高 26px。 */
+  height: 26px;
+  min-height: 26px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 999px;
+  background: #000;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.colin:disabled {
+  background: #3a3a3a;
+  opacity: 0.55;
+  cursor: default;
+}
+
+.colinEmpty {
+  background: #3a3a3a;
+  opacity: 0.55;
 }
 
 .retry {
@@ -464,6 +507,17 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
+}
+
+/* HeightLab：模板胶囊（叠在「【模板：标题】」真实文字上）——无底色、
+   浅蓝描边、浅蓝文字；名字多长胶囊就多长。 */
+.templateRef {
+  /* 描边用 box-shadow 画：不占布局宽度，背景层文字与真实光标严格对齐
+     （border/padding 会把后续文字挤偏，导致光标看起来在最后一个字前面）。 */
+  border-radius: 6px;
+  color: #7aa2f7;
+  background: transparent;
+  box-shadow: 0 0 0 1px #7aa2f7;
 }
 
 .chipInvalid {

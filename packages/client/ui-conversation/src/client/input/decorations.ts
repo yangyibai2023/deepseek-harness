@@ -5,6 +5,7 @@
  * the instructions; tests drive this directly.
  */
 import type { InputState } from './contract.ts'
+import { TEMPLATE_NAMES } from '../skeleton/HeightLabTemplates.ts'
 
 /** The claim-token highlight range (always draft-leading while the watch holds). */
 export interface TokenRange {
@@ -39,7 +40,7 @@ export interface ChipRender {
 export interface TextRefRange {
   readonly start: number
   readonly end: number
-  readonly trigger: '/' | '@'
+  readonly trigger: '/' | '@' | '【'
   /** Optional icon domain for syntax-recognizable plain references. */
   readonly appearance?: 'folder'
 }
@@ -59,6 +60,7 @@ export interface DraftDecorations {
 /** Token matcher: a trigger char at line start or after whitespace, then a word-ish name (never crosses \n). */
 const TEXT_REF_RE = /(^|\s)([/@])([\w-]+)/g
 const FOLDER_REF_RE = /(^|\s)(@(?:"[^"\n]*\/|[^\s"]+\/))/g
+
 
 /**
  * Scan the draft for plain-text reference tokens against the hot lexicons.
@@ -99,6 +101,30 @@ export function scanTextRefs(
   return out.sort((left, right) => left.start - right.start)
 }
 
+/** 扫描模板名（纯文字），作为模板胶囊的渲染范围；名字多长胶囊就多长。 */
+export function scanTemplateRefs(draft: string): TextRefRange[] {
+  if (draft === '') return []
+  const out: TextRefRange[] = []
+  for (const name of TEMPLATE_NAMES) {
+    if (name === '') continue
+    let from = 0
+    let idx: number
+    while ((idx = draft.indexOf(name, from)) !== -1) {
+      out.push({ start: idx, end: idx + name.length, trigger: '【' })
+      from = idx + name.length
+    }
+  }
+  // 按位置排序并丢弃重叠区间（如「头像生成」同时存在于多个分类）。
+  out.sort((a, b) => a.start - b.start || a.end - b.end)
+  const kept: TextRefRange[] = []
+  for (const range of out) {
+    const last = kept[kept.length - 1]
+    if (last !== undefined && range.start < last.end) continue
+    kept.push(range)
+  }
+  return kept
+}
+
 /** The empty lexicon (default: zero text-ref decorations, old call sites unchanged). */
 const EMPTY_LEXICON: ReadonlyMap<'/' | '@', readonly string[]> = new Map()
 
@@ -127,5 +153,9 @@ export function deriveDecorations(
   const hint = claimActive && claim.hint !== undefined && draft.slice(claim.token.length).trim() === ''
     ? claim.hint
     : null
-  return { token, chips, textRefs: scanTextRefs(draft, lexicon), hint }
+  const textRefs = [
+    ...scanTextRefs(draft, lexicon),
+    ...scanTemplateRefs(draft),
+  ].sort((a, b) => a.start - b.start)
+  return { token, chips, textRefs, hint }
 }

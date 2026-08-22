@@ -22,9 +22,9 @@ import type { ComposerSubmitGesture, InputSubmitMode } from './composer-submissi
 import type { ChatNode, ChatNodeKind } from './chat-nodes.ts'
 import type { CallId, SelectionTarget, ViewTab } from './views.ts'
 
-/** Browser-owned image that has not crossed the durable host boundary. */
+/** Browser-owned media (image/video) that has not crossed the durable host boundary. */
 export interface ComposerAttachment {
-  kind: 'image'
+  kind: 'image' | 'video' | 'audio'
   id: DraftAttachmentId
   file: File
   previewUrl: string
@@ -259,6 +259,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * placeholder, so an absent plan plugin costs no layout.
      */
     'conversation.input.plan': { kind: 'single'; scope: 'session'; owner: InputControlOwnerProps }
+    'conversation.input.agentPreset': { kind: 'single'; scope: 'session'; owner: HeroAgentPresetOwnerProps }
     /**
      * The named model-select seat at the right end of the composer tool row,
      * left of the send button — one occupant, so taking it means rendering the
@@ -294,6 +295,10 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 export interface HeroAgentPresetOwnerProps {
   /** Marker field: the chip owns its own roster, staging, and menu state. */
   children?: never
+  /** HeightLab：把触发器渲染成输入栏里的 COLIN 胶囊（mode picker 挪进输入栏）。 */
+  triggerLabel?: string
+  triggerClassName?: string
+  triggerDisabled?: boolean
 }
 
 /** Owner share of the strict session content seat. */
@@ -605,7 +610,7 @@ export interface InputControlOwnerProps {
 export type ComposerBarProps =
   PropsRuntime<'conversation.composer.bar'>
   & PropsRenderSlots<
-    'conversation.input.attachments' | 'conversation.input.plan' | 'conversation.input.model'
+    'conversation.input.attachments' | 'conversation.input.plan' | 'conversation.input.model' | 'conversation.input.agentPreset'
   >
   & InjectFace<ComposerBarInjected>
   & PropsLocale<'conversation'>

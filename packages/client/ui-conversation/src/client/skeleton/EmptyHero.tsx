@@ -7,10 +7,11 @@
 import { useId } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import {
-  FishLogo, IconChevronDownOutline14, IconFolderClose16, IconFolderOpen16,
+  IconChevronDownOutline14,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import { workspaceTitleOf } from '@deepseek-ai/dsh-client-runtime/client'
 import type { ConversationSlotProps } from '../contract/slots.ts'
+import { IconFolderCloseStroke16, IconFolderOpenStroke16 } from './folder-icons.tsx'
 import css from './HeroShell.module.css'
 
 /** The owner's locale seat type, passed to hero chrome as a plain prop. */
@@ -56,8 +57,8 @@ export function WorkspaceChip({ buttonRef, label, menuOpen = false, onClick, t }
       onClick={onClick}
     >
       {label === undefined
-        ? <IconFolderClose16 className={css.folder} size={16} />
-        : <IconFolderOpen16 className={css.folder} size={16} />}
+        ? <IconFolderCloseStroke16 className={css.folder} size={16} />
+        : <IconFolderOpenStroke16 className={css.folder} size={16} />}
       <span className={css.workspaceLabel}>{label ?? t('hero.chooseWorkspace')}</span>
       <IconChevronDownOutline14 className={css.chevron} size={12} />
     </button>
@@ -92,7 +93,8 @@ export function HeroGlow({ className }: { className?: string | undefined }) {
         </filter>
       </defs>
       <g filter={`url(#${glowFilterId})`}>
-        <ellipse cx="525.5" cy="234" rx="425.5" ry="134" fill="#6187D8" fillOpacity="0.08" />
+        {/* HeightLab：蓝色光晕改为浅灰色。 */}
+        <ellipse cx="525.5" cy="234" rx="425.5" ry="134" fill="#A6AEB8" fillOpacity="0.14" />
       </g>
     </svg>
   )
@@ -116,14 +118,21 @@ export interface HeroShellProps {
  */
 export function HeroShell({ t, renderSlot, children }: HeroShellProps) {
   return (
-    <div className={css.root}>
+    /* HeightLab：新对话页顶部/空白区域作为透明拖拽区（无可见条、不占布局），
+       让覆盖式标题栏下也能拖拽移动窗口；输入卡片位于其上层，不影响交互。 */
+    <div className={css.root} data-tauri-drag-region="deep">
       <div className={css.stack}>
         <div className={css.headline}>
-          {/* figma 34:10412: fish 34×25 leading the headline, gap 10. */}
           <span className={css.fishHitbox}>
-            {renderSlot('conversation.hero.brand.mark', { size: 34, className: css.fish }, {
-              fallback: <FishLogo size={34} className={css.fish} />,
-            })}
+            {/* HeightLab：输入框上方品牌图标换成用户原图 PNG（68×68）。 */}
+            <img
+              src="/heightlab-logo.png?v=2"
+              alt=""
+              className={css.fish}
+              width={61}
+              height={61}
+              draggable={false}
+            />
           </span>
           <span className={css.headlineText}>{t('hero.headline')}</span>
           <span className={css.previewBadge}>{t('hero.preview')}</span>

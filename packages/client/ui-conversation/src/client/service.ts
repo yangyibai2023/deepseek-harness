@@ -62,11 +62,31 @@ export interface IConversation {
 /** Create one browser-only draft descriptor; only its id enters input state. */
 function browserDraftAttachment(file: File): ComposerAttachment {
   return {
-    kind: 'image',
+    kind: draftKind(file),
     id: crypto.randomUUID() as DraftAttachmentId,
     previewUrl: URL.createObjectURL(file),
     file,
   }
+}
+
+/** Video-by-extension fallback for files with a generic/empty MIME type. */
+function isVideoName(name: string): boolean {
+  return /\.(mp4|webm|mov)$/i.test(name)
+}
+
+/** Audio-by-extension fallback for files with a generic/empty MIME type. */
+function isAudioName(name: string): boolean {
+  return /\.(mp3|wav|m4a|aac|ogg|opus|flac|webm)$/i.test(name)
+}
+
+/** Draft attachment kind by MIME with extension fallbacks. */
+function draftKind(file: File): 'image' | 'video' | 'audio' {
+  const type = file.type
+  if (type.startsWith('audio/')) return 'audio'
+  if (type.startsWith('video/')) return 'video'
+  if (isVideoName(file.name)) return 'video'
+  if (isAudioName(file.name)) return 'audio'
+  return 'image'
 }
 
 interface ImageUrlEntry {
@@ -75,14 +95,14 @@ interface ImageUrlEntry {
   readonly pending: Promise<string>
 }
 
-/** Unsupported browser-declared image type, localized by the UI boundary. */
+/** Unsupported browser-declared media type, localized by the UI boundary. */
 export class UnsupportedImageMediaTypeError extends Error {
   /** Browser-declared MIME value, possibly empty. */
   readonly mediaType: string
 
   /** @param mediaType - Browser-declared MIME value, possibly empty. */
   constructor(mediaType: string) {
-    super(`unsupported image media type: ${mediaType || '(empty)'}`)
+    super(`unsupported media type: ${mediaType || '(empty)'}`)
     this.name = 'UnsupportedImageMediaTypeError'
     this.mediaType = mediaType
   }
@@ -153,7 +173,7 @@ export class ConversationController extends Service implements IConversation {
     if (attachments.length !== imageIds.length) {
       throw new Error('conversation.sendSession: one or more draft images are no longer available')
     }
-    const uploaded = await this.serializeImages(attachments.map(attachment => attachment.file))
+    const uploaded = await this.uploadImagesAsText(attachments.map(attachment => attachment.file))
     const content = [...uploaded, ...(text === '' ? [] : [{ type: 'text' as const, text }])]
     const result = await session.prompt(content, mode, signal)
     if (!result.ok) return { kind: 'error' }
@@ -167,7 +187,7 @@ export class ConversationController extends Service implements IConversation {
    * @returns ordered draft descriptors.
    */
   createDraftImages(files: readonly File[]): readonly ComposerAttachment[] {
-    for (const file of files) imageMediaType(file.type)
+    for (const file of files) draftMediaType(file.type, file.name)
     return files.map((file) => {
       const attachment = browserDraftAttachment(file)
       this.draftAttachments.set(attachment.id, attachment)
@@ -332,29 +352,90 @@ export class ConversationController extends Service implements IConversation {
     return sessions
   }
 
-  /** Convert browser files to canonical base64 prompt parts. */
-  private serializeImages(images: readonly File[]): Promise<Parameters<SessionFace['prompt']>[0]> {
-    return Promise.all(images.map(async file => ({ type: 'image' as const, ...await this.encodeImage(file) })))
-  }
-
-  /** Canonical base64 wire form of one browser image file. */
-  private async encodeImage(file: File): Promise<SubmitImageAttachment> {
-    return {
-      mediaType: imageMediaType(file.type),
-      data: bytesToBase64(new Uint8Array(await file.arrayBuffer())),
-      ...(file.name === '' ? {} : { name: file.name }),
+  /**
+   * HeightLab bridge: uploaded media (images/videos) are stored by the Host
+   * and referenced by local path in the message text, so the text-only model
+   * never receives media blocks. Images are analyzed via
+   * mcp__minimax__understand_image (heightlab-vision plugin); videos carry
+   * their local path for the video expert (e.g. avatar source material).
+   */
+  private async uploadImagesAsText(images: readonly File[]): Promise<Array<{ type: 'text'; text: string }>> {
+    const blocks: Array<{ type: 'text'; text: string }> = []
+    for (const file of images) {
+      const isVideo = file.type.startsWith('video/') || isVideoName(file.name)
+      const isAudio = file.type.startsWith('audio/') || isAudioName(file.name)
+      const data = bytesToBase64(new Uint8Array(await file.arrayBuffer()))
+      try {
+        const uploadPath = isVideo ? '/hl/upload-video' : isAudio ? '/hl/upload-audio' : '/hl/upload-image'
+        const res = await fetch(uploadPath, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ data, mimeType: file.type, name: file.name }),
+        })
+        const result = await res.json()
+        if (result.ok && typeof result.path === 'string') {
+          blocks.push({
+            type: 'text',
+            text: isVideo
+              ? `[用户上传了一个视频，本地路径：${result.path}]`
+              : isAudio
+                ? `[用户上传了一段音频，本地路径：${result.path}]`
+                : `[用户上传了一张图片，本地路径：${result.path}]`,
+          })
+        } else {
+          blocks.push({
+            type: 'text',
+            text: isVideo
+              ? '[用户上传了一个视频（上传失败）]'
+              : isAudio
+                ? '[用户上传了一段音频（上传失败）]'
+                : '[用户上传了一张图片（上传失败，无法分析）]',
+          })
+        }
+      } catch {
+        blocks.push({
+          type: 'text',
+          text: isVideo
+            ? '[用户上传了一个视频（上传失败）]'
+            : isAudio
+              ? '[用户上传了一段音频（上传失败）]'
+              : '[用户上传了一张图片（上传失败，无法分析）]',
+        })
+      }
     }
+    return blocks
   }
 }
 
-function imageMediaType(value: string): ImageMediaType {
+function draftMediaType(value: string, name = ''): ImageMediaType {
   switch (value) {
     case 'image/png':
     case 'image/jpeg':
     case 'image/webp':
     case 'image/gif':
       return value
+    case 'video/mp4':
+    case 'video/webm':
+    case 'video/quicktime':
+      return value as ImageMediaType
+    case 'audio/mpeg':
+    case 'audio/mp3':
+    case 'audio/wav':
+    case 'audio/x-wav':
+    case 'audio/mp4':
+    case 'audio/x-m4a':
+    case 'audio/aac':
+    case 'audio/ogg':
+    case 'audio/opus':
+    case 'audio/flac':
+    case 'audio/webm':
+      return value as ImageMediaType
     default:
+      if (value === '' || value === 'application/octet-stream') {
+        if (isVideoName(name)) return 'video/mp4' as ImageMediaType
+        if (isAudioName(name)) return 'audio/mpeg' as ImageMediaType
+        if (/\.(png|jpe?g|gif|webp)$/i.test(name)) return 'image/png' as ImageMediaType
+      }
       throw new UnsupportedImageMediaTypeError(value)
   }
 }

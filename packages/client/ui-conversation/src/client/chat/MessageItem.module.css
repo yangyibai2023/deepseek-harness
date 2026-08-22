@@ -33,6 +33,14 @@
   font-size: 12px;
   line-height: 18px;
 }
+/* HeightLab uploaded-media markers rendered inline inside the user bubble. */
+.uploadedMedia {
+  display: block;
+  max-width: min(100%, 320px);
+  max-height: 320px;
+  margin: 6px 0;
+  border-radius: 12px;
+}
 .contextRow {
   padding: 2px 0;
 }
@@ -285,7 +293,18 @@
   white-space: nowrap;
   vertical-align: baseline;
 }
-
 .refIcon {
   flex: none;
+}
+
+/* HeightLab：GenUI/面板内部注入消息弱化展示，不暴露内部指令与 JSON。 */
+.bubble[data-genui-injected] {
+  opacity: 0.75;
+  font-size: 13px;
+}
+
+/* HeightLab：未知/内部内容块占位，不暴露原始 JSON。 */
+.unknownBlock {
+  font-size: 12px;
+  opacity: 0.7;
 }

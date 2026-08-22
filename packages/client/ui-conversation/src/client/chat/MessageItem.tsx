@@ -14,9 +14,25 @@ import { ReferenceIcon } from '../reference/ReferenceIcon.tsx'
 import { CompactionItem } from './CompactionItem.tsx'
 import { ContextInjectionRow } from './ContextInjectionRow.tsx'
 import { MessageIconActions } from './MessageIconActions.tsx'
+import { HEIGHTLAB_UNKNOWN_BLOCK_TEXT, heightlabFriendlyErrorText } from './heightlab-friendly.ts'
 import css from './MessageItem.module.css'
 
 type UserImage = Extract<UserMessageNode['content'][number], { type: 'image' }>
+
+/** HeightLab bridge markers: uploaded media stored by the Host and referenced
+ * by local path in the message text (see ui-conversation service.ts). */
+const UPLOADED_MEDIA_MARKER = /\[用户上传了(一张图片|一个视频)，本地路径：([^\]]+)\]/g
+
+/** Parse the uploaded-media marker path (~/.heightlab/{media}/<userId>/<name>)
+ * into the URL segments used by the loopback media routes. */
+function mediaSegmentsFromPath(path: string): { userId: string; name: string } {
+  const parts = path.split(/[\\/]/).filter(Boolean)
+  const name = parts.pop() ?? ''
+  const userId = /^[A-Za-z0-9_-]+$/.test(parts[parts.length - 1] ?? '')
+    ? parts[parts.length - 1]!
+    : ''
+  return { userId, name }
+}
 
 function contentParts(content: readonly unknown[]): {
   text: string
@@ -35,6 +51,21 @@ function contentParts(content: readonly unknown[]): {
     else rest.push(block)
   }
   return { text: texts.join(''), images, rest }
+}
+
+/** HeightLab：GenUI/面板内部注入消息只在展示层替换为友好提示，会话原文照常发给模型。 */
+const GENUI_ACTION_RE = /^\[genui-action\]\s+([^。]+)。用户刚刚在(?:界面|面板)中触发了动作 "([^"]+)"/
+const GENUI_PANEL_RE = /^用户执行了 \/panel 并请求：/
+
+function genuiFriendlyText(text: string): string {
+  if (text.startsWith('[genui-action]')) {
+    const label = /组件数据:\s*\{[^}]*"label"\s*:\s*"([^"]+)"/.exec(text)?.[1]
+      ?? GENUI_ACTION_RE.exec(text)?.[2]
+      ?? '界面操作'
+    return `你触发了「${label}」`
+  }
+  if (GENUI_PANEL_RE.test(text)) return '你更新了会话面板'
+  return text
 }
 
 function retrySeconds(milliseconds: number): number {
@@ -105,7 +136,7 @@ function ModelRetryItem({ node, active, t }: {
         </div>
         <div>
           <span className={css.retryDetailLabel}>{t('message.retry.failure')}</span>
-          {node.failure.message}
+          {heightlabFriendlyErrorText(node.failure.message)}
         </div>
       </div>
     </details>
@@ -122,9 +153,8 @@ function TurnErrorItem({ node, t }: {
       <StateDot state="error" className={css.turnErrorDot} />
       <div className={css.turnErrorCopy}>
         <span className={css.turnErrorTitle}>{t('message.turnError')}</span>
-        <span className={css.turnErrorMessage}>{node.message}</span>
+        <span className={css.turnErrorMessage}>{heightlabFriendlyErrorText(node.message)}</span>
       </div>
-      {node.code !== undefined && <code className={css.turnErrorCode}>{node.code}</code>}
     </div>
   )
 }
@@ -212,6 +242,49 @@ function projectUserText(text: string, sessionLabels: readonly string[]): ReactN
   return <>{parts}</>
 }
 
+/** Render user text with HeightLab uploaded-media markers replaced by inline
+ * <img>/<video> elements (served by the Host over loopback). */
+function projectUserContent(text: string): ReactNode {
+  const parts: ReactNode[] = []
+  let cursor = 0
+  let m: RegExpExecArray | null
+  UPLOADED_MEDIA_MARKER.lastIndex = 0
+  while ((m = UPLOADED_MEDIA_MARKER.exec(text)) !== null) {
+    const prefix = text.slice(cursor, m.index)
+    if (prefix) parts.push(<span key={`text-${cursor}`}>{projectUserText(prefix)}</span>)
+    const isVideo = m[1] === '一个视频'
+    const { userId, name } = mediaSegmentsFromPath(m[2] ?? '')
+    const scope = userId ? `${encodeURIComponent(userId)}/` : ''
+    const src = isVideo
+      ? `/hl/videos/${scope}${encodeURIComponent(name)}`
+      : `/hl/images/${scope}${encodeURIComponent(name)}`
+    parts.push(
+      isVideo
+        ? (
+          <video
+            key={`media-${m.index}`}
+            src={src}
+            controls
+            preload="metadata"
+            className={css.uploadedMedia}
+          />
+        )
+        : (
+          <img
+            key={`media-${m.index}`}
+            src={src}
+            alt=""
+            className={css.uploadedMedia}
+          />
+        ),
+    )
+    cursor = m.index + m[0].length
+  }
+  if (parts.length === 0) return projectUserText(text)
+  if (cursor < text.length) parts.push(<span key={`text-${cursor}`}>{projectUserText(text.slice(cursor))}</span>)
+  return <>{parts}</>
+}
+
 /** Right-aligned bubble shared by user and steering rows. */
 function UserStyleBubble({
   content, renderMessageImages, actions, pending = false, referenceLabels = [], t,
@@ -227,15 +300,16 @@ function UserStyleBubble({
   t: ChatViewSlotProps['t']
 }): ReactNode {
   const { text, images, rest } = contentParts(content)
-  const truncated = (total: number): string => t('json.truncated', { total })
+  const displayText = genuiFriendlyText(text)
+  const injected = text.startsWith('[genui-action]') || GENUI_PANEL_RE.test(text)
   const showBubble = text !== '' || rest.length > 0
   return (
     <div className={css.userRow} data-pending-steering={pending || undefined} data-time-hover-root>
       <div className={css.userStack}>
         {renderMessageImages({ images, align: 'end' })}
-        {showBubble && <div className={css.bubble}>
-          {projectUserText(text, referenceLabels)}
-          {rest.map((block, i) => <JsonBlock key={i} label={t('message.extraBlock')} payload={block} truncatedLabel={truncated} />)}
+        {showBubble && <div className={css.bubble} data-genui-injected={injected || undefined}>
+          {projectUserContent(displayText)}
+          {rest.length > 0 && <span className={css.unknownBlock}>{HEIGHTLAB_UNKNOWN_BLOCK_TEXT}</span>}
         </div>}
         {referenceLabels.length > 0 && (
           <div className={css.referenceSummary}>
@@ -243,7 +317,7 @@ function UserStyleBubble({
           </div>
         )}
       </div>
-      {actions?.(text)}
+      {actions?.(displayText)}
     </div>
   )
 }
@@ -337,15 +411,10 @@ export const TurnMaxTokensNodeView = memo(function TurnMaxTokensNodeView({ t }: 
 })
 
 /** Explicit unknown-surface keyed Chat renderer. */
-export const UnknownNodeView = memo(function UnknownNodeView({ node, t }: ChatNodeViewProps<'unknown'>) {
-  const data = node.data
+export const UnknownNodeView = memo(function UnknownNodeView(_props: ChatNodeViewProps<'unknown'>) {
   return (
     <div className={css.contextRow}>
-      <JsonBlock
-        label={t('message.unknownSurface', { type: data.type })}
-        payload={data.data}
-        truncatedLabel={total => t('json.truncated', { total })}
-      />
+      <span className={css.unknownBlock}>{HEIGHTLAB_UNKNOWN_BLOCK_TEXT}</span>
     </div>
   )
 })
