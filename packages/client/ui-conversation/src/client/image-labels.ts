@@ -52,5 +52,6 @@ export function attachmentErrorText(
       break
     default: break
   }
-  return t('image.sendFailed', { reason })
+  // HeightLab：未知原因不再把内部错误码露给用户。
+  return '图片发送失败，请重新添加图片后再试'
 }

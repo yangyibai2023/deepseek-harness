@@ -56,6 +56,78 @@ export function apply(ctx: ClientContext): void {
   const hostDescription = connection.hostDescription
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-workspace: dictionaries')
 
+  // HeightLab：全新环境自动完成首次初始化——没有工作区时自动创建
+  // 「~/HeightLab」工作区；没有当前会话时自动开始一个新会话。
+  // 直接进入产品输入框状态，而不是 DSH 原生“选择工作区”空状态。
+  // 幂等：已有当前会话就不再触发；不制造任何聊天内容。
+  ctx.effect(() => {
+    let attempts = 0
+    let timer = 0
+    const debug = (payload: Record<string, unknown>): void => {
+      try {
+        void fetch('/hl/boot-marker', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ hlAutoStart: true, ...payload }),
+        }).catch(() => { /* 非致命 */ })
+      } catch {
+        // 非致命
+      }
+    }
+    const tryAutoStart = async (): Promise<void> => {
+      if (attempts >= 15) return
+      attempts += 1
+      try {
+        const sessions = ctx.sessions.list.getSnapshot()
+        let workspaces = ctx.workspaces.list.getSnapshot()
+        debug({ at: 'enter', attempts, current: sessions.current ?? null, wsCount: workspaces.items.length })
+        if (sessions.current !== undefined) return
+        let workspaceId = workspaces.items[0]?.workspaceId
+        if (workspaceId === undefined && workspaces.items.length === 0) {
+          // 兜底：初始化脚本没种成功时，客户端自己建默认工作区。
+          const listing = await ctx.workspaces.listDirectory()
+          let dir = ''
+          try {
+            dir = await ctx.workspaces.createDirectory(listing.home, 'HeightLab')
+          } catch {
+            dir = `${listing.home.replace(/\/+$/, '')}/HeightLab`
+          }
+          const created = await ctx.workspaces.create({ path: dir })
+          workspaceId = created.workspaceId
+          try {
+            await ctx.workspaces.rename(workspaceId, '我的工作区')
+          } catch {
+            // 重命名失败不阻塞。
+          }
+          workspaces = ctx.workspaces.list.getSnapshot()
+        }
+        workspaceId = workspaceId ?? workspaces.items[0]?.workspaceId
+        if (workspaceId !== undefined && ctx.sessions.list.getSnapshot().current === undefined) {
+          debug({ at: 'startSession', workspaceId })
+          try {
+            const sessionId = await ctx.workspaces.connectWorkspace(workspaceId)
+            debug({ at: 'connected', sessionId })
+            ctx.sessions.open(sessionId)
+            debug({ at: 'opened' })
+          } catch (error) {
+            debug({ at: 'connectError', message: error instanceof Error ? error.message : String(error) })
+          }
+        }
+      } catch (error) {
+        // 基线未就绪/网络抖动：交给重试。
+        debug({ at: 'error', message: error instanceof Error ? error.message : String(error) })
+      }
+    }
+    const run = (): void => { void tryAutoStart() }
+    const off = ctx.on('connection/reset', run)
+    window.setTimeout(run, 600)
+    timer = window.setInterval(run, 2000)
+    return () => {
+      off()
+      window.clearInterval(timer)
+    }
+  }, 'ui-workspace: auto-start first session')
+
   const searchSessions: WorkspaceBrowserInjected['searchSessions'] = async (query, signal) => {
     const result = await ctx.sessions.search(query, signal)
     if (!result.ok) throw new Error(result.error.message)
@@ -73,7 +145,12 @@ export function apply(ctx: ClientContext): void {
   const browserInjected = (): WorkspaceBrowserInjected => ({
     // Explicit group actions keep their target; unscoped New Session inherits
     // the current Session Workspace before the recent-Workspace fallback.
-    startSession: (workspaceId) => { ctx.workspaces.startSession(workspaceId) },
+    // HeightLab：工作区浏览区的「新建会话」同样先退出创意灵感/自动化页面。
+    startSession: (workspaceId) => {
+      window.dispatchEvent(new CustomEvent('hl:close-hub'))
+      window.dispatchEvent(new CustomEvent('hl:close-automation'))
+      ctx.workspaces.startSession(workspaceId)
+    },
     open: (sessionId) => { ctx.sessions.open(sessionId) },
     searchSessions,
     searchResultLimit: ctx.sessions.searchResultLimit,

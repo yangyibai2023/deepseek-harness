@@ -29,6 +29,12 @@
   border-right: 1px solid var(--dsw-alias-border-l1);
 }
 
+/* HeightLab：折叠后侧边栏列不再涂灰/描边，图标直接落在背景面板上。 */
+.frame[data-sidebar-collapsed] .sidebarCol {
+  background: transparent;
+  border-right: none;
+}
+
 .centerCol {
   min-width: 0;
   display: flex;

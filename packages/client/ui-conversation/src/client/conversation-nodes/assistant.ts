@@ -36,6 +36,11 @@ interface AssistantState {
   readonly usage: unknown
 }
 
+/** 交付文件自动打开标记：<hl-open-path>/abs/path</hl-open-path>（不显示）。 */
+const HL_OPEN_PATH_RE = /<hl-open-path>\s*([^<]+?)\s*<\/hl-open-path>/g
+const autoOpenedMarkers = new Set<string>()
+let assistantCtx: Context | undefined
+
 function initialState(turn: number, step: number): AssistantState {
   return {
     turn,
@@ -263,9 +268,35 @@ export const assistantDefinition: ConversationNodeDefinition<AssistantState> = {
   update: (context, match) => {
     if (match.event.type === 'assistant/chunk') return updateChunk(context.state, match)
     if (match.event.type === 'assistant/message') {
+      const message = match.event.data.message
+      const rawBlocks = toAssistantBlocks(message.content).map((block) =>
+        block.kind === 'text' ? { ...block } : block,
+      )
+      const openPaths: string[] = []
+      for (const block of rawBlocks) {
+        if (block.kind !== 'text') continue
+        block.text = block.text.replace(HL_OPEN_PATH_RE, (_marker, rawPath: string) => {
+          const path = rawPath.trim()
+          if (path) openPaths.push(path)
+          return ''
+        })
+      }
+      if (openPaths.length > 0) {
+        const key = `${match.event.data.turn}:${match.event.data.step}:${message.id}`
+        if (!autoOpenedMarkers.has(key)) {
+          autoOpenedMarkers.add(key)
+          setTimeout(() => {
+            for (const path of openPaths) {
+              void assistantCtx?.workspaces.openPath(path).catch(() => {
+                // 打不开时静默；消息正文里仍保留可点击的路径说明。
+              })
+            }
+          }, 400)
+        }
+      }
       return {
         ...context.state,
-        blocks: toAssistantBlocks(match.event.data.message.content),
+        blocks: rawBlocks,
         hidden: false,
         final: match,
         usage: match.event.data.usage,
@@ -314,5 +345,6 @@ export const assistantDefinition: ConversationNodeDefinition<AssistantState> = {
  * @param ctx - owning UI Conversation context.
  */
 export function registerAssistantConversationNode(ctx: Context): void {
+  assistantCtx = ctx
   ctx.conversationEvents.register(assistantDefinition)
 }

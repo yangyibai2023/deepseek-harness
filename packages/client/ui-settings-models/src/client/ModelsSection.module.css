@@ -201,6 +201,13 @@
   line-height: 18px;
 }
 
+/* HeightLab：官方默认提供商锁定提示。 */
+.rowLocked {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary);
+}
+
 .primaryButton:disabled,
 .secondaryButton:disabled,
 .dangerButton:disabled,

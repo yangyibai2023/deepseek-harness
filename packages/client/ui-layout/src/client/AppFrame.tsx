@@ -13,7 +13,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { PropsRenderSlots, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
-import { computeColumns, SIDEBAR_AUTO_COLLAPSE, SIDEBAR_DEFAULT } from './columns.ts'
+import { computeColumns, SIDEBAR_DEFAULT } from './columns.ts'
 import type { createLayoutStore } from './stores.ts'
 import css from './AppFrame.module.css'
 
@@ -98,6 +98,16 @@ export function AppFrame({
   const frameRef = useRef<HTMLDivElement | null>(null)
   const [viewport, setViewport] = useState(() => window.innerWidth)
 
+  // HeightLab：better-sidebar 打开右侧面板时自动收起左侧边栏，
+  // 保证中间输入区宽度足够；用户仍可手动展开左侧。
+  useEffect(() => {
+    const onRightPanelOpen = (): void => {
+      if (panels.sidebar !== 0) actions.toggleSidebar()
+    }
+    window.addEventListener('heightlab:right-panel-open', onRightPanelOpen)
+    return () => window.removeEventListener('heightlab:right-panel-open', onRightPanelOpen)
+  }, [actions, panels.sidebar])
+
   const lastSession = useRef(detailsSession)
   useLayoutEffect(() => {
     if (detailsSession === undefined) return
@@ -133,7 +143,8 @@ export function AppFrame({
   // solver stays breakpoint-free: a narrow re-expand passes the preference
   // (or the default when the wide preference is closed) and the center
   // absorbs the squeeze.
-  const narrow = viewport < SIDEBAR_AUTO_COLLAPSE
+  // HeightLab：禁用窄视口自动折叠，侧边栏只由用户手动折叠。
+  const narrow = false
   useEffect(() => { actions.setNarrow(narrow) }, [actions, narrow])
   const sidebarCollapsed = narrow ? !panels.narrowExpanded : panels.sidebar === 0
   const sidebarPreference = sidebarCollapsed

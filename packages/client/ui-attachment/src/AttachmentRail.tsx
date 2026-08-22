@@ -14,6 +14,8 @@ export interface AttachmentRailItem {
   id: string
   /** Object or data URL rendered as the thumbnail. */
   previewUrl: string
+  /** Thumbnail kind; videos render a muted <video> preview instead of <img>. */
+  kind?: 'image' | 'video' | 'audio'
   /** Image alt text (display name with the owner's fallback applied). */
   alt: string
   /** Accessible label of the item's remove control. */
@@ -172,7 +174,28 @@ export function AttachmentRail<T extends AttachmentRailItem>({ items, labels, on
               title={labels.open}
               onClick={() => { onOpen(item) }}
             >
-              <img src={item.previewUrl} alt={item.alt} />
+              {item.kind === 'video'
+                ? (
+                  <video
+                    src={item.previewUrl}
+                    muted
+                    playsInline
+                    preload="metadata"
+                    aria-label={item.alt}
+                  />
+                )
+                : item.kind === 'audio'
+                  ? (
+                    <span className={css.audioGlyph} role="img" aria-label={item.alt}>
+                      <svg viewBox="0 0 24 24" width="26" height="26" fill="none" aria-hidden>
+                        <path
+                          d="M9 18.5a3 3 0 1 1-2-2.83V6.2a1 1 0 0 1 .76-.97l8-2A1 1 0 0 1 17 4.2v11.47a3 3 0 1 1-2-2.83V7.18l-6 1.5v9.82Z"
+                          fill="currentColor"
+                        />
+                      </svg>
+                    </span>
+                  )
+                  : <img src={item.previewUrl} alt={item.alt} />}
             </button>
             <button
               type="button"

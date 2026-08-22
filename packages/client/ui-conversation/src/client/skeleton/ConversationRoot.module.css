@@ -4,6 +4,7 @@
    a 2px active bar. */
 
 .root {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -25,10 +26,29 @@
   --dsh-composer-dock-inset: 8px;
 }
 
+/* HeightLab：新对话页顶部透明拖拽区（absolute，不占布局）。
+   left 30px 让开左侧步骤导航条；右侧 better-sidebar 按钮 z 更高不受影响。 */
+.heroDragRegion {
+  position: absolute;
+  top: 0;
+  left: 30px;
+  right: 0;
+  height: 36px;
+  z-index: 20;
+}
+
+/* HeightLab：左侧步骤导航条 + 会话主体横排；导航条为空时只占 0 宽。 */
+.bodyRow {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
 .header {
   position: relative;
   flex: none;
-  padding: 12px 28px 0 20px;
+  /* HeightLab：标题行直接到最顶部，与右侧边栏按钮/红绿灯对齐。 */
+  padding: 0 28px 0 20px;
   border-bottom: 1px solid transparent;
 }
 
@@ -47,14 +67,23 @@
 /* Blank hero/settling: keep the strict Session header mounted without taking
    column space; the root-owned scrollport and composer remain below it. */
 .headerHidden {
-  display: none;
+  /* HeightLab：空白会话也保留顶部透明拖拽条（不显示内容、不拦截子元素点击）。 */
+  display: flex;
+  height: 36px;
+  min-height: 36px;
+  opacity: 0;
+  pointer-events: auto;
+}
+
+.headerHidden * {
+  pointer-events: none;
 }
 
 .titleRow {
   display: flex;
   align-items: center;
   gap: 0;
-  min-height: 32px;
+  min-height: 40px;
 }
 
 .titleCluster {
@@ -187,6 +216,394 @@
   flex: 1;
   flex-direction: column;
   min-height: 0;
+  position: relative;
+}
+
+/* HeightLab：自动化页右上角关闭按钮（与创意灵感同款位置/样式）。 */
+.automationClose {
+  position: absolute;
+  top: 12px;
+  right: 20px;
+  /* 必须高于新会话页顶部 36px 窗口拖拽区（z-index 20），否则鼠标点不到。 */
+  z-index: 30;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+}
+
+.automationClose:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  /* 悬停只加深底色，不出现蓝色（与创意灵感关闭按钮一致）。 */
+  color: var(--dsw-alias-label-secondary);
+}
+
+/* HeightLab：关闭按钮悬停浅灰底色（创意灵感与自动化一致）。 */
+.closeHover {
+  background: transparent;
+  border-radius: 6px;
+}
+
+.closeHover:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+/* HeightLab：资料库页内双标签（素材管理 / 知识库），与原生页签同风格。 */
+.libraryTabs {
+  display: flex;
+  gap: 28px;
+  padding: 4px 24px 0;
+  border-bottom: 1px solid var(--dsw-alias-border-l2);
+}
+
+.libraryTab {
+  position: relative;
+  padding: 8px 2px 10px;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  line-height: 16px;
+  font-weight: 500;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+}
+
+.libraryTab::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: transparent;
+}
+
+.libraryTabActive {
+  color: var(--dsw-alias-label-primary);
+}
+
+.libraryTabActive::after {
+  background: var(--dsw-alias-label-primary);
+}
+
+/* HeightLab：知识库原生面板（上下布局：顶部新建，下方列表）。 */
+.libraryActionBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
+  flex-shrink: 0;
+}
+
+.libraryActionButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  line-height: 20px;
+  cursor: pointer;
+}
+
+.libraryActionButton:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.libraryPrimaryButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--dsw-alias-label-primary);
+  color: var(--dsw-alias-bg-base);
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.libraryPrimaryButton:hover {
+  opacity: 0.88;
+}
+
+.libraryBody {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+.libraryLeft {
+  width: 112px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  border-right: 1px solid var(--dsw-alias-border-l1);
+  gap: 4px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.libraryRight {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.libraryGroupRow {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.libraryGroupRow:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.libraryGroupRowActive {
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-primary);
+  font-weight: 600;
+}
+
+.libraryList {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 24px 28px;
+}
+
+.librarySectionTitle {
+  margin: 14px 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.libraryBaseRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  cursor: pointer;
+  text-align: left;
+}
+
+.libraryBaseRow:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.libraryBaseRowActive {
+  border-color: var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+.libraryBaseAvatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-bg-layer-2);
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.libraryDocRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 32px 9px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  cursor: pointer;
+  text-align: left;
+}
+
+.libraryDocRow:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.libraryInput {
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.libraryInput:focus {
+  border-color: var(--dsw-alias-label-primary);
+}
+
+.libraryTextarea {
+  width: 100%;
+  min-height: 100px;
+  padding: 8px 10px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.libraryDialogBackdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--dsw-alias-bg-mask-1);
+}
+
+.libraryDialog {
+  width: 460px;
+  max-width: 92%;
+  max-height: 86%;
+  overflow-y: auto;
+  padding: 20px;
+  border-radius: 24px;
+  background: var(--dsw-alias-bg-layer-1);
+  box-shadow: var(--dsw-shadow-lv3);
+}
+
+.libraryDialogTitle {
+  margin-bottom: 14px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.libraryDropZone {
+  border: 1px dashed var(--dsw-alias-border-l2);
+  border-radius: 10px;
+  margin: 8px 0 12px;
+  padding: 18px;
+  text-align: center;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+}
+
+.libraryDropZoneActive {
+  border-color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.libraryCardGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  overflow: hidden;
+}
+
+.libraryCard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-layer-1);
+}
+
+.libraryCardTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.libraryCardMeta {
+  font-size: 11px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.libraryCardActions {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: auto;
+}
+
+.libraryCardThumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 120px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+}
+
+.libraryCardThumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* HeightLab：创意灵感覆盖层（会话视图常驻其下，标签随时互切）。 */
+.hubOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  background: var(--dsw-alias-bg-base);
 }
 
 /* Composer context stack (Figma 9:937): standalone dock cards share one
@@ -230,6 +647,7 @@
 .scrollBody {
   display: flex;
   flex: 1;
+  min-width: 0;
   flex-direction: column;
   min-height: 0;
   overflow-y: auto;
@@ -360,7 +778,18 @@
    the tree seat matches active (sticky footer) without a Root remount. */
 .root[data-phase='hero'] .scrollBody {
   justify-content: center;
-  overflow-y: auto;
+  /* HeightLab：hero 页整体固定，不因模板浮层出现滚动条/滚动，避免输入框
+     在模板收起展开时晃动；模板内容由内部 .scroll 自行滚动。 */
+  overflow-x: hidden;
+  overflow-y: hidden;
+}
+
+/* HeightLab：新会话页整体上移（中心从 50% → 30%，即上移 20% 视口高度），
+   为输入框下方模板留出更大空间；2026-08-17 先下移 10%（40vh→20vh）后
+   用户反馈偏大，回调 5%（20vh→30vh，中心约 35%）。
+   用不对称 margin 而非 transform，避免影响内部 fixed 定位弹层。 */
+.root[data-phase='hero'] .composerSeat {
+  margin-bottom: 30vh;
 }
 
 /* Settling (session replaying, hero/docked unknown): keep the composer seat

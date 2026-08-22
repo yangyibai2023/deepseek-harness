@@ -30,20 +30,263 @@
   background: var(--dsw-alias-interactive-bg-hover);
 }
 
+/* HeightLab：设置/账户图标与侧栏其他图标同色（次级灰）。 */
+.trigger svg,
+.sideAction svg {
+  color: var(--dsw-alias-label-secondary);
+}
+
 /* Rail trigger: the same 36x36 circle box as the other rail controls. */
 .trigger.rail {
-  width: 36px;
-  height: 36px;
-  margin: 8px 0 10px;
+  /* HeightLab：折叠 rail 统一 28px 方形图标，无底色，左侧对齐。 */
+  width: 28px;
+  height: 28px;
+  margin: 0 0 8px;
   justify-content: center;
   gap: 0;
   padding: 0;
-  border-radius: 50%;
+  border-radius: 8px;
 }
 
 .triggerLabel {
   overflow: hidden;
   white-space: nowrap;
+}
+
+/* HeightLab：账户行 = 账户入口（左，悬浮底色只覆盖自身内容）+
+   通知/连接手机（右，手机与顶部折叠按钮同一纵列）。 */
+.accountRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  /* 同宽/同右边距：头像左缘与上方「工作区」标题对齐（+4px），
+     右缘与折叠按钮同列。 */
+  width: calc(100% + 8px);
+  margin: 4px -4px;
+  padding: 0 2px 0 8px;
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+.trigger.accountWide {
+  width: auto;
+  flex: none;
+}
+
+.accountActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.sideAction {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  /* 与设置齿轮同色、同 16px 图标。 */
+  color: var(--dsw-alias-label-primary);
+}
+
+.sideAction:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.sideAction svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+/* HeightLab：更新胶囊——仅在有可用更新时显示；黑底白字，
+   高度与铃铛/手机一致（28px），宽度较旧版缩小约 30-40%
+   （文字缩到 11px、内边距收紧、进度只显示数字），文字保持横排。 */
+.updatePill {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  height: 28px;
+  padding: 0 6px;
+  border: none;
+  border-radius: 999px;
+  background: #0f1115;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  letter-spacing: 0;
+  cursor: pointer;
+}
+
+.updatePill:hover {
+  background: #26282e;
+}
+
+.updatePill:disabled {
+  cursor: default;
+  opacity: 0.75;
+}
+
+.bellDot {
+  position: absolute;
+  top: 5px;
+  right: 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #23c06d;
+  box-shadow: 0 0 0 2px var(--dsw-alias-bg-layer-2);
+  pointer-events: none;
+}
+
+/* HeightLab：公告通知中心弹窗（原生黑白灰，跟随主题 token）。 */
+.announceOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.announceMask {
+  position: absolute;
+  inset: 0;
+  background: var(--dsw-alias-bg-mask-1);
+  backdrop-filter: var(--dsw-mask-blur);
+}
+
+.announcePanel {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  width: 520px;
+  max-width: calc(100vw - 48px);
+  max-height: min(640px, calc(100vh - 48px));
+  border-radius: 20px;
+  overflow: hidden;
+  background: var(--dsw-alias-bg-layer-2);
+  box-shadow: var(--dsw-shadow-lv3);
+}
+
+.announceHeader {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 18px 10px 22px;
+}
+
+.announceTitle {
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary);
+}
+
+.announceClose {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.announceClose:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.announceList {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 6px 18px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.announceEmpty {
+  padding: 48px 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--dsw-alias-label-tertiary, var(--dsw-alias-label-secondary));
+}
+
+.announceItem {
+  padding: 12px 14px;
+  border: 1px solid var(--dsw-alias-border-l2, rgba(127, 127, 127, 0.2));
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-layer-1);
+}
+
+.announceItemHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.announceItemTitle {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.announceDot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #23c06d;
+}
+
+.announceContent {
+  margin-top: 6px;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.announceTime {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--dsw-alias-label-tertiary, var(--dsw-alias-label-secondary));
+}
+
+/* 折叠态：账户行只保留 28px 图标，不加展开行内边距/负边距。 */
+.accountRowRail {
+  width: auto;
+  margin: 0;
+  padding: 0;
 }
 
 /* Full-viewport layer (figma Mask 501:29946 #000@24%): mask tokens match the

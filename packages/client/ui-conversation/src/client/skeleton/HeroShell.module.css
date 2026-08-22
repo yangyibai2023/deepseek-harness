@@ -9,6 +9,8 @@
   height: 100%;
   min-width: 0;
   padding: 0 24px;
+  /* HeightLab：标题整体向下贴近输入框，标题↔输入框间距缩短约 30%。 */
+  margin-bottom: -17px;
 }
 
 /* Cap matches the InputBar card. Glow may paint past the sides. */
@@ -28,7 +30,7 @@
    riding the title's top-right. */
 .headline {
   display: grid;
-  grid-template-columns: 34px auto auto;
+  grid-template-columns: 68px auto auto;
   column-gap: 10px;
   align-items: center;
   justify-content: center;
@@ -50,10 +52,11 @@
   margin-top: 2px;
   margin-left: -3px;
   padding: 1px 7px 0;
-  border: 1px solid var(--dsw-alias-interactive-bg-hover);
+  /* HeightLab：内测版徽章——灰字、灰底（与底色轻微对比）、无边框，轻量化。 */
+  border: none;
   border-radius: 24px;
-  background: var(--dsw-alias-state-business-tertiary);
-  color: var(--dsw-alias-label-primary-bluish);
+  background: var(--dsw-alias-bg-layer-3);
+  color: var(--dsw-alias-label-tertiary);
   font-family: var(--ds-font-family-code);
   font-size: 12px;
   line-height: 18px;
@@ -72,7 +75,11 @@
 
 /* Keep the hero mark in the same primary ink as its headline. */
 .fish {
-  color: var(--dsw-alias-label-primary);
+  width: 68px;
+  height: 68px;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
   transform-origin: 50% 60%;
 }
 

@@ -53,6 +53,40 @@
   line-height: 20px;
   color: var(--dsw-alias-label-secondary);
   cursor: default;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.statsDivider {
+  margin: 10px 0;
+  border-top: 1px solid var(--dsw-alias-border-l3);
+}
+
+.statsTitle {
+  margin-bottom: 6px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary);
+}
+
+.statsRows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.statsRow {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.statsDot {
+  flex: none;
+  align-self: center;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--dsw-alias-label-tertiary);
 }
 
 .header {

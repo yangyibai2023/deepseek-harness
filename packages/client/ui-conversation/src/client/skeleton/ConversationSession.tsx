@@ -79,6 +79,8 @@ export function ConversationSessionHeader({
   return (
     <header
       className={clsx(css.header, hideChrome && css.headerHidden)}
+      data-tauri-drag-region="deep"
+      data-hl-session-header=""
       aria-hidden={hideChrome || undefined}
     >
       {!hideChrome && (
@@ -186,20 +188,88 @@ export function ConversationSession({
   const inspect = useStore(s => s.inspect ?? null)
 
   useEffect(() => {
-    if (inputState.draft === '' && storedDraft !== '') inputActions.setDraft(storedDraft)
+    // HeightLab：清理历史遗留的孤立 U+FFFC 占位符（早期模板胶囊实现产物），
+    // 避免输入框出现乱码/乱符号。
+    if (inputState.draft === '' && storedDraft !== '') {
+      inputActions.setDraft(storedDraft.replace(/\uFFFC/g, ''))
+    }
     const unmirror = bindDraftMirror(actions.setDraft)
     return () => { unmirror() }
     // Mount-only (deps pinned to inputActions): later store writes come from
     // the machine mirror, not this seed effect.
   }, [inputActions])
 
+  // HeightLab：自动化视图（dsh-automation 插件）由侧边栏「自动化」进入/退出，
+  // 页签条已隐藏，这里负责视图切换。
+  useEffect(() => {
+    const onOpen = (): void => { actions.setView('automation') }
+    const onClose = (): void => { actions.setView('chat') }
+    window.addEventListener('hl:open-automation', onOpen)
+    window.addEventListener('hl:close-automation', onClose)
+    return () => {
+      window.removeEventListener('hl:open-automation', onOpen)
+      window.removeEventListener('hl:close-automation', onClose)
+    }
+  }, [actions])
+
+  // HeightLab：自动化视图与右侧边栏互斥（复用 hub 互斥标记与折叠按钮簇），
+  // 进入时隐藏右侧按钮与面板，退出/切换会话时恢复。
+  useEffect(() => {
+    const isAutomation = active?.id === 'automation'
+    try {
+      document.body.dataset.hlAutomation = isAutomation ? '1' : '0'
+      document.body.dataset.hlHub = isAutomation ? '1' : '0'
+    } catch { /* 非致命 */ }
+    if (!isAutomation) return
+    const labels = ['收起侧边栏', '折叠侧边栏', '收起底部面板', '折叠底部面板']
+    const closePanels = (): void => {
+      const cluster = document.querySelector('.W-zNGW_toggleCluster')
+      if (!cluster) return
+      const buttons = [...cluster.querySelectorAll<HTMLButtonElement>('button[aria-label]')]
+      for (const label of labels) {
+        const button = buttons.find(candidate => (candidate.getAttribute('aria-label') ?? '').includes(label))
+        if (button) button.click()
+      }
+    }
+    closePanels()
+    const timers = [
+      window.setTimeout(closePanels, 300),
+      window.setTimeout(closePanels, 1000),
+    ]
+    return () => {
+      for (const timer of timers) window.clearTimeout(timer)
+      try {
+        if (document.body.dataset.hlAutomation === '1') {
+          document.body.dataset.hlAutomation = '0'
+          document.body.dataset.hlHub = '0'
+        }
+      } catch { /* 非致命 */ }
+    }
+  }, [active?.id])
+
   useEffect(() => () => {
     releaseSessionImages(sessionId)
   }, [releaseSessionImages, sessionId])
 
-  if (blank && composerPhase === 'blank') return null
+  // HeightLab：自动化视图（dsh-automation）在空白新会话（hero）下也必须
+  // 渲染——否则点侧边栏「自动化」没有页面变化（视图被 blank 分支吞掉）。
+  if (blank && composerPhase === 'blank' && active?.id !== 'automation') return null
   return (
     <div className={css.viewArea}>
+      {/* HeightLab：自动化页右上角关闭按钮（与创意灵感同款位置/样式）。 */}
+      {active?.id === 'automation' && (
+        <button
+          type="button"
+          className={css.automationClose}
+          aria-label="关闭自动化"
+          title="关闭自动化"
+          onClick={() => { actions.setView('chat') }}
+        >
+          <svg viewBox="0 0 16 16" width="16" height="16" fill="none" aria-hidden="true">
+            <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+          </svg>
+        </button>
+      )}
       {active !== undefined && renderSlot('conversation.view', {
         inspect,
         onInspectDone: () => { actions.setInspect(null) },

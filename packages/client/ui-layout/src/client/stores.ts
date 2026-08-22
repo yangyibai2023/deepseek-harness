@@ -64,7 +64,12 @@ export function createLayoutStore(): EngineStoreHandle<LayoutState, LayoutAction
         d.narrow = narrow
         d.narrowExpanded = false
       },
-      openDetails: (d) => { if (d.details === 0) d.details = DETAILS_DEFAULT },
+      // HeightLab：右侧边栏打开时自动收起左侧，保证中间输入区宽度足够；
+      // 用户仍可手动展开左侧（两边同开时由输入区换行兜底）。
+      openDetails: (d) => {
+        if (d.details === 0) d.details = DETAILS_DEFAULT
+        if (d.sidebar !== 0) d.sidebar = 0
+      },
       closeDetails: (d) => { d.details = 0 },
     },
   })

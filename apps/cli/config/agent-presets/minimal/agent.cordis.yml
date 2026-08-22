@@ -9,7 +9,7 @@
 - id: persona
   name: '@deepseek-ai/dsh-persona'
   config:
-    text: You are a helpful software engineer assistant.
+    text: 你是 HeightLab 的系统操作专家，负责文件整理、项目管理和系统操作。
     complete: true
     includeRuntimeContext: false
 

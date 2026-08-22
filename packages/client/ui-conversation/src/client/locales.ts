@@ -11,6 +11,8 @@ const PLAN_NEXT_ACTION_EN = 'describe your task to generate plan'
 /** Simplified Chinese dictionary (the key-set source of truth). */
 export const zh = {
   'view.chat': '对话',
+  'rail.aria': '会话步骤',
+  'rail.step': '步骤 {n}',
   'hint.plan': PLAN_NEXT_ACTION_ZH,
   'hint.goal': '输入目标，智能体将持续执行',
   'hint.goal.active': '当前目标进行中。可输入 edit 修改 / pause 暂停 / resume 继续 / clear 清除',
@@ -71,8 +73,8 @@ export const zh = {
   'access.confirm.acknowledge': '我已了解风险，并愿意继续',
   'access.confirm.cancel': '取消',
   'access.confirm.enable': '启用 Full access',
-  'hero.headline': '探索未至之境',
-  'hero.preview': '预览版',
+  'hero.headline': '一句话，启动你的营销引擎',
+  'hero.preview': '内测版',
   'hero.chooseWorkspace': '选择工作区',
   'session.hierarchy': '会话层级',
   'details.title': '详情',
@@ -188,6 +190,8 @@ export type ConversationKey = keyof typeof zh
 /** English dictionary, checked complete against the zh key set. */
 export const en = {
   'view.chat': 'Chat',
+  'rail.aria': 'Conversation steps',
+  'rail.step': 'Step {n}',
   'hint.plan': PLAN_NEXT_ACTION_EN,
   'hint.goal': 'describe the objective for a long-running task',
   'hint.goal.active': 'goal active — edit / pause / resume / clear',
@@ -248,8 +252,8 @@ export const en = {
   'access.confirm.acknowledge': 'I understand the risks and want to continue',
   'access.confirm.cancel': 'Cancel',
   'access.confirm.enable': 'Enable Full access',
-  'hero.headline': 'Into the Unknown',
-  'hero.preview': 'Preview',
+  'hero.headline': 'Start Your Marketing Engine in One Sentence',
+  'hero.preview': 'Beta',
   'hero.chooseWorkspace': 'Choose workspace',
   'session.hierarchy': 'Session hierarchy',
   'details.title': 'Details',

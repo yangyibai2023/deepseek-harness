@@ -19,6 +19,16 @@
   padding-right: 0;
 }
 
+/* HeightLab：折叠 rail 内，添加/搜索按钮与上方图标对齐在同一纵线。 */
+.root.rail .sectionHeader {
+  justify-content: center;
+  padding-left: 0;
+}
+
+.root.rail .search {
+  justify-content: center;
+}
+
 .iconButton {
   flex: none;
   display: inline-flex;
@@ -254,14 +264,14 @@
 }
 
 .rail .iconButton {
-  width: 36px;
-  height: 36px;
-  color: var(--dsw-alias-label-primary);
+  width: 28px;
+  height: 28px;
+  color: var(--dsw-alias-label-secondary);
 }
 
 .rail .search {
-  width: 36px;
-  height: 36px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   margin: 0 0 12px;
   gap: 0;
@@ -270,9 +280,9 @@
 }
 
 .rail .searchButton {
-  width: 36px;
-  height: 36px;
-  color: var(--dsw-alias-label-primary);
+  width: 28px;
+  height: 28px;
+  color: var(--dsw-alias-label-secondary);
 }
 
 .rail .searchButton:hover {

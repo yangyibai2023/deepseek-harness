@@ -25,6 +25,7 @@ import { normalizeUri } from 'micromark-util-sanitize-uri'
 import { CodeBlock } from './CodeBlock.tsx'
 import { renderTexToReact } from './katex.tsx'
 import type { PositionedBlock } from './incremental.ts'
+import { MarkdownImage } from './MarkdownImage.tsx'
 import css from './MarkdownText.module.css'
 
 /** Copy-button labels forwarded to fence CodeBlocks (this package is cordis-free, so copy arrives via props). */
@@ -494,16 +495,22 @@ function renderImage(url: string, alt: string, key: Key): ReactNode {
   if (imageSrc === undefined) {
     return <span key={key} className={css.imageAlt}>{alt}</span>
   }
+  // HeightLab: assistant markdown may embed a generated MP4/WebM via image
+  // syntax; render it as an inline <video> player instead of a broken <img>.
+  const lowerSrc = imageSrc.toLowerCase()
+  if (lowerSrc.endsWith('.mp4') || lowerSrc.endsWith('.webm') || lowerSrc.endsWith('.mov')) {
+    return (
+      <video
+        key={key}
+        className={css.video}
+        src={imageSrc}
+        controls
+        preload="metadata"
+      />
+    )
+  }
   return (
-    <img
-      key={key}
-      className={css.image}
-      src={imageSrc}
-      alt={alt}
-      loading="lazy"
-      decoding="async"
-      referrerPolicy="no-referrer"
-    />
+    <MarkdownImage key={key} src={imageSrc} alt={alt} />
   )
 }
 

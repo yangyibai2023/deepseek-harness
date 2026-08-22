@@ -51,14 +51,33 @@ function permissionGlyph(value: string): ReactNode | undefined {
  * pass through. Full access intentionally overrides the machine-name
  * transform so both permission surfaces use the product label `Full access`;
  * the warning body remains locale-aware.
+ *
+ * HeightLab 中文档位名：普通用户可读（仅查看 / 当前项目 / 完全访问）。
  */
+const ZH_PRESET_LABELS: Record<string, string> = {
+  'read-only': '仅查看',
+  'Read Only': '仅查看',
+  'Read-only': '仅查看',
+  'readonly': '仅查看',
+  'workspace-write': '当前项目',
+  'workspace': '当前项目',
+  'Workspace': '当前项目',
+  'danger-full-access': '完全访问',
+  'Full access': '完全访问',
+  'full-access': '完全访问',
+}
+
 function displayName(name: string): string {
+  const zh = ZH_PRESET_LABELS[name]
+  if (zh) return zh
   if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(name)) return name
   return name.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
 }
 
 function optionLabel(option: PermissionSelectValue['options'][number]): string {
-  return option.value === FULL_ACCESS ? 'Full access' : displayName(option.name)
+  const zh = ZH_PRESET_LABELS[option.name] ?? ZH_PRESET_LABELS[option.value]
+  if (zh) return zh
+  return option.value === FULL_ACCESS ? '完全访问' : displayName(option.name)
 }
 
 export interface PermissionSelectProps {
@@ -134,6 +153,9 @@ export function PermissionSelect({ value, locked, command, t }: PermissionSelect
         onSelect={choose}
         onClose={() => { setOpen(false) }}
         side="top"
+        // HeightLab：工具行 .tools 是 overflow:hidden，原地弹出会被裁掉；
+        // 用原生 portal 渲染（与模型选择/视频/图片工具栏一致），菜单 UI 不变。
+        portal
         anchor={
           <button
             type="button"

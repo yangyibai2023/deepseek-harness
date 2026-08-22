@@ -1,6 +1,21 @@
 /** Machine value of the preset that requires an explicit GUI risk gate. */
 export const FULL_ACCESS_PRESET = 'danger-full-access'
 
+/** HeightLab：权限档位中文名（仅查看 / 当前项目 / 完全访问）。 */
+const ZH_PRESET_LABELS: Record<string, string> = {
+  'read-only': '仅查看',
+  'Read Only': '仅查看',
+  'Read-only': '仅查看',
+  readonly: '仅查看',
+  'workspace-write': '当前项目',
+  workspace: '当前项目',
+  Workspace: '当前项目',
+  'Workspace Write': '当前项目',
+  'danger-full-access': '完全访问',
+  'Full access': '完全访问',
+  'full-access': '完全访问',
+}
+
 /**
  * Convert conventional kebab-case preset names into user-facing title case.
  * @param name - host-supplied preset label or key.
@@ -18,5 +33,6 @@ export function displayPresetName(name: string): string {
  * @returns the Full access product label or the conventional display name.
  */
 export function displayPermissionPreset(value: string, name: string): string {
-  return value === FULL_ACCESS_PRESET ? 'Full access' : displayPresetName(name)
+  return ZH_PRESET_LABELS[name] ?? ZH_PRESET_LABELS[value]
+    ?? (value === FULL_ACCESS_PRESET ? '完全访问' : displayPresetName(name))
 }

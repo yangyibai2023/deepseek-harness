@@ -115,7 +115,8 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 14px 16px 12px;
+  /* HeightLab：预设卡片只展示介绍，压缩上下留白，避免卡片过高。 */
+  padding: 10px 14px 8px;
   border-radius: 12px 12px 0 0;
 }
 
@@ -172,10 +173,10 @@
   font-size: 13px;
   line-height: 1.55;
   color: var(--dsw-alias-label-secondary);
-  min-height: 42px;
+  min-height: 21px;
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 4;
+  -webkit-line-clamp: 3;
   overflow: hidden;
   /* A user-authored description may carry an unbreakable path or URL. */
   overflow-wrap: anywhere;
@@ -186,72 +187,6 @@
   font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
   font-size: 11px;
   color: var(--dsw-alias-label-dimmed);
-}
-
-.cardFoot {
-  display: flex;
-  justify-content: flex-end;
-  gap: 2px;
-  padding: 6px 10px;
-  border-top: 1px solid var(--dsw-alias-border-l2);
-}
-
-/* Icon-only actions: the label rides `title` so the row stays quiet until
-   someone reaches for it. */
-.iconButton {
-  position: relative;
-  appearance: none;
-  border: 0;
-  border-radius: 7px;
-  padding: 6px;
-  background: none;
-  color: var(--dsw-alias-label-tertiary);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-}
-
-.iconButton:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
-.iconButton:hover:not(:disabled) {
-  background: var(--dsw-alias-bg-layer-1);
-  color: var(--dsw-alias-label-primary);
-}
-
-.iconButton:focus-visible {
-  outline: 2px solid var(--dsw-alias-brand-primary);
-  outline-offset: -1px;
-}
-
-.iconButton::after {
-  content: attr(data-tip);
-  position: absolute;
-  bottom: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 3px 8px;
-  border-radius: 6px;
-  background: var(--dsw-alias-label-primary);
-  color: var(--dsw-alias-bg-layer-3);
-  font-size: 11px;
-  line-height: 17px;
-  white-space: nowrap;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity .12s;
-}
-
-.iconButton:hover::after,
-.iconButton:focus-visible::after {
-  opacity: 1;
-}
-
-.iconDanger:hover:not(:disabled) {
-  background: var(--dsw-alias-interactive-bg-hover-danger);
-  color: var(--dsw-alias-state-error-primary);
 }
 
 /* Where the host has no desktop opener, the row answers with the directory

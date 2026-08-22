@@ -55,6 +55,14 @@
   color: var(--dsw-alias-label-caption);
 }
 
+/* HeightLab：输入行宽度不太充裕时先收缩模型选择器（只显示型号、隐藏思考
+   级别），把空间让给视频参数按钮，避免参数按钮被迫图标化。 */
+@container (max-width: 1080px) {
+  .triggerEffort {
+    display: none;
+  }
+}
+
 .chevron {
   flex: 0 0 auto;
   color: var(--dsw-alias-label-caption);

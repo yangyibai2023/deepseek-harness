@@ -29,10 +29,6 @@ export const inject = ['slots', 'conversationEvents', 'conversationViews', 'sess
  */
 export function apply(ctx: Context): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-trajectory: dictionaries')
-  // Registration-time text (the view tab label) reads through the bound
-  // translate as a thunk, so it follows the active locale without
-  // re-registration.
-  const t = ctx.locale.bind(NS)
   const duration = createTrajectoryDurationStore()
   registerTrajectoryMessageDefinitions(ctx)
   registerTrajectoryRequestHeaderDefinition(ctx)
@@ -40,26 +36,36 @@ export function apply(ctx: Context): void {
   registerTrajectoryToolDefinition(ctx)
   registerTrajectoryCompactionDefinitions(ctx)
   registerTrajectoryConversationView(ctx)
-  ctx.slots.inject('conversation.view', () => ctx.slots.register({
-    name: 'conversation.view',
-    id: 'trajectory',
-    order: 10,
-    locale: NS,
-    label: () => t('view.trajectory'),
-    inject: (sessionId: SessionId): TrajectoryViewInjected => {
-      const session = ctx.sessions.binding(sessionId)?.session
-      if (session === undefined) {
-        throw new Error(`ui-trajectory: session "${sessionId}" is unavailable`)
-      }
-      return {
-        hooks: { duration },
-        loadOlder: async () => {
-          const before = session.getSnapshot().views.get('trajectory')
-          await session.loadOlder()
-          return session.getSnapshot().views.get('trajectory') !== before
-        },
-        setActualDuration: (value) => { duration.set(value) },
-      }
-    },
-  }, TrajectoryView))
+  // HeightLab：独立「轨迹」页签已收敛为聊天页左侧的轨迹导航条，因此不再
+  // 注册 conversation.view 页签（对话页签也随之只剩一个，顶部切换栏自动隐藏）。
+  // 注册代码原样保留，改回 true 即可恢复原版页签。
+  const trajectoryViewTabEnabled = false
+  if (trajectoryViewTabEnabled) {
+    // Registration-time text (the view tab label) reads through the bound
+    // translate as a thunk, so it follows the active locale without
+    // re-registration.
+    const t = ctx.locale.bind(NS)
+    ctx.slots.inject('conversation.view', () => ctx.slots.register({
+      name: 'conversation.view',
+      id: 'trajectory',
+      order: 10,
+      locale: NS,
+      label: () => t('view.trajectory'),
+      inject: (sessionId: SessionId): TrajectoryViewInjected => {
+        const session = ctx.sessions.binding(sessionId)?.session
+        if (session === undefined) {
+          throw new Error(`ui-trajectory: session "${sessionId}" is unavailable`)
+        }
+        return {
+          hooks: { duration },
+          loadOlder: async () => {
+            const before = session.getSnapshot().views.get('trajectory')
+            await session.loadOlder()
+            return session.getSnapshot().views.get('trajectory') !== before
+          },
+          setActualDuration: (value) => { duration.set(value) },
+        }
+      },
+    }, TrajectoryView))
+  }
 }

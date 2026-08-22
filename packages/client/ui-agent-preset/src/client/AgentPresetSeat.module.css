@@ -96,6 +96,12 @@
   color: var(--dsw-alias-label-caption);
 }
 
+/* COLIN 胶囊（黑底）上的白色箭头：提示可点击选择 */
+.chevronOnDark {
+  flex: none;
+  color: #fff;
+}
+
 /* Menu rows carry the name over its description: the id alone never said what
    a preset does, which is why the metadata exists. */
 .item {

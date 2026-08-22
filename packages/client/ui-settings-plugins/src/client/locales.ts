@@ -14,10 +14,10 @@ export type PluginsSettingsLocaleKey =
 
 /** English copy. */
 export const en: Record<PluginsSettingsLocaleKey, string> = {
-  nav: 'Plugins',
-  title: 'Plugins',
-  intro: 'Configure and inspect the plugins installed in this deployment.',
-  tabs: 'Plugin views',
+  nav: 'Extensions',
+  title: 'Extensions',
+  intro: 'View and manage installed plugins, MCP servers, and other extensions.',
+  tabs: 'Extension views',
   configurableTab: 'Plugin configuration',
   empty: 'This deployment exposes no plugin settings.',
   overridden: 'Overridden',
@@ -55,10 +55,10 @@ export const en: Record<PluginsSettingsLocaleKey, string> = {
 
 /** Simplified Chinese copy. */
 export const zh: Record<PluginsSettingsLocaleKey, string> = {
-  nav: '插件',
-  title: '插件',
-  intro: '配置和查看本部署已安装的插件。',
-  tabs: '插件视图',
+  nav: '插件扩展',
+  title: '插件扩展',
+  intro: '查看和管理已安装的插件、MCP 服务等扩展。',
+  tabs: '扩展视图',
   configurableTab: '插件配置',
   empty: '本部署没有开放任何插件设置。',
   overridden: '已覆盖',

@@ -32,10 +32,12 @@ export interface AgentPresetSeatState {
    * chip); the renderer clears it via `introduced()` once played.
    */
   introduce: boolean
+  /** Whether the current session has a running turn (only then show “谁在工作”). */
+  running: boolean
 }
 
 const INITIAL: AgentPresetSeatState = {
-  options: [], current: '', error: null, busy: false, introduce: false,
+  options: [], current: '', error: null, busy: false, introduce: false, running: false,
 }
 
 /** One session's identity and whether it has started. */
@@ -46,6 +48,8 @@ export interface SeatSessionSummary {
   blank: boolean
   /** The preset the session already runs, when the summary reports one. */
   agentPreset?: string
+  /** Whether the session currently has a running turn. */
+  running?: boolean
 }
 
 /** Stages the next session's preset and applies it when one appears. */
@@ -78,6 +82,12 @@ export class AgentPresetSeatController {
     this.store.set({ ...this.store.getSnapshot(), ...patch })
   }
 
+  /** 同步当前会话的运行状态（决定是否显示“谁在工作”的覆盖标签）。 */
+  private syncSession(): void {
+    const session = this.currentSession()
+    this.set({ running: session?.running === true })
+  }
+
   /**
    * Read the roster and open the chip on the deployment default.
    * @returns once the snapshot reflects the host.
@@ -102,6 +112,35 @@ export class AgentPresetSeatController {
         current: this.staged ?? this.currentSession()?.agentPreset ?? this.fallback,
         error: null,
       })
+      this.syncSession()
+      // HeightLab：每次进程启动都默认 Colin（deployment default）。
+      // 宿主启动脚本已清掉「当前会话」并进入新对话，但 startInitialSelection
+      // 会复用工作区里遗留的空白会话——若它带着上次首页选中的专家预设
+      // （如 video-producer），输入框就会默认显示专家而不是 Colin。
+      // 这里仅在本次进程首次加载（hl-boot-cleared 存在且未处理过）时，
+      // 把自动选中的空白会话重置回默认预设，普通刷新/后续挂载不重复执行。
+      try {
+        if (this.staged === undefined
+          && sessionStorage.getItem('hl-boot-cleared') === '1'
+          && sessionStorage.getItem('hl-boot-agent-defaulted') !== '1') {
+          const session = this.currentSession()
+          if (session !== undefined
+            && session.blank === true
+            && typeof session.agentPreset === 'string'
+            && session.agentPreset !== ''
+            && session.agentPreset !== this.fallback) {
+            void this.api.agentPresets.select({ sessionId: session.id, agentPreset: this.fallback })
+              .then((reset) => {
+                if (reset.result.ok) {
+                  this.set({ current: reset.result.value.agentPreset })
+                  this.onApplied?.(session.id, reset.result.value.agentPreset)
+                }
+              })
+              .catch(() => { /* 非致命：下次打开再重置 */ })
+          }
+          sessionStorage.setItem('hl-boot-agent-defaulted', '1')
+        }
+      } catch { /* 非致命 */ }
     } catch (error) {
       this.set({ error: messageOf(error) })
     }
@@ -149,9 +188,21 @@ export class AgentPresetSeatController {
    * @returns once the switch settled, or immediately when there is nothing to do.
    */
   async apply(): Promise<void> {
+    this.syncSession()
     const staged = this.staged
     const session = this.currentSession()
-    if (staged === undefined || session === undefined) return
+    if (staged === undefined) {
+      // 没有待应用的选择时，跟随当前会话的实际预设：冷启动/加载竞态下
+      // seat 可能回退到默认值（standard），但会话实际已是某个专家
+      // （如 image-generator），导致回复结束后选择框错误显示 COLIN，
+      // 而输入框按钮仍按会话预设显示（两者脱节）。
+      const current = this.store.getSnapshot().current
+      if (session?.agentPreset !== undefined && session.agentPreset !== current) {
+        this.set({ current: session.agentPreset })
+      }
+      return
+    }
+    if (session === undefined) return
     // A started session's history was produced under its own composition; the
     // host refuses the swap, so the stage is no longer meaningful.
     if (!session.blank || session.agentPreset === staged) {

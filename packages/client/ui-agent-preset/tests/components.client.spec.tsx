@@ -42,6 +42,7 @@ const SEAT_READY: AgentPresetSeatState = {
   busy: false,
   error: null,
   introduce: false,
+  running: false,
 }
 
 function renderRow(state: Partial<AgentPresetSettingsState> = {}) {

@@ -34,7 +34,13 @@ export function apply(ctx: ClientContext): void {
   const injectProps = (): SidebarRootInjected => ({
     // The shell's New Session button rides the runtime's shared action
     // (current Session Workspace, then recent Workspace).
-    startSession: (workspaceId) => { ctx.workspaces.startSession(workspaceId) },
+    // HeightLab：无论当前在创意灵感还是自动化页面，点「新会话」都先退出
+    // 回到主页面，再走原生新建会话逻辑。
+    startSession: (workspaceId) => {
+      window.dispatchEvent(new CustomEvent('hl:close-hub'))
+      window.dispatchEvent(new CustomEvent('hl:close-automation'))
+      ctx.workspaces.startSession(workspaceId)
+    },
     toggleSidebar: () => { ctx.layout.toggleSidebar() },
   })
   ctx.effect(

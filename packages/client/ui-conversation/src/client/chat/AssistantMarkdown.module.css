@@ -56,3 +56,106 @@
   /* Optical align with 28px icon hit targets that pad 6px past the glyph. */
   margin-left: -6px;
 }
+
+/* HeightLab avatar preview inline image (marker-rendered). */
+.avatarPreview {
+  display: block;
+  max-width: 240px;
+  max-height: 240px;
+  margin: 8px 0;
+  border-radius: 12px;
+  border: 1px solid var(--dsw-alias-border-l2, rgba(127,127,127,0.35));
+  object-fit: cover;
+}
+
+/* HeightLab 视频成片：缩略播放器 + 放大/下载/新窗口（SVG 图标）。 */
+.videoEmbed {
+  margin: 10px 0;
+}
+
+.videoThumb {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  max-height: 240px;
+  border-radius: 10px;
+  background: #000;
+  cursor: zoom-in;
+}
+
+.videoActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.videoAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--dsw-alias-border-l3, rgba(0, 0, 0, 0.14));
+  border-radius: 50%;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+}
+
+.videoAction:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.downloadMsg {
+  margin-top: 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--dsw-alias-interactive-bg-hover, rgba(127, 127, 127, 0.12));
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 18px;
+  word-break: break-all;
+}
+
+.videoOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.86);
+}
+
+.videoExpanded {
+  display: block;
+  width: auto;
+  max-width: min(92vw, 1100px);
+  max-height: 88vh;
+  border-radius: 10px;
+  background: #000;
+}
+
+.videoClose {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  cursor: pointer;
+}
+
+/* HeightLab：未知/内部内容块占位，不暴露原始 JSON。 */
+.unknownBlock {
+  font-size: 12px;
+  opacity: 0.7;
+}

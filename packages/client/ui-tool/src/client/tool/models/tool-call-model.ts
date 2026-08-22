@@ -20,10 +20,10 @@ export type ToolRowVariant = 'search' | 'read' | 'bash' | 'write' | 'edit' | 'co
 /** Row state semantic; colors self-supplied via StateDot (design gives none). */
 export type ToolRowState = 'running' | 'ok' | 'error' | 'stopped'
 
-/** Figma row titles per variant (design literals, not translatable copy). */
+/** HeightLab：工具行标题中文化（原为 Figma 英文设计字面量）。 */
 export const VARIANT_TITLES: Record<ToolRowVariant, string> = {
-  search: 'Search', read: 'Read', bash: 'Bash',
-  write: 'Write', edit: 'Edit', code: 'Code', others: 'Tool call',
+  search: '搜索', read: '读取', bash: '终端',
+  write: '写入', edit: '编辑', code: '代码', others: '工具调用',
 }
 
 /**
@@ -61,12 +61,89 @@ const TOOL_VARIANTS: Record<string, ToolRowVariant> = {
 
 /** Tool-owned titles that refine a generic row variant without replacing it. */
 const TOOL_TITLES: Record<string, string> = {
-  cordis_package_inspect: 'Inspect',
-  cordis_runtime_inspect: 'Inspect',
-  cordis_run: 'Run Cordis Plugin',
-  cordis_stop: 'Stop Cordis Plugin',
-  cordis_undefine: 'Remove Cordis Plugin',
-  pwsh: 'Pwsh',
+  cordis_package_inspect: '检查',
+  cordis_runtime_inspect: '检查',
+  cordis_run: '运行插件',
+  cordis_stop: '停止插件',
+  cordis_undefine: '移除插件',
+  pwsh: '终端',
+}
+
+/** HeightLab：内部/平台工具名 → 用户友好中文（仅展示，不改模型可见名）。 */
+const HEIGHTLAB_TOOL_LABELS: Readonly<Record<string, string>> = {
+  validate_dsh_ui: '界面渲染',
+  subagent: '子任务',
+  subagent_fork: '分支子任务',
+  subagent_image: '图片制作专家',
+  subagent_content: '内容创作专家',
+  subagent_video: '视频制作专家',
+  subagent_research: '研究分析专家',
+  ask_user_question: '询问用户',
+  create_goal: '创建目标',
+  get_goal: '查看目标',
+  list_agents: '智能体列表',
+  interrupt_agent: '中断任务',
+  job_kill: '终止任务',
+  job_list: '任务列表',
+  job_output: '任务输出',
+  'mcp__heightlab-tools__heightlab_image_generate': '图片生成',
+  'mcp__heightlab-tools__heightlab_image_analyze': '图片理解',
+  'mcp__heightlab-tools__video_replication': '视频生成',
+  'mcp__heightlab-tools__heightlab_video_generate': '视频生成',
+  'mcp__heightlab-tools__video_edit': '视频剪辑',
+  'mcp__heightlab-tools__video_storyboard': '分镜故事板',
+  'mcp__heightlab-tools__talking_head_production': '数字人口播',
+  'mcp__heightlab-tools__heightlab_video_analyze': '视频分析',
+  'mcp__heightlab-tools__xiaohongshu_content': '小红书内容',
+  'mcp__heightlab-tools__xiaohongshu_copy': '小红书文案',
+  'mcp__heightlab-tools__xiaohongshu_extract': '小红书提取',
+  'mcp__heightlab-tools__douyin_video_analysis': '抖音视频分析',
+  'mcp__heightlab-tools__dydata_account_analysis': '账号数据分析',
+  'mcp__heightlab-tools__dydata_account_status': '账号状态',
+  'mcp__heightlab-tools__heightlab_live_search': '直播搜索',
+  'mcp__minimax__understand_image': '图片理解',
+}
+
+/** HeightLab：展示层脱敏（仅展示，不改模型可见内容/会话原文）。 */
+const MCP_TOOL_RE = /mcp__[A-Za-z0-9_]+__[A-Za-z0-9_]+/g
+const ABSOLUTE_PATH_RE = /(?:\/Users\/[^\s"')\]]+|\/home\/[^\s"')\]]+|\/private\/[^\s"')\]]+|\/var\/[^\s"')\]]+|\/tmp\/[^\s"')\]]+|[A-Za-z]:\\[^\s"')\]]+|~\/[^\s"')\]]+)/g
+const MODEL_NAME_RE = /(?:deepseek|gpt|claude|minimax|qwen|glm)-[a-z0-9._-]+/gi
+const DSH_HARNESS_RE = /\bDeepSeek Harness\b/gi
+const DSH_WORD_RE = /\b(?:cordis|harness)\b/gi
+const DSH_UI_RE = /\bdsh-ui\b/gi
+const DSH_PACKAGE_RE = /@deepseek-ai\/[a-z0-9-]+/gi
+
+function heightlabSanitizeInternal(text: string): string {
+  return text
+    .replace(MCP_TOOL_RE, full => HEIGHTLAB_TOOL_LABELS[full] ?? '平台工具')
+    .replace(ABSOLUTE_PATH_RE, '本地路径（已隐藏）')
+    .replace(MODEL_NAME_RE, '当前模型')
+    .replace(DSH_UI_RE, '界面')
+    .replace(DSH_PACKAGE_RE, '平台组件')
+    .replace(DSH_HARNESS_RE, 'HeightLab 平台')
+    .replace(DSH_WORD_RE, '平台')
+}
+
+/** HeightLab：错误原文脱敏，替换为友好中文（仅工具错误结果展示层）。 */
+function heightlabSanitizeErrorText(text: string): string {
+  let t = heightlabSanitizeInternal(text)
+  t = t.replace(
+    /Error: tools\.restrict\(\) names unknown global tool "[^"]+"; known global tools:[^"]*/g,
+    '工具配置错误：当前环境缺少所需工具，请稍后重试。',
+  )
+  t = t.replace(
+    /Error: cannot read "[^"]+" as an image:[^\n]*/gi,
+    '图片读取失败：当前模型不支持直接读取该图片，请使用支持图片的模型。',
+  )
+  t = t.replace(/Error: unknown tool "[^"]+"/gi, '调用失败：所需工具当前不可用。')
+  t = t.replace(/\binsufficient[\s_-]+(?:quota|balance|credits?)\b/i, '当前余额不足，请充值后继续使用。')
+  t = t.replace(/rate limit|too many requests|requests? too frequent/i, '请求过于频繁，请稍后重试。')
+  t = t.replace(/context length|maximum context|input exceeds|token limit/i, '内容超出模型可处理范围，请精简后重试。')
+  t = t.replace(/api key|authentication failed|unauthorized|invalid key/i, '服务鉴权失败，请稍后重试或重新登录。')
+  t = t.replace(/upstream|timed out|timeout|network error/i, '上游服务暂时不可用，请稍后重试。')
+  t = t.replace(/video_url is empty|not a douyin\.com URL|invalid URL/i, '链接无效，请检查输入后重试。')
+  t = t.replace(/\bError:/gi, '失败：')
+  return t
 }
 
 /**
@@ -106,13 +183,19 @@ export interface ToolRowModel {
  * @returns the flattened result text (may be empty).
  */
 export function resultText(node: ToolResultNode): string {
+  const error = node.isError === true
   const parts: string[] = []
   for (const block of node.content) {
-    if (block.type === 'text') parts.push(block.text)
-    else parts.push(JSON.stringify(block, null, 2))
+    if (block.type === 'text') {
+      parts.push(error ? heightlabSanitizeErrorText(block.text) : block.text)
+    } else {
+      const text = JSON.stringify(block, null, 2)
+      parts.push(error ? heightlabSanitizeErrorText(text) : text)
+    }
   }
   if (parts.length === 0 && node.error !== undefined) {
-    parts.push(`${node.error.name}: ${node.error.code}`)
+    const text = `${node.error.name}: ${node.error.code}`
+    parts.push(error ? heightlabSanitizeErrorText(text) : text)
   }
   return parts.join('\n')
 }
@@ -196,14 +279,14 @@ function deriveFilePath(variant: ToolRowVariant, argsRaw: string): string | unde
 function deriveBody(variant: ToolRowVariant, argsRaw: string): string | null {
   if (argsRaw === '') return null
   const parsed = parseArgs(argsRaw)
-  if (parsed === undefined) return argsRaw
+  if (parsed === undefined) return heightlabSanitizeInternal(argsRaw)
   // The code row's expanded body IS the program (monospace via the row's
   // variant styling), not the args JSON envelope around it.
   if (variant === 'code' && typeof parsed === 'object' && parsed !== null) {
     const code = (parsed as Record<string, unknown>).code
     if (typeof code === 'string' && code !== '') return code
   }
-  return JSON.stringify(parsed, null, 2)
+  return heightlabSanitizeInternal(JSON.stringify(parsed, null, 2))
 }
 
 /**
@@ -227,8 +310,9 @@ export function toolRowModel(toolName: string, block: ToolCallBlock, cwd?: strin
   const toolTitle = TOOL_TITLES[toolName]
   // Others keeps the static "Tool call" title (figma literal); the real tool
   // name rides the mutable summary slot unless the tool owns a specific title.
+  // HeightLab：内部工具名映射为中文；未知工具只显示「已调用」，不露原始名/参数。
   const summary = variant === 'others' && toolName !== '' && toolTitle === undefined
-    ? `${toolName} · ${base}`
+    ? (HEIGHTLAB_TOOL_LABELS[toolName] ?? '已调用')
     : base
   // The empty string is "no text" for both derived result fields: a settled
   // call with blank content has nothing to expand, and a blank first line

@@ -26,6 +26,7 @@ import { AgentPresetRow } from './AgentPresetRow.tsx'
 import type { AgentPresetRowInjected } from './AgentPresetRow.tsx'
 import { AgentPresetSeat } from './AgentPresetSeat.tsx'
 import type { AgentPresetSeatInjected } from './AgentPresetSeat.tsx'
+import { CreatorModeChip } from './CreatorModeChip.tsx'
 import { AgentPresetSection } from './AgentPresetSection.tsx'
 import type { AgentPresetSectionInjected } from './AgentPresetSection.tsx'
 import { AgentPresetSeatController } from './seat-store.ts'
@@ -109,6 +110,7 @@ export function apply(ctx: ClientContext): void {
         : {
           id: summary.id,
           blank: summary.blank,
+          ...(typeof summary.running === 'boolean' ? { running: summary.running } : {}),
           ...summary.agentPreset === undefined ? {} : { agentPreset: summary.agentPreset },
         }
     }, (sessionId, agentPreset) => {
@@ -162,11 +164,17 @@ export function apply(ctx: ClientContext): void {
         seat.stage('cordis', true)
         scope.workspaces.startSession()
       }
-      const chip = scope.slots.register({
-        name: 'conversation.hero.agentPreset',
+      const composerSeat = scope.slots.register({
+        name: 'conversation.input.agentPreset',
         locale: 'settings.agentPreset',
         inject: seatInjected,
       }, AgentPresetSeat)
+      // HeightLab：新会话页工作区（文件夹）旁的「创造 Agent」开关。
+      const heroCreatorChip = scope.slots.register({
+        name: 'conversation.hero.agentPreset',
+        locale: 'settings.agentPreset',
+        inject: seatInjected,
+      }, CreatorModeChip)
       const label = scope.slots.register({
         name: 'conversation.session.header.actions',
         id: 'agent-preset',
@@ -181,7 +189,8 @@ export function apply(ctx: ClientContext): void {
         presetSelected()
         rosterReaders.delete(readRoster)
         creatorDraft = undefined
-        chip()
+        composerSeat()
+        heroCreatorChip()
         label()
       }
     }, 'ui-agent-preset: new-session chip and header label')

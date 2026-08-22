@@ -4,13 +4,20 @@
  * Renders nothing until a provider reports both pressure and a route
  * capacity. */
 
-import { useEffect, useRef, useState } from 'react'
-import type { UseProjection } from '@deepseek-ai/dsh-client-runtime/client'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { ConversationSnapshot, UseProjection } from '@deepseek-ai/dsh-client-runtime/client'
 // Type-only: the `contextPressure` / `contextBreakdown` projection key merges.
 import type {} from '@deepseek-ai/dsh-token-meter/client'
+// Type-only: merges the sessionStats key into SessionProjectionMap for useProjection.
+import type {} from '@deepseek-ai/dsh-session-stats/client'
+import type { MaybeSnapshotSelectorHook } from '@deepseek-ai/dsh-client-ui-slots'
 import { Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ComposerBarProps } from '../contract/slots.ts'
-import { contextOccupancy, formatTokens } from '../chat/StatsLine.tsx'
+import {
+  billedInputTokens, cacheHitPercent, contextOccupancy,
+  deriveStats, formatDuration, formatTokens,
+} from '../chat/StatsLine.tsx'
+import { formatTokensPerSecond } from '../chat/message-chrome.ts'
 import css from './ContextMeter.module.css'
 
 /** Ring geometry: 14px viewBox, 2px stroke. */
@@ -32,14 +39,20 @@ const ROWS = [
 ] as const
 
 export interface ContextMeterProps {
+  /** Session snapshot selector (StatsLine data source for the second-level stats). */
+  useSession?: MaybeSnapshotSelectorHook<ConversationSnapshot>
   useProjection: UseProjection
   /** The owning bar's locale seat, passed down as a plain prop. */
   t: ComposerBarProps['t']
 }
 
-export function ContextMeter({ useProjection, t }: ContextMeterProps) {
+export function ContextMeter({ useSession, useProjection, t }: ContextMeterProps) {
   const pressure = useProjection('contextPressure')
   const breakdown = useProjection('contextBreakdown')
+  const usage = useProjection('tokenUsage')
+  const projected = useProjection('sessionStats')
+  const settledNodes = useSession?.(s => s.chat.legacy.nodes) ?? []
+  const stats = useMemo(() => projected ?? deriveStats(settledNodes), [projected, settledNodes])
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLSpanElement | null>(null)
   const context = contextOccupancy(pressure)
@@ -72,6 +85,34 @@ export function ContextMeter({ useProjection, t }: ContextMeterProps) {
   if (context === null) return null
   const percent = context.percent
   const reading = `${percent}%`
+  // 二级统计：与输入框下方原 StatsLine 相同的口径（会话统计）。
+  const groups: string[] = []
+  if (stats.steps > 0) {
+    groups.push(t('stats.counts', { turns: stats.turns, steps: stats.steps }))
+    const durations: string[] = []
+    if (stats.llmMs > 0) durations.push(t('stats.llm', { duration: formatDuration(stats.llmMs) }))
+    if (stats.toolMs > 0) durations.push(t('stats.toolCall', { duration: formatDuration(stats.toolMs) }))
+    if (durations.length > 0) groups.push(durations.join(' · '))
+    const speeds: string[] = []
+    if (stats.ttftSteps > 0) {
+      speeds.push(t('stats.ttftAverage', { duration: formatDuration(stats.ttftMs / stats.ttftSteps) }))
+    }
+    if (stats.decodeMs > 0) {
+      speeds.push(t('stats.tokensPerSecond', {
+        throughput: formatTokensPerSecond(stats.decodeTokens / (stats.decodeMs / 1_000)),
+      }))
+    }
+    if (speeds.length > 0) groups.push(speeds.join(' · '))
+  }
+  if (usage !== undefined
+    && (billedInputTokens(usage) > 0 || usage.outputTokens > 0)) {
+    const cacheHit = cacheHitPercent(usage)
+    if (cacheHit !== null) groups.push(t('stats.cacheHit', { percent: cacheHit }))
+    groups.push(t('stats.tokens', {
+      input: formatTokens(billedInputTokens(usage)),
+      output: formatTokens(usage.outputTokens),
+    }))
+  }
   const [headBefore = '', headAfter = ''] = t('context.aria', { percent: READING_SLOT })
     .split(READING_SLOT)
     .map(part => part.trim())
@@ -145,6 +186,20 @@ export function ContextMeter({ useProjection, t }: ContextMeterProps) {
                 </div>
               ))}
             </dl>
+          )}
+          {groups.length > 0 && (
+            <>
+              <div className={css.statsDivider} aria-hidden />
+              <div className={css.statsTitle}>会话统计</div>
+              <div className={css.statsRows}>
+                {groups.map(group => (
+                  <div key={group} className={css.statsRow}>
+                    <span className={css.statsDot} aria-hidden />
+                    <span>{group}</span>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
         </div>
       )}
