@@ -26,6 +26,34 @@ const REDIRECT_URI = `${window.location.origin}/callback`
 type AuthState = 'checking' | 'signed-out' | 'signed-in'
 type InteractionMode = 'signIn' | 'signUp'
 
+/** Tauri 命令桥：open_login / close_login（与 lib.rs invoke_handler 对应）。 */
+interface TauriCoreBridge {
+  __TAURI__?: {
+    core?: {
+      invoke: (cmd: string, args?: Record<string, unknown>) => Promise<unknown>
+    }
+  }
+}
+
+function tauriCore(): TauriCoreBridge['__TAURI__'] | undefined {
+  return (window as unknown as TauriCoreBridge).__TAURI__
+}
+
+/** 专用登录窗口（/callback）认证完成后：关掉自己。主窗口由壳层
+ *  current-user watcher 重新导航并进入 signed-in。 */
+async function closeLoginWindowIfCallback(): Promise<void> {
+  if (window.location.pathname !== '/callback') return
+  const tauri = tauriCore()
+  if (tauri?.core?.invoke === undefined) {
+    // 纯浏览器（web 预览）：回首页让门控接管。
+    window.location.href = window.location.origin
+    return
+  }
+  try {
+    await tauri.core.invoke('close_login')
+  } catch { /* 非致命 */ }
+}
+
 /**
  * Some DSH plugins (e.g. dsh-better-sidebar) mount their chrome directly on
  * document.body, outside the #root React tree, so the login gate alone cannot
@@ -237,8 +265,16 @@ async function signInRedirect(mode: InteractionMode): Promise<void> {
     interaction_mode: mode,
   })
   const loginUrl = `${LOGTO_ENDPOINT}/oidc/auth?${params.toString()}`
-  // Navigate in-place: this is the login flow the product always used. (The
-  // dedicated-window variant was tried but regressed UX and rendering.)
+  // Tauri 壳：WKWebView 拒绝主窗口原地跳外部 https 源（实测空白 + 弹出系统
+  // 浏览器），改用壳层 open_login 专用窗口（与支付窗口同机制，稳定渲染）。
+  // 纯浏览器（web 预览）才走原地跳转。
+  const tauri = tauriCore()
+  if (tauri?.core?.invoke !== undefined) {
+    try {
+      await tauri.core.invoke('open_login', { url: loginUrl })
+      return
+    } catch { /* 回退原地跳转 */ }
+  }
   window.location.href = loginUrl
 }
 
@@ -480,6 +516,9 @@ export function HeightLabAuthGate({
           if (auth.refreshToken) setStoredRefreshToken(auth.refreshToken)
           if (auth.accountToken) setStoredAccountToken(auth.accountToken)
           const pushed = await pushTokenToHost(auth.token, auth.refreshToken ?? undefined, auth.accountToken ?? undefined)
+          // 专用登录窗口：认证完成即关窗；主窗口由壳层 current-user watcher
+          // 重启宿主并重新导航，进入 signed-in。
+          await closeLoginWindowIfCallback()
           // HeightLab：首次登录（或登出后重登）宿主会按用户重启并重新导航。
           // 这里保持加载动画等待这次重载，避免“先出界面再闪一下”；
           // 若 10s 内没有重载（理论上不应发生）则按原逻辑直接进入，作为兜底。

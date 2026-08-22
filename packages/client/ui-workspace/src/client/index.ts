@@ -76,6 +76,10 @@ export function apply(ctx: ClientContext): void {
     }
     const tryAutoStart = async (): Promise<void> => {
       if (attempts >= 15) return
+      // HeightLab：未登录（登录门 out/未判定）绝不自动开会话——否则登录页
+      // 背后会反复建会话（日志 hlAutoStart enter 循环），并触发错误提示/空白。
+      // 登录成功后 syncAuthMarker 把 body[data-hl-auth] 置为 'in'，轮询接管。
+      if (document.body.dataset.hlAuth !== 'in') return
       attempts += 1
       try {
         const sessions = ctx.sessions.list.getSnapshot()
