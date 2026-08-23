@@ -163,9 +163,16 @@ async function pushTokenToHost(token: string, refreshToken?: string, accountToke
 /** Ask the Host to validate the credential; only a valid login passes. */
 async function hostAcceptsToken(token: string): Promise<boolean> {
   try {
-    const res = await fetch('/hl/me', {
-      headers: { authorization: `Bearer ${token}` },
-    })
+    const res = await Promise.race([
+      fetch('/hl/me', {
+        headers: { authorization: `Bearer ${token}` },
+      }),
+      new Promise<never>((_resolve, reject) => {
+        // 校验请求挂起时不能让登录门永远停在 checking（卡粒子）：8s 后按
+        // 无效凭据处理，清掉并落到登录页，用户可重试。
+        window.setTimeout(() => reject(new Error('me timeout')), 8_000)
+      }),
+    ])
     return res.ok
   } catch {
     return false
@@ -339,9 +346,23 @@ export function HeightLabLoginPage({ initialError }: { initialError?: string | n
 
   useEffect(() => {
     fetch('/hl/dev-mode')
-      .then((r) => r.json())
+      .then(r => r.json())
       .then((data) => { if (data?.ok && data.dev) setDevMode(true) })
       .catch(() => { /* default: production login only */ })
+  }, [])
+
+  // 诊断触发（仅测试用）：URL 带 hl_auto_login=1 时 1.5s 后自动点登录，
+  // 用于复现/验证“登录跳转后空白”的完整链路；正式流程不受影响。
+  useEffect(() => {
+    let auto = false
+    try { auto = sessionStorage.getItem('hl-auto-login') === '1' } catch { /* 忽略 */ }
+    if (!auto) return
+    const timer = window.setTimeout(() => { void startLogin() }, 1200)
+    return () => {
+      window.clearTimeout(timer)
+      try { sessionStorage.removeItem('hl-auto-login') } catch { /* 忽略 */ }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const startRegister = async () => {
@@ -482,60 +503,70 @@ export function HeightLabAuthGate({
     } catch { /* 忽略 */ }
     const params = new URLSearchParams(window.location.search)
     const code = params.get('code')
+    // 诊断触发：URL 带 hl_auto_login=1 时先存 sessionStorage（登录页挂载前
+    // 参数会被 replaceState 剥掉），供登录页自动点登录复现完整链路。
+    if (params.get('hl_auto_login') === '1') {
+      try { sessionStorage.setItem('hl-auto-login', '1') } catch { /* 忽略 */ }
+    }
+    // 看门狗：无论校验链路（/hl/me、换码、绑定）发生什么，12s 内必须
+    // 出结果，否则按未登录落到登录页——商业版绝不允许永久卡在粒子页。
+    let resolved = false
+    let watchdog = 0
+    const finish = (next: AuthState, errorMessage?: string) => {
+      if (resolvedRef.current) return
+      resolvedRef.current = true
+      resolved = true
+      window.clearTimeout(watchdog)
+      setState(next)
+      syncAuthMarker(next)
+      if (next === 'signed-in') onReady('signed-in')
+      else onReady('signed-out', errorMessage)
+    }
     void (async () => {
-      const finish = (next: AuthState, errorMessage?: string) => {
-        if (resolvedRef.current) return
-        resolvedRef.current = true
-        setState(next)
-        syncAuthMarker(next)
-        if (next === 'signed-in') onReady('signed-in')
-        else onReady('signed-out', errorMessage)
-      }
-
       try {
         if (code) {
-        const auth = await exchangeCode(code)
-        if (auth && await hostAcceptsToken(auth.token)) {
-          const inviteCode = storedInviteCode()
-          const inviteMode = storedInviteMode()
-          if (inviteMode === 'signUp' && inviteCode) {
-            const bindError = await bindInviteToHost(auth.token, inviteCode)
-            if (bindError !== null) {
-              try {
-                localStorage.removeItem(TOKEN_KEY)
-                localStorage.removeItem(ACCOUNT_TOKEN_KEY)
-              } catch { /* ignore */ }
-              clearInviteState()
-              window.history.replaceState({}, '', window.location.pathname)
-              finish('signed-out', bindError)
-              return
+          const auth = await exchangeCode(code)
+          if (auth && await hostAcceptsToken(auth.token)) {
+            const inviteCode = storedInviteCode()
+            const inviteMode = storedInviteMode()
+            if (inviteMode === 'signUp' && inviteCode) {
+              const bindError = await bindInviteToHost(auth.token, inviteCode)
+              if (bindError !== null) {
+                try {
+                  localStorage.removeItem(TOKEN_KEY)
+                  localStorage.removeItem(ACCOUNT_TOKEN_KEY)
+                } catch { /* ignore */ }
+                clearInviteState()
+                window.history.replaceState({}, '', window.location.pathname)
+                finish('signed-out', bindError)
+                return
+              }
             }
+            clearInviteState()
+            setStoredToken(auth.token)
+            if (auth.refreshToken) setStoredRefreshToken(auth.refreshToken)
+            if (auth.accountToken) setStoredAccountToken(auth.accountToken)
+            const pushed = await pushTokenToHost(auth.token, auth.refreshToken ?? undefined, auth.accountToken ?? undefined)
+            // 专用登录窗口：认证完成即关窗；主窗口由壳层 current-user watcher
+            // 重启宿主并重新导航，进入 signed-in。
+            await closeLoginWindowIfCallback()
+            // HeightLab：首次登录（或登出后重登）宿主会按用户重启并重新导航。
+            // 这里保持加载动画等待这次重载，避免“先出界面再闪一下”；
+            // 若 10s 内没有重载（理论上不应发生）则按原逻辑直接进入，作为兜底。
+            if (pushed.restartExpected) {
+              try {
+                sessionStorage.setItem('hl-post-login-reload', '1')
+              } catch { /* 忽略 */ }
+              await new Promise<void>((resolve) => { window.setTimeout(resolve, 10_000) })
+              try {
+                sessionStorage.removeItem('hl-post-login-reload')
+              } catch { /* 忽略 */ }
+            }
+            // Strip the code from the URL.
+            window.history.replaceState({}, '', window.location.pathname)
+            finish('signed-in')
+            return
           }
-          clearInviteState()
-          setStoredToken(auth.token)
-          if (auth.refreshToken) setStoredRefreshToken(auth.refreshToken)
-          if (auth.accountToken) setStoredAccountToken(auth.accountToken)
-          const pushed = await pushTokenToHost(auth.token, auth.refreshToken ?? undefined, auth.accountToken ?? undefined)
-          // 专用登录窗口：认证完成即关窗；主窗口由壳层 current-user watcher
-          // 重启宿主并重新导航，进入 signed-in。
-          await closeLoginWindowIfCallback()
-          // HeightLab：首次登录（或登出后重登）宿主会按用户重启并重新导航。
-          // 这里保持加载动画等待这次重载，避免“先出界面再闪一下”；
-          // 若 10s 内没有重载（理论上不应发生）则按原逻辑直接进入，作为兜底。
-          if (pushed.restartExpected) {
-            try {
-              sessionStorage.setItem('hl-post-login-reload', '1')
-            } catch { /* 忽略 */ }
-            await new Promise<void>((resolve) => { window.setTimeout(resolve, 10_000) })
-            try {
-              sessionStorage.removeItem('hl-post-login-reload')
-            } catch { /* 忽略 */ }
-          }
-          // Strip the code from the URL.
-          window.history.replaceState({}, '', window.location.pathname)
-          finish('signed-in')
-          return
-        }
           try {
             localStorage.removeItem(TOKEN_KEY)
             localStorage.removeItem(ACCOUNT_TOKEN_KEY)
@@ -571,6 +602,10 @@ export function HeightLabAuthGate({
         finish('signed-out', error instanceof Error ? error.message : String(error))
       }
     })()
+    watchdog = window.setTimeout(() => {
+      if (!resolved) finish('signed-out', '登录状态校验超时，请重新登录')
+    }, 12_000)
+    return () => window.clearTimeout(watchdog)
   }, [onReady])
 
   // 动画由 AppRoot 统一挂载；这里只负责登录校验并回报结果。

@@ -11,7 +11,7 @@
 import { readFile } from 'node:fs/promises'
 import { existsSync, globSync, readFileSync } from 'node:fs'
 import { isBuiltin } from 'node:module'
-import { basename, dirname, isAbsolute, relative, resolve as resolvePath, sep } from 'node:path'
+import { basename, dirname, isAbsolute, join, relative, resolve as resolvePath, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { UserConfig } from 'tsdown'
 import { transform } from 'lightningcss'
@@ -77,7 +77,31 @@ const GENERATED_REMOTE = /^@deepseek-ai\/dsh-[a-z0-9]+(?:-[a-z0-9]+)*\/remote$/
  */
 const SKIP_WORKSPACE_BUILD: UserConfig = { entry: '' }
 
-const REPOSITORY_ROOT = fileURLToPath(new URL('../..', import.meta.url))
+/**
+ * Locate the repository root. During a workspace build tsdown evaluates
+ * configs with the repository root as cwd, but unrun bundles this config into
+ * `node_modules/.unrun/*.mjs` where `import.meta.url` no longer points at
+ * `packages/client/` — walking up to the first `pnpm-workspace.yaml` keeps the
+ * manifest glob stable in both bundled and source evaluation.
+ */
+function findRepositoryRoot(): string {
+  const candidates = [
+    fileURLToPath(new URL('../..', import.meta.url)),
+    process.cwd(),
+  ]
+  for (const start of candidates) {
+    let dir = start
+    for (let i = 0; i < 10; i += 1) {
+      if (existsSync(join(dir, 'pnpm-workspace.yaml'))) return dir
+      const parent = dirname(dir)
+      if (parent === dir) break
+      dir = parent
+    }
+  }
+  return process.cwd()
+}
+
+const REPOSITORY_ROOT = findRepositoryRoot()
 
 /** Rebase a physical lib-relative source onto a browser URL that mirrors the repository directories. */
 function browserSourcePath(source: string, sourcemapPath: string): string {
@@ -504,7 +528,8 @@ function clientConfig(id: string, entry: string): UserConfig {
       },
       async load(virtualId: string) {
         if (!virtualId.startsWith(CSS_VIRTUAL_PREFIX)) return null
-        const fileId = virtualId.slice(CSS_VIRTUAL_PREFIX.length, -CSS_VIRTUAL_SUFFIX.length)
+        const fileId = virtualId.split('?')[0]?.slice(CSS_VIRTUAL_PREFIX.length, -CSS_VIRTUAL_SUFFIX.length)
+        if (fileId === undefined) return null
         // The virtual id otherwise hides the physical stylesheet from Rolldown's watch graph.
         this.addWatchFile(fileId)
         const source = await readFile(fileId)
@@ -530,7 +555,8 @@ function clientConfig(id: string, entry: string): UserConfig {
       },
       async load(virtualId: string) {
         if (!virtualId.startsWith(INLINE_CSS_VIRTUAL_PREFIX)) return null
-        const fileId = virtualId.slice(INLINE_CSS_VIRTUAL_PREFIX.length, -CSS_VIRTUAL_SUFFIX.length)
+        const fileId = virtualId.split('?')[0]?.slice(INLINE_CSS_VIRTUAL_PREFIX.length, -CSS_VIRTUAL_SUFFIX.length)
+        if (fileId === undefined) return null
         this.addWatchFile(fileId)
         const source = await readFile(fileId)
         const { code } = transform({ filename: fileId, code: source, minify: true })
@@ -545,11 +571,19 @@ function clientConfig(id: string, entry: string): UserConfig {
       },
       async load(virtualId: string) {
         if (!virtualId.startsWith(GLOBAL_CSS_VIRTUAL_PREFIX)) return null
-        const fileId = virtualId.slice(GLOBAL_CSS_VIRTUAL_PREFIX.length, -CSS_VIRTUAL_SUFFIX.length)
+        const fileId = virtualId.split('?')[0]?.slice(GLOBAL_CSS_VIRTUAL_PREFIX.length, -CSS_VIRTUAL_SUFFIX.length)
+        if (fileId === undefined) return null
         this.addWatchFile(fileId)
         const source = await readFile(fileId)
         const { code } = transform({ filename: fileId, code: source, minify: true })
-        return styleInjectionModule(id, fileId, code.toString())
+        const css = code.toString()
+        // Rolldown strips the `?inline` query before resolveId but re-appends it
+        // to the resolved id; detect it here so `x.css?inline` still exports the
+        // CSS string (contract 4) while plain `x.css` imports stay side-effect.
+        if (virtualId.includes(INLINE_CSS_QUERY)) {
+          return `export default ${JSON.stringify(css)};`
+        }
+        return styleInjectionModule(id, fileId, css)
       },
     }],
     outputOptions: {
