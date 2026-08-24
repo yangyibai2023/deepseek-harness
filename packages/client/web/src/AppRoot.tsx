@@ -59,11 +59,14 @@ export function AppRoot(props: AppRootProps) {
   const [phase, setPhase] = useState<StartupPhase>('boot')
   const [target, setTarget] = useState<'signed-in' | 'signed-out' | null>(null)
   const [loginError, setLoginError] = useState<string | null>(null)
+  // 登录门是否已给出结论（handleReady 已调用）。用独立 ref：phaseRef 会被
+  // 每次渲染的 `phaseRef.current = phase` 覆盖，不能作为“门已完成”的依据。
+  const gateDoneRef = useRef(false)
 
   useEffect(() => {
-    // 用 ref 读最新 phase，避免 settled 翻转与 handleReady 同批时用旧闭包把
-    // bursting 覆盖回 checking（0.3.17 逻辑 + 商业级防御）。
-    if (settled && phaseRef.current === 'boot') {
+    // 只有登录门尚未给出结论时才进入 checking；门已完成则保持 bursting→done，
+    // 避免 settled 翻转的渲染把 phase 覆盖回 checking（卡粒子根因）。
+    if (settled && !gateDoneRef.current) {
       logBoot({ at: 'settled' })
       setPhase('checking')
     }
@@ -73,6 +76,7 @@ export function AppRoot(props: AppRootProps) {
     next: 'signed-in' | 'signed-out',
     errorMessage?: string,
   ) => {
+    gateDoneRef.current = true
     phaseRef.current = 'bursting'
     setTarget(next)
     setLoginError(errorMessage ?? null)
