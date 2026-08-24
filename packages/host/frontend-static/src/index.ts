@@ -1,13 +1,14 @@
 /**
  * @deepseek-ai/dsh-host-frontend-static — SPA dist server over the webserver
- * fallback seat: serves the built frontend directory with explicit index
- * entry points. A readable index renders at the dist root and configured index
- * path; missing paths return 404, traversal outside the dist root is 403,
- * unknown extensions ship as octet-stream, and non-GET/HEAD is 405. Every
- * index response runs through the webserver's index render (structured
- * injection rows, then raw taps). The dist location is workspace knowledge of
- * the composing application, so `distIndex` is typically supplied through a
- * `!!js` expression, never hardcoded by a deployment.
+ * fallback seat: serves the built frontend directory with the semantics the
+ * Web shell locked at step1 (0.3.17 成熟逻辑) — traversal outside the dist
+ * root is 403, any miss falls back to index.html with HTTP 200 (SPA routing,
+ * 登录回调 /callback 依赖此回退), unknown extensions ship as octet-stream,
+ * non-GET/HEAD is 405. Every index response runs through the webserver's index
+ * render (structured injection rows, then raw taps). The dist location is
+ * workspace knowledge of the composing application, so `distIndex` is
+ * typically supplied through a `!!js` expression, never hardcoded by a
+ * deployment.
  * @module @deepseek-ai/dsh-host-frontend-static
  */
 
@@ -85,12 +86,12 @@ export async function serveStatic(
       type = MIME[extname(target)] ?? 'application/octet-stream'
     }
   } catch (error) {
-    // Only absent or non-file targets are 404; other filesystem failures reach
-    // the webserver's request-failure handling.
+    // 0.3.17 成熟逻辑：缺失/非文件目标回退到 index.html（SPA 路由，200）。
+    // 登录完成后的 /callback 路径不存在于 dist，必须回退到 SPA 才能执行
+    // 换码登录；其他文件系统错误仍交给 webserver 的请求失败处理。
     if (!STATIC_MISS_CODES.has((error as NodeJS.ErrnoException).code)) throw error
-    res.writeHead(404)
-    res.end()
-    return
+    body = await renderIndex()
+    type = HTML_MIME
   }
   res.writeHead(200, { 'content-type': type })
   res.end(body)

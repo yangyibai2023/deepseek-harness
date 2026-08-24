@@ -11,7 +11,6 @@
  */
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { KernelSignal, LoaderStatus } from './loader-status.ts'
-import css from './AppRoot.module.css'
 import { HeightLabAuthGate, HeightLabLoginPage } from './HeightLabAuth.tsx'
 import { CapsuleLoader } from './capsule-loader.tsx'
 
@@ -56,15 +55,15 @@ function logBoot(extra: Record<string, unknown>): void {
 export function AppRoot(props: AppRootProps) {
   const settled = useSyncExternalStore(props.settled.subscribe, props.settled.getSnapshot)
   const status = useSyncExternalStore(props.status.subscribe, props.status.getSnapshot)
-  const error = useSyncExternalStore(props.error.subscribe, props.error.getSnapshot)
-  const failed = Object.entries(status).filter(([, s]) => s === 'failed')
 
   const [phase, setPhase] = useState<StartupPhase>('boot')
   const [target, setTarget] = useState<'signed-in' | 'signed-out' | null>(null)
   const [loginError, setLoginError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (settled && phase === 'boot') {
+    // 用 ref 读最新 phase，避免 settled 翻转与 handleReady 同批时用旧闭包把
+    // bursting 覆盖回 checking（0.3.17 逻辑 + 商业级防御）。
+    if (settled && phaseRef.current === 'boot') {
       logBoot({ at: 'settled' })
       setPhase('checking')
     }
@@ -74,6 +73,7 @@ export function AppRoot(props: AppRootProps) {
     next: 'signed-in' | 'signed-out',
     errorMessage?: string,
   ) => {
+    phaseRef.current = 'bursting'
     setTarget(next)
     setLoginError(errorMessage ?? null)
     setPhase('bursting')
@@ -157,22 +157,6 @@ export function AppRoot(props: AppRootProps) {
     else if (s === 'pending') weight += 0.15
   }
   const bootProgress = total > 0 ? Math.min(1, weight / total) : 0
-
-  const loud = error !== undefined || failed.length > 0
-  if (!settled && loud && target === null) {
-    return (
-      <div className={css.boot}>
-        <div className={css.card}>
-          <div className={css.wordmark}>HEIGHTLAB</div>
-          <div className={css.failed}>
-            <div className={css.failedTitle}>插件加载失败</div>
-            {failed.map(([id]) => <div key={id} className={css.failedItem}>{id}</div>)}
-            {error !== undefined && <div className={css.failedItem}>{error}</div>}
-          </div>
-        </div>
-      </div>
-    )
-  }
 
   if (phase !== 'done') {
     const progress = phase === 'boot' ? bootProgress : 1
