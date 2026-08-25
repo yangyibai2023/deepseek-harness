@@ -7,11 +7,13 @@
   gap: 4px;
   max-width: min(100%, 240px);
   min-height: 28px;
-  padding: 0 8px;
+  /* HeightLab 2026-08-26：与相邻模型选择框完全一致——次级色文字/图标、
+     24px 胶囊圆角、0 4px 0 8px 内边距（原为黑色 label-primary）。 */
+  padding: 0 4px 0 8px;
   border: none;
-  border-radius: 16px;
+  border-radius: 24px;
   background: transparent;
-  color: var(--dsw-alias-label-primary);
+  color: var(--dsw-alias-label-secondary);
   font-size: 13px;
   line-height: 20px;
   font-weight: 500;
@@ -33,7 +35,7 @@
 
 .seatIcon {
   flex: none;
-  color: var(--dsw-alias-label-primary);
+  color: var(--dsw-alias-label-secondary);
 }
 
 /* Introduce cue: the icon eases in on an overshoot-free expo curve (duration

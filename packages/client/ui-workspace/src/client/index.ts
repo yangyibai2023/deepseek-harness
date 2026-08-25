@@ -124,6 +124,9 @@ export function apply(ctx: ClientContext): void {
     }
     const run = (): void => { void tryAutoStart() }
     const off = ctx.on('connection/reset', run)
+    // HeightLab 2026-08-26：node 测试环境（无 window）跳过自动启动轮询；
+    // 否则 apply 即 ReferenceError，ui-workspace apply 测试全红。
+    if (typeof window === 'undefined') return () => { off() }
     window.setTimeout(run, 600)
     timer = window.setInterval(run, 2000)
     return () => {
@@ -151,8 +154,11 @@ export function apply(ctx: ClientContext): void {
     // the current Session Workspace before the recent-Workspace fallback.
     // HeightLab：工作区浏览区的「新建会话」同样先退出创意灵感/自动化页面。
     startSession: (workspaceId) => {
-      window.dispatchEvent(new CustomEvent('hl:close-hub'))
-      window.dispatchEvent(new CustomEvent('hl:close-automation'))
+      // HeightLab 2026-08-26：node 测试环境无 window，跳过 hub 关闭广播。
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('hl:close-hub'))
+        window.dispatchEvent(new CustomEvent('hl:close-automation'))
+      }
       ctx.workspaces.startSession(workspaceId)
     },
     open: (sessionId) => { ctx.sessions.open(sessionId) },

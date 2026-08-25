@@ -263,15 +263,17 @@
   max-width: none;
 }
 
+/* HeightLab 2026-08-26：rail 控件统一 36x36（外壳 rail 节奏），修复
+   28px 搜索框靠左导致的纵线错位——36px 占满内容宽即与上方图标同轴。 */
 .rail .iconButton {
-  width: 28px;
-  height: 28px;
+  width: 36px;
+  height: 36px;
   color: var(--dsw-alias-label-secondary);
 }
 
 .rail .search {
-  width: 28px;
-  height: 28px;
+  width: 36px;
+  height: 36px;
   padding: 0;
   margin: 0 0 12px;
   gap: 0;
@@ -280,8 +282,8 @@
 }
 
 .rail .searchButton {
-  width: 28px;
-  height: 28px;
+  width: 36px;
+  height: 36px;
   color: var(--dsw-alias-label-secondary);
 }
 

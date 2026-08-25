@@ -1,4 +1,4 @@
-/** HeightLab：左侧边栏顶部按钮统一为右侧边栏同款描边图标（1.25px 描边）。 */
+/** HeightLab：左侧边栏顶部按钮统一为右侧边栏同款描边图标（1.35px 描边（与 rc.2 原生 Outline 图标视觉一致））。 */
 
 import type { IconProps } from '@deepseek-ai/dsh-client-ui-primitives'
 
@@ -14,7 +14,7 @@ export function IconPanelLeftStroke16({ size = 16, className }: IconProps) {
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
     >
-      <rect x="1.5" y="2" width="13" height="12" rx="2.5" stroke="currentColor" strokeWidth="1.25" />
+      <rect x="1.5" y="2" width="13" height="12" rx="2.5" stroke="currentColor" strokeWidth="1.35" />
       <rect x="2.75" y="3.25" width="2.75" height="9.5" rx="1" fill="currentColor" stroke="none" />
     </svg>
   )
@@ -32,8 +32,8 @@ export function IconNewChatStroke16({ size = 16, className }: IconProps) {
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
     >
-      <rect x="1.5" y="2" width="13" height="12" rx="2.5" stroke="currentColor" strokeWidth="1.25" />
-      <path d="M8 5.25v5.5M5.25 8h5.5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+      <rect x="1.5" y="2" width="13" height="12" rx="2.5" stroke="currentColor" strokeWidth="1.35" />
+      <path d="M8 5.25v5.5M5.25 8h5.5" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
     </svg>
   )
 }
@@ -53,10 +53,10 @@ export function IconInspirationStroke16({ size = 16, className }: IconProps) {
       <path
         d="M8 2.2 9.35 6.65 13.8 8 9.35 9.35 8 13.8 6.65 9.35 2.2 8 6.65 6.65Z"
         stroke="currentColor"
-        strokeWidth="1.25"
+        strokeWidth="1.35"
         strokeLinejoin="round"
       />
-      <path d="M13 3.2v3M11.5 4.7h3" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+      <path d="M13 3.2v3M11.5 4.7h3" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
     </svg>
   )
 }
@@ -76,13 +76,13 @@ export function IconAutomationStroke16({ size = 16, className }: IconProps) {
       <path
         d="M12.7 5.6A4.9 4.9 0 1 0 13 9.4"
         stroke="currentColor"
-        strokeWidth="1.25"
+        strokeWidth="1.35"
         strokeLinecap="round"
       />
       <path
         d="M13.6 2.4v3.2h-3.2"
         stroke="currentColor"
-        strokeWidth="1.25"
+        strokeWidth="1.35"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -102,9 +102,9 @@ export function IconLibraryStroke16({ size = 16, className }: IconProps) {
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
     >
-      <ellipse cx="8" cy="3.7" rx="5.5" ry="2" stroke="currentColor" strokeWidth="1.25" />
-      <path d="M2.5 3.7v8.6c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2V3.7" stroke="currentColor" strokeWidth="1.25" />
-      <path d="M2.5 8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2" stroke="currentColor" strokeWidth="1.25" />
+      <ellipse cx="8" cy="3.7" rx="5.5" ry="2" stroke="currentColor" strokeWidth="1.35" />
+      <path d="M2.5 3.7v8.6c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2V3.7" stroke="currentColor" strokeWidth="1.35" />
+      <path d="M2.5 8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2" stroke="currentColor" strokeWidth="1.35" />
     </svg>
   )
 }

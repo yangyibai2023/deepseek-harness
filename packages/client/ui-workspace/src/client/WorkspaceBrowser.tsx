@@ -1096,7 +1096,8 @@ export function WorkspaceBrowser({
                   setWsPickerOpen(v => !v)
                 }}
               >
-                <IconProjectAddOutline16 size={16} />
+                {/* HeightLab 2026-08-26：rail 内统一 18px（figma rail spec）。 */}
+                <IconProjectAddOutline16 size={wide ? 16 : 18} />
               </button>
             </Tooltip>
           )}
@@ -1120,7 +1121,8 @@ export function WorkspaceBrowser({
         />
       </div>
 
-      {/* The collapsed rail keeps search as its own 36px control. */}
+      {/* The collapsed rail keeps search as its own 36px control (18px glyph,
+          与外壳 rail 图标统一 — HeightLab 2026-08-26)。 */}
       {!wide && <div className={css.search}>
         <Tooltip label={t('search')}>
           <button
@@ -1133,7 +1135,7 @@ export function WorkspaceBrowser({
               expandSidebar()
             }}
           >
-            <IconSearchOutline16 size={16} />
+            <IconSearchOutline16 size={18} />
           </button>
         </Tooltip>
       </div>}

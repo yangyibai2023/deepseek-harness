@@ -140,7 +140,9 @@ export function SidebarRoot({
           >
             <span className={css.brandIdentity} aria-hidden="true">
               <span className={css.brandMark}>
-                {renderSlot('sidebar.brand.mark', { size: 24 }, { fallback: <img src="/heightlab-logo.png?v=2" alt="" width={24} height={24} draggable={false} style={{ width: 24, height: 24, objectFit: 'contain' }} /> })}
+                {/* HeightLab 2026-08-26：黑色胶囊 PNG（透明底），随 build:web
+                    进 public→dist；暗色主题由 CSS invert 转白。 */}
+                {renderSlot('sidebar.brand.mark', { size: 18 }, { fallback: <img src="/heightlab-logo.png" alt="" width={18} height={18} draggable={false} style={{ width: 18, height: 18, objectFit: 'contain' }} /> })}
               </span>
               <span className={css.brandName}>
                 {renderSlot('sidebar.brand.name', {}, {
@@ -165,9 +167,8 @@ export function SidebarRoot({
           >
             {!wide && (
               <span className={css.railMark} aria-hidden="true">
-                {/* HeightLab 2026-08-22：折叠态鲸鱼 fallback 换成本 HeightLab logo，
-                   与展开态同款、大小一致(24)。 */}
-                {renderSlot('sidebar.brand.mark', { size: 24 }, { fallback: <img src="/heightlab-logo.png?v=2" alt="" width={24} height={24} draggable={false} style={{ width: 24, height: 24, objectFit: 'contain' }} /> })}
+                {/* HeightLab 2026-08-26：折叠态胶囊 fallback，同款黑 PNG。 */}
+                {renderSlot('sidebar.brand.mark', { size: 24 }, { fallback: <img src="/heightlab-logo.png" alt="" width={24} height={24} draggable={false} style={{ width: 24, height: 24, objectFit: 'contain' }} /> })}
               </span>
             )}
             {/* Rail icons render at 18 (figma rail spec); expanded keeps the glyph-native sizes. */}
@@ -184,7 +185,8 @@ export function SidebarRoot({
           aria-label={t('session.new.label')}
           onClick={() => { startSession() }}
         >
-          <IconNewChatOutline16 size={wide ? 14 : 18} />
+          {/* HeightLab 2026-08-26：展开态 16px，与 hlNav/添加工作区一致。 */}
+          <IconNewChatOutline16 size={wide ? 16 : 18} />
           {wide && <span className={clsx(css.newSessionLabel, css.wide)}>{t('session.new')}</span>}
         </button>
       </Tooltip>
@@ -208,7 +210,8 @@ export function SidebarRoot({
               onClick={() => window.dispatchEvent(new CustomEvent(item.dispatch, { detail: item.detail }))}
               title={item.label}
             >
-              <item.Icon size={16} className={css.hlNavIcon} />
+              {/* HeightLab 2026-08-26：rail 内统一 18px（figma rail spec）。 */}
+              <item.Icon size={wide ? 16 : 18} className={css.hlNavIcon} />
               {wide && <span className={css.hlNavLabel}>{item.label}</span>}
             </button>
           ))}

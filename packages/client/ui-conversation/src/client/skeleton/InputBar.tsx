@@ -860,9 +860,8 @@ export function InputBar({
             </Tooltip>
             <div className={css.modes}>
               {accessSelect}
-              {/* HeightLab：智能体选择框（Colin / 专家）接到 rc.2 输入栏。
-                  rc.2 默认把 agentPreset 放在 hero 页，这里接入输入栏 tools。 */}
-              {renderSlot('conversation.input.agentPreset', {})}
+              {/* HeightLab 2026-08-26：智能体选择移到右侧 trailing
+                  （模型选择框左侧），此处只留权限/计划。 */}
               {renderSlot('conversation.input.plan', { locked })}
             </div>
             {leftItems}
@@ -874,6 +873,8 @@ export function InputBar({
           </div>
           <div className={css.trailing}>
             {rightItems}
+            {/* HeightLab：智能体选择框（Colin / 专家）放在模型选择左侧。 */}
+            {renderSlot('conversation.input.agentPreset', {})}
             {renderSlot('conversation.input.model', { locked: modelSeatLocked })}
             <ContextMeter useProjection={useProjection} t={t} />
             {interruptible && (
@@ -886,7 +887,7 @@ export function InputBar({
                   onMouseDown={keepFocus}
                   onClick={stop}
                 >
-                  <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden>
+                  <svg viewBox="0 0 16 16" width="12.8" height="12.8" aria-hidden>
                     <rect x="3" y="3" width="10" height="10" rx="3" fill="currentColor" />
                   </svg>
                 </button>
@@ -901,12 +902,14 @@ export function InputBar({
                 onMouseDown={keepFocus}
                 onClick={onPrimary}
               >
+                {/* HeightLab 2026-08-26：发送/停止按钮整体缩小 20%（34→27.2，
+                    内部字形 16→12.8，viewBox 不变等比缩放、居中不偏）。 */}
                 {primaryStops ? (
-                  <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden>
+                  <svg viewBox="0 0 16 16" width="12.8" height="12.8" aria-hidden>
                     <rect x="3" y="3" width="10" height="10" rx="3" fill="currentColor" />
                   </svg>
                 ) : (
-                  <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden>
+                  <svg viewBox="0 0 16 16" width="12.8" height="12.8" aria-hidden>
                     <path d="M8.3125 0.980183C8.66767 1.0531 8.97902 1.20418 9.2627 1.43233C9.48724 1.61297 9.73029 1.85793 9.97949 2.10714L14.707 6.83468L13.293 8.24874L9 3.95577V15.0417H7V3.95577L2.70703 8.24874L1.29297 6.83468L6.02051 2.10714C6.26971 1.85793 6.51277 1.61297 6.7373 1.43233C6.97662 1.23986 7.28445 1.04402 7.6875 0.980183C7.8973 0.947006 8.1031 0.95516 8.3125 0.980183Z" fill="currentColor" />
                   </svg>
                 )}

@@ -29,7 +29,8 @@ describe('SidebarRoot.module.css', () => {
   it('shares and cancels the wide shell trailing padding structurally', () => {
     const root = declarations('.root')
     expect(root?.get('--dsh-sidebar-inline-padding')).toBe('12px')
-    expect(root?.get('padding')).toBe('6px var(--dsh-sidebar-inline-padding)')
+    // HeightLab 2026-08-26：顶部 4px，品牌行中心对齐 macOS 红绿灯。
+    expect(root?.get('padding')).toBe('4px var(--dsh-sidebar-inline-padding) 6px')
     expect(declarations('.regionArea')?.get('margin-left')).toBe('-4px')
     expect(declarations('.regionArea')?.get('padding-left')).toBe('4px')
     expect(declarations('.regionArea')?.get('margin-right')).toBe(
@@ -64,12 +65,16 @@ describe('SidebarRoot.module.css', () => {
     expect(declarations('.collapsed .newSession')?.get('width')).toBe('36px')
   })
 
-  it('keeps the slotted brand row at the full artwork height', () => {
-    expect(declarations('.brandIdentity')?.get('height')).toBe('24px')
-    expect(declarations('.brandName')?.get('height')).toBe('24px')
-    expect(declarations('.brandName')?.get('line-height')).toBe('24px')
-    expect(declarations('.brandName')?.get('font-size')).toBe('18px')
-    expect(declarations('.fallbackBrandName')?.get('font-size')).toBe('17px')
+  it('keeps the slotted brand row compact and right-aligned with the foot phone button', () => {
+    // HeightLab 2026-08-26：品牌区缩小（16px 行高 / 13px 字），右对齐，
+    // 右缘外挑 2px 与底部「连接手机」按钮同列。
+    expect(declarations('.logoRow')?.get('justify-content')).toBe('flex-end')
+    expect(declarations('.logoRow')?.get('margin')).toBe('0 -2px 8px 0')
+    expect(declarations('.brandIdentity')?.get('height')).toBe('16px')
+    expect(declarations('.brandName')?.get('height')).toBe('16px')
+    expect(declarations('.brandName')?.get('line-height')).toBe('16px')
+    expect(declarations('.brandName')?.get('font-size')).toBe('13px')
+    expect(declarations('.fallbackBrandName')?.get('font-size')).toBe('13px')
     expect(declarations('.fallbackBrandName')?.get('white-space')).toBe('nowrap')
   })
 })

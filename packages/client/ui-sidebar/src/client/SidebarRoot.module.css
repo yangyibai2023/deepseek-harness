@@ -11,7 +11,8 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  padding: 6px var(--dsh-sidebar-inline-padding);
+  /* HeightLab 2026-08-26：顶部 4px，品牌行中心对齐 macOS 红绿灯（y≈17）。 */
+  padding: 4px var(--dsh-sidebar-inline-padding) 6px;
   box-sizing: border-box;
   background: var(--dsw-specific-sidebar-fill);
   color: var(--dsw-alias-label-primary);
@@ -87,18 +88,19 @@
   from { opacity: 0; }
 }
 
-/* Logo row (figma pad (4,8,4,8)): expanded keeps the panel toggle at the
-   right edge; the rail gives every control the same base left anchor before
-   the shared entry translation is applied. */
+/* Logo row — HeightLab 2026-08-26：缩小品牌区并与折叠按钮一起右对齐，
+   行中心与 macOS 红绿灯同一水平线；右缘外挑 2px，与底部账户行
+   「连接手机」按钮右缘同列（accountRow width+8/margin-4/padding-2）。
+   品牌（logo+HEIGHTLAB）在前，折叠/展开按钮紧随其后。 */
 .logoRow {
   flex: none;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  height: 60px;
-  padding: 8px 0 8px 4px;
-  margin-bottom: 8px;
+  height: 28px;
+  padding: 0;
+  margin: 0 -2px 8px 0;
   box-sizing: border-box;
   overflow: hidden;
 }
@@ -106,7 +108,8 @@
 .collapsed .logoRow {
   height: 36px;
   padding: 0;
-  margin-bottom: 12px;
+  /* rail 内不右挑，保持 36px 盒子居中于 56px 轨道。 */
+  margin: 0 0 12px;
   justify-content: flex-start;
 }
 
@@ -115,7 +118,8 @@
    emphasis only). A button only in behavior (New Session shortcut): the
    pointer cursor is the sole affordance — no hover chrome on the mark. */
 .brand {
-  flex: 1;
+  /* HeightLab 2026-08-26：品牌不再占满整行，与折叠按钮一起靠左排列。 */
+  flex: none;
   min-width: 0;
   display: inline-flex;
   align-items: center;
@@ -133,8 +137,8 @@
 .brandIdentity {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  height: 24px;
+  gap: 6px;
+  height: 16px;
   min-width: 0;
 }
 
@@ -145,20 +149,26 @@
   justify-content: center;
 }
 
+/* 暗色主题：黑胶囊反转为白胶囊（展开品牌区 + 折叠 rail 同款）。 */
+:global(body[data-ds-dark-theme]) .brandMark img,
+:global(body[data-ds-dark-theme]) .railMark img {
+  filter: invert(1);
+}
+
 .brandName {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   min-width: 0;
-  height: 24px;
-  font-size: 18px;
+  height: 16px;
+  font-size: 13px;
   font-weight: 600;
-  line-height: 24px;
+  line-height: 16px;
   letter-spacing: 0.04em;
 }
 
 .fallbackBrandName {
-  font-size: 17px;
+  font-size: 13px;
   letter-spacing: 0px;
   white-space: nowrap;
 }
@@ -208,10 +218,10 @@
   justify-content: center;
 }
 
-/* Rail icons ride the primary ink (figma rail spec); expanded keeps the
-   secondary icon-button ink. */
+/* Rail icons — HeightLab 2026-08-26：与原生“添加工作区”rail 按钮统一为
+   次级色（label-secondary），不再使用主色。 */
 .collapsed .iconButton {
-  color: var(--dsw-alias-label-primary);
+  color: var(--dsw-alias-label-secondary);
 }
 
 .buildRevision {
@@ -228,21 +238,22 @@
   line-height: 16px;
 }
 
-/* New Session: 38px bar, 12px radius (figma 133:7634 geometry, squared-off
-   corners); collapsed it renders as the rail's plain icon control. */
+/* New Session — HeightLab 2026-08-26：去掉边框与底色，改为与
+   创意灵感/自动化（hlNavItem）一致的透明文字行：6/8 padding、6px 圆角、
+   14px/500 主色文字 + 次级色图标；左缘与 hlNav 行对齐（margin-left 4px）。
+   Collapsed it renders as the rail's plain icon control. */
 .newSession {
   flex: none;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
-  height: 38px;
-  padding: 8px 16px;
-  margin: 0 2px 8px;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 6px 8px;
+  margin: 0 0 2px 4px;
   box-sizing: border-box;
-  border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 12px;
-  background: var(--dsw-alias-button-elevated-fill);
+  border: none;
+  border-radius: 6px;
+  background: transparent;
   color: var(--dsw-alias-label-primary);
   font-size: 14px;
   font-weight: 500;
@@ -251,8 +262,14 @@
   overflow: hidden;
 }
 
+/* 图标与原生“添加工作区”同为次级色；文字保持主色。 */
+.newSession > svg {
+  flex: none;
+  color: var(--dsw-alias-label-secondary);
+}
+
 .newSession:hover {
-  background: var(--dsw-alias-button-floating-hover);
+  background: var(--dsw-alias-interactive-bg-hover);
 }
 
 .collapsed .newSession {
@@ -264,6 +281,8 @@
   gap: 0;
   border-color: transparent;
   background: transparent;
+  /* HeightLab 2026-08-26：rail 内图标统一次级色（同添加工作区）。 */
+  color: var(--dsw-alias-label-secondary);
 }
 
 .collapsed .newSession:hover {
@@ -302,7 +321,8 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 4px 4px 8px;
+  /* HeightLab 2026-08-26：去顶 padding，与上方“新会话”行连成统一列表。 */
+  padding: 0 4px 8px;
   border-bottom: 1px solid var(--dsw-alias-border-l1);
   margin-bottom: 8px;
 }
@@ -368,13 +388,15 @@
   min-width: 0;
   padding: 0;
   border-radius: 50%;
-  color: var(--dsw-alias-label-primary);
+  /* HeightLab 2026-08-26：rail 内统一次级色（同添加工作区）。 */
+  color: var(--dsw-alias-label-secondary);
 }
 
 .collapsed .hlNavIcon {
-  width: 16px;
-  height: 16px;
-  color: var(--dsw-alias-label-primary);
+  /* HeightLab 2026-08-26：rail 图标统一 18px（figma rail spec）。 */
+  width: 18px;
+  height: 18px;
+  color: var(--dsw-alias-label-secondary);
 }
 
 .collapsed .regionArea {

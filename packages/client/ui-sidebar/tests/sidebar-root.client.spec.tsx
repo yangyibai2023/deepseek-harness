@@ -94,7 +94,6 @@ describe('SidebarRoot shell', () => {
   })
 
   it('renders generic brand fallbacks when no package fills the slots', () => {
-    vi.stubEnv('DSH_CLIENT_COMMIT_HASH', '0123456')
     const { container } = render(<SidebarRoot
       collapsed={false} width={300}
       useSessions={neverHook} useWorkspaces={neverHook}
@@ -103,9 +102,11 @@ describe('SidebarRoot shell', () => {
         options?.fallback ?? null) as SidebarRootComponentProps['renderSlot']}
     />)
 
-    expect(screen.getByText('DSH Local Build')).toBeTruthy()
-    expect(screen.getByText('0123456')).toBeTruthy()
-    expect(container.querySelector('svg')).not.toBeNull()
+    // HeightLab 2026-08-26：fallback = HEIGHTLAB 文字 + 胶囊 PNG（透明底），
+    // 替代 rc.2 的 DSH Local Build + 提交徽标。
+    expect(screen.getByText('HEIGHTLAB')).toBeTruthy()
+    const logo = container.querySelector('img[src="/heightlab-logo.png"]')
+    expect(logo).not.toBeNull()
   })
 
   it('hands the region its wide flag and clamps expandSidebar to the collapsed state', () => {

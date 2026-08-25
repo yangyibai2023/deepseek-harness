@@ -75,12 +75,18 @@
 
 /* Keep the hero mark in the same primary ink as its headline. */
 .fish {
+  /* HeightLab 2026-08-26：黑色胶囊 PNG（400x400 透明底、自带留白）。 */
   width: 68px;
   height: 68px;
   object-fit: contain;
   user-select: none;
   -webkit-user-drag: none;
   transform-origin: 50% 60%;
+}
+
+/* 暗色主题：黑胶囊反转为白胶囊（等价白色logo.png）。 */
+:global(body[data-ds-dark-theme]) .fish {
+  filter: invert(1);
 }
 
 @keyframes hero-fish-swim {

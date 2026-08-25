@@ -378,12 +378,15 @@ export function HeightLabLoginPage({ initialError }: { initialError?: string | n
       <div style={cardStyle}>
         {/* HeightLab：登录页品牌区 = 原图 logo + 品牌名 + 标语。 */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+          {/* HeightLab 2026-08-26：黑色胶囊 PNG（透明底），已随 build:web
+              进 public→dist，不再依赖运行时拷贝；内联 potrace SVG 会把
+              负形底色画成黑方块，弃用。 */}
           <img
-            src="/heightlab-logo.png?v=2"
+            src="/heightlab-logo.png"
             alt=""
-            width={32}
-            height={32}
-            style={{ display: 'block', userSelect: 'none' }}
+            width={30}
+            height={30}
+            style={{ display: 'block', userSelect: 'none', objectFit: 'contain' }}
           />
           <span style={{ fontSize: 22, fontWeight: 700 }}>HeightLab</span>
         </div>

@@ -124,15 +124,9 @@ export function HeroShell({ t, children }: HeroShellProps) {
       <div className={css.stack}>
         <div className={css.headline}>
           <span className={css.fishHitbox}>
-            {/* HeightLab：输入框上方品牌图标换成用户原图 PNG（68×68）。 */}
-            <img
-              src="/heightlab-logo.png?v=2"
-              alt=""
-              className={css.fish}
-              width={61}
-              height={61}
-              draggable={false}
-            />
+            {/* HeightLab 2026-08-26：黑色胶囊 PNG（透明底），随 build:web
+                进 public→dist；暗色主题由 CSS invert 转白。 */}
+            <img src="/heightlab-logo.png" alt="" className={css.fish} draggable={false} />
           </span>
           <span className={css.headlineText}>{t('hero.headline')}</span>
           <span className={css.previewBadge}>{t('hero.preview')}</span>

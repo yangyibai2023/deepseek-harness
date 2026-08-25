@@ -390,8 +390,10 @@
   display: grid;
   place-items: center;
   flex: none;
-  width: 34px;
-  height: 34px;
+  /* HeightLab 2026-08-26：在原生 34px 基础上整体缩小 20%（圆底与箭头
+     等比，grid 居中保证箭头不偏）。 */
+  width: 27.2px;
+  height: 27.2px;
   border: none;
   border-radius: 999px;
   /* HeightLab 2026-08-22：发送按钮改黑色主题（与侧边栏主按钮/0.3.17 一致），
