@@ -30,7 +30,7 @@ describe('SidebarRoot.module.css', () => {
     const root = declarations('.root')
     expect(root?.get('--dsh-sidebar-inline-padding')).toBe('12px')
     // HeightLab 2026-08-26：顶部 4px，品牌行中心对齐 macOS 红绿灯。
-    expect(root?.get('padding')).toBe('4px var(--dsh-sidebar-inline-padding) 6px')
+    expect(root?.get('padding')).toBe('7.5px var(--dsh-sidebar-inline-padding) 6px')
     expect(declarations('.regionArea')?.get('margin-left')).toBe('-4px')
     expect(declarations('.regionArea')?.get('padding-left')).toBe('4px')
     expect(declarations('.regionArea')?.get('margin-right')).toBe(
@@ -62,19 +62,23 @@ describe('SidebarRoot.module.css', () => {
   it('gives shell rail controls the same base anchor for their shared translation', () => {
     expect(declarations('.collapsed .logoRow')?.get('justify-content')).toBe('flex-start')
     expect(declarations('.collapsed .newSession')?.get('align-self')).toBe('flex-start')
+    // HeightLab 2026-08-26：rail 内图标水平居中（修复贴左偏 ≈9px）。
+    expect(declarations('.collapsed .newSession')?.get('justify-content')).toBe('center')
     expect(declarations('.collapsed .newSession')?.get('width')).toBe('36px')
   })
 
-  it('keeps the slotted brand row compact and right-aligned with the foot phone button', () => {
-    // HeightLab 2026-08-26：品牌区缩小（16px 行高 / 13px 字），右对齐，
-    // 右缘外挑 2px 与底部「连接手机」按钮同列。
-    expect(declarations('.logoRow')?.get('justify-content')).toBe('flex-end')
+  it('keeps the slotted brand row split: brand left by the traffic lights, toggle right', () => {
+    // HeightLab 2026-08-26 二轮：品牌放大 10%（18px 行高 / 14.3px 字）并移到
+    // 左侧贴近 macOS 红绿灯（padding-left 62px），折叠按钮保持靠右
+    // （右缘外挑 2px 与底部「连接手机」按钮同列）。
+    expect(declarations('.logoRow')?.get('justify-content')).toBe('space-between')
+    expect(declarations('.logoRow')?.get('padding')).toBe('0 0 0 70px')
     expect(declarations('.logoRow')?.get('margin')).toBe('0 -2px 8px 0')
-    expect(declarations('.brandIdentity')?.get('height')).toBe('16px')
-    expect(declarations('.brandName')?.get('height')).toBe('16px')
-    expect(declarations('.brandName')?.get('line-height')).toBe('16px')
-    expect(declarations('.brandName')?.get('font-size')).toBe('13px')
-    expect(declarations('.fallbackBrandName')?.get('font-size')).toBe('13px')
+    expect(declarations('.brandIdentity')?.get('height')).toBe('18px')
+    expect(declarations('.brandName')?.get('height')).toBe('18px')
+    expect(declarations('.brandName')?.get('line-height')).toBe('18px')
+    expect(declarations('.brandName')?.get('font-size')).toBe('14.3px')
+    expect(declarations('.fallbackBrandName')?.get('font-size')).toBe('14.3px')
     expect(declarations('.fallbackBrandName')?.get('white-space')).toBe('nowrap')
   })
 })

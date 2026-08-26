@@ -18,12 +18,12 @@
 import { useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import {
-  IconNewChatOutline16, IconPanelLeftOutline16, Tooltip,
+  IconNewChatOutline16, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SidebarRootComponentProps } from './contract/slots.ts'
 import css from './SidebarRoot.module.css'
 import {
-  IconInspirationStroke16, IconLibraryStroke16, IconAutomationStroke16,
+  IconInspirationStroke16, IconLibraryStroke16, IconAutomationStroke16, IconPanelLeftStroke16,
 } from './sidebar-icons.tsx'
 
 /** Wide-content unmount delay; matches the 150ms wide-content fade-out. */
@@ -142,7 +142,7 @@ export function SidebarRoot({
               <span className={css.brandMark}>
                 {/* HeightLab 2026-08-26：黑色胶囊 PNG（透明底），随 build:web
                     进 public→dist；暗色主题由 CSS invert 转白。 */}
-                {renderSlot('sidebar.brand.mark', { size: 18 }, { fallback: <img src="/heightlab-logo.png" alt="" width={18} height={18} draggable={false} style={{ width: 18, height: 18, objectFit: 'contain' }} /> })}
+                {renderSlot('sidebar.brand.mark', { size: 20 }, { fallback: <img src="/heightlab-logo.png" alt="" width={20} height={20} draggable={false} style={{ width: 20, height: 20, objectFit: 'contain' }} /> })}
               </span>
               <span className={css.brandName}>
                 {renderSlot('sidebar.brand.name', {}, {
@@ -172,7 +172,7 @@ export function SidebarRoot({
               </span>
             )}
             {/* Rail icons render at 18 (figma rail spec); expanded keeps the glyph-native sizes. */}
-            <IconPanelLeftOutline16 className={css.panelIcon} size={wide ? 16 : 18} />
+            <IconPanelLeftStroke16 className={css.panelIcon} size={wide ? 16 : 18} />
           </button>
         </Tooltip>
       </div>

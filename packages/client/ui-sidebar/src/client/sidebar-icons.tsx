@@ -38,7 +38,7 @@ export function IconNewChatStroke16({ size = 16, className }: IconProps) {
   )
 }
 
-/** 创意灵感：四角星（灵感火花），简约描边风格。 */
+/** 创意灵感：灯泡（灵感点亮），简约描边风格。 */
 export function IconInspirationStroke16({ size = 16, className }: IconProps) {
   return (
     <svg
@@ -51,12 +51,12 @@ export function IconInspirationStroke16({ size = 16, className }: IconProps) {
       aria-hidden="true"
     >
       <path
-        d="M8 2.2 9.35 6.65 13.8 8 9.35 9.35 8 13.8 6.65 9.35 2.2 8 6.65 6.65Z"
+        d="M8 1.8a4.2 4.2 0 0 0-2.45 7.63c.5.4.82.93.94 1.67h3.02c.12-.74.44-1.27.94-1.67A4.2 4.2 0 0 0 8 1.8Z"
         stroke="currentColor"
         strokeWidth="1.35"
         strokeLinejoin="round"
       />
-      <path d="M13 3.2v3M11.5 4.7h3" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
+      <path d="M6.6 13.1h2.8M7.2 14.9h1.6" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
     </svg>
   )
 }

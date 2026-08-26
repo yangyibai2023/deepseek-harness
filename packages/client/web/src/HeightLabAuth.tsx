@@ -35,12 +35,7 @@ type InteractionMode = 'signIn' | 'signUp'
 const AUTH_CSS_ID = 'heightlab-auth-gate-css'
 const AUTH_CSS = `
 body[data-hl-auth='out'] [data-dsh-better-sidebar],
-body[data-hl-auth='out'] .W-zNGW_panel,
-body[data-hl-auth='out'] .W-zNGW_toggleCluster,
-body[data-hl-auth='out'] .W-zNGW_bottomPanel,
-body[data-hl-auth='out'] .W-zNGW_cornerHandle,
-body[data-hl-auth='out'] .W-zNGW_selectionPopup,
-body[data-hl-auth='out'] .W-zNGW_boundaryError {
+body[data-hl-auth='out'] [data-dsh-panel-host] {
   display: none !important;
 }
 `

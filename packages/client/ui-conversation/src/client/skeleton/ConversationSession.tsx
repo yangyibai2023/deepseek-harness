@@ -223,7 +223,7 @@ export function ConversationSession({
     if (!isAutomation) return
     const labels = ['收起侧边栏', '折叠侧边栏', '收起底部面板', '折叠底部面板']
     const closePanels = (): void => {
-      const cluster = document.querySelector('.W-zNGW_toggleCluster')
+      const cluster = document.querySelector('[data-dsh-panel-host] [class*="toggleCluster"]')
       if (!cluster) return
       const buttons = [...cluster.querySelectorAll<HTMLButtonElement>('button[aria-label]')]
       for (const label of labels) {

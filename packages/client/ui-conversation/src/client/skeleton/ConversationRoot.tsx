@@ -90,7 +90,7 @@ export function ConversationRoot({
     const labels = ['收起侧边栏', '折叠侧边栏', '收起底部面板', '折叠底部面板']
     const closePanels = (): void => {
       // 只作用于 better-sidebar 的折叠按钮簇，绝不点击左侧原生侧边栏的收起按钮。
-      const cluster = document.querySelector('.W-zNGW_toggleCluster')
+      const cluster = document.querySelector('[data-dsh-panel-host] [class*="toggleCluster"]')
       if (!cluster) return
       const buttons = [...cluster.querySelectorAll<HTMLButtonElement>('button[aria-label]')]
       for (const label of labels) {

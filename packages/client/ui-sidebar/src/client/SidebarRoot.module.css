@@ -11,8 +11,8 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  /* HeightLab 2026-08-26：顶部 4px，品牌行中心对齐 macOS 红绿灯（y≈17）。 */
-  padding: 4px var(--dsh-sidebar-inline-padding) 6px;
+  /* HeightLab 2026-08-26：顶部 7.5px——品牌行中心 21.5px，与红绿灯中心严格同线（实测灯中心 21.5）。 */
+  padding: 7.5px var(--dsh-sidebar-inline-padding) 6px;
   box-sizing: border-box;
   background: var(--dsw-specific-sidebar-fill);
   color: var(--dsw-alias-label-primary);
@@ -27,7 +27,7 @@
    rail (10px side padding), 12px vertical rhythm, 18px from the rail top to
    the whale's box (24px to the 24-wide whale glyph itself). */
 .root.collapsed {
-  padding: 18px 10px 6px;
+  padding: 30px 10px 6px;
   /* HeightLab 2026-08-22：折叠态图标直接浮在背景上（去底色条），
      与 0.3.17 观感一致；展开态保留侧边栏填充底色。 */
   background: transparent;
@@ -96,10 +96,11 @@
   flex: none;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  /* HeightLab 2026-08-26：品牌靠左，可见胶囊与绿灯的间距=灯间距（实测 9.5px：绿灯右缘 72.75 + 9.5 - 胶囊内缩 2.6 - 根 12 ≈ 70）。折叠按钮靠右不动。 */
+  justify-content: space-between;
   gap: 8px;
   height: 28px;
-  padding: 0;
+  padding: 0 0 0 70px;
   margin: 0 -2px 8px 0;
   box-sizing: border-box;
   overflow: hidden;
@@ -137,8 +138,9 @@
 .brandIdentity {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  height: 16px;
+  /* HeightLab 2026-08-26：品牌视觉放大 10%（16→18 行高，logo 18→20 在 tsx）。 */
+  gap: 7px;
+  height: 18px;
   min-width: 0;
 }
 
@@ -158,17 +160,17 @@
 .brandName {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   min-width: 0;
-  height: 16px;
-  font-size: 13px;
+  height: 18px;
+  font-size: 14.3px;
   font-weight: 600;
-  line-height: 16px;
+  line-height: 18px;
   letter-spacing: 0.04em;
 }
 
 .fallbackBrandName {
-  font-size: 13px;
+  font-size: 14.3px;
   letter-spacing: 0px;
   white-space: nowrap;
 }
@@ -274,6 +276,8 @@
 
 .collapsed .newSession {
   align-self: flex-start;
+  /* HeightLab 2026-08-26：rail 内图标水平居中（覆盖宽态 flex-start，修复贴左偏 9px）。 */
+  justify-content: center;
   width: 36px;
   height: 36px;
   padding: 0;

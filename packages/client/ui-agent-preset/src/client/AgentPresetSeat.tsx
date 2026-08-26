@@ -287,7 +287,7 @@ export function AgentPresetSeat({
           onClick={() => { setOpen(value => !value) }}
         >
           {triggerLabel === undefined && (
-            <IconAgentPresetOutline16 className={introducing ? `${css.seatIcon} ${css.introIcon}` : css.seatIcon} />
+            <IconAgentPresetOutline16 size={14} className={introducing ? `${css.seatIcon} ${css.introIcon}` : css.seatIcon} />
           )}
           {shownLabel}
           {triggerLabel === undefined
