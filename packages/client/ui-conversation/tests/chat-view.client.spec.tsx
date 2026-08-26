@@ -580,12 +580,14 @@ describe('ChatView', () => {
     expect(within(cancelledDisclosure).getByRole('status').textContent).toContain('重试已取消')
   })
 
-  it('renders terminal turn failures inline with their durable message and optional code', () => {
+  // HeightLab：错误文案经 heightlabFriendlyErrorText 脱敏（鉴权类整行替换为
+  // 友好中文），且不再渲染内部错误码——见 MessageItem TurnErrorItem。
+  it('renders terminal turn failures inline with their sanitized message and no internal code', () => {
     const h = makeHarness({ nodes: [user(1, 'try'), turnError(2, 'AUTH'), turnError(3)] })
     const view = render(<h.ChatView {...h.props} />)
     const statuses = view.getAllByRole('status')
     expect(statuses.map(status => status.textContent)).toEqual([
-      '本轮运行失败API key is invalidAUTH',
+      '本轮运行失败服务鉴权失败，请稍后重试或重新登录。',
       '本轮运行失败plugin exploded',
     ])
   })
@@ -875,7 +877,8 @@ describe('ChatView', () => {
     const view = render(<h.ChatView {...h.props} />)
     expect(view.getByTestId('tool-seat-r1')).toBeTruthy()
     expect(h.toolOwners[0]?.block).toMatchObject({ callId: 'r1', argsRaw: '{"command":"cmd-r1"}' })
-    expect(view.getByRole('status').textContent).toBe('Deep diving...')
+    // HeightLab：运行状态文案硬编码为「正在执行中…」（ChatView turnStatus）。
+    expect(view.getByRole('status').textContent).toBe('正在执行中…')
   })
 
   it('keeps the Tool renderer mounted when a running call settles into log order', () => {
@@ -935,7 +938,7 @@ describe('ChatView', () => {
     const view = render(<h.ChatView {...h.props} />)
     // Freshly mounted (as after a reload) yet already past the 15s gate.
     const status = view.getByRole('status')
-    expect(status.textContent).toMatch(/^Deep diving\.\.\.2分0\d秒$/)
+    expect(status.textContent).toMatch(/^正在执行中…2分0\d秒$/)
     expect(status.querySelector('[aria-hidden="true"]')).not.toBeNull()
     act(() => {
       h.set({ queue: [{
@@ -947,7 +950,7 @@ describe('ChatView', () => {
         text: 'also',
       }] })
     })
-    expect(status.textContent).toMatch(/^Deep diving\.\.\.2分0\d秒$/)
+    expect(status.textContent).toMatch(/^正在执行中…2分0\d秒$/)
   })
 
   it('hands each ordered root call to the keyed business-node slot', () => {

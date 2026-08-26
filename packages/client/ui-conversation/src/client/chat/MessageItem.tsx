@@ -28,9 +28,8 @@ const UPLOADED_MEDIA_MARKER = /\[用户上传了(一张图片|一个视频)，�
 function mediaSegmentsFromPath(path: string): { userId: string; name: string } {
   const parts = path.split(/[\\/]/).filter(Boolean)
   const name = parts.pop() ?? ''
-  const userId = /^[A-Za-z0-9_-]+$/.test(parts[parts.length - 1] ?? '')
-    ? parts[parts.length - 1]!
-    : ''
+  const tail = parts[parts.length - 1] ?? ''
+  const userId = /^[A-Za-z0-9_-]+$/.test(tail) ? tail : ''
   return { userId, name }
 }
 
@@ -243,15 +242,17 @@ function projectUserText(text: string, sessionLabels: readonly string[] = []): R
 }
 
 /** Render user text with HeightLab uploaded-media markers replaced by inline
- * <img>/<video> elements (served by the Host over loopback). */
-function projectUserContent(text: string): ReactNode {
+ * <img>/<video> elements (served by the Host over loopback).
+ * HeightLab 2026-08-26：sessionLabels 必须透传——此前丢参导致 @会话
+ * 提及芯片不再渲染（chat-branch-tails 两个用例捕获）。 */
+function projectUserContent(text: string, sessionLabels: readonly string[] = []): ReactNode {
   const parts: ReactNode[] = []
   let cursor = 0
   let m: RegExpExecArray | null
   UPLOADED_MEDIA_MARKER.lastIndex = 0
   while ((m = UPLOADED_MEDIA_MARKER.exec(text)) !== null) {
     const prefix = text.slice(cursor, m.index)
-    if (prefix) parts.push(<span key={`text-${cursor}`}>{projectUserText(prefix)}</span>)
+    if (prefix) parts.push(<span key={`text-${cursor}`}>{projectUserText(prefix, sessionLabels)}</span>)
     const isVideo = m[1] === '一个视频'
     const { userId, name } = mediaSegmentsFromPath(m[2] ?? '')
     const scope = userId ? `${encodeURIComponent(userId)}/` : ''
@@ -280,8 +281,8 @@ function projectUserContent(text: string): ReactNode {
     )
     cursor = m.index + m[0].length
   }
-  if (parts.length === 0) return projectUserText(text)
-  if (cursor < text.length) parts.push(<span key={`text-${cursor}`}>{projectUserText(text.slice(cursor))}</span>)
+  if (parts.length === 0) return projectUserText(text, sessionLabels)
+  if (cursor < text.length) parts.push(<span key={`text-${cursor}`}>{projectUserText(text.slice(cursor), sessionLabels)}</span>)
   return <>{parts}</>
 }
 
@@ -308,7 +309,7 @@ function UserStyleBubble({
       <div className={css.userStack}>
         {renderMessageImages({ images, align: 'end' })}
         {showBubble && <div className={css.bubble} data-genui-injected={injected || undefined}>
-          {projectUserContent(displayText)}
+          {projectUserContent(displayText, referenceLabels)}
           {rest.length > 0 && <span className={css.unknownBlock}>{HEIGHTLAB_UNKNOWN_BLOCK_TEXT}</span>}
         </div>}
         {referenceLabels.length > 0 && (

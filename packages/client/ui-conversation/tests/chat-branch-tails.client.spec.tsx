@@ -305,7 +305,7 @@ describe('MessageItem arms', () => {
     )
     expect(view.queryByText('插话')).toBeNull()
     expect(view.getByText('steer!')).toBeTruthy()
-    expect(view.getByText(/附加内容块/)).toBeTruthy()
+    expect(view.getByText(/未知内容块/)).toBeTruthy()
     fireEvent.click(view.getByRole('button', { name: '复制' }))
     expect(writeText).toHaveBeenCalledWith('steer!')
     expect(view.queryByRole('button', { name: '在新对话中分支' })).toBeNull()
@@ -337,7 +337,7 @@ describe('MessageItem arms', () => {
     expect(ctxView.container.querySelector('[data-context-text]')?.textContent)
       .toBe('line one\n\nline two')
     const fields = [...ctxView.container.querySelectorAll('[data-context-fields] dt')].map(node => node.textContent)
-    expect(fields).toEqual(['plugin', 'empty', 'list'])
+    expect(fields).toEqual(['来源', 'empty', 'list'])
 
     fireEvent.keyDown(disclosure, { key: ' ' })
     expect(disclosure.getAttribute('aria-expanded')).toBe('false')
@@ -435,7 +435,7 @@ describe('MessageItem arms', () => {
       } as never}
       />,
     )
-    fireEvent.click(view.getByRole('button', { name: /^上下文注入\s*skill-catalog$/ }))
+    fireEvent.click(view.getByRole('button', { name: '技能已加载' }))
     const entries = [...view.container.querySelectorAll('[data-context-entries] li')].map(node => node.textContent)
     expect(entries).toEqual(['a-skillDoes A', 'b-skillDoes B'])
     expect(view.container.querySelector('[data-context-text]')).toBeNull()
@@ -459,7 +459,7 @@ describe('MessageItem arms', () => {
       } as never}
       />,
     )
-    fireEvent.click(view.getByRole('button', { name: /^上下文注入\s*skill-catalog$/ }))
+    fireEvent.click(view.getByRole('button', { name: '技能已加载' }))
     expect(view.container.querySelector('[data-context-catalog-update]')?.textContent).toBe('替换目录')
   })
 
@@ -481,7 +481,7 @@ describe('MessageItem arms', () => {
       } as never}
       />,
     )
-    fireEvent.click(view.getByRole('button', { name: /^上下文注入\s*skill-catalog$/ }))
+    fireEvent.click(view.getByRole('button', { name: '技能已加载' }))
     expect(view.container.querySelector('[data-context-entries]')).toBeNull()
     expect(view.container.querySelector('[data-context-text]')?.textContent).toBe('catalog prose')
     // The marker reports what rendered, not what was declared.
@@ -556,7 +556,7 @@ describe('MessageItem arms', () => {
       } as never}
       />,
     )
-    fireEvent.click(view.getByRole('button', { name: /^上下文注入\s*skill-catalog$/ }))
+    fireEvent.click(view.getByRole('button', { name: '技能已加载' }))
     expect(view.container.querySelector('[data-context-catalog-update]')?.textContent).toBe('替换目录')
     expect(view.container.querySelectorAll('[data-context-entries] li')).toHaveLength(0)
     expect(view.container.querySelector('[data-context-injection-body]')?.getAttribute('data-context-form'))
@@ -575,7 +575,7 @@ describe('MessageItem arms', () => {
       } as never}
       />,
     )
-    fireEvent.click(view.getByRole('button', { name: /^上下文注入\s*skill-catalog$/ }))
+    fireEvent.click(view.getByRole('button', { name: '技能已加载' }))
     expect(view.container.querySelector('[data-context-entries]')).toBeNull()
     expect(view.container.querySelector('[data-context-text]')?.textContent).toBe('catalog prose')
   })
@@ -591,7 +591,7 @@ describe('MessageItem arms', () => {
       } as never}
       />,
     )
-    fireEvent.click(view.getByRole('button', { name: /^上下文注入\s*skill-catalog$/ }))
+    fireEvent.click(view.getByRole('button', { name: '技能已加载' }))
     expect(view.container.querySelectorAll('[data-context-entries] li')).toHaveLength(200)
     expect(view.container.querySelector('[data-context-entries-truncated]')?.textContent).toBe('…还有 5 条')
   })
@@ -608,7 +608,7 @@ describe('MessageItem arms', () => {
       } as never}
       />,
     )
-    fireEvent.click(view.getByRole('button', { name: /^上下文注入\s*skill-catalog$/ }))
+    fireEvent.click(view.getByRole('button', { name: '技能已加载' }))
     expect(view.getByText(/未知内容块/)).toBeTruthy()
   })
 
@@ -644,7 +644,7 @@ describe('MessageItem arms', () => {
     )
     fireEvent.click(view.getByRole('button', { name: /^上下文注入\s*later$/ }))
     const fields = [...view.container.querySelectorAll('[data-context-fields] dt')].map(node => node.textContent)
-    expect(fields).toEqual(['plugin', 'form'])
+    expect(fields).toEqual(['来源', 'form'])
   })
 
   it('the snapshot form attributes each part to the subsystem that produced it', () => {
@@ -664,7 +664,7 @@ describe('MessageItem arms', () => {
       } as never}
       />,
     )
-    fireEvent.click(view.getByRole('button', { name: /^上下文注入\s*@deepseek-ai\/dsh-system-prompt$/ }))
+    fireEvent.click(view.getByRole('button', { name: 'Colin 指挥官 已收到' }))
     const rows = [...view.container.querySelectorAll('[data-context-sections] div')].map(node => node.textContent)
     expect(rows).toEqual(['sandbox:policyworkspace-write', 'workspace/repo'])
   })
@@ -787,11 +787,11 @@ describe('MessageItem arms', () => {
     expect(view.container.querySelector('[data-context-text]')?.textContent).toBe('recalled material')
   })
 
-  it('unknown nodes retain the generic JSON row', () => {
+  it('unknown nodes render the HeightLab opaque placeholder (content hidden)', () => {
     const unknownView = render(
       <MessageItem t={t} node={{ kind: 'unknown', seq: 4, type: 'surface/next', data: { x: 1 } } as never} />,
     )
-    expect(unknownView.getByText(/未知 surface 事件：surface\/next/)).toBeTruthy()
+    expect(unknownView.getByText(/未知内容块（内容已隐藏）/)).toBeTruthy()
   })
 
   it('a compaction marker discloses its summary and never shows the framed checkpoint', () => {

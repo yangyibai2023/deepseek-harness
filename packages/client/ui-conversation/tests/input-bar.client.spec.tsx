@@ -339,7 +339,8 @@ describe('image draft rail', () => {
     expect(model.view.getByRole('alert').textContent).toContain('当前模型不支持图片，请切换支持图片的模型')
     cleanup()
     const unknown = bench({ promptError: attachmentError('ATTACHMENT_NOT_REFERENCED') })
-    expect(unknown.view.getByRole('alert').textContent).toContain('图片发送失败（ATTACHMENT_NOT_REFERENCED）')
+    // HeightLab：未认识的错误码折叠为统一友好文案，不展示错误码（image-labels.ts）。
+    expect(unknown.view.getByRole('alert').textContent).toContain('图片发送失败，请重新添加图片后再试')
     cleanup()
     const other = bench({
       promptError: { op: 'send', error: { code: 'internal', message: 'boom', details: {} } },
@@ -1476,7 +1477,8 @@ describe('command launcher chrome and control seats', () => {
     expect(view.queryByLabelText(/^访问模式/)).toBeNull()
     // Every seat dispatched, nothing rendered.
     expect(slotCalls.map(c => c.key)).toEqual([
-      'conversation.input.attachments', 'conversation.input.plan', 'conversation.input.model',
+      // HeightLab：agentPreset（智能体选择）座位位于 plan 与 model 之间（InputBar trailing）。
+      'conversation.input.attachments', 'conversation.input.plan', 'conversation.input.agentPreset', 'conversation.input.model',
     ])
     expect(view.queryByLabelText('Plan mode')).toBeNull()
     expect(view.queryByLabelText('Model')).toBeNull()
@@ -1506,17 +1508,18 @@ describe('command launcher chrome and control seats', () => {
     }
     const { view } = bench({ permissions, command })
     const trigger = view.getByLabelText(/^访问模式/) as HTMLButtonElement
-    // Title-case display is presentation only; the menu ids stay machine names.
-    expect(trigger.textContent).toBe('Read Only')
+    // HeightLab 中文档位名（仅查看/当前项目/完全访问，PermissionSelect ZH_PRESET_LABELS）；
+    // 菜单 id 保持机器名不变。
+    expect(trigger.textContent).toBe('仅查看')
     expect([...trigger.querySelectorAll('svg')]
       .every(icon => icon.closest('[aria-hidden="true"]') !== null)).toBe(true)
     fireEvent.click(trigger)
     const items = view.getAllByRole('menuitem')
-    expect(items.map(o => o.textContent)).toEqual(['Read Only', 'Workspace Write', 'Full access'])
+    expect(items.map(o => o.textContent)).toEqual(['仅查看', '当前项目', '完全访问'])
     fireEvent.click(items[1]!)
     // Optimistic pick + disable until admission resolves (command stub resolves true).
     const busy = view.getByLabelText(/^访问模式/) as HTMLButtonElement
-    expect(busy.textContent).toBe('Workspace Write')
+    expect(busy.textContent).toBe('当前项目')
     expect(busy.disabled).toBe(true)
     expect(command).toHaveBeenCalledWith('/permission workspace-write')
     await act(async () => {})
@@ -1534,7 +1537,7 @@ describe('command launcher chrome and control seats', () => {
     }
     const { view } = bench({ permissions, command })
     fireEvent.click(view.getByLabelText(/^访问模式/))
-    fireEvent.click(view.getByRole('menuitem', { name: 'Full access' }))
+    fireEvent.click(view.getByRole('menuitem', { name: '完全访问' }))
 
     expect(command).not.toHaveBeenCalled()
     expect(view.getByRole('dialog', { name: '确认启用 Full access？' })).toBeTruthy()
@@ -1548,7 +1551,7 @@ describe('command launcher chrome and control seats', () => {
     expect(command).toHaveBeenCalledOnce()
     expect(command).toHaveBeenCalledWith('/permission danger-full-access')
     expect(view.queryByRole('dialog')).toBeNull()
-    expect((view.getByLabelText(/^访问模式/) as HTMLButtonElement).textContent).toBe('Full access')
+    expect((view.getByLabelText(/^访问模式/) as HTMLButtonElement).textContent).toBe('完全访问')
     await act(async () => {})
   })
 
@@ -1564,14 +1567,14 @@ describe('command launcher chrome and control seats', () => {
     const { view } = bench({ permissions, command })
     const openConfirmation = () => {
       fireEvent.click(view.getByLabelText(/^访问模式/))
-      fireEvent.click(view.getByRole('menuitem', { name: 'Full access' }))
+      fireEvent.click(view.getByRole('menuitem', { name: '完全访问' }))
     }
 
     openConfirmation()
     fireEvent.click(view.getByRole('checkbox'))
     fireEvent.click(view.getByRole('button', { name: '取消' }))
     expect(command).not.toHaveBeenCalled()
-    expect((view.getByLabelText(/^访问模式/) as HTMLButtonElement).textContent).toBe('Workspace Write')
+    expect((view.getByLabelText(/^访问模式/) as HTMLButtonElement).textContent).toBe('当前项目')
 
     openConfirmation()
     expect((view.getByRole('checkbox') as HTMLInputElement).checked).toBe(false)
@@ -1589,7 +1592,7 @@ describe('command launcher chrome and control seats', () => {
     }
     const { view, session } = bench({ permissions, command })
     fireEvent.click(view.getByLabelText(/^访问模式/))
-    fireEvent.click(view.getByRole('menuitem', { name: 'Full access' }))
+    fireEvent.click(view.getByRole('menuitem', { name: '完全访问' }))
     fireEvent.click(view.getByRole('checkbox'))
     act(() => { session.set(snapshotOf({ removed: true })) })
     expect(view.queryByRole('dialog')).toBeNull()
@@ -1607,7 +1610,7 @@ describe('command launcher chrome and control seats', () => {
     }
     const { view, props } = bench({ permissions, command })
     fireEvent.click(view.getByLabelText(/^访问模式/))
-    fireEvent.click(view.getByRole('menuitem', { name: 'Full access' }))
+    fireEvent.click(view.getByRole('menuitem', { name: '完全访问' }))
     fireEvent.click(view.getByRole('checkbox'))
     view.rerender(<InputBar {...props} sessionId={'s2' as SessionId} />)
     expect(view.queryByRole('dialog')).toBeNull()
@@ -1623,7 +1626,10 @@ describe('command launcher chrome and control seats', () => {
     expect(view.getByTestId('plan-entry')).toBeTruthy()
     expect(view.getByTestId('model-entry')).toBeTruthy()
     // The bar hands its chrome disable state to the filling entry.
-    const controls = slotCalls.filter(call => call.key !== 'conversation.input.attachments')
+    // HeightLab：agentPreset 座位 owner 契约是空 props（HeroAgentPresetOwnerProps），
+    // 与 attachments 一样不参与 locked 传递。
+    const controls = slotCalls.filter(call =>
+      call.key !== 'conversation.input.attachments' && call.key !== 'conversation.input.agentPreset')
     expect(controls.every(c => (c.owner as { locked: boolean }).locked)).toBe(true)
     expect(attachmentOwner(slotCalls).canAcceptDrop).toBe(false)
     cleanup()
