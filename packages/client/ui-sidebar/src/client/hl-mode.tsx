@@ -46,21 +46,29 @@ export function HlModeSwitcher() {
   const [joining, setJoining] = useState(false)
   const [joinError, setJoinError] = useState('')
 
+  const refreshOrgs = async (): Promise<HlOrgEntry[]> => {
+    try {
+      const res = await fetch('/hl/org-context', { signal: AbortSignal.timeout(8000) })
+      const data = await (res.ok ? res.json() : Promise.resolve(null)) as {
+        organizations?: HlOrgEntry[]
+        degraded?: boolean
+      } | null
+      const next = Array.isArray(data?.organizations)
+        ? data.organizations.filter(o => typeof o?.id === 'string' && o.id !== '')
+        : []
+      setOrgs(next)
+      setDegraded(data?.degraded === true)
+      setLoaded(true)
+      return next
+    } catch {
+      setLoaded(true)
+      return []
+    }
+  }
+
   useEffect(() => {
     let alive = true
-    fetch('/hl/org-context', { signal: AbortSignal.timeout(8000) })
-      .then(res => (res.ok ? res.json() : null))
-      .then((data: { organizations?: HlOrgEntry[]; degraded?: boolean } | null) => {
-        if (!alive) return
-        if (data === null || !Array.isArray(data.organizations)) {
-          setLoaded(true)
-          return
-        }
-        setOrgs(data.organizations.filter(o => typeof o?.id === 'string' && o.id !== ''))
-        setDegraded(data.degraded === true)
-        setLoaded(true)
-      })
-      .catch(() => { if (alive) setLoaded(true) })
+    void refreshOrgs().then(() => { if (!alive) setLoaded(true) })
     return () => { alive = false }
   }, [])
 
@@ -69,19 +77,28 @@ export function HlModeSwitcher() {
   const effectiveOrgId = orgs.some(o => o.id === sel.orgId) ? sel.orgId : (orgs[0]?.id ?? '')
   const enterpriseName = orgs.find(o => o.id === effectiveOrgId)?.name ?? ''
 
-  const choose = (mode: HlMode) => {
-    if (mode === 'enterprise' && orgs.length === 0) {
-      setJoinOpen(true)
-      setJoinError('')
-      return
-    }
-    const orgId = mode === 'enterprise' ? effectiveOrgId : ''
-    setSel({ mode, orgId })
+  const enter = (nextMode: HlMode, orgId: string) => {
+    setSel({ mode: nextMode, orgId })
     try {
-      window.localStorage.setItem(LS_MODE, mode)
+      window.localStorage.setItem(LS_MODE, nextMode)
       window.localStorage.setItem(LS_ORG, orgId)
     } catch { /* 隐私模式等：仅内存态 */ }
-    window.dispatchEvent(new CustomEvent('hl:mode-changed', { detail: { mode, orgId } }))
+    window.dispatchEvent(new CustomEvent('hl:mode-changed', { detail: { mode: nextMode, orgId } }))
+  }
+
+  const choose = async (mode: HlMode) => {
+    if (mode === 'enterprise') {
+      const next = await refreshOrgs()
+      if (next.length === 0) {
+        setJoinOpen(true)
+        setJoinError('')
+        return
+      }
+      const target = next.some(o => o.id === sel.orgId) ? sel.orgId : (next[0]?.id ?? '')
+      enter('enterprise', target)
+      return
+    }
+    enter('personal', '')
   }
 
   const join = async () => {
@@ -104,6 +121,19 @@ export function HlModeSwitcher() {
         message?: string
       } | null
       if (!res.ok || data === null || data.ok !== true || !data.org?.id) {
+        // 加入服务可能已成功但响应未送达：以组织归属权威重新拉取为准。
+        const next = await refreshOrgs()
+        if (next.length > 0) {
+          const org = next[0]
+          if (!org) {
+            setJoinError('企业加入后组织归属暂不可读，请稍后重试。')
+            return
+          }
+          enter('enterprise', org.id)
+          setJoinOpen(false)
+          setCode('')
+          return
+        }
         setJoinError(data?.message ?? '企业加入失败，请检查邀请码后重试。')
         return
       }
@@ -113,13 +143,9 @@ export function HlModeSwitcher() {
         return [org, ...next]
       })
       setSel({ mode: 'enterprise', orgId: org.id })
-      try {
-        window.localStorage.setItem(LS_MODE, 'enterprise')
-        window.localStorage.setItem(LS_ORG, org.id)
-      } catch { /* ignore */ }
+      enter('enterprise', org.id)
       setJoinOpen(false)
       setCode('')
-      window.dispatchEvent(new CustomEvent('hl:mode-changed', { detail: { mode: 'enterprise', orgId: org.id } }))
     } catch {
       setJoinError('企业加入服务暂时不可用，请稍后重试。')
     } finally {
