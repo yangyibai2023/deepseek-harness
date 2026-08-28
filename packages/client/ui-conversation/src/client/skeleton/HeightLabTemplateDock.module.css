@@ -56,6 +56,42 @@
   font-weight: 600;
 }
 
+/* 企业版 M6：「专属」激活态染品牌色（--hl-brand 由容器注入，缺省回退默认主色）。 */
+.tagExclusiveActive {
+  color: var(--hl-brand, var(--dsw-alias-label-primary));
+}
+
+/* 「专属」标签前的企业 logo 小图标。 */
+.tagLogo {
+  width: 16px;
+  height: 16px;
+  margin-right: 4px;
+  border-radius: 4px;
+  object-fit: contain;
+}
+
+/* 专属卡片右上角的原分类角标。 */
+.itemCat {
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 6px;
+  background: var(--dsw-alias-interactive-bg-hover, rgba(127, 127, 127, 0.12));
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 16px;
+  vertical-align: 1px;
+}
+
+/* 专属栏空态（管理员未配置或全部因权限不可见）。 */
+.empty {
+  padding: 48px 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 13px;
+  line-height: 20px;
+  text-align: center;
+}
+
 .fold {
   display: inline-flex;
   align-items: center;

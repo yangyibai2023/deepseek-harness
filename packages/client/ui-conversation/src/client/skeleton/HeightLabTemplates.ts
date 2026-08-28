@@ -34,6 +34,75 @@ export interface ContentPrefPatch {
 export const TEMPLATE_ORDER = ['推荐', '文案', '图片', '视频', '办公', '术语'] as const
 export type TemplateCategory = typeof TEMPLATE_ORDER[number]
 
+// HeightLab 2026-08-29（企业版 M6）：「专属」栏数据——企业模式下输入框下方
+// 最左侧的「专属」标签，展示本企业当前成员可见的全部定制模板（跨分类扁平化，
+// 服务端已按成员权限过滤）。品牌三件套（品牌名/logo/主题色）随目录一起下发。
+export interface EnterpriseBranding {
+  brandName: string | null
+  logoUrl: string | null
+  slogan: string | null
+  themeColor: string | null
+}
+
+/** 专属栏条目：企业模板 + 原分类（卡片角标用）。 */
+export interface ExclusiveItem extends Recommendation {
+  sourceCategory: string
+}
+
+export interface EnterpriseDockData {
+  orgId: string
+  exclusive: ExclusiveItem[]
+  branding: EnterpriseBranding | null
+}
+
+let enterpriseDock: EnterpriseDockData | null = null
+
+export function getEnterpriseDock(): EnterpriseDockData | null {
+  return enterpriseDock
+}
+
+/** 主题色只接受 #RRGGBB，其他一律视为未配置（防 CSS 注入）。 */
+export function normalizeThemeColor(raw: unknown): string | null {
+  return typeof raw === 'string' && /^#[0-9a-fA-F]{6}$/.test(raw) ? raw : null
+}
+
+/** 企业品牌字段归一化：非字符串一律置空。 */
+export function normalizeEnterpriseBranding(raw: unknown): EnterpriseBranding | null {
+  if (raw === null || typeof raw !== 'object') return null
+  const obj = raw as Record<string, unknown>
+  const text = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null)
+  return {
+    brandName: text(obj.brandName),
+    logoUrl: text(obj.logoUrl),
+    slogan: text(obj.slogan),
+    themeColor: normalizeThemeColor(obj.themeColor),
+  }
+}
+
+/**
+ * 企业模板跨分类扁平化（纯函数）：服务端下发结构为 { 分类: 条目[] }，
+ * 每条补 sourceCategory；缺 color 的给默认浅色，保证专属栏渲染不依赖通用集。
+ */
+export function flattenEnterpriseTemplates(
+  templates: Record<string, unknown[]>,
+): ExclusiveItem[] {
+  const out: ExclusiveItem[] = []
+  for (const [cat, items] of Object.entries(templates)) {
+    if (!Array.isArray(items)) continue
+    for (const raw of items as Array<Partial<Recommendation> & { title?: unknown }>) {
+      if (typeof raw?.title !== 'string' || raw.title === '') continue
+      out.push({
+        color: '#E8ECFF',
+        desc: '',
+        ...raw,
+        title: raw.title,
+        sourceCategory: cat,
+      } as ExclusiveItem)
+    }
+  }
+  return out
+}
+
 export const TEMPLATE_CARDS: Record<TemplateCategory, Recommendation[]> = {
   推荐: [
     {
@@ -286,11 +355,15 @@ export async function loadTemplateCatalog(): Promise<Record<TemplateCategory, Re
     // HeightLab 2026-08-29（企业版 M4）：合并时同步登记企业模板名，
     // 供输入框胶囊识别（getTemplateNames）；个人模式/失败时登记为空。
     const entNames: string[] = []
+    let nextDock: EnterpriseDockData | null = null
     try {
       const mode = window.localStorage.getItem('hl.mode')
       const orgId = window.localStorage.getItem('hl.mode.orgId') ?? ''
       const ent = mode === 'enterprise' && orgId !== ''
-        ? (data.enterprise as Record<string, { templates?: Record<string, unknown[]> }> | undefined)?.[orgId]
+        ? (data.enterprise as Record<string, {
+          templates?: Record<string, unknown[]>
+          branding?: unknown
+        }> | undefined)?.[orgId]
         : undefined
       if (ent?.templates && typeof ent.templates === 'object') {
         for (const [cat, items] of Object.entries(ent.templates)) {
@@ -302,8 +375,18 @@ export async function loadTemplateCatalog(): Promise<Record<TemplateCategory, Re
           if (extras.length > 0) merged[target] = [...merged[target], ...extras.map(it => it as Recommendation)]
           for (const it of extras) entNames.push(it.title)
         }
+        // M6：专属栏数据（跨分类扁平化 + 品牌）；条目已被服务端按成员权限过滤。
+        nextDock = {
+          orgId,
+          exclusive: flattenEnterpriseTemplates(ent.templates),
+          branding: normalizeEnterpriseBranding(ent.branding),
+        }
+      } else if (mode === 'enterprise' && orgId !== '') {
+        // 企业模式但无企业段（个人用户无权/无数据）：专属栏空态，不泄露存在性。
+        nextDock = { orgId, exclusive: [], branding: null }
       }
     } catch { /* localStorage 不可用：按个人模式 */ }
+    enterpriseDock = nextDock
     setEnterpriseTemplateNames(entNames)
     return merged
   } catch {
