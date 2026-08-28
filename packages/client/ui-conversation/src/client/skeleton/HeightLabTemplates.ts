@@ -283,6 +283,9 @@ export async function loadTemplateCatalog(): Promise<Record<TemplateCategory, Re
     // HeightLab 2026-08-28（企业版 M3）：企业模式下把本组织定制模板追加
     // 到对应分类尾部（通用模板全部保留）；分类不在固定六类时并入「推荐」。
     // 模式与 orgId 由侧边栏切换项写入 localStorage（见 ui-sidebar/hl-mode）。
+    // HeightLab 2026-08-29（企业版 M4）：合并时同步登记企业模板名，
+    // 供输入框胶囊识别（getTemplateNames）；个人模式/失败时登记为空。
+    const entNames: string[] = []
     try {
       const mode = window.localStorage.getItem('hl.mode')
       const orgId = window.localStorage.getItem('hl.mode.orgId') ?? ''
@@ -297,9 +300,11 @@ export async function loadTemplateCatalog(): Promise<Record<TemplateCategory, Re
             .filter((it): it is Partial<Recommendation> & { title: string } =>
               typeof it?.title === 'string' && it.title !== '')
           if (extras.length > 0) merged[target] = [...merged[target], ...extras.map(it => it as Recommendation)]
+          for (const it of extras) entNames.push(it.title)
         }
       }
     } catch { /* localStorage 不可用：按个人模式 */ }
+    setEnterpriseTemplateNames(entNames)
     return merged
   } catch {
     return null
@@ -310,6 +315,24 @@ export async function loadTemplateCatalog(): Promise<Record<TemplateCategory, Re
 export const TEMPLATE_NAMES: string[] = Array.from(new Set(
   TEMPLATE_ORDER.flatMap(tag => TEMPLATE_CARDS[tag].map(item => item.title)),
 ))
+
+// HeightLab 2026-08-29（企业版 M4）：企业模板名动态并入胶囊识别。
+// 通用名单保持静态常量；企业名单由 loadTemplateCatalog 每次拉取后整体
+// 替换（个人模式/拉取失败登记为空），不做增量叠加，避免切回个人版后
+// 企业模板名残留。
+const enterpriseTemplateNames = new Set<string>()
+
+export function setEnterpriseTemplateNames(names: string[]): void {
+  enterpriseTemplateNames.clear()
+  for (const name of names) if (name !== '') enterpriseTemplateNames.add(name)
+}
+
+/** 胶囊识别用的完整模板名单：通用静态集 ∪ 当前企业模板名。 */
+export function getTemplateNames(): string[] {
+  return enterpriseTemplateNames.size === 0
+    ? TEMPLATE_NAMES
+    : [...TEMPLATE_NAMES, ...enterpriseTemplateNames]
+}
 
 /** 做同款指令：标题 + 说明 + 结构描述 + 用户已填写的弹窗信息。 */
 export function sameTemplateText(item: Recommendation, answers: Record<string, string> = {}): string {

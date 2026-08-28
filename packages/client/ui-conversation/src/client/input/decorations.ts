@@ -5,7 +5,7 @@
  * the instructions; tests drive this directly.
  */
 import type { InputState } from './contract.ts'
-import { TEMPLATE_NAMES } from '../skeleton/HeightLabTemplates.ts'
+import { getTemplateNames } from '../skeleton/HeightLabTemplates.ts'
 
 /** The claim-token highlight range (always draft-leading while the watch holds). */
 export interface TokenRange {
@@ -105,7 +105,7 @@ export function scanTextRefs(
 export function scanTemplateRefs(draft: string): TextRefRange[] {
   if (draft === '') return []
   const out: TextRefRange[] = []
-  for (const name of TEMPLATE_NAMES) {
+  for (const name of getTemplateNames()) {
     if (name === '') continue
     let from = 0
     let idx: number

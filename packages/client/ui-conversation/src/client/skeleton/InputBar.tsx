@@ -34,7 +34,7 @@ import { VideoToolbar } from './VideoToolbar.tsx'
 import { ImageToolbar } from './ImageToolbar.tsx'
 import { ContentToolbar } from './ContentToolbar.tsx'
 import css from './InputBar.module.css'
-import { TEMPLATE_NAMES } from './HeightLabTemplates.ts'
+import { getTemplateNames } from './HeightLabTemplates.ts'
 
 /** Decoration product of the no-session state (no machine, empty draft). */
 const INERT_DECORATIONS: DraftDecorations = { token: null, chips: [], textRefs: [], hint: null }
@@ -507,7 +507,7 @@ export function InputBar({
     safariNativeShrinkRef.current = safari && next.length < draft.length
     keyboard.setDraft(next, editRangeOf(pending, draft.length, next.length))
     // HeightLab：模板胶囊被全部删除（输入框清空）→ 通知智能体选择框切回 Colin。
-    const hasTemplate = TEMPLATE_NAMES.some(name => name !== '' && next.includes(name))
+    const hasTemplate = getTemplateNames().some(name => name !== '' && next.includes(name))
     if (!hasTemplate && hadTemplateRef.current && next.trim() === '') {
       hadTemplateRef.current = false
       window.dispatchEvent(new CustomEvent('hl:template-removed'))
