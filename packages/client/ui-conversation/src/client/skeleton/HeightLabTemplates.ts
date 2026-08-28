@@ -280,6 +280,26 @@ export async function loadTemplateCatalog(): Promise<Record<TemplateCategory, Re
           return { ...(local ?? {}), ...it } as Recommendation
         })
     }
+    // HeightLab 2026-08-28（企业版 M3）：企业模式下把本组织定制模板追加
+    // 到对应分类尾部（通用模板全部保留）；分类不在固定六类时并入「推荐」。
+    // 模式与 orgId 由侧边栏切换项写入 localStorage（见 ui-sidebar/hl-mode）。
+    try {
+      const mode = window.localStorage.getItem('hl.mode')
+      const orgId = window.localStorage.getItem('hl.mode.orgId') ?? ''
+      const ent = mode === 'enterprise' && orgId !== ''
+        ? (data.enterprise as Record<string, { templates?: Record<string, unknown[]> }> | undefined)?.[orgId]
+        : undefined
+      if (ent?.templates && typeof ent.templates === 'object') {
+        for (const [cat, items] of Object.entries(ent.templates)) {
+          if (!Array.isArray(items)) continue
+          const target = (cat in merged ? cat : '推荐') as TemplateCategory
+          const extras = (items as Array<Partial<Recommendation> & { title?: unknown }>)
+            .filter((it): it is Partial<Recommendation> & { title: string } =>
+              typeof it?.title === 'string' && it.title !== '')
+          if (extras.length > 0) merged[target] = [...merged[target], ...extras.map(it => it as Recommendation)]
+        }
+      }
+    } catch { /* localStorage 不可用：按个人模式 */ }
     return merged
   } catch {
     return null
@@ -308,18 +328,18 @@ export function sameTemplateText(item: Recommendation, answers: Record<string, s
   const filledText = filled === '' ? '' : `用户已在弹窗填写：${filled}。`
   return `【模板：${item.title}】按模板做同款（${item.desc}）${structure}${coverRule}。` +
     filledText +
-    `请按以上信息直接执行；仍有缺失项时再弹窗询问一次，禁止用默认值擅自生成。`
+    '请按以上信息直接执行；仍有缺失项时再弹窗询问一次，禁止用默认值擅自生成。'
 }
 
 /** 占位配图：浅色渐变圆角块（后续可换成真实模板缩略图/图标）。 */
 export function templateThumbUri(color: string): string {
   const svg =
-    `<svg xmlns="http://www.w3.org/2000/svg" width="480" height="300">` +
-    `<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">` +
+    '<svg xmlns="http://www.w3.org/2000/svg" width="480" height="300">' +
+    '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">' +
     `<stop offset="0" stop-color="${color}"/><stop offset="1" stop-color="#ffffff"/>` +
-    `</linearGradient></defs>` +
-    `<rect width="480" height="300" rx="24" fill="url(#g)"/>` +
-    `</svg>`
+    '</linearGradient></defs>' +
+    '<rect width="480" height="300" rx="24" fill="url(#g)"/>' +
+    '</svg>'
   return `data:image/svg+xml,${encodeURIComponent(svg)}`
 }
 
@@ -331,22 +351,22 @@ export function templateThumb(item: Recommendation): string {
 /** 封面成片效果（oil-cover 结构：主标题 + 副标题卖点 + 安全留白 + 3:4 竖版）。 */
 function coverArt(): string {
   const svg =
-    `<svg xmlns="http://www.w3.org/2000/svg" width="480" height="300" viewBox="0 0 480 300" font-family="-apple-system,'PingFang SC','Microsoft YaHei',sans-serif">` +
-    `<defs>` +
-    `<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFE4D6"/><stop offset="1" stop-color="#FFFFFF"/></linearGradient>` +
-    `<linearGradient id="card" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF8A65"/><stop offset="1" stop-color="#FFB59B"/></linearGradient>` +
-    `</defs>` +
-    `<rect width="480" height="300" rx="24" fill="url(#bg)"/>` +
-    `<circle cx="48" cy="42" r="26" fill="#FFB59B" opacity="0.55"/>` +
-    `<circle cx="438" cy="258" r="34" fill="#FF8A65" opacity="0.28"/>` +
-    `<rect x="162" y="22" width="156" height="222" rx="14" fill="#FFFFFF" filter="drop-shadow(0 10px 24px rgba(180,90,50,0.22))"/>` +
-    `<rect x="162" y="22" width="156" height="222" rx="14" fill="url(#card)"/>` +
-    `<rect x="182" y="48" width="116" height="24" rx="12" fill="#FFFFFF" opacity="0.92"/>` +
-    `<text x="240" y="65" text-anchor="middle" font-size="13" font-weight="700" fill="#E0552F">AI 实操</text>` +
-    `<text x="240" y="132" text-anchor="middle" font-size="27" font-weight="800" fill="#FFFFFF">爆款封面</text>` +
-    `<text x="240" y="158" text-anchor="middle" font-size="11" font-weight="500" fill="#FFF3EC">主题文字 + 卖点</text>` +
-    `<rect x="206" y="196" width="68" height="5" rx="2.5" fill="#FFFFFF" opacity="0.85"/>` +
-    `<text x="240" y="286" text-anchor="middle" font-size="12" font-weight="600" fill="#8A7A70">3:4 竖版 · 安全留白</text>` +
-    `</svg>`
+    '<svg xmlns="http://www.w3.org/2000/svg" width="480" height="300" viewBox="0 0 480 300" font-family="-apple-system,\'PingFang SC\',\'Microsoft YaHei\',sans-serif">' +
+    '<defs>' +
+    '<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFE4D6"/><stop offset="1" stop-color="#FFFFFF"/></linearGradient>' +
+    '<linearGradient id="card" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF8A65"/><stop offset="1" stop-color="#FFB59B"/></linearGradient>' +
+    '</defs>' +
+    '<rect width="480" height="300" rx="24" fill="url(#bg)"/>' +
+    '<circle cx="48" cy="42" r="26" fill="#FFB59B" opacity="0.55"/>' +
+    '<circle cx="438" cy="258" r="34" fill="#FF8A65" opacity="0.28"/>' +
+    '<rect x="162" y="22" width="156" height="222" rx="14" fill="#FFFFFF" filter="drop-shadow(0 10px 24px rgba(180,90,50,0.22))"/>' +
+    '<rect x="162" y="22" width="156" height="222" rx="14" fill="url(#card)"/>' +
+    '<rect x="182" y="48" width="116" height="24" rx="12" fill="#FFFFFF" opacity="0.92"/>' +
+    '<text x="240" y="65" text-anchor="middle" font-size="13" font-weight="700" fill="#E0552F">AI 实操</text>' +
+    '<text x="240" y="132" text-anchor="middle" font-size="27" font-weight="800" fill="#FFFFFF">爆款封面</text>' +
+    '<text x="240" y="158" text-anchor="middle" font-size="11" font-weight="500" fill="#FFF3EC">主题文字 + 卖点</text>' +
+    '<rect x="206" y="196" width="68" height="5" rx="2.5" fill="#FFFFFF" opacity="0.85"/>' +
+    '<text x="240" y="286" text-anchor="middle" font-size="12" font-weight="600" fill="#8A7A70">3:4 竖版 · 安全留白</text>' +
+    '</svg>'
   return `data:image/svg+xml,${encodeURIComponent(svg)}`
 }

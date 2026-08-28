@@ -81,10 +81,19 @@ export function HeightLabTemplateDock() {
   // HeightLab：模板热更新——启动时拉取服务器目录，失败回退包内默认。
   useEffect(() => {
     let cancelled = false
-    void loadTemplateCatalog().then((catalog) => {
-      if (!cancelled && catalog !== null) setCards(catalog)
-    })
-    return () => { cancelled = true }
+    const reload = (): void => {
+      void loadTemplateCatalog().then((catalog) => {
+        if (!cancelled && catalog !== null) setCards(catalog)
+      })
+    }
+    reload()
+    // 企业版 M3（2026-08-28）：个人|企业切换后按新模式重拉目录
+    //（企业模板在 loadTemplateCatalog 内按 hl.mode + orgId 合并）。
+    window.addEventListener('hl:mode-changed', reload)
+    return () => {
+      cancelled = true
+      window.removeEventListener('hl:mode-changed', reload)
+    }
   }, [])
 
   // HeightLab：输入框智能体与模板标签联动——选图片专家→「图片」，

@@ -25,6 +25,7 @@ import css from './SidebarRoot.module.css'
 import {
   IconInspirationStroke16, IconLibraryStroke16, IconAutomationStroke16, IconPanelLeftStroke16,
 } from './sidebar-icons.tsx'
+import { HlModeSwitcher } from './hl-mode.tsx'
 
 /** Wide-content unmount delay; matches the 150ms wide-content fade-out. */
 const COLLAPSE_SETTLE_MS = 150
@@ -176,6 +177,10 @@ export function SidebarRoot({
           </button>
         </Tooltip>
       </div>
+
+      {/* HeightLab 2026-08-28（企业版 M3）：个人|企业切换在新建任务上方，
+          仅企业账号渲染；新建任务等其余内容自然下移。 */}
+      {wide && <HlModeSwitcher />}
 
       {/* Expanded, the button carries its own label — tooltip only on the rail. */}
       <Tooltip label={t('session.new.label')} delayMs={500} disabled={wide}>

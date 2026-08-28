@@ -303,6 +303,54 @@
   max-width: 0;
 }
 
+/* HeightLab 2026-08-28（企业版 M3）：个人|企业 分段切换。
+   与新建任务行同左缘（margin-left 4px）；样式全部走主题 token，
+   亮/暗主题随 --dsw-alias-* 自适应。仅宽态渲染，rail 态随宽态内容卸载。 */
+.hlModeRow {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0 0 6px 4px;
+  padding: 2px;
+  box-sizing: border-box;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 8px;
+  background: transparent;
+}
+
+.hlModeSeg {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: 3px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.hlModeSeg:hover {
+  color: var(--dsw-alias-label-primary);
+}
+
+.hlModeSegActive,
+.hlModeSegActive:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.hlModeSeg:focus-visible {
+  box-shadow: 0 0 0 2px var(--dsw-alias-border-l3);
+}
+
 /* Region seat: always mounted so the foot never moves. Its trailing margin
    cancels the wide shell inset so the nested scrollbar can sit at the sidebar
    edge; the browser restores that inset inside its own rows. */
