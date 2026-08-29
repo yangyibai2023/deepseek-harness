@@ -87,6 +87,13 @@ export function HlModeSwitcher() {
   }
 
   const choose = async (mode: HlMode) => {
+    if (mode === 'personal') {
+      // 邀码面板打开时：直接关闭并切回个人（不再要求先点「取消」）。
+      setJoinOpen(false)
+      setJoinError('')
+      enter('personal', '')
+      return
+    }
     if (mode === 'enterprise') {
       const next = await refreshOrgs()
       if (next.length === 0) {
@@ -98,7 +105,6 @@ export function HlModeSwitcher() {
       enter('enterprise', target)
       return
     }
-    enter('personal', '')
   }
 
   const join = async () => {
@@ -190,13 +196,15 @@ export function HlModeSwitcher() {
           />
           {joinError !== '' && <div className={css.hlJoinError}>{joinError}</div>}
           <div className={css.hlJoinActions}>
-            <button
-              type="button"
-              className={css.hlJoinCancel}
-              onClick={() => { setJoinOpen(false); setJoinError('') }}
-            >
-              取消
-            </button>
+            {orgs.length > 0 && (
+              <button
+                type="button"
+                className={css.hlJoinCancel}
+                onClick={() => { setJoinOpen(false); setJoinError('') }}
+              >
+                取消
+              </button>
+            )}
             <button type="submit" className={css.hlJoinSubmit} disabled={joining}>
               {joining ? '加入中…' : '加入'}
             </button>
