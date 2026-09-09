@@ -510,16 +510,40 @@ export function HeightLabAuthGate({
             if (auth.accountToken) setStoredAccountToken(auth.accountToken)
             const pushed = await pushTokenToHost(auth.token, auth.refreshToken ?? undefined, auth.accountToken ?? undefined)
             // HeightLab：首次登录（或登出后重登）宿主会按用户重启并重新导航。
-            // 这里保持加载动画等待这次重载，避免“先出界面再闪一下”；
-            // 若 10s 内没有重载（理论上不应发生）则按原逻辑直接进入，作为兜底。
+            // 绝不能在旧文档上 finish(signed-in)：10s 空等后挂载真实 UI
+            // 会撞上正在重启的 Host，例子页/工作区会永远停在 loading。
             if (pushed.restartExpected) {
+              window.clearTimeout(watchdog)
               try {
                 sessionStorage.setItem('hl-post-login-reload', '1')
               } catch { /* 忽略 */ }
-              await new Promise<void>((resolve) => { window.setTimeout(resolve, 10_000) })
-              try {
-                sessionStorage.removeItem('hl-post-login-reload')
-              } catch { /* 忽略 */ }
+              // HeightLab 2026-09-10：登录后 Host 重启期间 3080 有一段无监听
+              // 窗口（Windows provision 同步跑可达数十秒）。此前这里在 deadline
+              // 到点后无条件 location.replace → 若替换发生在该窗口，WebView2 会
+              // 整页显示 ERR_CONNECTION_REFUSED（"拒绝连接"闪 1-3s 后被 Rust
+              // watcher 的 ModuleLoader 门禁导航救回）。Tauri 内的恢复导航由
+              // Rust current-user watcher 负责（等 host_http_ok 即 GET / 含
+              // __ModuleLoader__ 才 navigate，60s 上限），前端不自导航以免双导航
+              // 竞态。仅纯浏览器 preview（无 Tauri 壳层）才保留自导航兜底，且
+              // 探测条件与 Rust 对齐：必须读到 __ModuleLoader__ 才认为就绪，
+              // 永不无条件替换（避免打空弹错误页）。
+              const inTauri = typeof window !== 'undefined' && '__TAURI__' in window
+              if (!inTauri) {
+                const deadline = Date.now() + 30_000
+                while (Date.now() < deadline) {
+                  await new Promise<void>((resolve) => { window.setTimeout(resolve, 400) })
+                  try {
+                    const probe = await fetch('/', { cache: 'no-store' })
+                    const text = await probe.text()
+                    if (probe.ok && text.includes('__ModuleLoader__')) {
+                      window.location.replace(`/?hl_boot=${Date.now()}`)
+                      return
+                    }
+                  } catch { /* host restarting */ }
+                }
+                window.location.replace(`/?hl_boot=${Date.now()}`)
+              }
+              return
             }
             // Strip the code from the URL.
             window.history.replaceState({}, '', window.location.pathname)
