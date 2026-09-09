@@ -45,6 +45,28 @@ const MIME: Record<string, string> = {
   '.json': 'application/json',
   '.map': 'application/json',
   '.webmanifest': 'application/manifest+json',
+  // HeightLab 2026-09-09：补齐二进制/字体/音视频扩展。此前缺 .png 等，
+  // 所有图片返回 application/octet-stream；Windows WebView2 (Chromium) 对
+  // octet-stream 图片拒绝渲染 → 登录页 logo 偶发 broken（mac WKWebView 会
+  // 内容嗅探容错故不暴露）。mac 与 Windows 同源，此修复同时惠及两平台。
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.ico': 'image/x-icon',
+  '.avif': 'image/avif',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.ttf': 'font/ttf',
+  '.otf': 'font/otf',
+  '.eot': 'application/vnd.ms-fontobject',
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
+  '.mp3': 'audio/mpeg',
+  '.wav': 'audio/wav',
+  '.txt': 'text/plain; charset=utf-8',
+  '.pdf': 'application/pdf',
 }
 
 const STATIC_MISS_CODES: ReadonlySet<string | undefined> = new Set([
@@ -93,7 +115,10 @@ export async function serveStatic(
     body = await renderIndex()
     type = HTML_MIME
   }
-  res.writeHead(200, { 'content-type': type })
+  // HeightLab 2026-09-09：静态资源不设缓存头会让 Chromium 启发式缓存
+  // （把 MIME 修复前的坏响应/octet-stream 长期缓存），导致修复后首载仍命中
+  // 旧缓存、logo 时好时坏。统一 no-cache：每次回源校验，代价可忽略。
+  res.writeHead(200, { 'content-type': type, 'cache-control': 'no-cache' })
   res.end(body)
 }
 
