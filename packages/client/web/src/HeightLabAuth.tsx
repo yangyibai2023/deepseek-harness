@@ -146,6 +146,45 @@ async function hostAcceptsToken(token: string): Promise<boolean> {
   }
 }
 
+/**
+ * HeightLab 2026-09-11：等待本地宿主就绪。
+ *
+ * 干净机器首次启动时宿主需先完成 provision 才能注册 `/hl/*` 路由；
+ * 此前若过早提交，请求会落到静态页回退（返回 HTML），前端只能给出
+ * 含糊的"邀请码校验失败"。这里显式探测 `/hl/app-info`，未就绪时给出
+ * 明确提示并让用户稍候，避免把产品初始化过程误报成"邀请码无效"。
+ * @param timeoutMs - 探测上限（毫秒）。
+ * @returns 宿主是否在超时内就绪。
+ */
+async function waitForHostReady(timeoutMs = 15_000): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs
+  for (;;) {
+    try {
+      const res = await fetch('/hl/app-info', { cache: 'no-store' })
+      if (res.ok) return true
+    } catch { /* 宿主尚未监听，继续等 */ }
+    if (Date.now() >= deadline) return false
+    await new Promise<void>((resolve) => { window.setTimeout(resolve, 400) })
+  }
+}
+
+/**
+ * HeightLab 2026-09-11：从宿主响应提取精确错误信息。
+ * 宿主未就绪时该路由会落到静态页回退（返回 HTML），此时给出"服务正在
+ * 初始化"而不是把 HTML 误当成邀请码校验失败。
+ * @param res - 宿主响应。
+ * @returns 面向用户的错误文案。
+ */
+async function hostErrorMessage(res: Response): Promise<string> {
+  const type = res.headers.get('content-type') ?? ''
+  if (!type.includes('application/json')) {
+    return '服务正在初始化，请稍候几秒后重试'
+  }
+  const data = await res.json().catch(() => null)
+  if (typeof data?.message === 'string' && data.message !== '') return data.message
+  return '邀请码校验失败，请稍后重试'
+}
+
 /** 注册成功后把邀请码绑定到当前账号（宿主代理云端，失败则拒绝进入）。 */
 async function bindInviteToHost(token: string, code: string): Promise<string | null> {
   try {
@@ -333,14 +372,24 @@ export function HeightLabLoginPage({ initialError }: { initialError?: string | n
     setBusy(true)
     setError(null)
     try {
+      // 宿主未就绪时先等待（干净机器首次启动需完成初始化），
+      // 避免把初始化过程误报为"邀请码无效"。
+      if (!(await waitForHostReady())) {
+        setError('服务正在初始化，请稍候几秒后重试')
+        return
+      }
       const res = await fetch('/hl/invite/verify', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ code }),
       })
+      if (!res.ok) {
+        setError(await hostErrorMessage(res))
+        return
+      }
       const data = await res.json().catch(() => null)
-      if (!res.ok || !data?.ok) {
-        setError(typeof data?.message === 'string' ? data.message : '邀请码校验失败，请稍后重试')
+      if (!data?.ok) {
+        setError(await hostErrorMessage(res))
         return
       }
       try {
