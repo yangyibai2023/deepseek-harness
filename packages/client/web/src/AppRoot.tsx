@@ -102,6 +102,15 @@ export function AppRoot(props: AppRootProps) {
     }
   }, [props, settled, target])
 
+  // 登录成功时插件树可能还没 settled：burst 完成只会把 phase 设成 done 并
+  // 停在胶囊。settled 后来翻成 true 时必须再挂真实 UI，否则例子页/主界面
+  // 会永远转圈（Windows 登录后 Host 重启尤其容易踩中）。
+  useEffect(() => {
+    if (phase === 'done' && target === 'signed-in' && settled) {
+      props.mountRealUI()
+    }
+  }, [phase, target, settled, props])
+
   // 兜底：页面只要挂载并渲染了首帧，就通知壳层关闭启动小框。
   // 即使认证门/胶囊动画因某种原因没走完，也保证主窗口能弹出来。
   useEffect(() => {

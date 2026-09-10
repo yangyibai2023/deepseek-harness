@@ -514,35 +514,15 @@ export function HeightLabAuthGate({
             // 会撞上正在重启的 Host，例子页/工作区会永远停在 loading。
             if (pushed.restartExpected) {
               window.clearTimeout(watchdog)
-              try {
-                sessionStorage.setItem('hl-post-login-reload', '1')
-              } catch { /* 忽略 */ }
-              // HeightLab 2026-09-10：登录后 Host 重启期间 3080 有一段无监听
-              // 窗口（Windows provision 同步跑可达数十秒）。此前这里在 deadline
-              // 到点后无条件 location.replace → 若替换发生在该窗口，WebView2 会
-              // 整页显示 ERR_CONNECTION_REFUSED（"拒绝连接"闪 1-3s 后被 Rust
-              // watcher 的 ModuleLoader 门禁导航救回）。Tauri 内的恢复导航由
-              // Rust current-user watcher 负责（等 host_http_ok 即 GET / 含
-              // __ModuleLoader__ 才 navigate，60s 上限），前端不自导航以免双导航
-              // 竞态。仅纯浏览器 preview（无 Tauri 壳层）才保留自导航兜底，且
-              // 探测条件与 Rust 对齐：必须读到 __ModuleLoader__ 才认为就绪，
-              // 永不无条件替换（避免打空弹错误页）。
-              const inTauri = typeof window !== 'undefined' && '__TAURI__' in window
-              if (!inTauri) {
-                const deadline = Date.now() + 30_000
-                while (Date.now() < deadline) {
-                  await new Promise<void>((resolve) => { window.setTimeout(resolve, 400) })
-                  try {
-                    const probe = await fetch('/', { cache: 'no-store' })
-                    const text = await probe.text()
-                    if (probe.ok && text.includes('__ModuleLoader__')) {
-                      window.location.replace(`/?hl_boot=${Date.now()}`)
-                      return
-                    }
-                  } catch { /* host restarting */ }
-                }
-                window.location.replace(`/?hl_boot=${Date.now()}`)
-              }
+              // HeightLab 2026-09-10：绝不在此自导航。restartExpected 只可能由
+              // 桌面壳（Rust）设置——宿主启动时无登录用户（HL_START_USER_EMPTY=1）
+              // 才会为 true，纯浏览器 preview 下该变量不存在、本分支根本不会进。
+              // 登录后宿主按用户重启，3080 会有一段无监听窗口（Windows provision
+              // 同步跑可达数十秒）；此前这里在 deadline 到点无条件
+              // location.replace → 打在无监听窗口上，WebView2 整页显示
+              // ERR_CONNECTION_REFUSED（"拒绝连接"闪 1-3s 后被 Rust watcher 救回）。
+              // 恢复导航统一交 Rust current-user watcher（等 host_http_ok 即 GET /
+              // 含 __ModuleLoader__ 再 navigate，60s 上限），消除自导航/双导航竞态。
               return
             }
             // Strip the code from the URL.
