@@ -1,18 +1,21 @@
 /**
  * Web boot kernel. It owns only the module system, Cordis loader, and a
- * framework-free boot page. The dynamic UI renderer receives the mount
- * point after every client entry activates.
+ * React gate (HeightLab capsule + login) rendered from first paint. The
+ * dynamic UI renderer receives the mount point after every client entry
+ * activates AND the login gate approves it.
  * @module @deepseek-ai/dsh-client-web/src/boot
  */
 import { Context } from '@deepseek-ai/cordis'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
+import { createElement } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
 import type {
   BootManifest, ClientModuleCreateOptions, ClientModuleSystem, DshWindow,
 } from '@deepseek-ai/dsh-client-modules/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
-import { BootPage } from './boot-page.ts'
+import { AppRoot } from './AppRoot.tsx'
 import { getStaticModules } from './seed.ts'
-import { STATE_LABELS } from './loader-status.ts'
+import { createLoaderStatusStore, createSignal, STATE_LABELS } from './loader-status.ts'
 import './base.css'
 
 /** Module transport hook replaced by jsdom tests. */
@@ -22,25 +25,35 @@ export type BootSeams = Pick<ClientModuleCreateOptions, 'loadBundle'>
 export class AppWebEntry {
   private readonly container: HTMLElement
   private readonly seams: BootSeams | undefined
-  private readonly page: BootPage
+  private readonly status = createLoaderStatusStore()
+  private readonly settled = createSignal(false)
+  private readonly error = createSignal<string | undefined>(undefined)
   private ctx: Context | undefined
   private modules!: ClientModuleSystem
   private manifest!: BootManifest
+  private root: Root | undefined
+  private mountRealUI: (() => void) | undefined
 
   /**
-   * Draw the boot page; {@link run} starts the loader.
+   * Draw the HeightLab gate (capsule + login); {@link run} starts the loader.
    * @param container - Application mount point.
    * @param seams - Optional module transport replacement.
    */
   constructor(container: HTMLElement, seams?: BootSeams) {
     this.container = container
     this.seams = seams
-    this.page = new BootPage(container)
+    this.root = createRoot(container)
+    this.root.render(createElement(AppRoot, {
+      settled: this.settled,
+      status: this.status,
+      error: this.error,
+      mountRealUI: () => { this.mountRealUI?.() },
+    }))
   }
 
   /**
    * Load and activate every client entry, then hand the mount point to the
-   * UI renderer. Plugin failures remain visible on the boot page.
+   * UI renderer. Plugin failures remain visible on the boot gate.
    * @returns Resolves after application mount or failure rendering.
    */
   async run(): Promise<void> {
@@ -78,26 +91,42 @@ export class AppWebEntry {
       this.ctx = ctx
       await this.runPluginBoot(ctx, prefetching)
       await this.mountApp(ctx)
+      // 只有插件树全部就绪且 uiRenderer 已登记挂载面后才放行登录门：
+      // AppRoot 看到 settled 后进入登录校验，通过后调用 mountRealUI。
+      this.settled.set(true)
     } catch (reason) {
       console.error(reason)
-      this.page.fail(reason instanceof Error ? reason.message : String(reason))
+      this.error.set(reason instanceof Error ? reason.message : String(reason))
     }
   }
 
-  /** Dispose the client plugin tree and whichever page owns the mount point. */
+  /** Dispose the client plugin tree and the gate root. */
   async dispose(): Promise<void> {
     const ctx = this.ctx
     this.ctx = undefined
     if (ctx !== undefined) await ctx.fiber.dispose()
-    this.page.dispose()
+    this.root?.unmount()
+    this.root = undefined
   }
 
-  /** Mount through a dependency fiber so replacing uiRenderer remounts the application. */
+  /**
+   * Register the real-UI mount face through a dependency fiber so replacing
+   * uiRenderer remounts the application; the login gate calls it on approval.
+   */
   private async mountApp(ctx: Context): Promise<void> {
-    const mounted = ctx.inject(['uiRenderer'], (scope) => {
-      scope.effect(() => scope.uiRenderer.mount(this.container), 'web boot: application mount')
+    await ctx.inject(['uiRenderer'], (scope) => {
+      scope.effect(() => {
+        this.mountRealUI = () => {
+          this.root?.unmount()
+          this.root = undefined
+          scope.uiRenderer.mount(this.container)
+        }
+        return () => {
+          this.root?.unmount()
+          this.root = undefined
+        }
+      }, 'web boot: application mount')
     })
-    await mounted
   }
 
   /** Prefetch stage-one bundles and their dynamic requests before concurrent plugin imports. */
@@ -118,16 +147,15 @@ export class AppWebEntry {
     ctx.on('internal/status', (fiber) => {
       const entry = fiber.entry
       if (entry === undefined || entry.fiber === undefined) return
-      this.page.setState(entry.options.name, STATE_LABELS[entry.fiber.state])
+      this.status.set(entry.options.name, STATE_LABELS[entry.fiber.state])
     })
 
     const rows = this.manifest.plugins.map(row => row.id)
-    this.page.setTotal(rows.length)
     await prefetching
     await Promise.all(rows.map(async (name) => {
-      this.page.setState(name, 'loading')
+      this.status.set(name, 'loading')
       const id = await loader.create({ name })
-      if (loader.resolve(id).fiber === undefined) this.page.setState(name, 'failed')
+      if (loader.resolve(id).fiber === undefined) this.status.set(name, 'failed')
     }))
 
     await loader.await()

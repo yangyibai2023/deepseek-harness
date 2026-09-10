@@ -1,0 +1,17 @@
+.root {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  display: grid;
+  place-items: center;
+  /* 不覆盖黑色背景：胶囊直接浮在应用页面背景上（亮/暗主题都跟随）。 */
+  background: transparent;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}

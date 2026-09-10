@@ -1,0 +1,65 @@
+/* 左侧步骤导航条：细浅灰横杠，以中间为锚点向上下生长；悬停时近邻一起凸出。 */
+.rail {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 30px;
+  min-height: 0;
+  padding: 10px 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.rail::-webkit-scrollbar {
+  display: none;
+}
+
+/* 内容不足整条高度时居中，从中间向上下两边生长；超出后再从头滚动。 */
+.inner {
+  margin: auto 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.bar {
+  position: relative;
+  flex: 0 0 auto;
+  width: 8px;
+  height: 2px;
+  padding: 0;
+  border: none;
+  border-radius: 1px;
+  background: var(--dsw-static-neutral-bluish-300);
+  cursor: pointer;
+  transition: transform 120ms ease, background 120ms ease, opacity 120ms ease;
+}
+
+.bar:hover {
+  background: var(--dsw-static-neutral-1000);
+  z-index: 1;
+  opacity: 1 !important;
+}
+
+/* 悬停时浮在导航条右侧的内容提示。 */
+.tooltip {
+  position: fixed;
+  z-index: 1000;
+  max-width: 360px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 8px 10px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-raise, var(--dsw-static-neutral-00));
+  box-shadow: var(--dsw-shadow-lv2);
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  pointer-events: none;
+  transform: translateY(-50%);
+}

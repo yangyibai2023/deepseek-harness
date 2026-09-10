@@ -1,0 +1,307 @@
+/* HeightLab：输入框下方推荐/模板区（Manus 式）。
+ * 推荐项无背景色、无边框线，配图圆角；区域内部独立滚动，页面不滚动；
+ * 标签行右侧折叠箭头（下↔右）；聚焦输入框时内容向下滑出消失。 */
+
+.dock {
+  position: relative;
+  width: 100%;
+  box-sizing: border-box;
+  height: 0;
+  overflow: visible;
+}
+
+/* 浮层：不参与布局高度，贴在输入框下缘向下展开，输入框/上方标题位置不变。 */
+.pop {
+  position: absolute;
+  top: 12px;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  box-sizing: border-box;
+  padding: 0 var(--dsh-composer-side-clearance);
+  background: transparent;
+}
+
+.tags {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 28px;
+  width: max-content;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 16px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  line-height: 20px;
+  cursor: pointer;
+}
+
+.tag:hover {
+  color: var(--dsw-alias-label-primary);
+}
+
+.tagActive {
+  color: var(--dsw-alias-label-primary);
+  font-weight: 600;
+}
+
+/* 企业版 M6：「专属」激活态染品牌色（--hl-brand 由容器注入，缺省回退默认主色）。 */
+.tagExclusiveActive {
+  color: var(--hl-brand, var(--dsw-alias-label-primary));
+}
+
+/* 「专属」标签前的企业 logo 小图标。 */
+.tagLogo {
+  width: 16px;
+  height: 16px;
+  margin-right: 4px;
+  border-radius: 4px;
+  object-fit: contain;
+}
+
+/* 专属卡片右上角的原分类角标。 */
+.itemCat {
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 6px;
+  background: var(--dsw-alias-interactive-bg-hover, rgba(127, 127, 127, 0.12));
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 16px;
+  vertical-align: 1px;
+}
+
+/* 专属栏空态（管理员未配置或全部因权限不可见）。 */
+.empty {
+  padding: 48px 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 13px;
+  line-height: 20px;
+  text-align: center;
+}
+
+.fold {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-left: 4px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+}
+
+.fold:hover {
+  background: var(--dsw-alias-interactive-bg-hover, rgba(127, 127, 127, 0.1));
+  color: var(--dsw-alias-label-secondary);
+}
+
+/* 模板区设置（滑杆图标）：与折叠按钮同尺寸同交互，放在折叠按钮旁边。 */
+.settings {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-left: 2px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+}
+
+.settings:hover {
+  background: var(--dsw-alias-interactive-bg-hover, rgba(127, 127, 127, 0.1));
+  color: var(--dsw-alias-label-secondary);
+}
+
+.settings svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+
+.fold svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+
+.content {
+  overflow: hidden;
+  transition:
+    max-height 0.32s ease,
+    opacity 0.28s ease,
+    transform 0.32s ease;
+}
+
+.contentOpen {
+  max-height: min(560px, calc(100vh - 220px));
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.contentClosed {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(28px);
+}
+
+/* Manus 式收起：聚焦输入框时内容向下滑出，消失在区域下边。 */
+.contentRetracted {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(48px);
+}
+
+.scroll {
+  /* HeightLab：固定容器——两排多一点，只在此容器内滚动，页面不滚。 */
+  height: 340px;
+  max-height: 340px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* HeightLab：左右向中间收，模板与输入框左右边框之间留出缩进。 */
+  padding: 4px 1.5% 12px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--dsw-alias-border-l3, rgba(127, 127, 127, 0.3)) transparent;
+  background: transparent;
+}
+
+.scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--dsw-alias-border-l3, rgba(127, 127, 127, 0.3));
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px 12px;
+  /* HeightLab：在原来的基础上只缩小一点点（3%），以顶部中心为原点向中间收。 */
+  transform: scale(0.97);
+  transform-origin: top center;
+}
+
+.grid .item {
+  gap: 5px;
+  border-radius: 10px;
+}
+
+.grid .thumb {
+  border-radius: 10px;
+}
+
+.grid .itemTitle {
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.grid .itemDesc {
+  font-size: 11px;
+  line-height: 16px;
+}
+
+@media (max-width: 1100px) {
+  .grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 860px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  border-radius: 14px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.item:active {
+  opacity: 0.72;
+}
+
+.thumb {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border-radius: 14px;
+  object-fit: cover;
+}
+
+.itemTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 20px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.itemDesc {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* 其他标签（v1）文字模板列表：纯文字、无底色无边框。 */
+.plainList {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 32px;
+  padding: 6px 0 12px;
+}
+
+.plainItem {
+  border: none;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 24px;
+  padding: 2px 8px;
+  border-radius: 8px;
+}
+
+.plainItem:hover {
+  color: var(--dsw-alias-label-primary);
+}
