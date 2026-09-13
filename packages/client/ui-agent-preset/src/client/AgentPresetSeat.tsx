@@ -94,6 +94,46 @@ export function AgentPresetSeat({ load, select, introduced, useAgentPresetSeat, 
     void load()
   }, [load])
 
+  // ── HeightLab 定制（自 0.3.x 稳定线迁移）─────────────────────────
+  // select 的稳定引用（事件监听器里读取最新值，不重建监听）。
+  const selectRef = useRef(select)
+  selectRef.current = select
+
+  // 模板「做同款」全联动——先切对应专家，再把模板名插入输入框
+  // （胶囊），由 InputHub 完成；不发送。
+  useEffect(() => {
+    const onUseTemplate = async (event: Event): Promise<void> => {
+      const detail = (event as CustomEvent<{ agentPreset?: unknown; title?: unknown }>).detail
+      if (typeof detail?.title !== 'string' || detail.title === '') return
+      const preset = typeof detail.agentPreset === 'string' ? detail.agentPreset : ''
+      const options = state.options
+      if (preset !== '' && options?.some(option => option.id === preset)) {
+        try {
+          await selectRef.current(preset)
+        } catch { /* 非致命：切换失败也照常发送，由 Colin 语义路由 */ }
+      }
+      window.dispatchEvent(new CustomEvent('hl:insert-template', {
+        detail: { title: detail.title },
+      }))
+    }
+    window.addEventListener('hl:use-template', onUseTemplate)
+    return () => window.removeEventListener('hl:use-template', onUseTemplate)
+  }, [state.options])
+
+  // 输入框里的模板胶囊被删光（输入框清空）→ 切回默认 Colin。
+  useEffect(() => {
+    const onTemplateRemoved = async (): Promise<void> => {
+      const options = state.options
+      if (options?.some(option => option.id === 'standard')) {
+        try {
+          await selectRef.current('standard')
+        } catch { /* 非致命：会话已开始无法切换时保持现状 */ }
+      }
+    }
+    window.addEventListener('hl:template-removed', onTemplateRemoved)
+    return () => window.removeEventListener('hl:template-removed', onTemplateRemoved)
+  }, [state.options])
+
   const chosen = state.options.find(option => option.id === state.current)
   const chosenText = chosen === undefined ? undefined : presetDisplayText(chosen, t)
   const label = chosenText?.name ?? state.current

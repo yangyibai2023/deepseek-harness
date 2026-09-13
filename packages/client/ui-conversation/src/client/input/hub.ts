@@ -16,7 +16,7 @@ import type { TranslateNS } from '@deepseek-ai/dsh-client-locale/client'
 import { queueReadFaceOf } from './queue-store.ts'
 import type {
   ComposerKeyboard, DraftAttachmentId, DraftAttachmentSerializationResult, InputTriggerController,
-  SessionInputResolver, SessionInput, SubmitOutcome,
+  SessionInputResolver, SessionInput, SubmitOutcome, TokenSpan,
 } from '../contract/input.ts'
 import type { InputSubmitMode } from '../contract/composer-submission.ts'
 import type { PopupDismissFace } from './facade.ts'
@@ -57,7 +57,32 @@ export class InputHub implements SessionInputResolver {
   constructor(
     private readonly rootCtx: Context,
     private readonly t: TranslateNS<'conversation'>,
-  ) {}
+  ) {
+    // HeightLab：模板「做同款」→ 在输入框文字区末尾插入模板胶囊（占位 +
+    // occurrence），用户可在胶囊后继续输入；不发送、不进入对话。
+    const onInsertTemplate = (event: Event): void => {
+      const detail = (event as CustomEvent<{ title?: unknown }>).detail
+      const title = typeof detail?.title === 'string' ? detail.title.trim() : ''
+      if (title === '') return
+      const sessions = this.sessions()
+      const id = sessions.list.getSnapshot().current
+      if (id === undefined) return
+      const shell = this.shells.get(id)
+      if (shell === undefined) return
+      const snapshot = shell.snapshot
+      const span: TokenSpan = {
+        start: snapshot.draft.length,
+        end: snapshot.draft.length,
+        draftRev: snapshot.draftRev,
+      }
+      // 纯文字模板名（无中括号）+ 两个空格：胶囊按名字自适应宽度，
+      // 后续输入与胶囊拉开间距。
+      if (shell.insertText(`${title}  `, span)) {
+        window.dispatchEvent(new CustomEvent('hl:template-chip-inserted'))
+      }
+    }
+    window.addEventListener('hl:insert-template', onInsertTemplate)
+  }
 
   /**
    * Resolve the facade for one session-scope ctx (SessionInputResolver face).

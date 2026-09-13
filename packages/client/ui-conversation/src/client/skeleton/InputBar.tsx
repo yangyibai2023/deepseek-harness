@@ -36,6 +36,8 @@ import { resolveSubmitMode } from '../input/submission-policy.ts'
 import { attachmentErrorText, imageSizeText } from '../image-labels.ts'
 import { ContextMeter } from './ContextMeter.tsx'
 import { PermissionSelect } from './PermissionSelect.tsx'
+// HeightLab：模板名单（胶囊删除检测用）。
+import { getTemplateNames } from './HeightLabTemplates.ts'
 import css from './InputBar.module.css'
 
 export type InputBarProps = ComposerBarProps
@@ -150,6 +152,68 @@ export const InputBar = memo(function InputBar({
       inputActions.pruneAttachments(attachments.map(attachment => attachment.id))
     }
   }, [attachments, input?.attachmentIds, inputActions])
+
+  // ── HeightLab 定制（自 0.3.x 稳定线迁移，按 0.1.5 Lexical 编辑器适配）──
+  // 模板「做同款」——把同款指令填入输入框并聚焦。
+  useEffect(() => {
+    const onFill = (event: Event): void => {
+      const detail = (event as CustomEvent<{ text?: unknown }>).detail
+      if (typeof detail?.text !== 'string' || detail.text === '') return
+      if (inputActions === undefined) return
+      inputActions.setDraft(detail.text)
+      window.setTimeout(() => {
+        keyboard?.editor.getRootElement()?.focus({ preventScroll: true })
+      }, 50)
+    }
+    window.addEventListener('hl:fill-draft', onFill)
+    return () => window.removeEventListener('hl:fill-draft', onFill)
+  }, [keyboard, inputActions])
+  // 模板「做同款」——直接把同款指令发送出去（不留在输入框）。
+  useEffect(() => {
+    const onSendTemplate = (event: Event): void => {
+      const detail = (event as CustomEvent<{ text?: unknown }>).detail
+      if (typeof detail?.text !== 'string' || detail.text === '') return
+      if (inputActions === undefined) return
+      inputActions.setDraft(detail.text)
+      window.setTimeout(() => {
+        inputActions?.submit()
+      }, 80)
+    }
+    window.addEventListener('hl:send-template', onSendTemplate)
+    return () => window.removeEventListener('hl:send-template', onSendTemplate)
+  }, [inputActions])
+  // 内容模板「从聊天开始」激活选项时只聚焦输入框（不填提示词）。
+  useEffect(() => {
+    const onSetContentOptions = (): void => {
+      window.setTimeout(() => {
+        keyboard?.editor.getRootElement()?.focus({ preventScroll: true })
+      }, 50)
+    }
+    window.addEventListener('hl:set-content-options', onSetContentOptions)
+    return () => window.removeEventListener('hl:set-content-options', onSetContentOptions)
+  }, [keyboard])
+  // 模板胶囊已插入 → 聚焦编辑器（Lexical 选区由插入方放置）。
+  useEffect(() => {
+    const onChipInserted = (): void => {
+      window.setTimeout(() => {
+        keyboard?.editor.getRootElement()?.focus({ preventScroll: true })
+      }, 50)
+    }
+    window.addEventListener('hl:template-chip-inserted', onChipInserted)
+    return () => window.removeEventListener('hl:template-chip-inserted', onChipInserted)
+  }, [keyboard])
+  // 模板胶囊被全部删除（草稿清空）→ 通知智能体选择框切回 Colin。
+  // 0.1.5 的草稿经 Lexical 镜像发布为 input.draft，这里跟随它判定。
+  const hadTemplateRef = useRef(false)
+  useEffect(() => {
+    const hasTemplate = getTemplateNames().some(name => name !== '' && draft.includes(name))
+    if (hasTemplate) {
+      hadTemplateRef.current = true
+    } else if (hadTemplateRef.current && draft.trim() === '') {
+      hadTemplateRef.current = false
+      window.dispatchEvent(new CustomEvent('hl:template-removed'))
+    }
+  }, [draft])
 
   // Scroll the draft scrollport the minimum that brings the selection focus
   // into view — the browser's own behavior for typing, performed for the
