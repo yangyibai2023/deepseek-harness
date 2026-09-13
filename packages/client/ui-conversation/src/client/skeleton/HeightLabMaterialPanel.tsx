@@ -381,7 +381,7 @@ export function HeightLabMaterialPanel() {
               className={css.libraryInput}
               placeholder="搜索素材"
               value={search}
-              onChange={event => setSearch(event.target.value)}
+              onChange={(event) => setSearch(event.target.value)}
               style={{ width: 150, flexShrink: 0 }}
             />
             <button type="button" className={css.libraryPrimaryButton} onClick={() => { void scanExisting() }} style={{ height: 26, padding: '0 10px', fontSize: 12 }}>
@@ -418,7 +418,7 @@ export function HeightLabMaterialPanel() {
             <select
               className={css.libraryInput}
               value={sort}
-              onChange={event => setSort(event.target.value as typeof sort)}
+              onChange={(event) => setSort(event.target.value as typeof sort)}
               style={{ width: 120, flexShrink: 0, height: 26, padding: '0 4px', fontSize: 12 }}
             >
               <option value="new">时间 新→旧</option>
@@ -485,11 +485,7 @@ export function HeightLabMaterialPanel() {
         />
       )}
       {registerOpen && (
-        <RegisterDialog
-          busy={busy}
-          onClose={() => setRegisterOpen(false)}
-          onRegister={(path, title, type, tags) => { void registerItem(path, title, type, tags) }}
-        />
+        <RegisterDialog busy={busy} onClose={() => setRegisterOpen(false)} onRegister={(path, title, type, tags) => { void registerItem(path, title, type, tags) }} />
       )}
       {cleanupOpen && (
         <CleanupDialog text={cleanupText} onClose={() => setCleanupOpen(false)} />
@@ -512,7 +508,7 @@ function MaterialViewDialog(props: { item: ArtifactItem; onClose: () => void }) 
   const src = `/ext/artifacts/${item.id}/file`
   return (
     <div className={css.libraryDialogBackdrop} onClick={props.onClose}>
-      <div className={css.libraryDialog} onClick={event => event.stopPropagation()}>
+      <div className={css.libraryDialog} onClick={(event) => event.stopPropagation()}>
         <div className={css.libraryDialogTitle}>{item.title || item.filename}</div>
         {item.artifact_type === 'image' && (
           <img src={src} alt="" style={{ maxWidth: '100%', maxHeight: '52vh', objectFit: 'contain', borderRadius: 8, display: 'block', margin: '0 auto' }} />
@@ -551,23 +547,23 @@ function MaterialEditDialog(props: {
   const [stars, setStars] = useState(props.item.stars ?? 0)
   return (
     <div className={css.libraryDialogBackdrop} onClick={props.onClose}>
-      <div className={css.libraryDialog} onClick={event => event.stopPropagation()}>
+      <div className={css.libraryDialog} onClick={(event) => event.stopPropagation()}>
         <div className={css.libraryDialogTitle}>修改素材</div>
         <div style={fieldStyle}>
           <label style={labelStyle}>标题</label>
-          <input className={css.libraryInput} autoFocus placeholder="素材标题" value={title} onChange={event => setTitle(event.target.value)} />
+          <input className={css.libraryInput} autoFocus placeholder="素材标题" value={title} onChange={(event) => setTitle(event.target.value)} />
         </div>
         <div style={fieldStyle}>
           <label style={labelStyle}>摘要</label>
-          <textarea className={css.libraryTextarea} placeholder="素材摘要" value={summary} onChange={event => setSummary(event.target.value)} />
+          <textarea className={css.libraryTextarea} placeholder="素材摘要" value={summary} onChange={(event) => setSummary(event.target.value)} />
         </div>
         <div style={fieldStyle}>
           <label style={labelStyle}>标签</label>
-          <input className={css.libraryInput} placeholder="用逗号分隔" value={tags} onChange={event => setTags(event.target.value)} />
+          <input className={css.libraryInput} placeholder="用逗号分隔" value={tags} onChange={(event) => setTags(event.target.value)} />
         </div>
         <div style={fieldStyle}>
           <label style={labelStyle}>星级</label>
-          <select className={css.libraryInput} value={stars} onChange={event => setStars(Number(event.target.value))}>
+          <select className={css.libraryInput} value={stars} onChange={(event) => setStars(Number(event.target.value))}>
             <option value={0}>0</option>
             <option value={1}>1</option>
             <option value={2}>2</option>
@@ -603,19 +599,19 @@ function RegisterDialog(props: {
   const [tags, setTags] = useState('')
   return (
     <div className={css.libraryDialogBackdrop} onClick={props.onClose}>
-      <div className={css.libraryDialog} onClick={event => event.stopPropagation()}>
+      <div className={css.libraryDialog} onClick={(event) => event.stopPropagation()}>
         <div className={css.libraryDialogTitle}>登记素材</div>
         <div style={fieldStyle}>
           <label style={labelStyle}>本地路径</label>
-          <input className={css.libraryInput} autoFocus placeholder="/Users/.../file.png" value={path} onChange={event => setPath(event.target.value)} />
+          <input className={css.libraryInput} autoFocus placeholder="/Users/.../file.png" value={path} onChange={(event) => setPath(event.target.value)} />
         </div>
         <div style={fieldStyle}>
           <label style={labelStyle}>标题</label>
-          <input className={css.libraryInput} placeholder="素材标题" value={title} onChange={event => setTitle(event.target.value)} />
+          <input className={css.libraryInput} placeholder="素材标题" value={title} onChange={(event) => setTitle(event.target.value)} />
         </div>
         <div style={fieldStyle}>
           <label style={labelStyle}>类型</label>
-          <select className={css.libraryInput} value={type} onChange={event => setType(event.target.value)}>
+          <select className={css.libraryInput} value={type} onChange={(event) => setType(event.target.value)}>
             <option value="image">图片</option>
             <option value="video">视频</option>
             <option value="audio">音频</option>
@@ -626,7 +622,7 @@ function RegisterDialog(props: {
         </div>
         <div style={fieldStyle}>
           <label style={labelStyle}>标签</label>
-          <input className={css.libraryInput} placeholder="用逗号分隔" value={tags} onChange={event => setTags(event.target.value)} />
+          <input className={css.libraryInput} placeholder="用逗号分隔" value={tags} onChange={(event) => setTags(event.target.value)} />
         </div>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
           <button type="button" className={css.libraryActionButton} onClick={props.onClose}>取消</button>
@@ -647,7 +643,7 @@ function RegisterDialog(props: {
 function CleanupDialog(props: { text: string; onClose: () => void }) {
   return (
     <div className={css.libraryDialogBackdrop} onClick={props.onClose}>
-      <div className={css.libraryDialog} onClick={event => event.stopPropagation()}>
+      <div className={css.libraryDialog} onClick={(event) => event.stopPropagation()}>
         <div className={css.libraryDialogTitle}>整理建议</div>
         <pre
           style={{
@@ -683,7 +679,7 @@ function LinkDialog(props: {
 }) {
   return (
     <div className={css.libraryDialogBackdrop} onClick={props.onClose}>
-      <div className={css.libraryDialog} onClick={event => event.stopPropagation()}>
+      <div className={css.libraryDialog} onClick={(event) => event.stopPropagation()}>
         <div className={css.libraryDialogTitle}>连线建议 · {props.item.title}</div>
         {props.suggestions.length === 0 ? (
           <div style={{ fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' }}>暂无相关条目</div>

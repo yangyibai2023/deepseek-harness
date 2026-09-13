@@ -118,6 +118,8 @@ export function apply(ctx: ClientContext): void {
             tabsVersion = version
             tabsRevision = revision
             tabs = ctx.slots.entries('settings.plugins.tab')
+              // HeightLab：先隐藏「插件配置」标签页（插件列表保留）；恢复=删掉本过滤。
+              .filter(entry => entry.options.id !== 'configurable')
               .map(entry => ({
                 /* v8 ignore next -- list-slot registration requires id */
                 id: entry.options.id ?? '',
@@ -145,7 +147,8 @@ export function apply(ctx: ClientContext): void {
   ctx.slots.inject('settings.section', () => ctx.slots.register({
     name: 'settings.section',
     id: 'plugins',
-    order: 15,
+    // HeightLab：插件扩展排到 Agent 管理（20）之后。
+    order: 25,
     label: () => t('nav'),
     locale: NS,
     inject: sectionInjected,

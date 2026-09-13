@@ -8,6 +8,16 @@ body,
   margin: 0;
 }
 
+/* HeightLab：页面完全固定。桌面应用没有页面级滚动——所有可滚动区域都
+   是内部容器（会话/资料库/设置等自带 overflow），body 只承载固定壳层。
+   （0.3.17 成熟逻辑，rc.2 重建时恢复：缺少它会让 html/body 纵向溢出，
+   整个窗口出现页面级滚动。） */
+html,
+body {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 body {
   font-family: var(
     --dsw-font-family,

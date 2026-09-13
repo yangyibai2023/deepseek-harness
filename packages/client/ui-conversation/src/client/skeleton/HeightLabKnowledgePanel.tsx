@@ -245,7 +245,7 @@ export function HeightLabKnowledgePanel() {
         const name = `导入-${stamp.getFullYear()}${String(stamp.getMonth() + 1).padStart(2, '0')}${String(stamp.getDate()).padStart(2, '0')}-${String(stamp.getHours()).padStart(2, '0')}${String(stamp.getMinutes()).padStart(2, '0')}`
         const created = await api<BaseSummary>('/bases', {
           method: 'POST',
-          body: JSON.stringify({ name, description: '拖拽导入' }),
+          body: JSON.stringify({ name, description: '拖拽导入', }),
         })
         await refresh()
         setSelectedBaseId(created.id)
@@ -568,19 +568,19 @@ function NewBaseDialog(props: {
   const [group, setGroup] = useState('')
   return (
     <div className={css.libraryDialogBackdrop} onClick={props.onClose}>
-      <div className={css.libraryDialog} onClick={event => event.stopPropagation()}>
+      <div className={css.libraryDialog} onClick={(event) => event.stopPropagation()}>
         <div className={css.libraryDialogTitle}>新建知识库</div>
         <div style={fieldStyle}>
           <label style={labelStyle}>名称</label>
-          <input className={css.libraryInput} autoFocus placeholder="知识库名称" value={name} onChange={event => setName(event.target.value)} />
+          <input className={css.libraryInput} autoFocus placeholder="知识库名称" value={name} onChange={(event) => setName(event.target.value)} />
         </div>
         <div style={fieldStyle}>
           <label style={labelStyle}>描述</label>
-          <textarea className={css.libraryTextarea} value={description} onChange={event => setDescription(event.target.value)} />
+          <textarea className={css.libraryTextarea} value={description} onChange={(event) => setDescription(event.target.value)} />
         </div>
         <div style={fieldStyle}>
           <label style={labelStyle}>分组</label>
-          <select className={css.libraryInput} value={group} onChange={event => setGroup(event.target.value)}>
+          <select className={css.libraryInput} value={group} onChange={(event) => setGroup(event.target.value)}>
             <option value="">未分组</option>
             {props.groups.map(item => <option key={item} value={item}>{item}</option>)}
           </select>
@@ -611,7 +611,7 @@ function NameDialog(props: {
   const [name, setName] = useState('')
   return (
     <div className={css.libraryDialogBackdrop} onClick={props.onClose}>
-      <div className={css.libraryDialog} onClick={event => event.stopPropagation()}>
+      <div className={css.libraryDialog} onClick={(event) => event.stopPropagation()}>
         <div className={css.libraryDialogTitle}>{props.title}</div>
         <div style={fieldStyle}>
           <label style={labelStyle}>名称</label>
@@ -620,7 +620,7 @@ function NameDialog(props: {
             autoFocus
             placeholder={props.placeholder}
             value={name}
-            onChange={event => setName(event.target.value)}
+            onChange={(event) => setName(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === 'Enter' && name.trim() !== '') props.onOk(name)
             }}
@@ -651,15 +651,15 @@ function AddTextDialog(props: {
   const [content, setContent] = useState('')
   return (
     <div className={css.libraryDialogBackdrop} onClick={props.onClose}>
-      <div className={css.libraryDialog} onClick={event => event.stopPropagation()}>
+      <div className={css.libraryDialog} onClick={(event) => event.stopPropagation()}>
         <div className={css.libraryDialogTitle}>添加文本</div>
         <div style={fieldStyle}>
           <label style={labelStyle}>标题</label>
-          <input className={css.libraryInput} autoFocus placeholder="文档标题" value={title} onChange={event => setTitle(event.target.value)} />
+          <input className={css.libraryInput} autoFocus placeholder="文档标题" value={title} onChange={(event) => setTitle(event.target.value)} />
         </div>
         <div style={fieldStyle}>
           <label style={labelStyle}>内容</label>
-          <textarea className={css.libraryTextarea} value={content} onChange={event => setContent(event.target.value)} />
+          <textarea className={css.libraryTextarea} value={content} onChange={(event) => setContent(event.target.value)} />
         </div>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
           <button type="button" className={css.libraryActionButton} onClick={props.onClose}>取消</button>
@@ -685,11 +685,11 @@ function UrlDialog(props: {
   const [url, setUrl] = useState('')
   return (
     <div className={css.libraryDialogBackdrop} onClick={props.onClose}>
-      <div className={css.libraryDialog} onClick={event => event.stopPropagation()}>
+      <div className={css.libraryDialog} onClick={(event) => event.stopPropagation()}>
         <div className={css.libraryDialogTitle}>添加网址</div>
         <div style={fieldStyle}>
           <label style={labelStyle}>网址</label>
-          <input className={css.libraryInput} autoFocus placeholder="https://example.com" value={url} onChange={event => setUrl(event.target.value)} />
+          <input className={css.libraryInput} autoFocus placeholder="https://example.com" value={url} onChange={(event) => setUrl(event.target.value)} />
         </div>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
           <button type="button" className={css.libraryActionButton} onClick={props.onClose}>取消</button>
@@ -717,7 +717,7 @@ function ContentEditDialog(props: {
   const [content, setContent] = useState(props.initialContent)
   return (
     <div className={css.libraryDialogBackdrop} onClick={props.onClose}>
-      <div className={css.libraryDialog} onClick={event => event.stopPropagation()}>
+      <div className={css.libraryDialog} onClick={(event) => event.stopPropagation()}>
         <div className={css.libraryDialogTitle}>修改文档内容</div>
         <div style={{ fontSize: 12, color: 'var(--dsw-alias-label-tertiary)', marginBottom: 10 }}>
           {props.doc.title} · {props.doc.sourceType}
@@ -730,7 +730,7 @@ function ContentEditDialog(props: {
               placeholder="文档内容"
               autoFocus
               value={content}
-              onChange={event => setContent(event.target.value)}
+              onChange={(event) => setContent(event.target.value)}
               style={{ minHeight: 260 }}
             />
           </div>
@@ -767,11 +767,11 @@ function RenameDialog(props: {
   const [title, setTitle] = useState(props.initialTitle)
   return (
     <div className={css.libraryDialogBackdrop} onClick={props.onClose}>
-      <div className={css.libraryDialog} onClick={event => event.stopPropagation()}>
+      <div className={css.libraryDialog} onClick={(event) => event.stopPropagation()}>
         <div className={css.libraryDialogTitle}>重命名文档</div>
         <div style={fieldStyle}>
           <label style={labelStyle}>标题</label>
-          <input className={css.libraryInput} autoFocus placeholder="文档标题" value={title} onChange={event => setTitle(event.target.value)} />
+          <input className={css.libraryInput} autoFocus placeholder="文档标题" value={title} onChange={(event) => setTitle(event.target.value)} />
         </div>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
           <button type="button" className={css.libraryActionButton} onClick={props.onClose}>取消</button>

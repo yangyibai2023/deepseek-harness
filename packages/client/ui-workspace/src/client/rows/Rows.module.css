@@ -140,8 +140,13 @@
   white-space: nowrap;
 }
 
+/* HeightLab：文件夹图标统一黑色（选中态也不再用蓝色）。 */
+.folder {
+  color: var(--dsw-alias-label-primary);
+}
+
 .folderActive {
-  color: var(--dsw-alias-state-business-primary);
+  color: var(--dsw-alias-label-primary);
 }
 
 

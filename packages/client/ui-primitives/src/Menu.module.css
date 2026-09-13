@@ -184,6 +184,21 @@
   color: var(--dsw-alias-label-primary);
 }
 
+/* 一级项当前值（模型选择框同款 cellValue） */
+.itemValue {
+  flex: none;
+  margin-left: 10px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+/* 有二级菜单的一级项：右侧箭头提示可展开 */
+.subChevron {
+  flex: 0 0 auto;
+  color: var(--dsw-alias-label-tertiary);
+}
+
 /* Selected cell keeps the plain fill (marker is the trailing check); the
  * class remains as a hook for owner-side emphasis. */
 .selected {
@@ -231,11 +246,44 @@
  * ::before bridges the full gap so the pointer can cross without mouseLeave. */
 .submenu {
   position: absolute;
-  top: auto;
-  bottom: -4px;
-  left: calc(100% + 10px);
+  top: -4px;
+  bottom: auto;
+  left: auto;
+  right: calc(100% + 10px);
   z-index: 101;
   min-width: 163px;
+  max-width: min(360px, calc(100vw - 24px));
+  /* HeightLab：模型列表固定高度，多了在内部上下滚动。 */
+  max-height: 320px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* HeightLab：滚动条改细、轨道透明，保持可滚动。 */
+  scrollbar-width: thin;
+  scrollbar-color: var(--dsw-alias-scrollbar-bg-l2, rgba(0, 0, 0, 0.18)) transparent;
+}
+
+/* HeightLab：二级/三级菜单 fixed 挂到 body，由 JS 统一做边界检测；
+   不再相对一级行绝对定位，因此不会被一级列表的滚动裁剪。 */
+.submenuPortal {
+  position: fixed;
+  top: auto;
+  bottom: auto;
+  left: auto;
+  right: auto;
+  z-index: 1101;
+}
+
+.submenu::-webkit-scrollbar {
+  width: 4px;
+}
+
+.submenu::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.submenu::-webkit-scrollbar-thumb {
+  background: var(--dsw-alias-scrollbar-bg-l2, rgba(0, 0, 0, 0.18));
+  border-radius: 999px;
 }
 
 .submenu::before {
@@ -243,6 +291,13 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  left: -10px;
+  left: auto;
+  right: -10px;
   width: 10px;
+}
+
+/* HeightLab：底部空间不足时改为向上展开（默认自上而下生长，不越上边框）。 */
+.submenuUp {
+  top: auto;
+  bottom: -4px;
 }
