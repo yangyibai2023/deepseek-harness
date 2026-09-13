@@ -3,6 +3,21 @@ import { en } from './locales.ts'
 /** Machine value of the preset that requires an explicit GUI risk gate. */
 export const FULL_ACCESS_PRESET = 'danger-full-access'
 
+// HeightLab：权限档位中文名（仅查看 / 当前项目 / 完全访问）。
+const ZH_PRESET_LABELS: Record<string, string> = {
+  'read-only': '仅查看',
+  'Read Only': '仅查看',
+  'Read-only': '仅查看',
+  readonly: '仅查看',
+  'workspace-write': '当前项目',
+  workspace: '当前项目',
+  Workspace: '当前项目',
+  'Workspace Write': '当前项目',
+  'danger-full-access': '完全访问',
+  'Full access': '完全访问',
+  'full-access': '完全访问',
+}
+
 /** Locale dictionary key for a built-in permission preset label. */
 export type PermissionPresetLabelKey =
   | 'preset.readOnly'
@@ -47,5 +62,7 @@ export function displayPermissionPreset(
   if (key !== undefined && (name === value || name === DEFAULT_PRESET_LABELS[key])) {
     return t?.(key) ?? DEFAULT_PRESET_LABELS[key]
   }
-  return displayPresetName(name)
+  // HeightLab：中文档位名兜底。
+  return ZH_PRESET_LABELS[name] ?? ZH_PRESET_LABELS[value]
+    ?? (value === FULL_ACCESS_PRESET ? '完全访问' : displayPresetName(name))
 }

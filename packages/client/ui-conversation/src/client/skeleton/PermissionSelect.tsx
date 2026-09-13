@@ -10,6 +10,20 @@ import css from './PermissionSelect.module.css'
 
 const FULL_ACCESS = 'danger-full-access'
 
+// HeightLab：中文档位名（普通用户可读：仅查看 / 当前项目 / 完全访问）。
+const ZH_PRESET_LABELS: Record<string, string> = {
+  'read-only': '仅查看',
+  'Read Only': '仅查看',
+  'Read-only': '仅查看',
+  'readonly': '仅查看',
+  'workspace-write': '当前项目',
+  'workspace': '当前项目',
+  'Workspace': '当前项目',
+  'danger-full-access': '完全访问',
+  'Full access': '完全访问',
+  'full-access': '完全访问',
+}
+
 /* Shield glyphs (design set 1556): check = read-only, pencil = workspace
    write, exclamation = full access. currentColor so the trigger and menu
    rows tint them with their own text color. */
@@ -72,6 +86,9 @@ function permissionLabel(
     if (value === 'workspace-write') return t('access.preset.workspaceWrite')
     if (value === FULL_ACCESS) return t('access.preset.fullAccess')
   }
+  // HeightLab：中文档位名兜底（上游 locale 未覆盖的来源名 → 普通用户可读）。
+  const zh = ZH_PRESET_LABELS[name] ?? ZH_PRESET_LABELS[value]
+  if (zh) return zh
   return displayName(name)
 }
 
@@ -155,6 +172,9 @@ export function PermissionSelect({ value, locked, command, t }: PermissionSelect
         onSelect={choose}
         onClose={() => { setOpen(false) }}
         side="top"
+        // HeightLab：工具行 .tools 是 overflow:hidden，原地弹出会被裁掉；
+        // 用原生 portal 渲染（与模型选择/视频/图片工具栏一致），菜单 UI 不变。
+        portal
         anchor={
           <button
             type="button"
