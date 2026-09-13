@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import clsx from 'clsx'
-import { IconCheckOutline16 } from './icons/index.tsx'
+import { IconCheckOutline16, IconChevronRightOutline14 } from './icons/index.tsx'
 import { usePointerGrace } from './pointer-grace.ts'
 import css from './Menu.module.css'
 
@@ -10,6 +10,8 @@ import css from './Menu.module.css'
 export interface MenuItem {
   id: string
   label: ReactNode
+  /** Current value shown after the label (model-selector style cell). */
+  value?: ReactNode
   disabled?: boolean
   /** Leading icon (figma .Menu_cell gap 8). */
   icon?: ReactNode
@@ -41,6 +43,112 @@ function isSeparator(entry: MenuEntry): entry is MenuSeparator {
 
 function isLabel(entry: MenuEntry): entry is MenuLabel {
   return 'type' in entry && entry.type === 'label'
+}
+
+/**
+ * 递归二级/三级菜单卡片（HeightLab：分类 → 厂商 → 模型）。
+ * 规则：一律向左弹出、默认向下展开（不越上边框），仅底部空间不足时向上翻；
+ * 关闭交给根菜单的整体 hover 宽限，鼠标可自由跨级滑动。
+ */
+function SubmenuCard({
+  items,
+  selectedIds,
+  onSelect,
+  compact,
+  anchorWrap,
+  positionKey,
+}: {
+  items: readonly MenuItem[]
+  selectedIds?: readonly string[] | undefined
+  onSelect: (id: string) => void
+  compact: boolean
+  /** 打开本卡片的上一级行（用于上下翻转检测）。 */
+  anchorWrap: { readonly current: HTMLDivElement | null }
+  /** portal 列表定位变化时重新测量。 */
+  positionKey: unknown
+}) {
+  const [openId, setOpenId] = useState<string | null>(null)
+  const [flipUp, setFlipUp] = useState(false)
+  const [fitHeight, setFitHeight] = useState<number | undefined>(undefined)
+  const cardRef = useRef<HTMLDivElement | null>(null)
+  const openRowRef = useRef<HTMLDivElement | null>(null)
+
+  useLayoutEffect(() => {
+    const el = cardRef.current
+    const wrap = anchorWrap.current
+    if (el === null || wrap === null) {
+      setFlipUp((prev) => (prev ? false : prev))
+      setFitHeight(undefined)
+      return
+    }
+    const wr = wrap.getBoundingClientRect()
+    // 固定高度 320px（CSS 已封顶），短列表用实际高度。
+    const height = el.offsetHeight
+    const M = 12
+    const below = window.innerHeight - wr.bottom - M
+    const above = wr.top - M
+    const up = below < height ? (above >= height ? true : above >= below) : false
+    const room = up ? above : below
+    const next = height > room ? Math.max(room, 80) : undefined
+    setFlipUp((prev) => (prev === up ? prev : up))
+    setFitHeight((prev) => (prev === next ? prev : next))
+  }, [openId, items, positionKey])
+
+  return (
+    <div
+      ref={cardRef}
+      className={clsx(css.submenu, compact && css.compactList, flipUp && css.submenuUp)}
+      style={fitHeight === undefined ? undefined : { maxHeight: fitHeight }}
+      role="menu"
+    >
+      {items.map((item) => {
+        const hasSub = item.submenu !== undefined && item.submenu.length > 0
+        const subOpen = hasSub && openId === item.id
+        const selected = selectedIds?.includes(item.id) === true
+        return (
+          <div
+            key={item.id}
+            className={css.itemWrap}
+            ref={(node) => {
+              if (item.id === openId) openRowRef.current = node
+            }}
+            onMouseEnter={() => { setOpenId(hasSub ? item.id : null) }}
+          >
+            <button
+              type="button"
+              role="menuitem"
+              className={clsx(css.item, selected && css.selected, item.danger === true && css.danger)}
+              disabled={item.disabled}
+              aria-haspopup={hasSub ? 'menu' : undefined}
+              aria-expanded={hasSub ? subOpen : undefined}
+              onClick={() => {
+                if (hasSub) {
+                  setOpenId(item.id)
+                  return
+                }
+                onSelect(item.id)
+              }}
+            >
+              {item.icon !== undefined && <span className={css.itemIcon}>{item.icon}</span>}
+              <span className={css.itemLabel}>{item.label}</span>
+              {hasSub && <IconChevronRightOutline14 className={css.subChevron} />}
+              {selected && <IconCheckOutline16 className={css.check} />}
+            </button>
+            {subOpen && item.submenu !== undefined && (
+              <SubmenuCard
+                items={item.submenu}
+                selectedIds={selectedIds}
+                onSelect={onSelect}
+                compact={compact}
+                anchorWrap={openRowRef}
+                positionKey={positionKey}
+              />
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 /** Unplaced portal list: hidden but laid out at a fixed origin so offsetWidth/offsetHeight are real. */
@@ -108,7 +216,25 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
   const listRef = useRef<HTMLDivElement>(null)
   const [openSubmenuId, setOpenSubmenuId] = useState<string | null>(null)
   const [fixedPos, setFixedPos] = useState<CSSProperties | null>(null)
+  const topRowRef = useRef<HTMLDivElement | null>(null)
+  const menuGraceRef = useRef<number | null>(null)
   const { arm: armClose, cancel: cancelClose } = usePointerGrace(onClose)
+
+  /** 离开整个菜单后给一小段宽限，跨级/跨间隙滑动不会丢菜单。 */
+  const scheduleMenuClose = (): void => {
+    if (menuGraceRef.current !== null) window.clearTimeout(menuGraceRef.current)
+    menuGraceRef.current = window.setTimeout(() => {
+      setOpenSubmenuId(null)
+      menuGraceRef.current = null
+    }, 220)
+  }
+
+  const cancelMenuClose = (): void => {
+    if (menuGraceRef.current !== null) {
+      window.clearTimeout(menuGraceRef.current)
+      menuGraceRef.current = null
+    }
+  }
 
   // Portal mode: fixed-position the list from the anchor rect before paint;
   // track the anchor while open (capture-phase scroll catches nested panes).
@@ -135,15 +261,18 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
 
       let x: number
       let y: number
+      // HeightLab：底部空间不足时整张菜单向上弹出（输入框在窗口最下方时
+      // 不再被底边裁掉）；上方也不足时才回到下方，交给滚动/夹紧处理。
+      const belowRoom = r.bottom + 4 + lh <= vh - MARGIN
+      const aboveRoom = r.top - lh - 4 >= MARGIN
       if (side === 'right') {
         x = r.right + 4
         y = r.top
-      } else if (align === 'start') {
-        x = r.left
-        y = side === 'bottom' ? r.bottom + 4 : r.top - lh - 4
       } else {
-        x = r.right - lw
-        y = side === 'bottom' ? r.bottom + 4 : r.top - lh - 4
+        x = align === 'start' ? r.left : r.right - lw
+        y = side === 'bottom'
+          ? (belowRoom || !aboveRoom ? r.bottom + 4 : r.top - lh - 4)
+          : (aboveRoom || !belowRoom ? r.top - lh - 4 : r.bottom + 4)
       }
 
       if (lw > 0) x = Math.min(Math.max(x, MARGIN), vw - lw - MARGIN)
@@ -218,8 +347,14 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
     if (!open) cancelClose()
   }, [open, cancelClose])
 
+  useEffect(() => () => {
+    if (menuGraceRef.current !== null) window.clearTimeout(menuGraceRef.current)
+  }, [])
+
   // The submenu card is absolutely positioned outside the list box; the
   // scroll clip would crop it, so only submenu-free menus get the height cap.
+  // （0.3.10 回归修复：二级/三级菜单改回就地绝对定位，避免 portal 在真实
+  //   运行时无法弹出的问题；一级菜单的向上翻转/边界夹紧逻辑保留。）
   const scrollable = !items.some(entry => !isSeparator(entry) && !isLabel(entry) && entry.submenu !== undefined && entry.submenu.length > 0)
 
   const renderEntry = (entry: MenuEntry) => {
@@ -236,8 +371,10 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
       <div
         key={entry.id}
         className={css.itemWrap}
+        ref={(node) => {
+          if (entry.id === openSubmenuId) topRowRef.current = node
+        }}
         onMouseEnter={() => { setOpenSubmenuId(hasSub ? entry.id : null) }}
-        onMouseLeave={() => { setOpenSubmenuId(null) }}
       >
         <button
           type="button"
@@ -257,25 +394,20 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
         >
           {entry.icon !== undefined && <span className={css.itemIcon}>{entry.icon}</span>}
           <span className={css.itemLabel}>{entry.label}</span>
+          {entry.value !== undefined && <span className={css.itemValue}>{entry.value}</span>}
+          {hasSub && <IconChevronRightOutline14 className={css.subChevron} />}
           {/* Selection marker is a trailing check (figma .Menu_cell) unless the fill mode carries it. */}
           {selected && selection === 'check' && <IconCheckOutline16 className={css.check} />}
         </button>
         {subOpen && entry.submenu !== undefined && (
-          <div className={clsx(css.submenu, compact && css.compactList)} role="menu">
-            {entry.submenu.map(sub => (
-              <button
-                key={sub.id}
-                type="button"
-                role="menuitem"
-                className={css.item}
-                disabled={sub.disabled}
-                onClick={() => { onSelect(sub.id) }}
-              >
-                {sub.icon !== undefined && <span className={css.itemIcon}>{sub.icon}</span>}
-                <span className={css.itemLabel}>{sub.label}</span>
-              </button>
-            ))}
-          </div>
+          <SubmenuCard
+            items={entry.submenu}
+            selectedIds={selectedIds}
+            onSelect={onSelect}
+            compact={compact}
+            anchorWrap={topRowRef}
+            positionKey={fixedPos}
+          />
         )}
       </div>
     )
@@ -288,9 +420,11 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
   const list = open && (
     <div
       ref={listRef}
-      className={clsx(css.list, dense && css.denseList, compact && css.compactList, scrollable && css.scrollable, portal && css.portal, side === 'top' && !portal && css.sideTop, align === 'end' && !portal && css.alignEnd)}
+      className={clsx(css.list, dense && css.denseList, compact && css.compactList, scrollable && css.scrollable, portal && css.portal, side === 'top' && !portal && css.sideTop, align === 'end' && !portal && css.alignEnd, className)}
       style={portal ? fixedPos ?? MEASURE_STYLE : undefined}
       role="menu"
+      onMouseEnter={cancelMenuClose}
+      onMouseLeave={scheduleMenuClose}
       // React portals bubble synthetic events through the REACT tree: without
       // this stop, an item click re-fires the anchor row's own onClick
       // (open/toggle) after onSelect.
