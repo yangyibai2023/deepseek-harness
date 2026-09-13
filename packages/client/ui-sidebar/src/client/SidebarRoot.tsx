@@ -19,8 +19,12 @@
 import { useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import {
-  FishLogo, IconNewChatOutline16, IconPanelLeftOutline16, Tooltip,
+  IconNewChatOutline16, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
+import {
+  IconInspirationStroke16, IconLibraryStroke16, IconAutomationStroke16, IconPanelLeftStroke16,
+} from './sidebar-icons.tsx'
+import { HlModeSwitcher } from './hl-mode.tsx'
 import type { InjectFace, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {
   SidebarPanelMetadata, SidebarRootComponentProps, SidebarRootInjected, SidebarSectionOwnerProps,
@@ -189,15 +193,17 @@ export function SidebarRoot({
           >
             <span className={css.brandIdentity} aria-hidden="true">
               <span className={css.brandMark}>
-                {renderSlot('sidebar.brand.mark', { size: 24 }, { fallback: <FishLogo size={24} /> })}
+                {/* HeightLab 2026-08-26：黑色胶囊 PNG（透明底），随 build:web
+                    进 public→dist；暗色主题由 CSS invert 转白。 */}
+                {renderSlot('sidebar.brand.mark', { size: 20 }, { fallback: <img src="/heightlab-logo.png" alt="" width={20} height={20} draggable={false} style={{ width: 20, height: 20, objectFit: 'contain' }} /> })}
               </span>
               <span className={css.brandName}>
                 {renderSlot('sidebar.brand.name', {}, {
                   fallback: buildVersion === undefined
-                    ? <span className={css.fallbackBrandName}>{t('brand.localBuild')}</span>
+                    ? <span className={css.fallbackBrandName}>HEIGHTLAB</span>
                     : (
                       <span className={css.localBuildBrand}>
-                        <span className={css.localBuildTitle}>{t('brand.localBuild')}</span>
+                        <span className={css.localBuildTitle}>HEIGHTLAB</span>
                         <span className={css.buildVersion}>{buildVersion}</span>
                       </span>
                     ),
@@ -217,11 +223,12 @@ export function SidebarRoot({
           >
             {!wide && (
               <span className={css.railMark} aria-hidden="true">
-                {renderSlot('sidebar.brand.mark', { size: 24 }, { fallback: <FishLogo size={24} /> })}
+                {/* HeightLab 2026-08-26：折叠态胶囊 fallback，同款黑 PNG。 */}
+                {renderSlot('sidebar.brand.mark', { size: 24 }, { fallback: <img src="/heightlab-logo.png" alt="" width={24} height={24} draggable={false} style={{ width: 24, height: 24, objectFit: 'contain' }} /> })}
               </span>
             )}
             {/* Rail icons render at 18 (figma rail spec); expanded keeps the glyph-native sizes. */}
-            <IconPanelLeftOutline16 className={css.panelIcon} size={wide ? 16 : 18} />
+            <IconPanelLeftStroke16 className={css.panelIcon} size={wide ? 16 : 18} />
           </button>
         </Tooltip>
       </div>
@@ -234,10 +241,37 @@ export function SidebarRoot({
           aria-label={t('session.new.label')}
           onClick={() => { startSession() }}
         >
-          <IconNewChatOutline16 size={wide ? 14 : 18} />
+          {/* HeightLab 2026-08-26：展开态 16px，与 hlNav/添加工作区一致。 */}
+          <IconNewChatOutline16 size={wide ? 16 : 18} />
           {wide && <span className={clsx(css.newSessionLabel, css.wide)}>{t('session.new')}</span>}
         </button>
       </Tooltip>
+
+      {/* HeightLab 2026-08-28（企业版 M3）：个人|企业切换在新建任务上方，
+          仅企业账号渲染；新建任务等其余内容自然下移。 */}
+      {wide && <HlModeSwitcher />}
+
+      {/* HeightLab：自定义导航（创意灵感 / 资料库 / 自动化）。
+          rc.2 原生 SVG 描边图标 + 主题 token（css.hlNav*），与原生风格统一。 */}
+      <div className={css.hlNav}>
+        {[
+          { key: 'inspiration', label: '创意灵感', Icon: IconInspirationStroke16, dispatch: 'hl:open-hub', detail: { page: 'inspiration' } },
+          { key: 'library', label: '资料库', Icon: IconLibraryStroke16, dispatch: 'hl:open-hub', detail: { page: 'library' } },
+          { key: 'automation', label: '自动化', Icon: IconAutomationStroke16, dispatch: 'hl:open-automation', detail: {} },
+        ].map(item => (
+          <button
+            key={item.key}
+            type="button"
+            className={css.hlNavItem}
+            onClick={() => window.dispatchEvent(new CustomEvent(item.dispatch, { detail: item.detail }))}
+            title={item.label}
+          >
+            {/* rail 内统一 18px（figma rail spec）。 */}
+            <item.Icon size={wide ? 16 : 18} className={css.hlNavIcon} />
+            {wide && <span className={css.hlNavLabel}>{item.label}</span>}
+          </button>
+        ))}
+      </div>
 
       {panels.length > 0 && (
         <nav className={css.panelList} aria-label={t('panels.label')}>
