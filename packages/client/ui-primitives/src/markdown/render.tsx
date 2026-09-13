@@ -567,6 +567,20 @@ function renderImage(url: string, alt: string, key: Key, context: MarkdownRender
   if (imageSrc === undefined) {
     return <span key={key} className={css.imageAlt}>{alt}</span>
   }
+  // HeightLab: assistant markdown may embed a generated MP4/WebM via image
+  // syntax; render it as an inline <video> player instead of a broken <img>.
+  const lowerSrc = imageSrc.toLowerCase()
+  if (lowerSrc.endsWith('.mp4') || lowerSrc.endsWith('.webm') || lowerSrc.endsWith('.mov')) {
+    return (
+      <video
+        key={`${key}:${imageSrc}`}
+        className={css.video}
+        src={imageSrc}
+        controls
+        preload="metadata"
+      />
+    )
+  }
   return <MarkdownImage key={`${key}:${imageSrc}`} src={imageSrc} alt={alt} destination={url} />
 }
 
