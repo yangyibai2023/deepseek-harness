@@ -123,20 +123,15 @@ export async function serveStatic(
     // failures reach the webserver's request-failure handling.
     if (!STATIC_MISS_CODES.has((error as NodeJS.ErrnoException).code)) throw error
     // HeightLab 0.3.17 成熟逻辑（0.3.30 口径，见 fork 提交 858bf7429a
-    // 「恢复 0.3.17 成熟逻辑 — SPA 回调回退」）：缺失目标回退到 index.html
-    // 并返回 200。登录完成后的 /callback 只存在于客户端路由、dist 里没有该文件，
-    // 必须回退到 SPA 才能执行换码登录；否则登录回调 404、登录链路中断。
+    // 「恢复 0.3.17 成熟逻辑 — SPA 回调回退」）：缺失/非文件目标一律回退到
+    // index.html 并返回 200。登录完成后的 /callback 只存在于客户端路由、
+    // dist 里没有该文件，必须回退到 SPA 才能执行换码登录；否则登录回调 404、
+    // 登录链路中断。其他文件系统错误仍交给 webserver 的请求失败处理
+    // （index 自身不可读时 renderIndex 抛错冒泡 → 5xx，比伪装成 404 更诚实）。
     // 上游 0.1.5 新增的授权门禁在此同样生效（未通过授权不渲染 index）。
-    // 但 index 自身不可读时无从回退，保留上游 600f3a3110 的 404 语义。
-    try {
-      if (!authorizeIndex()) return
-      body = await renderIndex()
-      type = HTML_MIME
-    } catch {
-      res.writeHead(404)
-      res.end()
-      return
-    }
+    if (!authorizeIndex()) return
+    body = await renderIndex()
+    type = HTML_MIME
   }
   // HeightLab：统一 no-cache。此前启发式缓存导致改版后旧缓存、logo 时好时坏；
   // 每次回源校验，代价可忽略。

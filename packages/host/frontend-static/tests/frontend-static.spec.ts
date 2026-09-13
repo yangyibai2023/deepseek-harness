@@ -169,13 +169,16 @@ describe('real Loader composition', () => {
       expect((await request(port, path)).status).toBe(401)
     }
 
-    // HeightLab（0.3.17 成熟逻辑 / fork 858bf7429a）：index 本身不可读时
-    // 无从回退，保留上游 600f3a3110 的 404 语义（鉴权先过）。
+    // HeightLab（0.3.17 成熟逻辑 / fork 858bf7429a，0.3.30 口径）：index 本身
+    // 不可读时 renderIndex 抛错**冒泡**给 webserver 的请求失败处理（400），
+    // 而不是伪装成「路径不存在」（404）——后者会误导 SPA 路由。
+    // 注：本分支刻意不保留上游 600f3a3110 的 404；见构建门禁
+    // build-dsh-runtime.ts（要求产物完全不含 res.writeHead(404)）。
     await rm(join(root!, 'dist', 'index.html'))
     for (const path of ['/', '/index.html', '/callback']) {
       const get = await request(port, path, authenticated())
       const head = await request(port, path, authenticated({ method: 'HEAD' }))
-      expect(get).toEqual({ status: 404, type: null, body: '' })
+      expect(get).toEqual({ status: 400, type: null, body: '' })
       expect(head).toEqual(get)
     }
     expect(await request(port, '/api/no/such/route', authenticated())).toEqual({
