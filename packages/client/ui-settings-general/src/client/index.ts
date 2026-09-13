@@ -23,7 +23,13 @@ import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {
   SettingsOnboardingStep, SettingsRootInjected, SettingsSectionRow,
 } from './shell-contract.ts'
+// Type-only: pulls the ui-conversation SlotMap merge so this plugin can
+// register the composer tool-row voice button into 'conversation.input.left'.
+import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { SettingsRoot } from './SettingsRoot.tsx'
+import { HeightLabAccount } from './HeightLabAccount.tsx'
+import { HeightLabAbout } from './HeightLabAbout.tsx'
+import { HeightLabVoiceAvatar } from './HeightLabVoiceAvatar.tsx'
 import { CloseLabel, HeaderContent, TriggerContent } from './chrome.tsx'
 import { GeneralSection } from './GeneralSection.tsx'
 import { SettingsDocumentAction } from './SettingsDocumentAction.tsx'
@@ -161,7 +167,10 @@ export function apply(ctx: ClientContext): void {
     ctx.slots.register({ name: 'settings.trigger', locale: NS }, TriggerContent))
   ctx.slots.inject('settings.header', () =>
     ctx.slots.register({ name: 'settings.header', locale: NS }, HeaderContent))
-  if (documentInjected !== undefined) {
+  // HeightLab：隐藏设置右上角「打开配置文件」入口（功能保留，
+  // 恢复 = 把 HIDE_SETTINGS_DOCUMENT_ACTION 改为 false）。
+  const HIDE_SETTINGS_DOCUMENT_ACTION = true
+  if (documentInjected !== undefined && !HIDE_SETTINGS_DOCUMENT_ACTION) {
     ctx.slots.inject('settings.action', () => ctx.slots.register({
       name: 'settings.action',
       id: 'open-document',
@@ -180,4 +189,32 @@ export function apply(ctx: ClientContext): void {
     locale: NS,
     children: { 'settings.general.item': { kind: 'list', scope: 'root' } },
   }, GeneralSection))
+
+  // ── HeightLab 定制 section（自 0.3.x 稳定线迁移）──────────────────
+  // account section（余额 + 充值），紧跟通用设置（0）之后。
+  ctx.slots.inject('settings.section', () => ctx.slots.register({
+    name: 'settings.section',
+    id: 'heightlab-account',
+    // 紧跟通用设置（0）之后，排在原生 模型(10)/插件(15)/智能体预设(20) 之前
+    order: 5,
+    label: () => '账户',
+  }, HeightLabAccount))
+
+  // 形象与声音 section（avatars + voices 合并页）。
+  ctx.slots.inject('settings.section', () => ctx.slots.register({
+    name: 'settings.section',
+    id: 'heightlab-voice-avatar',
+    order: 110,
+    label: () => '形象与声音',
+  }, HeightLabVoiceAvatar))
+
+  // 关于（版本号/检查更新/软件介绍）。
+  ctx.slots.inject('settings.section', () => ctx.slots.register({
+    name: 'settings.section',
+    id: 'heightlab-about',
+    order: 120,
+    label: () => '关于',
+  }, HeightLabAbout))
+  // 输入框麦克风已移除（声音克隆收口到「设置 → 形象与声音」）。
+  // HeightLabVoiceRecorder 组件文件保留，恢复时重新注册即可。
 }

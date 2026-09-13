@@ -7,7 +7,7 @@ export const zh = {
   'close': '关闭',
   'openDocument': '打开配置文件',
   'openDocument.error': '无法打开配置文件',
-  'general.nav': '通用设置',
+  'general.nav': '通用',
   'connection.error': '连接异常',
   'connection.retry': '立即重连',
   'connection.connecting': '自动重连中',
