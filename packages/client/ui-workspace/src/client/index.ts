@@ -78,6 +78,89 @@ export function apply(ctx: Context): void {
   ctx.slots.provideRoot({ hooks: { workspaces: workspaces.list } })
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-workspace: dictionaries')
 
+  // ── HeightLab 定制（自 0.3.x 稳定线迁移，API 按 0.1.5 适配）──────────
+  // 全新环境自动完成首次初始化——没有工作区时自动创建「~/HeightLab」
+  // 工作区；没有当前会话时自动开始一个新会话。直接进入产品输入框状态，
+  // 而不是 DSH 原生“选择工作区”空状态。幂等：已有当前会话就不再触发。
+  ctx.effect(() => {
+    let attempts = 0
+    let timer = 0
+    const debug = (payload: Record<string, unknown>): void => {
+      try {
+        void fetch('/hl/boot-marker', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ hlAutoStart: true, ...payload }),
+        }).catch(() => { /* 非致命 */ })
+      } catch {
+        // 非致命
+      }
+    }
+    const tryAutoStart = async (): Promise<void> => {
+      if (attempts >= 15) return
+      // 未登录（登录门 out/未判定）绝不自动开会话——否则登录页背后会
+      // 反复建会话（hlAutoStart enter 循环）。登录成功后轮询接管。
+      if (document.body.dataset.hlAuth !== 'in') return
+      attempts += 1
+      try {
+        const sessionList = sessions.list.getSnapshot()
+        let workspaceList = workspaces.list.getSnapshot()
+        debug({ at: 'enter', attempts, current: sessionList.current ?? null, wsCount: workspaceList.items.length })
+        if (sessionList.current !== undefined) return
+        let workspaceId = workspaceList.items[0]?.workspaceId
+        if (workspaceId === undefined && workspaceList.items.length === 0) {
+          // 兜底：初始化脚本没种成功时，客户端自己建默认工作区。
+          const listingResult = await ctx.remote.directoryPicker.list(undefined, new AbortController().signal)
+          if (!listingResult.ok) throw new Error(listingResult.error.message)
+          const listing = listingResult.value
+          let dir = ''
+          try {
+            const created2 = await ctx.remote.directoryPicker.createDirectory(listing.home, 'HeightLab')
+            if (!created2.ok) throw new Error(created2.error.message)
+            dir = created2.value
+          } catch {
+            dir = `${listing.home.replace(/\/+$/, '')}/HeightLab`
+          }
+          const created = await workspaces.create({ path: dir })
+          workspaceId = created.workspaceId
+          try {
+            await workspaces.rename(workspaceId, '我的工作区')
+          } catch {
+            // 重命名失败不阻塞。
+          }
+          workspaceList = workspaces.list.getSnapshot()
+        }
+        workspaceId = workspaceId ?? workspaceList.items[0]?.workspaceId
+        if (workspaceId !== undefined && sessions.list.getSnapshot().current === undefined) {
+          debug({ at: 'startSession', workspaceId })
+          try {
+            const sessionId = await uiWorkspace.connectWorkspace(workspaceId)
+            debug({ at: 'connected', sessionId })
+            sessions.open(sessionId)
+            debug({ at: 'opened' })
+          } catch (error) {
+            debug({ at: 'connectError', message: error instanceof Error ? error.message : String(error) })
+          }
+        }
+      } catch (error) {
+        debug({ at: 'error', message: error instanceof Error ? error.message : String(error) })
+      }
+    }
+    const run = (): void => {
+      void tryAutoStart().then(() => {
+        if (sessions.list.getSnapshot().current !== undefined || attempts >= 15) {
+          window.clearInterval(timer)
+        }
+      })
+    }
+    if (typeof window === 'undefined') return () => {}
+    run()
+    timer = window.setInterval(run, 2000)
+    return () => {
+      window.clearInterval(timer)
+    }
+  }, 'ui-workspace: auto-start first session')
+
   const searchSessions: WorkspaceBrowserInjected['searchSessions'] = async (query, signal) => {
     const result = await sessions.search(query, signal)
     if (!result.ok) throw new Error(result.error.message)
