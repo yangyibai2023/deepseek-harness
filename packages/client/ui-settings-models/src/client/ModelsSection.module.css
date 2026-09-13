@@ -95,6 +95,13 @@
   color: var(--dsw-alias-label-secondary);
 }
 
+/* HeightLab：官方默认提供商锁定提示。 */
+.rowLocked {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary);
+}
+
 .credentialDot {
   box-sizing: border-box;
   display: inline-block;

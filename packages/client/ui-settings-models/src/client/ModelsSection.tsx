@@ -27,6 +27,10 @@ import { ProviderEditor, type ProviderEditorProps } from './ProviderEditor.tsx'
 import type { en } from './locales.ts'
 import styles from './ModelsSection.module.css'
 
+/** HeightLab：官方默认提供商（走 New API 托管渠道），展示为「HEIGHTLAB 官方」，不可修改/删除。 */
+const HEIGHTLAB_OFFICIAL_PROVIDER = 'deepseek-official'
+const HEIGHTLAB_OFFICIAL_NAME = 'HEIGHTLAB 官方'
+
 /** Injected dependencies of {@link ModelsSection} (slot `inject`). */
 export interface ModelsSectionInjected {
   /** The page store (loaded on mount, refreshed on pushed invalidations). */
@@ -139,6 +143,9 @@ export async function removeProviderProfile(
  * @returns whether to render the setup card.
  */
 export function needsSetup(row: ProviderRow, anyUsable: boolean): boolean {
+  // HeightLab：官方默认提供商（HEIGHTLAB 官方）走 New API 托管渠道，
+  // 密钥由宿主按用户注入，永远不需要用户在设置页填写，直接锁定展示。
+  if (row.entry.provider === HEIGHTLAB_OFFICIAL_PROVIDER) return false
   if (anyUsable) return false
   if (row.entry.settingsPath.length > 0) return false
   return row.credential?.configured !== true
@@ -321,6 +328,7 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
         {configured.map((row) => {
           const target = targetOf(row)
           const namespace = state.namespaces.get(target.settingsNs)
+          const official = row.entry.provider === HEIGHTLAB_OFFICIAL_PROVIDER
           /* v8 ignore next -- the join marks a row configured only when its namespace resolved */
           if (namespace === undefined) return null
           const error = row.entry.error === undefined
@@ -351,18 +359,24 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
           }
           const open = !adding && editing?.provider === row.entry.provider
           const credentialConfigured = row.credential?.configured === true
-          const credentialMissing = !credentialConfigured
+          const credentialMissing = !official
+            && !credentialConfigured
             && row.apiKeyEnv !== undefined
             && row.credential?.configured === false
           return (
             <li key={row.entry.provider} className={styles['rowCard']}>
               <div className={styles['rowHead']}>
                 <span className={styles['rowIdentity']}>
-                  <span className={styles['rowName']}>{row.entry.displayName}</span>
+                  <span className={styles['rowName']}>
+                    {official ? HEIGHTLAB_OFFICIAL_NAME : row.entry.displayName}
+                  </span>
+                  {official
+                    ? <span className={styles['rowTag']}>默认</span>
+                    : null}
                   {/* Only the adapter can tell a hand-declared route from a
                       shipped one it also has a stored profile for, so the tag
                       follows its answer and stays off when it gives none. */}
-                  {row.entry.declared === true
+                  {!official && row.entry.declared === true
                     ? <span className={styles['rowTag']}>{t('customTag')}</span>
                     : null}
                   {credentialConfigured
@@ -386,6 +400,10 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
                       : null}
                 </span>
                 <span className={styles['rowActions']}>
+                  {official
+                    ? <span className={styles['rowLocked']}>默认开启</span>
+                    : (
+                      <>
                   <button
                     type="button"
                     className={styles['secondaryButton']}
@@ -419,6 +437,8 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
                       </button>
                     )
                     : null}
+                      </>
+                    )}
                 </span>
               </div>
               {error}
