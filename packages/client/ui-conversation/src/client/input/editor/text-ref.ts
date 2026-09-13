@@ -14,7 +14,8 @@ import { TextNode } from 'lexical'
 import { registerLexicalTextEntity } from '@lexical/text'
 import { mergeRegister } from '@lexical/utils'
 import { $getRoot } from 'lexical'
-import { scanTextRefs } from '../decorations.ts'
+import { scanTemplateRefs, scanTextRefs } from '../decorations.ts'
+import { getTemplateNames } from '../../skeleton/HeightLabTemplates.ts'
 import css from './composer-editor.module.css'
 
 /** JSON form of one text-ref node. */
@@ -62,6 +63,11 @@ export class TextRefNode extends TextNode {
   override createDOM(config: EditorConfig): HTMLElement {
     const el = super.createDOM(config)
     el.classList.add(css.textRef ?? 'textRef')
+    // HeightLab：模板名范围渲染为模板胶囊（描边样式），普通引用维持词汇表着色。
+    if (getTemplateNames().includes(this.getTextContent())) {
+      el.classList.add(css.templateRef ?? 'templateRef')
+      el.setAttribute('data-composer-template-ref', '')
+    }
     el.setAttribute('data-composer-text-ref', '')
     return el
   }
@@ -95,7 +101,12 @@ export function registerTextRefDecoration(
 ): () => void {
   const getMatch = (text: string): { start: number; end: number } | null => {
     const claim = activeToken()
-    for (const range of scanTextRefs(text, lexiconOf())) {
+    // HeightLab：模板名（纯文字）与 /、@ 词汇表引用同池渲染；模板优先于跨区间重叠。
+    const ranges = [
+      ...scanTextRefs(text, lexiconOf()),
+      ...scanTemplateRefs(text),
+    ].sort((left, right) => left.start - right.start)
+    for (const range of ranges) {
       if (claim !== null && range.start === 0 && text.slice(range.start, range.end) === claim) continue
       return { start: range.start, end: range.end }
     }

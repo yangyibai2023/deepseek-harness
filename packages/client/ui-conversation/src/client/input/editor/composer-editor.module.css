@@ -11,3 +11,11 @@
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
 }
+
+/* HeightLab：模板名胶囊（描边样式，与稳定线 backdrop mark 一致）。 */
+.templateRef {
+  border-radius: 6px;
+  color: #7aa2f7;
+  background: transparent;
+  box-shadow: 0 0 0 1px #7aa2f7;
+}

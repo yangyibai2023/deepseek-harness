@@ -199,6 +199,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     'conversation.input.plan': { kind: 'single'; scope: 'session'; owner: InputControlOwnerProps }
     /** Model selector inside the composer tool row. */
     'conversation.input.model': { kind: 'single'; scope: 'session'; owner: InputControlOwnerProps }
+    /** HeightLab：输入栏内的智能体选择胶囊（COLIN / 专家），在模型选择左侧。 */
+    'conversation.input.agentPreset': { kind: 'single'; scope: 'session'; owner: HeroAgentPresetOwnerProps }
   }
 
   interface GlobalStandardProps {
@@ -229,6 +231,10 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 export interface HeroAgentPresetOwnerProps {
   /** Marker field: the occupant owns its roster and staged selection. */
   children?: never
+  /** HeightLab：把触发器渲染成输入栏里的 COLIN 胶囊（mode picker 挪进输入栏）。 */
+  triggerLabel?: string
+  triggerClassName?: string
+  triggerDisabled?: boolean
 }
 
 /** Header actions derive their state from standard Session props. */
@@ -355,6 +361,7 @@ export type ComposerBarProps =
     | 'conversation.input.attachments' | 'conversation.input.overlay'
     | 'conversation.input.left' | 'conversation.input.plan'
     | 'conversation.input.right' | 'conversation.input.model'
+    | 'conversation.input.agentPreset'
     | 'conversation.composer.dock'
   >
   & InjectFace<ComposerBarInjected>

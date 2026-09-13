@@ -155,6 +155,12 @@ export function apply(ctx: ClientContext): void {
         locale: 'settings.agentPreset',
         inject: seatInjected,
       }, AgentPresetSeat)
+      // HeightLab：输入栏内的 COLIN 胶囊（新会话 hero 与会话中输入栏同源 seat）。
+      const composerSeat = scope.slots.register({
+        name: 'conversation.input.agentPreset',
+        locale: 'settings.agentPreset',
+        inject: seatInjected,
+      }, AgentPresetSeat)
       const label = scope.slots.register({
         name: 'conversation.session.header.actions',
         id: 'agent-preset',
@@ -169,6 +175,7 @@ export function apply(ctx: ClientContext): void {
         rosterReaders.delete(readRoster)
         creatorDraft = undefined
         chip()
+        composerSeat()
         label()
       }
     }, 'ui-agent-preset: new-session chip and header label')

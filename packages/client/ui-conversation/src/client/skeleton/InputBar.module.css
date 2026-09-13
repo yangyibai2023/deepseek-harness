@@ -239,7 +239,9 @@
    (figma Input_Bottom chrome). */
 .row {
   display: flex;
-  flex-wrap: wrap;
+  /* HeightLab 2026-08-21：运行中「发送→停止」+ 视频工具栏按钮增多时
+     原 wrap 会折成两行（用户实测），改 nowrap，中部工具区横向滚动。 */
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
@@ -348,12 +350,16 @@
   display: grid;
   place-items: center;
   flex: none;
-  width: 34px;
-  height: 34px;
+  /* HeightLab 2026-08-26：在原生 34px 基础上整体缩小 20%（圆底与箭头
+     等比，grid 居中保证箭头不偏）。 */
+  width: 27.2px;
+  height: 27.2px;
   border: none;
   border-radius: 999px;
   corner-shape: round;
-  background: var(--dsw-alias-button-info-fill);
+  /* HeightLab 2026-08-22：发送按钮改黑色主题（与侧边栏主按钮/0.3.17 一致），
+     不用 rc.2 的蓝色 info fill。 */
+  background: var(--dsw-alias-label-primary);
   /* Static white, not the foreground token: the arrow stays white on the blue
      fill in both themes (design 34:10465). */
   color: #fff;
@@ -366,7 +372,7 @@
 }
 
 .primary:hover:not(:disabled) {
-  background: var(--dsw-alias-button-info-hover);
+  background: rgba(0, 0, 0, 0.82);
 }
 
 .primary:disabled {
@@ -383,4 +389,12 @@
   color: inherit;
   font-size: 12px;
   cursor: pointer;
+}
+
+/* HeightLab：模板胶囊文字样式（描边用 box-shadow，不占布局宽度）。 */
+.templateRef {
+  border-radius: 6px;
+  color: #7aa2f7;
+  background: transparent;
+  box-shadow: 0 0 0 1px #7aa2f7;
 }

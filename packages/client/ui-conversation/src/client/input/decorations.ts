@@ -17,10 +17,12 @@
 export interface TextRefRange {
   readonly start: number
   readonly end: number
-  readonly trigger: '/' | '@'
+  readonly trigger: '/' | '@' | '【'
 }
 
 /** Token matcher: a trigger char at line start or after whitespace, then a word-ish name (never crosses \n). */
+import { getTemplateNames } from '../skeleton/HeightLabTemplates.ts'
+
 const TEXT_REF_RE = /(^|\s)([/@])([\w-]+)/g
 const FOLDER_REF_RE = /(^|\s)(@(?:"[^"\n]*\/|[^\s"]+\/))/g
 /**
@@ -69,4 +71,28 @@ export function scanTextRefs(
     }
   }
   return out.sort((left, right) => left.start - right.start)
+}
+
+/** 扫描模板名（纯文字），作为模板胶囊的渲染范围；名字多长胶囊就多长。 */
+export function scanTemplateRefs(draft: string): TextRefRange[] {
+  if (draft === '') return []
+  const out: TextRefRange[] = []
+  for (const name of getTemplateNames()) {
+    if (name === '') continue
+    let from = 0
+    let idx: number
+    while ((idx = draft.indexOf(name, from)) !== -1) {
+      out.push({ start: idx, end: idx + name.length, trigger: '【' })
+      from = idx + name.length
+    }
+  }
+  // 按位置排序并丢弃重叠区间（如「头像生成」同时存在于多个分类）。
+  out.sort((a, b) => a.start - b.start || a.end - b.end)
+  const kept: TextRefRange[] = []
+  for (const range of out) {
+    const last = kept[kept.length - 1]
+    if (last !== undefined && range.start < last.end) continue
+    kept.push(range)
+  }
+  return kept
 }

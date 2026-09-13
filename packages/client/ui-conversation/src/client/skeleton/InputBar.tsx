@@ -39,6 +39,9 @@ import { PermissionSelect } from './PermissionSelect.tsx'
 // HeightLab：模板名单（胶囊删除检测用）。
 import { getTemplateNames } from './HeightLabTemplates.ts'
 import css from './InputBar.module.css'
+import { VideoToolbar } from './VideoToolbar.tsx'
+import { ImageToolbar } from './ImageToolbar.tsx'
+import { ContentToolbar } from './ContentToolbar.tsx'
 
 export type InputBarProps = ComposerBarProps
 
@@ -585,10 +588,17 @@ export const InputBar = memo(function InputBar({
               ? null
               : renderSlot('conversation.input.left', {})}
           </div>
+          <div className={css.videoTools}>
+            <VideoToolbar />
+            <ImageToolbar />
+            <ContentToolbar />
+          </div>
           <div className={css.trailing}>
             {input === undefined || sessionId === undefined
               ? null
               : renderSlot('conversation.input.right', {})}
+            {/* HeightLab：智能体选择框（Colin / 专家）放在模型选择左侧。 */}
+            {sessionId === undefined ? null : renderSlot('conversation.input.agentPreset', {})}
             {sessionId === undefined ? null : renderSlot('conversation.input.model', { locked: modelSeatLocked })}
             <ContextMeter useProjection={useProjection} t={t} />
             {interruptible && (

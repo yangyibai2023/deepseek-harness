@@ -9,6 +9,8 @@
   height: 100%;
   min-width: 0;
   padding: 0 24px;
+  /* HeightLab：标题整体向下贴近输入框，标题↔输入框间距缩短约 30%。 */
+  margin-bottom: -17px;
 }
 
 /* Cap matches the InputBar card. Glow may paint past the sides. */
@@ -63,10 +65,11 @@
   align-self: flex-start;
   margin-top: 2px;
   padding: 1px 7px 0;
-  border: 0.5px solid var(--dsw-alias-interactive-bg-hover);
+  /* HeightLab：内测版徽章——灰字、灰底（与底色轻微对比）、无边框，轻量化。 */
+  border: none;
   border-radius: 24px;
-  background: var(--dsw-alias-state-business-tertiary);
-  color: var(--dsw-alias-label-primary-bluish);
+  background: var(--dsw-alias-bg-layer-3);
+  color: var(--dsw-alias-label-tertiary);
   font-family: var(--ds-font-family-code);
   font-size: 12px;
   line-height: 18px;
@@ -89,8 +92,18 @@
 .fish {
   display: block;
   overflow: visible;
+  /* HeightLab 2026-08-26：黑色胶囊 PNG（400x400 透明底、自带留白）。 */
+  width: 68px;
+  height: 68px;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
   transform-origin: 50% 60%;
-  color: var(--dsw-alias-label-primary);
+}
+
+/* 暗色主题：黑胶囊反转为白胶囊（等价白色logo.png）。 */
+:global(body[data-ds-dark-theme]) .fish {
+  filter: invert(1);
 }
 
 /* Hover swim: a slow continuous sway about the body center — the head
