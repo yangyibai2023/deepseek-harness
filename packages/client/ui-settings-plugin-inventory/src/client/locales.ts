@@ -24,6 +24,13 @@ export const zh = {
   failedCountLabel: '个失败',
   enabledTag: '已启用',
   disabledTag: '已停用',
+  enable: '启用',
+  disable: '停用',
+  delete: '删除',
+  confirmDelete: '确认删除',
+  removedNote: '已删除，重启后生效',
+  actionError: '操作失败，请重试',
+  systemBuiltinHint: '系统内置，仅可停用',
   conditionalTag: '条件启用',
   presetEnabledTag: '预设中启用',
   failedTag: '启动失败',
@@ -42,6 +49,13 @@ export const zh = {
 
 /** Plugin inventory locale key union. */
 export type PluginInventoryLocaleKey = keyof typeof zh
+
+/** 可被标签页覆盖的文案键（HeightLab：MCP 服务标签页覆盖空态/搜索等文案）。 */
+export type PluginInventoryCopyKey =
+  | 'loading' | 'error' | 'retry' | 'search' | 'empty' | 'emptySearch'
+
+/** 标签页可覆盖的文案子集。 */
+export type PluginInventoryCopy = Pick<typeof zh, PluginInventoryCopyKey>
 
 /** English dictionary checked against the Chinese key set. */
 export const en = {
@@ -67,6 +81,13 @@ export const en = {
   failedCountLabel: 'failed',
   enabledTag: 'Enabled',
   disabledTag: 'Disabled',
+  enable: 'Enable',
+  disable: 'Disable',
+  delete: 'Remove',
+  confirmDelete: 'Confirm remove',
+  removedNote: 'Removed; restart to apply',
+  actionError: 'Action failed, please retry',
+  systemBuiltinHint: 'Built-in; disable only',
   conditionalTag: 'Conditional',
   presetEnabledTag: 'Enabled via presets',
   failedTag: 'Failed',
@@ -82,3 +103,28 @@ export const en = {
   failed: 'Failed to start',
   unloading: 'Unloading',
 } satisfies Record<PluginInventoryLocaleKey, string>
+
+/** MCP 服务标签页中文 copy（插件扩展页）。 */
+export const mcpZh = {
+  tab: 'MCP 服务',
+  loading: '正在读取 MCP 服务…',
+  error: '暂时无法读取 MCP 服务。',
+  retry: '重试',
+  search: '搜索 MCP 服务',
+  empty: '暂无 MCP 服务。',
+  emptySearch: '没有匹配的 MCP 服务。',
+} satisfies Record<string, string>
+
+/** MCP 服务标签页英文 copy。 */
+export const mcpEn = {
+  tab: 'MCP servers',
+  loading: 'Reading MCP servers…',
+  error: 'MCP servers are temporarily unavailable.',
+  retry: 'Retry',
+  search: 'Search MCP servers',
+  empty: 'No MCP servers are available.',
+  emptySearch: 'No matching MCP servers.',
+} satisfies Record<string, string>
+
+/** MCP inventory locale key union. */
+export type MCPInventoryLocaleKey = keyof typeof mcpZh

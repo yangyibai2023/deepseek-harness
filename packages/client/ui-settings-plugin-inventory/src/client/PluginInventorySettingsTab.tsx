@@ -9,7 +9,7 @@ import {
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { StateDotState, TagTone } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import type { PluginInventoryLocaleKey } from './locales.ts'
+import type { PluginInventoryCopy, PluginInventoryLocaleKey } from './locales.ts'
 import css from './PluginInventorySettingsTab.module.css'
 
 type PluginInventoryEntry = PluginInventorySnapshot['entries'][number]
@@ -25,6 +25,12 @@ export interface PluginInventorySettingsTabInjected {
    * agent-preset dictionaries, user-authored ones keep their own metadata.
    */
   presetName: (preset: AgentPresetGroup) => string
+  /** 按标签页覆盖文案（HeightLab：MCP 服务标签页使用自己的空态/搜索文案）。 */
+  copy?: Partial<PluginInventoryCopy>
+  /** 该条目是否允许用户管理（启用/停用/删除）；默认 false。 */
+  canManage?: (entry: PluginInventoryEntry) => boolean
+  /** 该条目是否允许删除；默认与 canManage 一致。 */
+  canDelete?: (entry: PluginInventoryEntry) => boolean
 }
 type PluginFiberPhase = PluginInventoryEntry['fiberPhase']
 
@@ -197,11 +203,15 @@ function StateTag({ kind, label }: { readonly kind: EnablementKind; readonly lab
 }
 
 /** Render the read-only plugin inventory: agent presets first, then the global plane. */
-export function PluginInventorySettingsTab({ list, presetName, t }: PluginInventorySettingsTabProps): ReactNode {
+export function PluginInventorySettingsTab({ list, presetName, copy, canManage, canDelete, t }: PluginInventorySettingsTabProps): ReactNode {
   const sectionId = useId()
   const [request, setRequest] = useState(0)
   const [query, setQuery] = useState('')
   const [expanded, setExpanded] = useState<string | null>(null)
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const [confirmId, setConfirmId] = useState<string | null>(null)
+  const [actionNote, setActionNote] = useState<{ entryId: string; text: string } | null>(null)
+  const [actionError, setActionError] = useState<{ entryId: string; text: string } | null>(null)
   const [chosenPreset, setChosenPreset] = useState<string | null>(null)
   const [switcherOpen, setSwitcherOpen] = useState(false)
   const [presetOpen, setPresetOpen] = useState<boolean | null>(null)
@@ -216,6 +226,12 @@ export function PluginInventorySettingsTab({ list, presetName, t }: PluginInvent
     )
     return () => { current = false }
   }, [list, request])
+
+  useEffect(() => {
+    if (confirmId === null) return
+    const timer = setTimeout(() => setConfirmId(null), 4000)
+    return () => clearTimeout(timer)
+  }, [confirmId])
 
   const normalizedQuery = query.trim().toLocaleLowerCase()
   const searching = normalizedQuery.length > 0
@@ -268,6 +284,64 @@ export function PluginInventorySettingsTab({ list, presetName, t }: PluginInvent
   }
   const toggleRow = (key: string): void => {
     setExpanded(current => current === key ? null : key)
+  }
+
+  /** HeightLab：启用/停用用户自装插件（宿主 /hl/plugin/toggle）。 */
+  async function toggleEntry(entry: PluginInventoryEntry): Promise<void> {
+    setBusyId(entry.entryId)
+    setActionError(null)
+    setActionNote(null)
+    try {
+      const res = await fetch('/hl/plugin/toggle', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ entryId: entry.entryId, moduleName: entry.moduleName, enabled: !entry.enabled }),
+      })
+      const data = await res.json().catch(() => ({})) as { ok?: boolean; message?: string }
+      if (!res.ok || data.ok !== true) {
+        setActionError({ entryId: entry.entryId, text: data.message ?? t('actionError') })
+        return
+      }
+      setRequest(value => value + 1)
+    } catch {
+      setActionError({ entryId: entry.entryId, text: t('actionError') })
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  /** HeightLab：删除用户自装插件（宿主 /hl/plugin/remove）。 */
+  async function removeEntry(entry: PluginInventoryEntry): Promise<void> {
+    setBusyId(entry.entryId)
+    setActionError(null)
+    setActionNote(null)
+    setConfirmId(null)
+    try {
+      const res = await fetch('/hl/plugin/remove', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ entryId: entry.entryId, moduleName: entry.moduleName }),
+      })
+      const data = await res.json().catch(() => ({})) as { ok?: boolean; message?: string }
+      if (!res.ok || data.ok !== true) {
+        setActionError({ entryId: entry.entryId, text: data.message ?? t('actionError') })
+        return
+      }
+      setActionNote({ entryId: entry.entryId, text: t('removedNote') })
+      setRequest(value => value + 1)
+    } catch {
+      setActionError({ entryId: entry.entryId, text: t('actionError') })
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  function onDeleteClick(entry: PluginInventoryEntry): void {
+    if (confirmId === entry.entryId) {
+      void removeEntry(entry)
+    } else {
+      setConfirmId(entry.entryId)
+    }
   }
 
   /** Trailing status and detail facts for one row of the selected preset. */
@@ -369,34 +443,65 @@ export function PluginInventorySettingsTab({ list, presetName, t }: PluginInvent
               ...entry.enabled ? [[t('runtime'), phaseLabel(entry.fiberPhase, t)] as const] : [],
             ]}
         />
+        {canManage?.(entry) ? (
+          <div className={css.actions}>
+            <button
+              type="button"
+              className={css.actionButton}
+              disabled={busyId === entry.entryId}
+              onClick={() => { void toggleEntry(entry) }}
+            >
+              {entry.enabled ? t('disable') : t('enable')}
+            </button>
+            {canDelete?.(entry) ?? true ? (
+              <button
+                type="button"
+                className={css.deleteButton}
+                disabled={busyId === entry.entryId}
+                onClick={() => onDeleteClick(entry)}
+              >
+                {confirmId === entry.entryId ? t('confirmDelete') : t('delete')}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+        {canManage?.(entry) && !(canDelete?.(entry) ?? true) ? (
+          <p className={css.actionHint}>{t('systemBuiltinHint')}</p>
+        ) : null}
+        {actionNote?.entryId === entry.entryId ? (
+          <p className={css.actionHint}>{actionNote.text}</p>
+        ) : null}
+        {actionError?.entryId === entry.entryId ? (
+          <p className={css.actionError}>{actionError.text}</p>
+        ) : null}
       </PluginCard>
     )
   }
 
   return (
     <div className={css.section} aria-busy={state.status === 'loading'}>
-      {state.status === 'loading' ? <p className={css.status}>{t('loading')}</p> : null}
+      {state.status === 'loading' ? <p className={css.status}>{copy?.loading ?? t('loading')}</p> : null}
       {state.status === 'error' ? (
         <div className={css.failure}>
-          <p role="alert">{t('error')}</p>
-          <button type="button" onClick={retry}>{t('retry')}</button>
+          <p role="alert">{copy?.error ?? t('error')}</p>
+          <button type="button" onClick={retry}>{copy?.retry ?? t('retry')}</button>
         </div>
       ) : null}
       {snapshot !== undefined ? (
         <div className={css.catalog}>
           <label className={css.search}>
             <IconSearchOutline16 aria-hidden="true" />
-            <span className={css.visuallyHidden}>{t('search')}</span>
+            <span className={css.visuallyHidden}>{copy?.search ?? t('search')}</span>
             <input
               type="search"
               value={query}
-              placeholder={t('search')}
-              aria-label={t('search')}
+              placeholder={copy?.search ?? t('search')}
+              aria-label={copy?.search ?? t('search')}
               onChange={(event) => { setQuery(event.currentTarget.value) }}
             />
           </label>
-          {entries.length === 0 && presets.length === 0 ? <p className={css.status}>{t('empty')}</p> : null}
-          {nothingMatches ? <p className={css.status}>{t('emptySearch')}</p> : null}
+          {entries.length === 0 && presets.length === 0 ? <p className={css.status}>{copy?.empty ?? t('empty')}</p> : null}
+          {nothingMatches ? <p className={css.status}>{copy?.emptySearch ?? t('emptySearch')}</p> : null}
 
           {selected !== undefined ? (
             <section className={css.group} data-plugin-scope="preset" data-preset-id={selected.id}>
