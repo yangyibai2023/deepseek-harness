@@ -129,6 +129,9 @@ export function createLayoutStore(): EngineStoreHandle<LayoutState, LayoutAction
           d.layoutInfo.rightbarInstant = d.layoutInfo.rightbarFullscreen && !fullscreen
         }
         if (!d.layoutInfo.rightbarShown && d.layoutInfo.viewportWidth < SIDEBAR_AUTO_COLLAPSE) d.layoutInfo.narrowExpanded = false
+        // HeightLab：右侧边栏打开时自动收起左侧，保证中间输入区宽度足够；
+        // 用户仍可手动展开左侧（两边同开时由输入区换行兜底）。
+        if (d.layoutInfo.sidebar !== 0) d.layoutInfo.sidebar = 0
         d.layoutInfo.rightbar ??= Math.max(RIGHTBAR_MIN, Math.round(d.layoutInfo.viewportWidth * RIGHTBAR_DEFAULT_RATIO))
         d.layoutInfo.rightbarShown = true
         d.layoutInfo.rightbarTrack = track

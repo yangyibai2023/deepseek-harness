@@ -19,7 +19,7 @@ import type { ReactNode } from 'react'
 import type {
   PropsLocale, PropsRenderSlots, PropsRuntime, PropsStore,
 } from '@deepseek-ai/dsh-client-ui-slots'
-import { computeColumns, RIGHTBAR_DEFAULT_RATIO, SIDEBAR_AUTO_COLLAPSE, SIDEBAR_DEFAULT } from './columns.ts'
+import { computeColumns, RIGHTBAR_DEFAULT_RATIO, SIDEBAR_DEFAULT } from './columns.ts'
 import { DocumentTitle } from './DocumentTitle.tsx'
 import type { createLayoutStore } from './stores.ts'
 import css from './AppFrame.module.css'
@@ -130,6 +130,16 @@ export function AppFrame({
   const frameRef = useRef<HTMLDivElement | null>(null)
   const viewport = layoutInfo.viewportWidth
 
+  // HeightLab：better-sidebar 打开右侧面板时自动收起左侧边栏，
+  // 保证中间输入区宽度足够；用户仍可手动展开左侧。
+  useEffect(() => {
+    const onRightPanelOpen = (): void => {
+      if (layoutInfo.sidebar !== 0) actions.toggleSidebar()
+    }
+    window.addEventListener('heightlab:right-panel-open', onRightPanelOpen)
+    return () => window.removeEventListener('heightlab:right-panel-open', onRightPanelOpen)
+  }, [actions, layoutInfo.sidebar])
+
   // Track the frame's own box (not the window): rAF-throttled ResizeObserver.
   useLayoutEffect(() => {
     const el = frameRef.current
@@ -157,7 +167,8 @@ export function AppFrame({
     }
   }, [actions])
 
-  const narrow = viewport < SIDEBAR_AUTO_COLLAPSE
+  // HeightLab：禁用窄视口自动折叠，侧边栏只由用户手动折叠。
+  const narrow = false
   const sidebarCollapsed = narrow ? !layoutInfo.narrowExpanded : layoutInfo.sidebar === 0
   const sidebarPreference = sidebarCollapsed
     ? 0
