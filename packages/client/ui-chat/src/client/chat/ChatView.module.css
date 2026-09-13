@@ -221,3 +221,9 @@
 .modalAction {
   min-width: 72px;
 }
+
+/* HeightLab：未知/内部内容块占位，不暴露原始 JSON。 */
+.unknownBlock {
+  font-size: 12px;
+  opacity: 0.7;
+}

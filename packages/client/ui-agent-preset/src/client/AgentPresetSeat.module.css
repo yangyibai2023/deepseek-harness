@@ -116,6 +116,12 @@
   color: var(--dsw-alias-label-caption);
 }
 
+/* HeightLab：深色胶囊触发器上的白色箭头。 */
+.chevronOnDark {
+  flex: none;
+  color: #fff;
+}
+
 /* Menu rows carry the name over its description: the id alone never said what
    a preset does, which is why the metadata exists. */
 .item {

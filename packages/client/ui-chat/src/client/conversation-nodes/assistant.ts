@@ -3,9 +3,10 @@ import type {
   AssistantBlock, AssistantMessageNode, ConversationLocation, ConversationMatch,
   ConversationNodeContext, ConversationNodeDefinition,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import type { StreamChunk } from '@deepseek-ai/dsh-llm'
+import type { ContentBlock, StreamChunk } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-llm-retry/types'
 import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
+import { fileAddressFor } from '@deepseek-ai/dsh-util-workspace-path'
 import type { AssistantChatData } from '../contract/chat-nodes.ts'
 import { CHAT_SYNTHETIC_SEQ_OFFSETS, chatNode } from './common.ts'
 import {
@@ -25,6 +26,11 @@ declare module '@deepseek-ai/dsh-client-ui-conversation/client' {
     'assistant-step': AssistantChatData
   }
 }
+
+/** 交付文件自动打开标记：<hl-open-path>/abs/path</hl-open-path>（不显示）。 */
+const HL_OPEN_PATH_RE = /<hl-open-path>\s*([^<]+?)\s*<\/hl-open-path>/g
+const autoOpenedMarkers = new Set<string>()
+let assistantCtx: Context | undefined
 
 interface AssistantState {
   readonly turn: number
@@ -312,7 +318,46 @@ export const assistantDefinition: ConversationNodeDefinition<AssistantState> = {
     if (match.event.type === 'assistant/live-chunk') {
       return updateChunk(context.state, match.event.data.chunk, match.event.seq, match.event.time)
     }
-    if (match.event.type === 'assistant/message') return settleMessage(context.state, match, match.event)
+    if (match.event.type === 'assistant/message') {
+      // HeightLab：交付文件自动打开——剥掉 <hl-open-path> 标记并按去重键打开
+      // 一次；文件进产品内右侧资源区（0.1.5 的 openFile 语义）。
+      const message = match.event.data.message
+      const openPaths: string[] = []
+      const content = message.content.map((block: ContentBlock) => {
+        if (block.type !== 'text') return block
+        const text = block.text.replace(HL_OPEN_PATH_RE, (_marker: string, rawPath: string) => {
+          const path = rawPath.trim()
+          if (path) openPaths.push(path)
+          return ''
+        })
+        return { ...block, text }
+      })
+      if (openPaths.length > 0) {
+        const key = `${match.event.data.turn}:${match.event.data.step}:${message.id}`
+        if (!autoOpenedMarkers.has(key)) {
+          autoOpenedMarkers.add(key)
+          setTimeout(() => {
+            const opened = assistantCtx
+            if (opened === undefined) return
+            for (const path of openPaths) {
+              try {
+                const sessionId = opened.sessions.list.getSnapshot().current
+                if (sessionId === undefined) continue
+                const cwd = opened.sessions.list.getSnapshot().byId[sessionId]?.cwd
+                opened.sidebarRight.openResource(fileAddressFor(sessionId, cwd, path))
+              } catch {
+                // 打不开时静默；消息正文里仍保留可点击的路径说明。
+              }
+            }
+          }, 400)
+        }
+      }
+      return settleMessage(
+        context.state,
+        match,
+        { ...match.event, data: { ...match.event.data, message: { ...message, content } } },
+      )
+    }
     if (match.event.type === 'llm/retry') {
       return resetForRetry(context.state)
     }
@@ -359,5 +404,6 @@ export const assistantDefinition: ConversationNodeDefinition<AssistantState> = {
  * @param ctx - owning UI Conversation context.
  */
 export function registerAssistantConversationNode(ctx: Context): void {
+  assistantCtx = ctx
   ctx.uiConversation.events.register(assistantDefinition)
 }

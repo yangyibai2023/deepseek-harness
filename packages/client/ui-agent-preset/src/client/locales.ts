@@ -15,6 +15,7 @@ export type AgentPresetSettingsKey =
   | 'composition' | 'cancel' | 'close' | 'retry'
   | 'copyTitle' | 'copyIntro' | 'create' | 'creating' | 'creatorDraft'
   | 'creatorChip' | 'creatorChipEnter' | 'creatorChipExit'
+  | 'customModelHint'
   | 'openLocation' | 'showLocation' | 'revealedPathLabel'
   | 'idRequired' | 'idInvalid' | 'idTaken'
   | 'deleteTitle' | 'deleteDescription' | 'deleteConfirm' | 'deleting'
@@ -71,6 +72,7 @@ export const en: Record<AgentPresetSettingsKey, string> = {
   creating: 'Creating…',
   creatorDraft: 'Draft a custom preset with Creator mode',
   creatorChip: 'Create Agent',
+  customModelHint: 'Custom models only support the General AI Assistant.',
   creatorChipEnter: 'Turn on Creator mode to draft a custom agent',
   creatorChipExit: 'Creator mode is on; click to exit',
   openLocation: 'Open folder',
@@ -130,6 +132,7 @@ export const zh: Record<AgentPresetSettingsKey, string> = {
   creating: '正在创建…',
   creatorDraft: '用「创造模式」创作自定义预设',
   creatorChip: '创造 Agent',
+  customModelHint: '自定义模型仅支持「通用 AI 助手」。',
   creatorChipEnter: '开启创造模式：用对话起草自定义 Agent',
   creatorChipExit: '当前为创造模式，点击退出',
   openLocation: '打开目录',

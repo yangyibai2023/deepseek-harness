@@ -5,10 +5,10 @@
 // even when this UI version has never seen its producer.
 
 import type { ReactNode } from 'react'
-import { JsonBlock } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ChatViewSlotProps } from '../contract/slots.ts'
 import type { ContextMessageNode } from '../contract/snapshot.ts'
 import type { KnownContextForm } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import { HEIGHTLAB_UNKNOWN_BLOCK_TEXT } from './heightlab-friendly.ts'
 import css from './ContextBody.module.css'
 
 /** Model-facing text stays bounded at the disclosure, not at the producer. */
@@ -85,6 +85,15 @@ function fieldValue(value: unknown, t: Translate): string {
  * that is the one place a form this version cannot present would otherwise
  * disappear from the UI entirely.
  */
+/** HeightLab 内部插件来源名 → 用户友好中文（不暴露内部标识）。 */
+const HEIGHTLAB_INTERNAL_PLUGINS: ReadonlySet<string> = new Set([
+  'heightlab-dispatch',
+  'heightlab-host-api',
+  'heightlab-tool-scope',
+  'heightlab-plugin-admin',
+  'heightlab-brand',
+])
+
 function SourceFields({ source, formRendered, t }: {
   source: unknown
   formRendered: boolean
@@ -99,8 +108,12 @@ function SourceFields({ source, formRendered, t }: {
     <dl className={css.fields} data-context-fields>
       {rows.map(([key, value]) => (
         <div key={key} className={css.field}>
-          <dt className={css.fieldKey}>{key}</dt>
-          <dd className={css.fieldValue}>{fieldValue(value, t)}</dd>
+          <dt className={css.fieldKey}>{key === 'plugin' ? '来源' : key}</dt>
+          <dd className={css.fieldValue}>
+            {key === 'plugin' && typeof value === 'string' && HEIGHTLAB_INTERNAL_PLUGINS.has(value)
+              ? '系统'
+              : fieldValue(value, t)}
+          </dd>
         </div>
       ))}
     </dl>
@@ -114,16 +127,12 @@ function SourceFields({ source, formRendered, t }: {
  * @param props - The unrecognized blocks and the locale seat.
  * @returns One generic JSON block per unknown entry.
  */
-function UnknownBlocks({ blocks, t }: { blocks: readonly unknown[]; t: Translate }): ReactNode {
+function UnknownBlocks({ blocks }: { blocks: readonly unknown[] }): ReactNode {
   return (
     <>
-      {blocks.map((block, index) => (
-        <JsonBlock
-          key={index}
-          label={t('message.unknownBlock')}
-          payload={block}
-          truncatedLabel={total => t('json.truncated', { total })}
-        />
+      {/* HeightLab：未知/内部内容块不暴露原始 JSON 与内部类型名。 */}
+      {blocks.map((_block, index) => (
+        <span key={index} className={css.unknownBlock}>{HEIGHTLAB_UNKNOWN_BLOCK_TEXT}</span>
       ))}
     </>
   )
@@ -147,12 +156,7 @@ function ModelFacingContent({ content, t }: {
           <pre key={index} className={css.text} data-context-text>{boundedText(run.text, t)}</pre>
         )
         : (
-          <JsonBlock
-            key={index}
-            label={t('message.unknownBlock')}
-            payload={run.block}
-            truncatedLabel={total => t('json.truncated', { total })}
-          />
+          <span key={index} className={css.unknownBlock}>{HEIGHTLAB_UNKNOWN_BLOCK_TEXT}</span>
         )))}
     </>
   )
@@ -341,7 +345,7 @@ export function CatalogBody({ content, source, t }: {
       )}
       {/* The block union is merge-extensible: a catalog message carrying an
           unknown block still shows it rather than dropping model-visible content. */}
-      <UnknownBlocks blocks={rest} t={t} />
+      <UnknownBlocks blocks={rest} />
     </>
   )
 }

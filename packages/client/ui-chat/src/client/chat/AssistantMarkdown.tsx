@@ -1,13 +1,25 @@
-import { Fragment, memo, useMemo } from 'react'
+import { Fragment, memo, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { JsonBlock, MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
+import {
+  IconDownloadOutline16, IconFullscreenOutline16, MarkdownText,
+} from '@deepseek-ai/dsh-client-ui-primitives'
 import type { MarkdownFileMentions, MarkdownPathImages } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ChatNodeOwnerProps, ChatViewSlotProps } from '../contract/slots.ts'
 import type { AssistantBlock } from '../contract/snapshot.ts'
 import { markdownLabels } from '../markdown-labels.ts'
+import { HEIGHTLAB_UNKNOWN_BLOCK_TEXT } from './heightlab-friendly.ts'
 import { ReasoningRow } from './ReasoningRow.tsx'
 import { useSearchableHidden } from './searchable-hidden.ts'
 import css from './AssistantMarkdown.module.css'
+
+/** HeightLab avatar-preview marker: [数字人形象预览：<url>] → inline <img>. */
+const AVATAR_PREVIEW_MARKER = /\[数字人形象预览：([^\]]+)\]/g
+/** HeightLab avatar-video URL: any absolute mp4/webm/mov in the reply text
+ *  (including inside dsh-ui fences) gets an inline player as a fallback, so
+ *  the 成片 always renders even when the model formats it as a link/card.
+ *  A trailing query (e.g. /hl/video-gen.mp4?src=…) is allowed after the
+ *  extension so proxied playable URLs still match. */
+const AVATAR_VIDEO_URL = /https?:\/\/[^\s"'`\])]+?\.(?:mp4|webm|mov)(?=[\s"'`\])?]|\?|$)/i
 
 /**
  * Map one authored media destination to the same-origin workspace-file URL.
@@ -38,6 +50,8 @@ export interface AssistantMarkdownProps {
   revealProcess?: (() => void) | undefined
   /** Resolved prose file mentions for this Assistant's closing turn. */
   mentions?: MarkdownFileMentions | undefined
+  /** Session workspace root（下载/保存目标）。 */
+  cwd?: string | undefined
   /** The owning view's locale seat, passed down as a plain prop. */
   t: ChatViewSlotProps['t']
 }
@@ -45,7 +59,7 @@ export interface AssistantMarkdownProps {
 /** Reasoning block as the Think variant summary row (figma 39:28304). */
 export const AssistantMarkdown = memo(function AssistantMarkdown({
   blocks, streaming, interrupted, renderMessageImages,
-  reasoningHidden = false, revealProcess, mentions, t,
+  reasoningHidden = false, revealProcess, mentions, cwd, t,
 }: AssistantMarkdownProps) {
   // Stable per locale revision (t identity changes on switch): a fresh object
   // per render would rebuild MarkdownText's component table every chunk.
@@ -71,14 +85,18 @@ export const AssistantMarkdown = memo(function AssistantMarkdown({
     if (block === undefined) continue
     switch (block.kind) {
       case 'text':
+        // HeightLab：Split on avatar-preview markers so the inline image is
+        // rendered next to the text (the model cannot emit image blocks
+        // directly); a plain video URL in the text gets an inline player.
         rendered.push(
-          <MarkdownText
+          <AssistantTextWithPreview
             key={i}
             text={block.text}
             streaming={streaming}
             labels={labels}
             fileMentions={mentions}
             pathImages={pathImages}
+            cwd={cwd}
           />,
         )
         break
@@ -121,13 +139,9 @@ export const AssistantMarkdown = memo(function AssistantMarkdown({
       case 'tool-call':
         break
       default:
+        // HeightLab：未知/内部内容块不暴露原始 JSON 与内部类型名。
         rendered.push(
-          <JsonBlock
-            key={i}
-            label={t('message.unknownBlock')}
-            payload={block.block}
-            truncatedLabel={total => t('json.truncated', { total })}
-          />,
+          <span key={i} className={css.unknownBlock}>{HEIGHTLAB_UNKNOWN_BLOCK_TEXT}</span>,
         )
     }
   }
@@ -140,6 +154,151 @@ export const AssistantMarkdown = memo(function AssistantMarkdown({
     </div>
   )
 })
+
+/** Extract a playable video URL from markdown image syntax or plain text. */
+function extractVideoUrl(text: string): { url: string; markdown?: string } | null {
+  const md = /!\[[^\]]*\]\(([^)]*\.(?:mp4|webm|mov)[^)]*)\)/i.exec(text)
+  if (md !== null) {
+    return { url: (md[1] ?? '').trim(), markdown: md[0] }
+  }
+  const plain = AVATAR_VIDEO_URL.exec(text)?.[0]
+  return plain ? { url: plain } : null
+}
+
+/** HeightLab：把聊天里的资源保存到当前工作区根目录（宿主 /hl/download）。 */
+async function saveToWorkspace(url: string, workspace: string | undefined): Promise<string> {
+  const res = await fetch('/hl/download', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ url, workspace }),
+  })
+  const data = await res.json().catch(() => ({})) as { ok?: boolean; path?: string; message?: string }
+  if (!res.ok || data.ok !== true || typeof data.path !== 'string') {
+    throw new Error(data.message ?? '保存失败')
+  }
+  return data.path
+}
+
+/** HeightLab 视频成片：缩略播放器 + 放大/下载/新窗口，图标均为 SVG。 */
+function VideoEmbed({ url, workspace }: { url: string; workspace?: string | undefined }) {
+  const [expanded, setExpanded] = useState(false)
+  const [downloadMsg, setDownloadMsg] = useState<string | null>(null)
+  useEffect(() => {
+    if (!expanded) return
+    const onKey = (event: globalThis.KeyboardEvent): void => {
+      if (event.key === 'Escape') setExpanded(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [expanded])
+  const downloadVideo = async (): Promise<void> => {
+    try {
+      const saved = await saveToWorkspace(url, workspace)
+      setDownloadMsg(`已保存到：${saved}`)
+    } catch (err) {
+      setDownloadMsg(`下载失败：${err instanceof Error ? err.message : String(err)}`)
+    }
+    window.setTimeout(() => setDownloadMsg(null), 6000)
+  }
+  return (
+    <div className={css.videoEmbed}>
+      <video
+        src={url}
+        controls
+        preload="metadata"
+        className={css.videoThumb}
+        onClick={() => setExpanded(true)}
+      />
+      <div className={css.videoActions}>
+        <button type="button" className={css.videoAction} title="放大播放" onClick={() => setExpanded(true)}>
+          <IconFullscreenOutline16 />
+        </button>
+        <button type="button" className={css.videoAction} title="下载视频" onClick={() => { void downloadVideo() }}>
+          <IconDownloadOutline16 />
+        </button>
+        <button
+          type="button"
+          className={css.videoAction}
+          title="在浏览器中打开"
+          onClick={() => { window.open(url, '_blank', 'noopener') }}
+        >
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+            <path d="M6 3H3v10h10v-3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M9 2h5v5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M14 2L8 8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+          </svg>
+        </button>
+      </div>
+      {downloadMsg !== null && (
+        <div className={css.downloadMsg} role="status">{downloadMsg}</div>
+      )}
+      {expanded && (
+        <div className={css.videoOverlay} role="dialog" aria-modal="true" onClick={() => setExpanded(false)}>
+          <video
+            src={url}
+            controls
+            autoPlay
+            className={css.videoExpanded}
+            onClick={event => event.stopPropagation()}
+          />
+          <button type="button" className={css.videoClose} aria-label="关闭" onClick={() => setExpanded(false)}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+              <path d="M3 3L13 13M13 3L3 13" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Render assistant text, replacing [数字人形象预览：<url>] with inline <img>. */
+function AssistantTextWithPreview({
+  text, streaming, labels, fileMentions, pathImages, cwd,
+}: {
+  text: string
+  streaming: boolean
+  labels: ReturnType<typeof markdownLabels>
+  fileMentions?: MarkdownFileMentions | undefined
+  pathImages: MarkdownPathImages
+  cwd?: string | undefined
+}): ReactNode {
+  const video = extractVideoUrl(text)
+  const cleanText = video?.markdown !== undefined ? text.replace(video.markdown, '') : text
+  const parts: ReactNode[] = []
+  let cursor = 0
+  let m: RegExpExecArray | null
+  AVATAR_PREVIEW_MARKER.lastIndex = 0
+  while ((m = AVATAR_PREVIEW_MARKER.exec(cleanText)) !== null) {
+    const prefix = cleanText.slice(cursor, m.index)
+    if (prefix) {
+      parts.push(<MarkdownText key={`text-${cursor}`} text={prefix} streaming={streaming} labels={labels} fileMentions={fileMentions} pathImages={pathImages} />)
+    }
+    const url = (m[1] ?? '').trim()
+    parts.push(
+      <img
+        key={`avatar-${m.index}`}
+        src={url}
+        alt="数字人形象预览"
+        className={css.avatarPreview}
+      />,
+    )
+    cursor = m.index + m[0].length
+  }
+  if (parts.length === 0) {
+    const markdown = <MarkdownText text={cleanText} streaming={streaming} labels={labels} fileMentions={fileMentions} pathImages={pathImages} />
+    return video
+      ? (<>{markdown}<VideoEmbed key="video" url={video.url} workspace={cwd} /></>)
+      : markdown
+  }
+  if (cursor < cleanText.length) {
+    parts.push(<MarkdownText key={`text-${cursor}`} text={cleanText.slice(cursor)} streaming={streaming} labels={labels} fileMentions={fileMentions} pathImages={pathImages} />)
+  }
+  if (video) {
+    parts.push(<VideoEmbed key="video" url={video.url} workspace={cwd} />)
+  }
+  return <>{parts}</>
+}
 
 function ProcessReasoning({ hidden, reveal, children }: {
   hidden: boolean

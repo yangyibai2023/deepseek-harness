@@ -1,11 +1,11 @@
 import { memo, useCallback, useMemo } from 'react'
-import { JsonBlock } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ConversationLocationDataStore, ConversationTurnDataMap } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { ChatNodeOwnerProps, ChatViewSlotProps } from '../contract/slots.ts'
 import type { ChatNode } from '../contract/chat-nodes.ts'
 import { TURN_PROCESS_INDEPENDENT_KINDS } from '../contract/turn-process.ts'
 import { storedTurnProcessEntry } from '../stores.ts'
 import { useSearchableHidden } from './searchable-hidden.ts'
+import { HEIGHTLAB_UNKNOWN_BLOCK_TEXT } from './heightlab-friendly.ts'
 import css from './ChatView.module.css'
 
 interface ChatNodeSeatProps extends ChatNodeOwnerProps {
@@ -38,7 +38,7 @@ function turnOf(node: ChatNode | undefined): number | undefined {
 export const ChatNodeSeat = memo(function ChatNodeSeat({
   nodeKey, useChatNode, useChatNodeProcess, historyIncomplete, compactTranscript,
   cwd, openFile, inspectCall, forkAt,
-  loadImage, renderMessageImages, fileMentions, useStore, actions, renderSlot, t,
+  loadImage, renderMessageImages, fileMentions, useStore, actions, renderSlot,
 }: ChatNodeSeatProps) {
   const node = useChatNode(nodeKey)
   const routedNode = node as ChatNode | undefined
@@ -136,13 +136,7 @@ export const ChatNodeSeat = memo(function ChatNodeSeat({
       {renderSlot('conversation.chat.node', routedOwner, {
         entryKey: routedNode.kind,
         hookContext: turnData,
-        fallback: (
-          <JsonBlock
-            label={t('message.unknownSurface', { type: routedNode.kind })}
-            payload={routedNode.data}
-            truncatedLabel={total => t('json.truncated', { total })}
-          />
-        ),
+        fallback: <span className={css.unknownBlock}>{HEIGHTLAB_UNKNOWN_BLOCK_TEXT}</span>,
       })}
     </div>
   )

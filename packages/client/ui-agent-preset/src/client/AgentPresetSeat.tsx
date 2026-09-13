@@ -82,17 +82,81 @@ export type AgentPresetSeatProps =
  * @param props - composed slot props.
  * @returns the chip, or null when the deployment composes no presets.
  */
-export function AgentPresetSeat({ load, select, introduced, useAgentPresetSeat, t }: AgentPresetSeatProps) {
+export function AgentPresetSeat({ load, select, introduced, useAgentPresetSeat, triggerLabel, triggerClassName, triggerDisabled, t }: AgentPresetSeatProps) {
   const state = useAgentPresetSeat(snapshot => snapshot)
   const [open, setOpen] = useState(false)
   // The seq keys the banner, so picking the same broken preset twice replays
   // it rather than leaving the first one silently in place.
   const toastSeq = useRef(0)
   const [toast, setToast] = useState<{ seq: number; text: string } | null>(null)
+  // HeightLab：自定义模型激活时只能选「通用助手」。
+  const [customModel, setCustomModel] = useState(() => document.body.dataset.hlCustomModel === '1')
+  const [activeAgent, setActiveAgent] = useState<string | null>(null)
 
   useEffect(() => {
     void load()
   }, [load])
+
+  // HeightLab：自定义模型激活时只能选「通用助手」。
+  useEffect(() => {
+    const onModel = (event: Event): void => {
+      const detail = (event as CustomEvent<{ custom?: boolean }>).detail
+      setCustomModel(detail?.custom === true)
+    }
+    window.addEventListener('hl:model-change', onModel)
+    return () => window.removeEventListener('hl:model-change', onModel)
+  }, [])
+
+  // HeightLab：轮询「当前工作 Agent」，谁在工作选择框就显示谁。
+  useEffect(() => {
+    let cancelled = false
+    const poll = (): void => {
+      fetch('/hl/current-agent')
+        .then(response => response.json().catch(() => ({})))
+        .then((data: { ok?: boolean; id?: string | null }) => {
+          if (!cancelled && data?.ok === true) {
+            setActiveAgent(typeof data.id === 'string' && data.id !== '' ? data.id : null)
+          }
+        })
+        .catch(() => { /* 保持原值 */ })
+    }
+    poll()
+    const timer = window.setInterval(poll, 1500)
+    return () => { cancelled = true; window.clearInterval(timer) }
+  }, [])
+
+  // HeightLab：创造模式起草会话（cordis）给输入框加极光克莱因蓝边框标识。
+  useEffect(() => {
+    try {
+      if (state.current === 'cordis') {
+        document.body.dataset.hlCreator = '1'
+      } else {
+        delete document.body.dataset.hlCreator
+      }
+    } catch { /* 非致命 */ }
+  }, [state.current])
+
+  // HeightLab：把当前预设广播到 body，供模型选择器做反向校验。
+  useEffect(() => {
+    try {
+      if (state.current) {
+        document.body.dataset.hlAgentPreset = state.current
+      } else {
+        delete document.body.dataset.hlAgentPreset
+      }
+    } catch { /* 非致命 */ }
+  }, [state.current])
+
+  // HeightLab：把当前工作智能体广播到 body，供上下文注入行显示“谁已收到”。
+  useEffect(() => {
+    try {
+      if (activeAgent) {
+        document.body.dataset.hlWorkingAgent = activeAgent
+      } else {
+        delete document.body.dataset.hlWorkingAgent
+      }
+    } catch { /* 非致命 */ }
+  }, [activeAgent])
 
   // ── HeightLab 定制（自 0.3.x 稳定线迁移）─────────────────────────
   // select 的稳定引用（事件监听器里读取最新值，不重建监听）。
@@ -136,7 +200,22 @@ export function AgentPresetSeat({ load, select, introduced, useAgentPresetSeat, 
 
   const chosen = state.options.find(option => option.id === state.current)
   const chosenText = chosen === undefined ? undefined : presetDisplayText(chosen, t)
-  const label = chosenText?.name ?? state.current
+  const activeOption = activeAgent === null ? undefined : state.options.find(option => option.id === activeAgent)
+  const activeName = activeOption === undefined
+    ? (activeAgent ?? undefined)
+    : presetDisplayText(activeOption, t).name
+  // 只有 /hl/current-agent 报告了正在工作的智能体且与当前选择不同时，
+  // 才用“谁在工作”覆盖当前选择；空闲/首页时显示用户当前选中的智能体。
+  const workingLabel = activeAgent !== null && activeAgent !== state.current
+    ? (activeName ?? activeAgent)
+    : undefined
+  // HeightLab：输入框按钮跟随所选智能体——选中非标准（Colin）预设时
+  // 显示该预设名称（如「视频制作专家」），标准模式保持 COLIN。
+  const label = workingLabel ?? (
+    state.current !== '' && chosen !== undefined && chosen.id !== 'standard'
+      ? (chosenText?.name ?? state.current)
+      : (triggerLabel ?? chosenText?.name ?? state.current)
+  )
   const ready = state.options.length > 0 && state.current !== ''
 
   // The introduce cue: the pick was staged from another screen (the settings
@@ -146,6 +225,10 @@ export function AgentPresetSeat({ load, select, introduced, useAgentPresetSeat, 
   const [introducing, setIntroducing] = useState(false)
   useEffect(() => {
     if (!state.introduce || !ready) return
+    if (triggerLabel) {
+      introduced()
+      return
+    }
     const characters = Array.from(label)
     if (characters.length === 0 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       introduced()
@@ -195,7 +278,7 @@ export function AgentPresetSeat({ load, select, introduced, useAgentPresetSeat, 
             // Name and description together: the id alone never says what a
             // preset does, which is why the roster carries display copy.
             label: (
-              <span className={css.item}>
+              <span className={css.item} style={customModel && option.id !== 'general-assistant' ? { opacity: 0.45 } : undefined}>
                 <span className={css.itemName}>{text.name}</span>
                 <span className={css.itemDesc}>{text.description ?? t('noDescription')}</span>
               </span>
@@ -204,6 +287,7 @@ export function AgentPresetSeat({ load, select, introduced, useAgentPresetSeat, 
         })}
         selectedId={state.current}
         onSelect={(id) => {
+          if (customModel && id !== 'general-assistant') return
           setOpen(false)
           const picked = state.options.find(option => option.id === id)
           // The fallback is for the row shape `find` cannot promise; the menu's
@@ -219,22 +303,29 @@ export function AgentPresetSeat({ load, select, introduced, useAgentPresetSeat, 
             setToast({ seq: toastSeq.current, text: t('switchRefused', { name, reason: refusal }) })
           })
         }}
+        {...(customModel
+          ? { footer: [{ type: 'label' as const, id: 'custom-model-hint', text: t('customModelHint') }] }
+          : {})}
         align="start"
         portal
-        className={css.menuAnchor}
+        className="hl-agent-menu"
         anchor={(
           <button
             type="button"
-            className={css.seat}
+            className={triggerClassName ?? css.seat}
             aria-haspopup="menu"
             aria-expanded={open}
             title={state.error ?? t('seatHint')}
-            disabled={state.busy}
+            disabled={triggerDisabled ?? state.busy}
             onClick={() => { setOpen(value => !value) }}
           >
-            <IconAgentPresetOutline16 className={introducing ? `${css.seatIcon} ${css.introIcon}` : css.seatIcon} />
+            {triggerLabel === undefined && (
+              <IconAgentPresetOutline16 className={introducing ? `${css.seatIcon} ${css.introIcon}` : css.seatIcon} />
+            )}
             <span className={css.seatLabel}>{shownLabel}</span>
-            <IconChevronDownOutline14 className={css.chevron} />
+            {triggerLabel === undefined
+              ? <IconChevronDownOutline14 className={css.chevron} />
+              : <IconChevronDownOutline14 className={css.chevronOnDark} />}
           </button>
         )}
       />
