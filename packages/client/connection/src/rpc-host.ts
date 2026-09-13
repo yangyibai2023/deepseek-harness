@@ -175,8 +175,24 @@ export class HostConnectionService extends Service implements HostConnectionHand
         await bridge(req, res, fetchHandler)
       },
     }
+    // HeightLab（0.1.5 适配）：物理路由挂在 webServer 上，但 Connection 服务
+    // 的 `inject` 只声明 `credentials`（需保持「无 Web server 也能提供 connection
+    // 服务」，见 tests/node-half.host.spec.ts）。而这里以 `this.ctx`（服务自身
+    // context）作 owner，0.1.5 起 cordis 对**属性访问**强制校验 inject：
+    // `owner.webServer` 会抛 cannot get property "webServer" without inject，
+    // 使任何调用方（含我们的 dsh-automation）插件树加载失败——上游回归
+    // （0.3.30 稳定线此处 inject 含 webServer，故无此问题）。
+    //
+    // 修法：改用 `owner.get('webServer')`。`get` 是 cordis 的解析式访问器，
+    // 不受属性代理的 inject 校验，且**同步**（保持路由注册的既有同步时序，
+    // 异步的 owner.inject 会让调用方拿不到刚注册的路由）。服务缺失时退化为
+    // 不挂物理路由，carrier-neutral/headless 场景照常可用。
+    const webServer = owner.get('webServer')
+    if (webServer === undefined) {
+      return async () => {}
+    }
     return owner.effect(
-      () => owner.webServer.register(route),
+      () => webServer.register(route),
       `client-connection: ${channel} rpc channel`,
     )
   }
