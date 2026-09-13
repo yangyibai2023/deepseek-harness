@@ -2,7 +2,7 @@
  * REAL-composition coverage: a test-only cordis.yml booted through the
  * vendored Loader mounts the webserver and frontend-static rows, and every
  * assertion observes the served HTTP surface — asset serving, explicit index
- * entry points with index taps, 404 misses, traversal rejection, 405 on non-
+ * entry points with index taps, SPA fallback, traversal rejection, 405 on non-
  * GET/HEAD, and seat release on fiber disposal (HMR safety).
  */
 
@@ -156,30 +156,25 @@ describe('real Loader composition', () => {
     untap()
     expect((await request(port, '/', authenticated())).body).not.toContain('__T__')
 
-    // A missing configured index follows the same empty-404 contract for both
-    // of its public entry paths and for both supported methods.
-    await rm(join(root!, 'dist', 'index.html'))
-    for (const path of ['/', '/index.html']) {
-      const get = await request(port, path, authenticated())
-      const head = await request(port, path, authenticated({ method: 'HEAD' }))
-      expect(get).toEqual({ status: 404, type: null, body: '' })
-      expect(head).toEqual(get)
+    // HeightLab：SPA 兜底——缺失路径回退渲染后的 index（200 HTML），
+    // 这是登录回调 /callback 的命脉（dist 里没有该文件）。
+    // 未通过 browser-auth 授权时不渲染 index（401，与上游授权模型一致）。
+    const spaMisses = ['/callback', '/no/such/route', '/empty', '/app.js/child']
+    for (const path of spaMisses) {
+      const authed = await request(port, path, authenticated())
+      expect(authed.status).toBe(200)
+      expect(authed.type).toBe('text/html; charset=utf-8')
+      expect(authed.body).toContain('shell')
+      // 未鉴权：授权层优先，不泄露 index。
+      expect((await request(port, path)).status).toBe(401)
     }
 
-    // Ordinary unknown paths and static-resource misses are empty 404s for
-    // both GET and HEAD; neither class can be mistaken for the HTML shell.
-    const ordinaryMisses = ['/no/such/route', '/empty', '/app.js/child']
-    const assetMisses = [
-      '/missing.js',
-      '/missing.css',
-      '/missing.mjs',
-      '/missing.js.map',
-      '/missing.webmanifest',
-      '/missing.manifest',
-    ]
-    for (const path of [...ordinaryMisses, ...assetMisses]) {
-      const get = await request(port, path)
-      const head = await request(port, path, { method: 'HEAD' })
+    // HeightLab（0.3.17 成熟逻辑 / fork 858bf7429a）：index 本身不可读时
+    // 无从回退，保留上游 600f3a3110 的 404 语义（鉴权先过）。
+    await rm(join(root!, 'dist', 'index.html'))
+    for (const path of ['/', '/index.html', '/callback']) {
+      const get = await request(port, path, authenticated())
+      const head = await request(port, path, authenticated({ method: 'HEAD' }))
       expect(get).toEqual({ status: 404, type: null, body: '' })
       expect(head).toEqual(get)
     }

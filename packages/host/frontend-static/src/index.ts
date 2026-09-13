@@ -2,7 +2,10 @@
  * @deepseek-ai/dsh-host-frontend-static — SPA dist server over the webserver
  * fallback seat: serves the built frontend directory with explicit index
  * entry points. A readable index renders at the dist root and configured index
- * path; missing paths return 404, traversal outside the dist root is 403,
+ * path; missing paths fall back to the rendered index (SPA routing, 200) —
+ * HeightLab: the login callback /callback exists only as a client route, so a
+ * 404 there breaks sign-in (see the catch branch below). Traversal outside the
+ * dist root is 403,
  * unknown extensions ship as octet-stream, and non-GET/HEAD is 405. Every
  * index response first passes Connection's browser authentication, then the
  * webserver's index render (structured injection rows, then raw taps).
@@ -116,12 +119,24 @@ export async function serveStatic(
       type = MIME[extname(target)] ?? 'application/octet-stream'
     }
   } catch (error) {
-    // Only absent or non-file targets are 404; other filesystem failures reach
-    // the webserver's request-failure handling.
+    // Only absent or non-file targets take the SPA fallback; other filesystem
+    // failures reach the webserver's request-failure handling.
     if (!STATIC_MISS_CODES.has((error as NodeJS.ErrnoException).code)) throw error
-    res.writeHead(404)
-    res.end()
-    return
+    // HeightLab 0.3.17 成熟逻辑（0.3.30 口径，见 fork 提交 858bf7429a
+    // 「恢复 0.3.17 成熟逻辑 — SPA 回调回退」）：缺失目标回退到 index.html
+    // 并返回 200。登录完成后的 /callback 只存在于客户端路由、dist 里没有该文件，
+    // 必须回退到 SPA 才能执行换码登录；否则登录回调 404、登录链路中断。
+    // 上游 0.1.5 新增的授权门禁在此同样生效（未通过授权不渲染 index）。
+    // 但 index 自身不可读时无从回退，保留上游 600f3a3110 的 404 语义。
+    try {
+      if (!authorizeIndex()) return
+      body = await renderIndex()
+      type = HTML_MIME
+    } catch {
+      res.writeHead(404)
+      res.end()
+      return
+    }
   }
   // HeightLab：统一 no-cache。此前启发式缓存导致改版后旧缓存、logo 时好时坏；
   // 每次回源校验，代价可忽略。
