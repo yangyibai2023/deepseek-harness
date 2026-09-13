@@ -474,3 +474,24 @@
 .root[data-phase='settling'] .composerSeat {
   visibility: hidden;
 }
+
+/* ── HeightLab 定制（自 0.3.x 稳定线迁移）────────────────────────── */
+
+/* 新对话页顶部透明拖拽区：覆盖式标题栏下也能拖拽移动窗口；
+   不占布局、不显示任何条；仅 hero 存在。 */
+.heroDragRegion {
+  position: absolute;
+  top: 0;
+  left: 30px;
+  right: 0;
+  height: 36px;
+  z-index: 20;
+}
+
+/* 创意灵感 / 资料库覆盖层：盖住会话区（侧边栏保留）。 */
+.hubOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  background: var(--dsw-alias-bg-base);
+}

@@ -8,6 +8,9 @@ import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
 import type { ConversationSlotProps, InputZone } from '../contract/slots.ts'
 import { conversationPhase } from '../contract/snapshot.ts'
 import { HeroShell, WorkspaceChip, workspaceLabel } from './EmptyHero.tsx'
+// HeightLab：模板坞（hero 输入卡下方）与创意灵感/资料库覆盖层页。
+import { HeightLabTemplateDock } from './HeightLabTemplateDock.tsx'
+import { HeightLabHubPage, type HubPage } from './HeightLabHubPage.tsx'
 import css from './ConversationRoot.module.css'
 
 /** Full props composed from the slot contract. */
@@ -152,6 +155,79 @@ export function ConversationRoot({
   const [pickerOpen, setPickerOpen] = useState(false)
   const [pendingWorkspaceId, setPendingWorkspaceId] = useState<WorkspaceId | undefined>()
   const pickerAnchor = useRef<HTMLButtonElement>(null)
+  // HeightLab：创意灵感 / 资料库覆盖层页状态（null = 显示聊天）。
+  const [hub, setHub] = useState<HubPage | null>(null)
+  const hubRef = useRef(hub)
+  hubRef.current = hub
+
+  // HeightLab：创意灵感 / 资料库 = 覆盖层页面（替换聊天页，类似 Z Code；
+  // 侧边栏保留）。关闭时回到聊天。自动化由 ConversationSession 管理视图。
+  useEffect(() => {
+    const onOpen = (event: Event): void => {
+      const detail = (event as CustomEvent<{ page?: unknown }>).detail
+      if (detail?.page === 'inspiration' || detail?.page === 'library') {
+        if (detail.page !== 'library') {
+          window.dispatchEvent(new CustomEvent('hl:close-knowledge'))
+        }
+        try { document.body.dataset.hlHub = '1' } catch { /* 非致命 */ }
+        setHub(detail.page)
+      }
+    }
+    const onClose = (): void => {
+      window.dispatchEvent(new CustomEvent('hl:close-knowledge'))
+      try { document.body.dataset.hlHub = '0' } catch { /* 非致命 */ }
+      setHub(null)
+    }
+    window.addEventListener('hl:open-hub', onOpen)
+    window.addEventListener('hl:close-hub', onClose)
+    return () => {
+      window.removeEventListener('hl:open-hub', onOpen)
+      window.removeEventListener('hl:close-hub', onClose)
+    }
+  }, [])
+
+  // HeightLab：创意灵感/自动化采用覆盖层方案，会话视图常驻不卸载；
+  // 点「自动化」时若创意灵感开着，只负责关掉它，视图切换由常驻的
+  // ConversationSession 同步完成，无补发事件、无竞态。
+  useEffect(() => {
+    const onOpenAutomation = (): void => {
+      window.dispatchEvent(new CustomEvent('hl:close-knowledge'))
+      if (hubRef.current !== null) setHub(null)
+    }
+    window.addEventListener('hl:open-automation', onOpenAutomation)
+    return () => { window.removeEventListener('hl:open-automation', onOpenAutomation) }
+  }, [])
+
+  // HeightLab：创意灵感/自动化页与右侧边栏互斥——进入时收起右侧/底部面板，
+  // 并给 body 打标记让右上角两个折叠按钮隐藏；退出时恢复。
+  useEffect(() => {
+    try {
+      // 自动化视图由 ConversationSession 管理同一个标记；hub 关闭时不要
+      // 覆盖「自动化已激活」的状态，避免右侧边栏错误恢复。
+      if (hub !== null || document.body.dataset.hlAutomation !== '1') {
+        document.body.dataset.hlHub = hub !== null ? '1' : '0'
+      }
+    } catch { /* 非致命 */ }
+    if (hub === null) return
+    const labels = ['收起侧边栏', '折叠侧边栏', '收起底部面板', '折叠底部面板']
+    const closePanels = (): void => {
+      // 只作用于 better-sidebar 的折叠按钮簇，绝不点击左侧原生侧边栏的收起按钮。
+      const cluster = document.querySelector('[data-dsh-panel-host] [class*="toggleCluster"]')
+      if (!cluster) return
+      const buttons = [...cluster.querySelectorAll<HTMLButtonElement>('button[aria-label]')]
+      for (const label of labels) {
+        const button = buttons.find(candidate => (candidate.getAttribute('aria-label') ?? '').includes(label))
+        if (button) button.click()
+      }
+    }
+    closePanels()
+    // 面板可能在会话区被替换后异步自动拉起，延迟重试两次确保收起。
+    const timers = [
+      window.setTimeout(closePanels, 300),
+      window.setTimeout(closePanels, 1000),
+    ]
+    return () => { for (const timer of timers) window.clearTimeout(timer) }
+  }, [hub])
 
   // Publishes the two live measurements floating View chrome reads off the
   // scroll body: the seat's height as --dsh-composer-height, so controls clear
@@ -349,6 +425,8 @@ export function ConversationRoot({
       {hero && heroWorkspaceRow}
       {zone !== undefined && renderSlot('conversation.input.dock', zone)}
       {inputBar}
+      {/* HeightLab：模板坞（模板胶囊行），仅 hero 显示。 */}
+      {hero && <HeightLabTemplateDock />}
     </div>
   )
 
@@ -371,8 +449,12 @@ export function ConversationRoot({
 
   return (
     <div ref={rootResizeRef} className={css.root} data-phase={phase}>
+      {/* HeightLab：新对话页顶部透明拖拽区（不占布局、不显示任何条），
+          覆盖式标题栏下也能拖拽移动窗口；仅 hero 存在。 */}
+      {hero && <div className={css.heroDragRegion} data-tauri-drag-region="" aria-hidden="true" />}
       {sessionId === undefined ? null : renderSlot('conversation.session.header', {})}
-      <div className={css.body}>
+      {/* HeightLab：data-hl-conversation-body 供自动化独占页面时隐藏左侧步骤条。 */}
+      <div className={css.body} data-hl-conversation-body="">
         <div className={css.scrollBody} data-conversation-scroll="">
           {sessionId === undefined ? null : renderSlot('conversation.session', {})}
           {composerSeat}
@@ -390,6 +472,19 @@ export function ConversationRoot({
           />
         ))}
       </div>
+      {/* HeightLab：创意灵感 = 覆盖层页面（会话视图常驻，标签随时互切；
+          × 关闭时同时回到对话，避免下层残留自动化视图）。 */}
+      {hub !== null && (
+        <div className={css.hubOverlay}>
+          <HeightLabHubPage
+            page={hub}
+            onClose={() => {
+              setHub(null)
+              window.dispatchEvent(new CustomEvent('hl:close-automation'))
+            }}
+          />
+        </div>
+      )}
     </div>
   )
 }
