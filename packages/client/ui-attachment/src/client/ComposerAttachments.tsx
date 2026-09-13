@@ -123,9 +123,33 @@ export function ComposerAttachments({
                     type="button"
                     className={css.thumbnail}
                     title={t('image.openOriginal')}
-                    onClick={() => { setPreview(attachment) }}
+                    onClick={() => {
+                      // HeightLab：仅图片打开原图 lightbox；视频/音频 object URL 不进 <img>。
+                      if (attachment.kind === 'image') setPreview(attachment)
+                    }}
                   >
-                    <img src={attachment.previewUrl} alt={attachment.file.name || t('image.pending')} />
+                    {attachment.kind === 'video'
+                      ? (
+                        <video
+                          src={attachment.previewUrl}
+                          muted
+                          playsInline
+                          preload="metadata"
+                          aria-label={attachment.file.name || t('image.pending')}
+                        />
+                      )
+                      : attachment.kind === 'audio'
+                        ? (
+                          <span className={css.audioGlyph} role="img" aria-label={attachment.file.name || t('image.pending')}>
+                            <svg viewBox="0 0 24 24" width="26" height="26" fill="none" aria-hidden="true">
+                              <path
+                                d="M9 18.5a3 3 0 1 1-2-2.83V6.2a1 1 0 0 1 .76-.97l8-2A1 1 0 0 1 17 4.2v11.47a3 3 0 1 1-2-2.83V7.18l-6 1.5v9.82Z"
+                                fill="currentColor"
+                              />
+                            </svg>
+                          </span>
+                        )
+                        : <img src={attachment.previewUrl} alt={attachment.file.name || t('image.pending')} />}
                   </button>
                   <button
                     type="button"

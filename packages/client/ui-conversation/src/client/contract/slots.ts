@@ -24,7 +24,7 @@ import type { ConversationSnapshot } from './snapshot.ts'
 import type { ViewTab } from './views.ts'
 
 /** Browser-owned draft attachment that has not crossed the durable Host boundary. */
-export type ComposerAttachment = ComposerImageAttachment | ComposerFileAttachment
+export type ComposerAttachment = ComposerImageAttachment | ComposerVideoAttachment | ComposerAudioAttachment | ComposerFileAttachment
 
 /** Browser-owned image, base64-encoded into the prompt at send time. */
 export interface ComposerImageAttachment {
@@ -36,6 +36,21 @@ export interface ComposerImageAttachment {
   width?: number
   /** Intrinsic pixel height, filled asynchronously by the intake header probe. */
   height?: number
+}
+
+/** HeightLab：浏览器自持视频草稿（object URL 预览，发送时上传宿主）。 */
+export interface ComposerVideoAttachment {
+  kind: 'video'
+  id: DraftAttachmentId
+  file: File
+  previewUrl: string
+}
+
+/** HeightLab：浏览器自持音频草稿（无缩略图，徽标渲染）。 */
+export interface ComposerAudioAttachment {
+  kind: 'audio'
+  id: DraftAttachmentId
+  file: File
 }
 
 /** Browser-owned generic file whose bytes upload to the Host as soon as it is picked. */
