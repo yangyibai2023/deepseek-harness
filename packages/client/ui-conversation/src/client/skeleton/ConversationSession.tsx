@@ -216,9 +216,11 @@ export function ConversationSession({
     if (!isAutomation) return
     const labels = ['收起侧边栏', '折叠侧边栏', '收起底部面板', '折叠底部面板']
     const closePanels = (): void => {
-      const cluster = document.querySelector('[data-dsh-panel-host] [class*="toggleCluster"]')
-      if (!cluster) return
-      const buttons = [...cluster.querySelectorAll<HTMLButtonElement>('button[aria-label]')]
+      // HeightLab 2026-09-14：0.19.1 删除了 toggleCluster 类（旧版用它圈定按钮簇），
+      // 直接以面板宿主 data-dsh-panel-host 为范围——两版都成立的稳定锚点。
+      const host = document.querySelector('[data-dsh-panel-host]')
+      if (host === null) return
+      const buttons = [...host.querySelectorAll<HTMLButtonElement>('button[aria-label]')]
       for (const label of labels) {
         const button = buttons.find(candidate => (candidate.getAttribute('aria-label') ?? '').includes(label))
         if (button) button.click()
