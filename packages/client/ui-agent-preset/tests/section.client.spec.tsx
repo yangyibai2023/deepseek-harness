@@ -69,8 +69,16 @@ function renderSection(
   return actions
 }
 
-/** Locate a card by the id it prints, not by its display name. */
-function rowFor(id: string): HTMLElement {
+/**
+ * Locate a card by the id it prints, not by its display name.
+ * HeightLab：官方预设（内置/HeightLab 专家）不打印 id，改用显示名定位。
+ */
+function rowFor(id: string, officialName?: string): HTMLElement {
+  if (officialName !== undefined) {
+    const row = screen.getByText(officialName).closest('li') ?? null
+    if (row === null) throw new Error(`no card for official ${id}`)
+    return row
+  }
   const key = screen.getAllByText(id).find(node => node.tagName === 'CODE')
   const row = key?.closest('li') ?? null
   /* v8 ignore next -- every rendered card prints its id */
@@ -100,7 +108,7 @@ describe('the preset list', () => {
   it('marks trust and the one in use, and offers no "set default" on it', () => {
     renderSection()
 
-    const standard = rowFor('standard')
+    const standard = rowFor('standard', en.presetStandardName)
     expect(within(standard).getByText(en.builtIn)).toBeTruthy()
     expect(within(standard).getByText(en.inUse)).toBeTruthy()
     expect(within(standard).queryByText(en.setDefault)).toBeNull()
@@ -128,13 +136,15 @@ describe('the preset list', () => {
     // The page has no create button: the intro is what tells a first-time
     // reader that copying an existing preset — or drafting one in Creator
     // mode — IS the way to make one.
-    expect(screen.getByText(new RegExp('Creator mode'))).toBeTruthy()
+    // HeightLab：介绍文案改为「平台维护系统预设；复制预设或让 Agent 起草」，
+    // 不再出现 Creator mode 字样（见 locales sectionIntro）。
+    expect(screen.getByText(en.sectionIntro)).toBeTruthy()
   })
 
   it('picks a preset by clicking its card, and the one in use is inert', () => {
     const actions = renderSection()
 
-    const inUse = within(rowFor('standard')).getByRole('button', { name: `${en.inUse}: ${en.presetStandardName}` })
+    const inUse = within(rowFor('standard', en.presetStandardName)).getByRole('button', { name: `${en.inUse}: ${en.presetStandardName}` })
     expect(inUse).toHaveProperty('disabled', true)
     fireEvent.click(inUse)
 
@@ -146,11 +156,10 @@ describe('the preset list', () => {
   it('offers View on a shipped row and the location on a custom one', () => {
     renderSection()
 
-    // A shipped preset is the composition a copy starts from — reading it is
-    // the point. A custom preset is edited in its files, so its row leads
-    // there instead; there is no editor for either.
-    const standard = rowFor('standard')
-    expect(within(standard).getByRole('button', { name: `${en.view}: ${en.presetStandardName}` })).toBeTruthy()
+    // HeightLab：官方预设（内置+官方专家）一律只展示介绍，没有任何行操作；
+    // 只有用户自建 Agent 提供打开目录/复制/删除。
+    const standard = rowFor('standard', en.presetStandardName)
+    expect(within(standard).queryByRole('button', { name: `${en.view}: ${en.presetStandardName}` })).toBeNull()
     expect(within(standard).queryByRole('button', { name: `${en.openLocation}: ${en.presetStandardName}` })).toBeNull()
     const mine = rowFor('mine')
     expect(within(mine).getByRole('button', { name: `${en.openLocation}: mine` })).toBeTruthy()
@@ -161,13 +170,14 @@ describe('the preset list', () => {
     renderSection()
 
     expect(within(rowFor('mine')).getByRole('button', { name: `${en.delete}: mine` })).toBeTruthy()
-    expect(within(rowFor('standard')).queryByRole('button', { name: `${en.delete}: ${en.presetStandardName}` })).toBeNull()
+    expect(within(rowFor('standard', en.presetStandardName)).queryByRole('button', { name: `${en.delete}: ${en.presetStandardName}` })).toBeNull()
   })
 
   it('disables duplication when nothing is writable, and says why', () => {
     renderSection({ authorable: false })
 
-    const duplicate = within(rowFor('standard')).getByRole('button', { name: `${en.duplicate}: ${en.presetStandardName}` })
+    // HeightLab：官方行没有复制按钮；禁复制语义落在用户自建行上。
+    const duplicate = within(rowFor('mine')).getByRole('button', { name: `${en.duplicate}: mine` })
     expect(duplicate).toHaveProperty('disabled', true)
     expect(duplicate.getAttribute('data-tip')).toBe(en.duplicateUnavailable)
   })
@@ -218,7 +228,7 @@ describe('the preset list', () => {
 
     // There is no readable composition to offer; the reason on the card is
     // the whole story a shipped row can tell.
-    const standard = rowFor('standard')
+    const standard = rowFor('standard', en.presetStandardName)
     expect(within(standard).queryByRole('button', { name: `${en.view}: ${en.presetStandardName}` })).toBeNull()
     expect(within(standard).getByRole('alert').textContent).toContain('not valid YAML')
   })
@@ -236,7 +246,7 @@ describe('the preset list', () => {
     expect(within(mine).getByText('/home/user/.dsh/.agent-presets/mine')).toBeTruthy()
     expect(within(mine).getByText(en.revealedPathLabel)).toBeTruthy()
     // The reveal belongs to its row alone.
-    expect(within(rowFor('standard')).queryByText(en.revealedPathLabel)).toBeNull()
+    expect(within(rowFor('standard', en.presetStandardName)).queryByText(en.revealedPathLabel)).toBeNull()
   })
 
   it('routes the row actions to the controller', () => {
@@ -246,12 +256,12 @@ describe('the preset list', () => {
     fireEvent.click(within(rowFor('mine')).getByRole('button', { name: `${en.setDefault}: mine` }))
     fireEvent.click(within(rowFor('mine')).getByRole('button', { name: `${en.openLocation}: mine` }))
     fireEvent.click(within(rowFor('mine')).getByRole('button', { name: `${en.duplicate}: mine` }))
-    fireEvent.click(within(rowFor('standard')).getByRole('button', { name: `${en.view}: ${en.presetStandardName}` }))
 
     expect(actions.makeDefault).toHaveBeenCalledWith('mine')
     expect(actions.openLocation).toHaveBeenCalledWith('mine')
     expect(actions.beginCopy).toHaveBeenCalledWith('mine')
-    expect(actions.view).toHaveBeenCalledWith('standard')
+    // HeightLab：官方预设不提供查看器，view 不应对任何行触发。
+    expect(actions.view).not.toHaveBeenCalled()
   })
 
   it('starts a creator-mode draft session and leaves settings', () => {
@@ -260,6 +270,9 @@ describe('the preset list', () => {
     })
 
     fireEvent.click(screen.getByRole('button', { name: en.creatorDraft }))
+    // HeightLab：两步创建——先选创建方式（表单/对话），再真正起草。
+    expect(actions.startCreatorDraft).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: en.createViaConversation }))
 
     expect(actions.startCreatorDraft).toHaveBeenCalledTimes(1)
     // Leaving settings is part of the gesture: the flow lands in the new

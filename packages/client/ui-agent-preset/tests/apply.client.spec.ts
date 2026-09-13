@@ -18,6 +18,7 @@ import { AgentPresetLabel } from '../src/client/AgentPresetLabel.tsx'
 import type { AgentPresetLabelInjected } from '../src/client/AgentPresetLabel.tsx'
 import { AgentPresetSection } from '../src/client/AgentPresetSection.tsx'
 import type { AgentPresetSectionInjected } from '../src/client/AgentPresetSection.tsx'
+import { CreatorModeChip } from '../src/client/CreatorModeChip.tsx'
 import { AgentPresetSeat } from '../src/client/AgentPresetSeat.tsx'
 import type { AgentPresetSeatInjected } from '../src/client/AgentPresetSeat.tsx'
 import { AgentPresetSeatController } from '../src/client/seat-store.ts'
@@ -135,6 +136,8 @@ function declareConversation(slots: SlotRegistry): () => void {
     name: 'conversation',
     children: {
       'conversation.hero.agentPreset': { kind: 'single', scope: 'root' },
+      // HeightLab：预设选择本体移到输入框座位，hero 只留「创造 Agent」开关。
+      'conversation.input.agentPreset': { kind: 'single', scope: 'session' },
       'conversation.session.header.actions': { kind: 'list', scope: 'session' },
     },
   } as never, () => null)
@@ -196,7 +199,8 @@ describe('ui-agent-preset apply', () => {
     expect(section.component).toBe(AgentPresetSection)
     expect(section.options).toMatchObject({ id: 'agent-presets', order: 20 })
     // The nav label is a locale-following thunk; owners resolve it at read time.
-    expect(resolveSlotLabel(section.options.label)).toBe('Agent 预设')
+    // HeightLab：设置页导航中文名改为「Agent 管理」（locales nav）。
+    expect(resolveSlotLabel(section.options.label)).toBe('Agent 管理')
   })
 
   it('registers into a declaration that arrives after apply', async () => {
@@ -304,13 +308,18 @@ describe('ui-agent-preset apply', () => {
     const fiber = ctx.plugin({ inject: [...inject, 'conversation', 'sessions', 'uiWorkspace'], apply })
     await fiber.await()
 
+    // HeightLab：hero 座位由 CreatorModeChip（创造 Agent 开关）占据；
+    // AgentPresetSeat 本体注册在 conversation.input.agentPreset。
     const chip = slots.entries('conversation.hero.agentPreset')[0]!
-    expect(chip.component).toBe(AgentPresetSeat)
+    expect(chip.component).toBe(CreatorModeChip)
+    const composer = slots.entries('conversation.input.agentPreset')[0]!
+    expect(composer.component).toBe(AgentPresetSeat)
     const label = slots.entries('conversation.session.header.actions')[0]!
     expect(label.component).toBe(AgentPresetLabel)
     expect(label.options).toMatchObject({ id: 'agent-preset', order: -10 })
     await fiber.dispose()
     expect(slots.entries('conversation.hero.agentPreset')).toHaveLength(0)
+    expect(slots.entries('conversation.input.agentPreset')).toHaveLength(0)
     expect(slots.entries('conversation.session.header.actions')).toHaveLength(0)
     expect(slots.entries('settings.section')).toHaveLength(0)
     conversation()

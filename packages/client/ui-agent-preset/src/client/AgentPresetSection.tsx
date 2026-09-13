@@ -13,7 +13,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
-  Button, IconBrowseOutline16, IconCopyOutline16, IconFolderOpenOutline16, IconPlusOutline16, IconTrashOutline16, Modal, Tag, Tooltip,
+  Button, IconCopyOutline16, IconFolderOpenOutline16, IconPlusOutline16, IconTrashOutline16, Modal, Tag, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
@@ -57,6 +57,27 @@ export interface AgentPresetSectionInjected {
   remove: () => Promise<void>
   /** Make one preset the default for sessions created later. */
   makeDefault: (id: string) => Promise<void>
+}
+
+/** HeightLab 官方专家预设：视同内置，只展示介绍，不允许查看/修改/复制/删除。 */
+const HEIGHTLAB_OFFICIAL_IDS: ReadonlySet<string> = new Set([
+  'content-creator',
+  'image-generator',
+  'research-analyst',
+  'video-producer',
+  'general-assistant',
+])
+
+/** HeightLab：管理页也隐藏的官方内置模式（PTC/创造模式/自动化执行助手，暂不开放）。 */
+const HIDDEN_OFFICIAL_IDS: ReadonlySet<string> = new Set([
+  'code',
+  'cordis',
+  'automation-worker',
+])
+
+/** Whether a roster row is presented as official (built-in or HeightLab official). */
+function isOfficial(row: { id: string; trust: 'system' | 'user' }): boolean {
+  return row.trust === 'system' || HEIGHTLAB_OFFICIAL_IDS.has(row.id)
 }
 
 /** Full component props. */
@@ -138,6 +159,182 @@ function CopyDialog({ state, t, actions }: CopyDialogProps): ReactNode {
 }
 
 /**
+ * HeightLab：表单创建自定义 Agent。生成的是 DSH 原生 preset 目录
+ * （preset.yml + agent.cordis.yml），创建后由父级刷新 roster。
+ */
+function CreateAgentDialog({ t, onClose, onCreated }: {
+  t: (key: AgentPresetSettingsKey) => string
+  onClose: () => void
+  onCreated: () => void
+}): ReactNode {
+  const [name, setName] = useState('')
+  const [id, setId] = useState('')
+  const [idManual, setIdManual] = useState(false)
+  const [description, setDescription] = useState('')
+  const [persona, setPersona] = useState('')
+  const [fileShell, setFileShell] = useState(true)
+  const [webSearch, setWebSearch] = useState(true)
+  const [skills, setSkills] = useState(true)
+  const [planMode, setPlanMode] = useState(false)
+  const [subagents, setSubagents] = useState(false)
+  const [domains, setDomains] = useState<string[]>([])
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const slug = (value: string): string => value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 63)
+
+  const submit = async (): Promise<void> => {
+    setError(null)
+    const cleanName = name.trim()
+    const cleanId = id.trim()
+    const cleanPersona = persona.trim()
+    if (!cleanName) { setError('请输入名称。'); return }
+    if (!cleanId) { setError('请输入标识符。'); return }
+    if (!cleanPersona) { setError('请输入角色设定 / 系统提示词。'); return }
+    setBusy(true)
+    try {
+      const res = await fetch('/hl/agent-presets/create', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          id: cleanId,
+          name: cleanName,
+          description: description.trim(),
+          persona: cleanPersona,
+          capabilities: {
+            fileShell,
+            webSearch,
+            skills,
+            planMode,
+            subagents,
+            domains,
+          },
+        }),
+      })
+      const data = await res.json().catch(() => ({})) as { ok?: boolean; message?: string }
+      if (!res.ok || data.ok !== true) {
+        setError(data.message ?? t('createFailed'))
+        return
+      }
+      onCreated()
+    } catch {
+      setError(t('createFailed'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const checkbox = (checked: boolean, onChange: (next: boolean) => void, label: string): ReactNode => (
+    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
+      <span>{label}</span>
+    </label>
+  )
+
+  const domainCheckbox = (domain: string, label: string): ReactNode => checkbox(
+    domains.includes(domain),
+    (next) => setDomains(previous => next
+      ? [...new Set([...previous, domain])]
+      : previous.filter(item => item !== domain)),
+    label,
+  )
+
+  return (
+    <Modal
+      open
+      onClose={() => { if (!busy) onClose() }}
+      title={t('createMenuTitle')}
+      closeLabel={t('close')}
+      className={css.dialog as string}
+      footer={(
+        <>
+          <Button variant="outline" disabled={busy} onClick={onClose}>
+            {t('cancel')}
+          </Button>
+          <Button disabled={busy} onClick={() => { void submit() }}>
+            {busy ? t('createSaving') : t('create')}
+          </Button>
+        </>
+      )}
+    >
+      <div className={css.dialogFields}>
+        <label className={css.field}>
+          <span className={css.fieldLabel}>{t('createFormName')}</span>
+          <input
+            className={css.input}
+            value={name}
+            maxLength={64}
+            spellCheck={false}
+            onChange={(event) => {
+              const next = event.target.value
+              setName(next)
+              if (!idManual) setId(slug(next))
+            }}
+          />
+        </label>
+        <label className={css.field}>
+          <span className={css.fieldLabel}>{t('createFormId')}</span>
+          <input
+            className={css.input}
+            value={id}
+            maxLength={64}
+            spellCheck={false}
+            placeholder={t('presetIdPlaceholder')}
+            onChange={(event) => { setId(event.target.value); setIdManual(true) }}
+          />
+        </label>
+        <label className={css.field}>
+          <span className={css.fieldLabel}>{t('createFormDescription')}</span>
+          <input
+            className={css.input}
+            value={description}
+            maxLength={200}
+            spellCheck={false}
+            onChange={(event) => setDescription(event.target.value)}
+          />
+        </label>
+        <label className={css.field}>
+          <span className={css.fieldLabel}>{t('createFormPersona')}</span>
+          <textarea
+            className={css.input}
+            value={persona}
+            rows={6}
+            maxLength={20000}
+            spellCheck={false}
+            style={{ resize: 'vertical' }}
+            onChange={(event) => setPersona(event.target.value)}
+          />
+        </label>
+        <div className={css.field}>
+          <span className={css.fieldLabel}>{t('createFormCapabilities')}</span>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 14px', marginTop: 4 }}>
+            {checkbox(fileShell, setFileShell, t('createCapFileShell'))}
+            {checkbox(webSearch, setWebSearch, t('createCapWebSearch'))}
+            {checkbox(skills, setSkills, t('createCapSkills'))}
+            {checkbox(planMode, setPlanMode, t('createCapPlanMode'))}
+            {checkbox(subagents, setSubagents, t('createCapSubagents'))}
+          </div>
+        </div>
+        <div className={css.field}>
+          <span className={css.fieldLabel}>{t('createFormDomains')}</span>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 14px', marginTop: 4 }}>
+            {domainCheckbox('content', t('createDomainContent'))}
+            {domainCheckbox('image', t('createDomainImage'))}
+            {domainCheckbox('video', t('createDomainVideo'))}
+            {domainCheckbox('research', t('createDomainResearch'))}
+          </div>
+        </div>
+        {error === null ? null : <p className={css.error} role="alert">{error}</p>}
+      </div>
+    </Modal>
+  )
+}
+
+/**
  * Render one card's description, clamped by CSS and offered in full on hover.
  * The tooltip is attached only while the text is actually cut off, so a short
  * description does not answer a hover with a bubble repeating the card.
@@ -178,6 +375,10 @@ function CardDescription({ text }: { text: string }): ReactNode {
 export function AgentPresetSection(props: AgentPresetSectionProps): ReactNode {
   const { useAgentPresetSection, t, load } = props
   const state = useAgentPresetSection(snapshot => snapshot)
+  const [createMenuOpen, setCreateMenuOpen] = useState(false)
+  const [createFormOpen, setCreateFormOpen] = useState(false)
+  const [customModel, setCustomModel] = useState(() => document.body.dataset.hlCustomModel === '1')
+  const [customHint, setCustomHint] = useState<string | null>(null)
   const viewedId = state.view?.id
   const viewedRow = viewedId === undefined ? undefined : state.rows.find(row => row.id === viewedId)
   const viewedTitle = state.view === null
@@ -187,6 +388,17 @@ export function AgentPresetSection(props: AgentPresetSectionProps): ReactNode {
   useEffect(() => {
     void load()
   }, [load])
+
+  // HeightLab：自定义模型激活时，只能选择/使用「通用助手」。
+  useEffect(() => {
+    const onModel = (event: Event): void => {
+      const detail = (event as CustomEvent<{ custom?: boolean }>).detail
+      setCustomModel(detail?.custom === true)
+      if (detail?.custom !== true) setCustomHint(null)
+    }
+    window.addEventListener('hl:model-change', onModel)
+    return () => window.removeEventListener('hl:model-change', onModel)
+  }, [])
 
   // A deployment that composes no presets has nothing to manage: every
   // session shares the host composition and the page would be an empty list.
@@ -204,11 +416,11 @@ export function AgentPresetSection(props: AgentPresetSectionProps): ReactNode {
     )
   }
 
-  /* The guided alternative to copying: the self-referential preset can
-     read this very composition and author a new one in conversation.
-     Offered only where that preset is actually on the roster and a
-     session can be landed; without a writable root the draft could
-     never be discovered, so the reason rides the disabled button. */
+  /* The guided way to author a new custom preset: the self-referential
+     preset reads this very composition and drafts a new one in conversation.
+     Offered only where that preset is actually on the roster and a session
+     can be landed; without a writable root the draft could never be
+     discovered, so the reason rides the disabled button. */
   const creatorButton = props.startCreatorDraft !== undefined && state.rows.some(row => row.id === 'cordis')
     ? (
       <button
@@ -216,10 +428,7 @@ export function AgentPresetSection(props: AgentPresetSectionProps): ReactNode {
         className={css.creatorButton}
         disabled={!state.authorable}
         title={state.authorable ? undefined : t('duplicateUnavailable')}
-        onClick={() => {
-          props.startCreatorDraft?.()
-          props.close()
-        }}
+        onClick={() => { setCreateMenuOpen(true) }}
       >
         <IconPlusOutline16 size={14} />
         {t('creatorDraft')}
@@ -232,9 +441,17 @@ export function AgentPresetSection(props: AgentPresetSectionProps): ReactNode {
       <h2 className={css.title}>{t('nav')}</h2>
       <p className={css.intro}>{t('sectionIntro')}</p>
       {state.error === null ? null : <p className={css.error} role="alert">{state.error}</p>}
+      {customHint === null ? null : <p className={css.error} role="alert">{customHint}</p>}
+      {/* HeightLab：内置组 = DSH 内置 + HeightLab 官方专家（PTC/创造模式不展示）；
+          自定义组 = 用户自建 Agent（含复制创建与创造模式起草入口）。 */}
       {([['system', t('builtInGroup')], ['user', t('customGroup')]] as const).map(([trust, heading]) => {
+        // HeightLab：标准模式最前，HeightLab 专家居中，系统操作专家最后。
+        const rank = (id: string): number => id === 'standard' ? 0 : id === 'minimal' ? 2 : 1
         const group = state.rows
-          .filter(row => row.trust === trust)
+          .filter(row => !HIDDEN_OFFICIAL_IDS.has(row.id)
+            && !(trust === 'user' && HEIGHTLAB_OFFICIAL_IDS.has(row.id))
+            && (row.trust === trust || (trust === 'system' && HEIGHTLAB_OFFICIAL_IDS.has(row.id))))
+          .sort((left, right) => rank(left.id) - rank(right.id))
           .map(row => ({ row, text: presetDisplayText(row, t) }))
         // The custom group is where a preset of one's own will appear, so it
         // stays on screen even while empty: heading plus the creator entry.
@@ -256,18 +473,12 @@ export function AgentPresetSection(props: AgentPresetSectionProps): ReactNode {
                       common act, so it should not hide behind a small button.
                       The action row sits outside it — nesting buttons is
                       invalid, and these act on the card rather than select it.
-                      A broken preset cannot compose a session, so its body
-                      refuses the pick; the reason rides the badge rather than
-                      the card face, which stays the preset's own
-                      description. */}
+                      A broken preset cannot compose a session, so its body is
+                      disabled and the card says why instead of offering it. */}
                     <button
                       type="button"
                       className={css.cardMain}
                       aria-pressed={row.isDefault}
-                      // Broken says so through `aria-disabled` rather than
-                      // `disabled`, which would take the card out of the tab
-                      // order. With the reason moved onto the badge, that is
-                      // the only way anyone without a pointer reaches it.
                       disabled={row.isDefault}
                       aria-disabled={row.broken !== undefined}
                       // Without this the name is the whole card read aloud —
@@ -279,6 +490,11 @@ export function AgentPresetSection(props: AgentPresetSectionProps): ReactNode {
                       title={row.broken !== undefined ? t('brokenBadge') : row.isDefault ? t('inUse') : t('setDefault')}
                       onClick={() => {
                         if (row.broken !== undefined) return
+                        if (customModel && row.id !== 'general-assistant') {
+                          setCustomHint(t('customModelHint'))
+                          return
+                        }
+                        setCustomHint(null)
                         void props.makeDefault(row.id)
                       }}
                     >
@@ -297,78 +513,55 @@ export function AgentPresetSection(props: AgentPresetSectionProps): ReactNode {
                           )
                           : null}
                         <Tag>
-                          {row.trust === 'user' ? t('userTrust') : t('builtIn')}
+                          {isOfficial(row) ? t('builtIn') : t('userTrust')}
                         </Tag>
                         {row.isDefault ? <Tag tone="solid" className={css.inUse}>{t('inUse')}</Tag> : null}
                       </span>
                       <CardDescription text={text.description ?? t('noDescription')} />
-                      {/* Visually hidden, deliberately: the pointer path is the
-                        badge's tooltip, and a disabled card body is out of the
-                        tab order, so this is the only reading a screen reader
-                        or a keyboard-only user gets. */}
                       {row.broken === undefined
                         ? null
                         : <span className={css.cardBrokenReason} role="alert">{row.broken}</span>}
-                      <code className={css.cardId}>{row.id}</code>
+                      {isOfficial(row) ? null : <code className={css.cardId}>{row.id}</code>}
                     </button>
                     <div className={css.cardFoot}>
-                      {/* Shipped presets are the compositions a copy starts
-                        from, so READING one is the point; a custom preset is
-                        edited in its files instead, which the location action
-                        leads to. A broken shipped preset has no readable
-                        composition to offer, so its viewer is withheld; a
-                        broken custom one keeps the location action — the
-                        files are where it gets fixed. */}
-                      {row.trust === 'system'
-                        ? row.broken === undefined
-                          ? (
-                            <button
-                              type="button"
-                              className={css.iconButton}
-                              data-tip={t('view')}
-                              aria-label={`${t('view')}: ${text.name}`}
-                              onClick={() => { void props.view(row.id) }}
-                            >
-                              <IconBrowseOutline16 />
-                            </button>
-                          )
-                          : null
-                        : (
-                          <button
-                            type="button"
-                            className={css.iconButton}
-                            data-tip={state.hasDocument ? t('openLocation') : t('showLocation')}
-                            aria-label={`${state.hasDocument ? t('openLocation') : t('showLocation')}: ${text.name}`}
-                            onClick={() => { void props.openLocation(row.id) }}
-                          >
-                            <IconFolderOpenOutline16 />
-                          </button>
-                        )}
-                      <button
-                        type="button"
-                        className={css.iconButton}
-                        disabled={!state.authorable || row.broken !== undefined}
-                        data-tip={row.broken !== undefined
-                          ? t('brokenNoCopy')
-                          : state.authorable ? t('duplicate') : t('duplicateUnavailable')}
-                        aria-label={`${t('duplicate')}: ${text.name}`}
-                        onClick={() => { props.beginCopy(row.id) }}
-                      >
-                        <IconCopyOutline16 />
-                      </button>
-                      {row.trust === 'user'
-                        ? (
-                          <button
-                            type="button"
-                            className={`${css.iconButton} ${css.iconDanger}`}
-                            data-tip={t('delete')}
-                            aria-label={`${t('delete')}: ${text.name}`}
-                            onClick={() => { props.confirmDelete(row.id) }}
-                          >
-                            <IconTrashOutline16 />
-                          </button>
-                        )
-                        : null}
+                      {/* HeightLab：内置（Colin/系统专家）与官方专家一律只展示
+                          介绍；只有用户自建的自定义 Agent 提供打开目录/复制/删除。 */}
+                      {row.trust === 'user' && !HEIGHTLAB_OFFICIAL_IDS.has(row.id) && (
+                        <button
+                          type="button"
+                          className={css.iconButton}
+                          data-tip={state.hasDocument ? t('openLocation') : t('showLocation')}
+                          aria-label={`${state.hasDocument ? t('openLocation') : t('showLocation')}: ${text.name}`}
+                          onClick={() => { void props.openLocation(row.id) }}
+                        >
+                          <IconFolderOpenOutline16 />
+                        </button>
+                      )}
+                      {row.trust === 'user' && !HEIGHTLAB_OFFICIAL_IDS.has(row.id) && (
+                        <button
+                          type="button"
+                          className={css.iconButton}
+                          disabled={!state.authorable || row.broken !== undefined}
+                          data-tip={row.broken !== undefined
+                            ? t('brokenNoCopy')
+                            : state.authorable ? t('duplicate') : t('duplicateUnavailable')}
+                          aria-label={`${t('duplicate')}: ${text.name}`}
+                          onClick={() => { props.beginCopy(row.id) }}
+                        >
+                          <IconCopyOutline16 />
+                        </button>
+                      )}
+                      {row.trust === 'user' && !HEIGHTLAB_OFFICIAL_IDS.has(row.id) ? (
+                        <button
+                          type="button"
+                          className={`${css.iconButton} ${css.iconDanger}`}
+                          data-tip={t('delete')}
+                          aria-label={`${t('delete')}: ${text.name}`}
+                          onClick={() => { props.confirmDelete(row.id) }}
+                        >
+                          <IconTrashOutline16 />
+                        </button>
+                      ) : null}
                     </div>
                     {state.revealedPaths[row.id] === undefined
                       ? null
@@ -396,6 +589,52 @@ export function AgentPresetSection(props: AgentPresetSectionProps): ReactNode {
           setCopyName: props.setCopyName,
         }}
       />
+      {createMenuOpen && (
+        <Modal
+          open
+          onClose={() => { setCreateMenuOpen(false) }}
+          title={t('createMenuTitle')}
+          closeLabel={t('close')}
+          className={css.dialog as string}
+          footer={(
+            <Button variant="outline" onClick={() => { setCreateMenuOpen(false) }}>
+              {t('cancel')}
+            </Button>
+          )}
+        >
+          <div className={css.dialogFields}>
+            <Button onClick={() => { setCreateMenuOpen(false); setCreateFormOpen(true) }}>
+              {t('createViaForm')}
+            </Button>
+            <Button
+              disabled={customModel}
+              onClick={() => {
+                setCreateMenuOpen(false)
+                props.startCreatorDraft?.()
+                props.close()
+              }}
+            >
+              {t('createViaConversation')}
+            </Button>
+            {customModel && (
+              <p className={css.error} role="alert">{t('customModelHint')}</p>
+            )}
+            <p style={{ margin: 0, fontSize: 12, opacity: 0.65, lineHeight: 1.6 }}>
+              {t('sectionIntro')}
+            </p>
+          </div>
+        </Modal>
+      )}
+      {createFormOpen && (
+        <CreateAgentDialog
+          t={t}
+          onClose={() => { setCreateFormOpen(false) }}
+          onCreated={() => {
+            setCreateFormOpen(false)
+            void load()
+          }}
+        />
+      )}
       <Modal
         open={state.view !== null}
         onClose={() => { props.closeView() }}

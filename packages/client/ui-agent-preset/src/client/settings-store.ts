@@ -114,12 +114,26 @@ export async function beginRosterRead<S extends { status: string; error: string 
 export function presetOptions(
   presets: readonly { id: string; trust: 'system' | 'user'; name?: string; description?: string; broken?: string }[],
 ): AgentPresetOption[] {
-  return presets.filter(preset => preset.broken === undefined).map(preset => ({
-    id: preset.id,
-    trust: preset.trust,
-    ...preset.name === undefined ? {} : { name: preset.name },
-    ...preset.description === undefined ? {} : { description: preset.description },
-  }))
+  // HeightLab：下拉只保留 standard=标准模式/Colin、minimal=系统专家、
+  // general-assistant=通用助手，以及用户自定义预设（user）。
+  // 标准模式最前，自定义专家居中，系统操作专家（minimal）其次，
+  // 通用助手（general-assistant）放最下面。
+  // automation-worker 是无人值守自动化专用预设，不进入智能体选择列表。
+  const rank = (id: string): number => id === 'standard' ? 0 : id === 'minimal' ? 2 : id === 'general-assistant' ? 3 : 1
+  return presets
+    .filter(preset => preset.broken === undefined)
+    .filter(preset => preset.trust === 'user'
+      || preset.id === 'standard'
+      || preset.id === 'minimal'
+      || preset.id === 'general-assistant')
+    .filter(preset => preset.id !== 'automation-worker')
+    .sort((left, right) => rank(left.id) - rank(right.id))
+    .map(preset => ({
+      id: preset.id,
+      trust: preset.trust,
+      ...preset.name === undefined ? {} : { name: preset.name },
+      ...preset.description === undefined ? {} : { description: preset.description },
+    }))
 }
 
 /** Agent-preset roster snapshot for the display surfaces. */

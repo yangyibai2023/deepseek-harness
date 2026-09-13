@@ -420,7 +420,8 @@ describe('image draft rail', () => {
     expect(model.view.getByRole('alert').textContent).toContain('当前模型不支持图片，请切换支持图片的模型')
     cleanup()
     const unknown = bench({ promptError: attachmentError('ATTACHMENT_NOT_REFERENCED') })
-    expect(unknown.view.getByRole('alert').textContent).toContain('图片发送失败（ATTACHMENT_NOT_REFERENCED）')
+    // HeightLab：未认识的错误码折叠为统一友好文案，不展示错误码（image-labels.ts）。
+    expect(unknown.view.getByRole('alert').textContent).toContain('图片发送失败，请重新添加图片后再试')
     cleanup()
     // A subagent refusal uses the same product copy for the same reason.
     const subagent = bench({
@@ -1502,7 +1503,9 @@ describe('command launcher chrome and control seats', () => {
     expect([...new Set(slotCalls.map(c => c.key))]).toEqual([
       'conversation.input.overlay', 'conversation.input.attachments',
       'conversation.input.plan', 'conversation.input.left',
-      'conversation.input.right', 'conversation.input.model',
+      'conversation.input.right',
+      // HeightLab：agentPreset（智能体选择）座位位于 model 之前（InputBar trailing）。
+      'conversation.input.agentPreset', 'conversation.input.model',
       'conversation.composer.dock',
     ])
     expect(view.queryByLabelText('Plan mode')).toBeNull()

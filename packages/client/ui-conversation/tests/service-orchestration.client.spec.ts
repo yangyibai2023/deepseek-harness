@@ -490,6 +490,12 @@ describe('sendSession submission echo', () => {
         new File([Uint8Array.of(1, 2, 3)], 'a.png', { type: 'image/png' }),
       ])
       const session = b.runtime.sessions.binding('s1')!.session
+      // HeightLab 桥：媒体上传宿主后以「本地路径」文本块进入 prompt；
+      // 单测环境里用 fetch 桩模拟宿主上传成功。
+      vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({
+        ok: true,
+        json: async () => ({ ok: true, path: '/tmp/hl/a.png' }),
+      }) as unknown as Response))
       const sending = b.root.sendSession(session, '带图', [attachment!.id], 'queue')
       // Synchronous: the echo is registered before any encoding starts.
       const echo = b.beginSubmission.mock.calls[0]?.[0]
@@ -502,7 +508,7 @@ describe('sendSession submission echo', () => {
       await vi.waitFor(() => { expect(b.prompt).toHaveBeenCalledOnce() })
       expect(b.prompt).toHaveBeenCalledWith(
         [
-          { type: 'image', mediaType: 'image/png', data: expect.any(String) as string, name: 'a.png' },
+          { type: 'text', text: '[用户上传了一张图片，本地路径：/tmp/hl/a.png]' },
           { type: 'text', text: '带图' },
         ],
         'queue',
@@ -516,6 +522,7 @@ describe('sendSession submission echo', () => {
       expect(b.root.resolveDraftAttachments([attachment!.id])).toEqual([])
       expect(b.revoked).toHaveBeenCalledWith('blob:echo-1')
     } finally {
+      vi.unstubAllGlobals()
       b.restore()
     }
     await b.runtime.dispose()
@@ -531,6 +538,14 @@ describe('sendSession submission echo', () => {
           receiptId: 'mixed-file-receipt' as never,
           file: { attachmentId: 'mixed-file' as never, name: 'notes.txt', bytes: 1 },
         },
+      }))
+      // HeightLab 桥：图片走宿主上传文本块（fetch 桩），文件走回执管线。
+      vi.stubGlobal('fetch', vi.fn((_input: RequestInfo | URL, _init?: RequestInit) => {
+        const body = JSON.parse(String(_init?.body ?? '{}')) as { name?: string }
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ ok: true, path: `/tmp/hl/${body.name ?? 'x'}` }),
+        }) as unknown as Response
       }))
       const drafts = b.root.createDrafts(session.sessionId, [
         new File([Uint8Array.of(1)], 'first.png', { type: 'image/png' }),
@@ -552,9 +567,9 @@ describe('sendSession submission echo', () => {
       ])
       await vi.waitFor(() => { expect(b.prompt).toHaveBeenCalledOnce() })
       expect(b.prompt.mock.calls[0]?.[0]).toEqual([
-        { type: 'image', mediaType: 'image/png', data: expect.any(String) as string, name: 'first.png' },
+        { type: 'text', text: '[用户上传了一张图片，本地路径：/tmp/hl/first.png]' },
         { type: 'file', receiptId: 'mixed-file-receipt' },
-        { type: 'image', mediaType: 'image/png', data: expect.any(String) as string, name: 'last.png' },
+        { type: 'text', text: '[用户上传了一张图片，本地路径：/tmp/hl/last.png]' },
         { type: 'text', text: 'ordered' },
       ])
       b.retire.onRetire?.({
@@ -580,6 +595,7 @@ describe('sendSession submission echo', () => {
       await expect(sending).resolves.toEqual({ kind: 'success' })
       expect(b.root.resolveDraftAttachments(drafts.map(draft => draft.id))).toEqual([])
     } finally {
+      vi.unstubAllGlobals()
       b.restore()
     }
     await b.runtime.dispose()
@@ -672,26 +688,26 @@ describe('sendSession submission echo', () => {
     await b.runtime.dispose()
   })
 
-  it('abandons the echo when encoding fails before the prompt', async () => {
+  it('sends the failed-upload notice when the host bridge rejects media upload', async () => {
     const b = await echoBench()
-    class FailingReader {
-      onload: (() => void) | null = null
-      onerror: (() => void) | null = null
-      error = new Error('read failed')
-      readAsDataURL(): void {
-        queueMicrotask(() => this.onerror?.())
-      }
-    }
-    vi.stubGlobal('FileReader', FailingReader)
+    // HeightLab 桥：媒体上传失败不中断发送——降级为「上传失败」文本块
+    // （与 0.3.30 稳定线一致），echo 照常 retire。
+    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('bridge down'))))
     try {
       const [attachment] = b.root.createDrafts(b.runtime.sessions.binding('s1')!.session.sessionId, [
         new File([Uint8Array.of(1)], 'broken.png', { type: 'image/png' }),
       ])
       const session = b.runtime.sessions.binding('s1')!.session
-      await expect(b.root.sendSession(session, 'x', [attachment!.id], 'queue'))
-        .rejects.toThrow('read failed')
-      expect(b.abandon).toHaveBeenCalledOnce()
-      expect(b.prompt).not.toHaveBeenCalled()
+      const sending = b.root.sendSession(session, 'x', [attachment!.id], 'queue')
+      b.retire.onRetire?.({ reason: 'observed', attachments: [] })
+      await expect(sending).resolves.toEqual({ kind: 'success' })
+      expect(b.abandon).not.toHaveBeenCalled()
+      expect(b.prompt).toHaveBeenCalledWith(
+        [{ type: 'text', text: '[用户上传了一张图片（上传失败，无法分析）]' }, { type: 'text', text: 'x' }],
+        'queue',
+        undefined,
+        'req-echo',
+      )
     } finally {
       vi.unstubAllGlobals()
       b.restore()

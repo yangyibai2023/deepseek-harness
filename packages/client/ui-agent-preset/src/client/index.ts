@@ -27,6 +27,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import { AgentPresetLabel } from './AgentPresetLabel.tsx'
 import type { AgentPresetLabelInjected } from './AgentPresetLabel.tsx'
+import { CreatorModeChip } from './CreatorModeChip.tsx'
 import { AgentPresetSeat } from './AgentPresetSeat.tsx'
 import type { AgentPresetSeatInjected } from './AgentPresetSeat.tsx'
 import { AgentPresetSection } from './AgentPresetSection.tsx'
@@ -150,11 +151,13 @@ export function apply(ctx: ClientContext): void {
         seat.stage('cordis', true)
         scope.uiWorkspace.startSession()
       }
-      const chip = scope.slots.register({
+      // HeightLab：hero 座位由 CreatorModeChip（创造 Agent 开关）占据；
+      // AgentPresetSeat 本体注册在 conversation.input.agentPreset。
+      const heroCreatorChip = scope.slots.register({
         name: 'conversation.hero.agentPreset',
         locale: 'settings.agentPreset',
         inject: seatInjected,
-      }, AgentPresetSeat)
+      }, CreatorModeChip)
       // HeightLab：输入栏内的 COLIN 胶囊（新会话 hero 与会话中输入栏同源 seat）。
       const composerSeat = scope.slots.register({
         name: 'conversation.input.agentPreset',
@@ -174,7 +177,7 @@ export function apply(ctx: ClientContext): void {
         settingsMoved()
         rosterReaders.delete(readRoster)
         creatorDraft = undefined
-        chip()
+        heroCreatorChip()
         composerSeat()
         label()
       }

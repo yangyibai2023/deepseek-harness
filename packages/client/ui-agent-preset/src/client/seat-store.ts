@@ -91,6 +91,31 @@ export class AgentPresetSeatController {
       current: this.staged ?? (session === undefined ? this.fallback : presetOf(session) ?? ''),
       error: null,
     })
+    // HeightLab：每次进程启动都默认 Colin（deployment default）。
+    // 宿主启动脚本已清掉「当前会话」并进入新对话，但 load 会复用工作区里
+    // 遗留的空白会话——若它带着上次首页选中的专家预设（如 video-producer），
+    // 输入框就会默认显示专家而不是 Colin。仅在本次进程首次加载
+    // （hl-boot-cleared 存在且未处理过）时，把自动选中的空白会话重置回
+    // 默认预设；普通刷新/后续挂载不重复执行。
+    try {
+      if (this.staged === undefined
+        && sessionStorage.getItem('hl-boot-cleared') === '1'
+        && sessionStorage.getItem('hl-boot-agent-defaulted') !== '1') {
+        if (session !== undefined
+          && session.blank === true
+          && presetOf(session) !== undefined
+          && presetOf(session) !== '') {
+          void this.ctx.remote.agentPresets.select(session.id, this.fallback)
+            .then((reset) => {
+              if (reset.ok) {
+                this.set({ current: this.fallback })
+              }
+            })
+            .catch(() => { /* 非致命：下次打开再重置 */ })
+        }
+        sessionStorage.setItem('hl-boot-agent-defaulted', '1')
+      }
+    } catch { /* 非致命 */ }
   }
 
   /**
