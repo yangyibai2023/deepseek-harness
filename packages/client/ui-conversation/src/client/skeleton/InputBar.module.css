@@ -398,3 +398,41 @@
   background: transparent;
   box-shadow: 0 0 0 1px #7aa2f7;
 }
+
+/* ==== HeightLab 0.1.5 迁移补齐（稳定线有、迁移时漏搬）==== */
+
+
+.backdropDisabled,
+.backdropDisabled :is(.hlToken, .hint, .textRef, .chip, .chipInvalid) {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+
+.hlSegment {
+  border-radius: 4px;
+  background-color: transparent;
+  color: transparent;
+}
+
+.hlToken {
+  background-color: transparent;
+  color: var(--dsw-alias-state-warn-label);
+}
+
+.backdropDisabled,
+.backdropDisabled :is(.hlToken, .hint, .textRef, .chip, .chipInvalid) {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* ==== HeightLab 0.1.5 迁移补齐（稳定线有、迁移时漏搬）==== */
+/* 视频智能体上下文选项：占据输入行中部空位，左右工具不受影响 */
+.videoTools {
+  flex: 1 1 auto;
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}

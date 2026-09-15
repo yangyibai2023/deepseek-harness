@@ -66,3 +66,12 @@
     transition: none;
   }
 }
+
+/* HeightLab：音频草稿徽标（与 AttachmentRail.audioGlyph 同款）。 */
+.audioGlyph {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: var(--dsw-alias-label-secondary);
+}
