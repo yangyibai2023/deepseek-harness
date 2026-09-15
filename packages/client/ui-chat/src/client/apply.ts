@@ -26,7 +26,6 @@ import { EMPTY_CHAT_SNAPSHOT } from './contract/snapshot.ts'
 import { ApprovalCommand } from './chat/ApprovalCommand.tsx'
 import { ChatView } from './chat/ChatView.tsx'
 import { registerChatNodeRenderers } from './chat/register-node-renderers.ts'
-import { StatsPills } from './chat/StatsPills.tsx'
 import { registerConversationNodes } from './conversation-nodes/register.ts'
 import { en, NS, zh } from './locale.ts'
 import { TranscriptViewRow, type TranscriptViewRowInjected } from './settings/TranscriptViewRow.tsx'
@@ -162,10 +161,12 @@ export function apply(ctx: Context): void {
     return disposeView
   })
 
-  ctx.slots.inject('conversation.composer.dock', () =>
-    ctx.slots.register({
-      name: 'conversation.composer.dock', id: 'stats', order: 0, locale: NS,
-    }, StatsPills))
+  // HeightLab：输入区**不挂载** stats 行（0.3.17 起的有意产品设定，稳定线测试
+  // `chat-apply.client.spec.tsx` 明言 "composer.dock 保持为空"）。指标已并入
+  // 模型座位左侧的 ContextMeter 圆环弹出面板（同口径二级统计）。
+  // 0.1.5 拆出 ui-chat 新包时上游把 StatsPills 注册进了 composer.dock ——
+  // 迁移时须按我们的产品设定禁掉，否则 token/缓存等指标重新泄露到输入框下方。
+  // 恢复方法：删除本注释块，注册 StatsPills（import 一并恢复）。
 
   ctx.slots.inject('conversation.approval.detail', () =>
     ctx.slots.register({ name: 'conversation.approval.detail' }, ApprovalCommand))
