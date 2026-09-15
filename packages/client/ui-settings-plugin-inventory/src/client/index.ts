@@ -98,12 +98,30 @@ export function apply(ctx: ClientContext): void {
 
   const t = ctx.locale.bind(NS)
   const tMCP = ctx.locale.bind(MCP_NS)
+  /**
+   * HeightLab：除 Loader `entries` 外，还要过滤 DSH 0.1.5 **新增**的
+   * `agentPresets`（界面上的「会话插件」列表）。
+   *
+   * 0.3.30 的快照只有 `entries`，我们的 isUserInstalled 只作用于它；
+   * 0.1.5 新增 agentPresets（按 Agent 预设组成的内部工具行，如 persona /
+   * tool-bash / tool-fs …），客户端原样渲染 → 商业版里冒出 28 个内部工具，
+   * 违背「预装一律隐藏、只显示用户自装」的产品设定。
+   * 该列表按组带 `trust: 'system' | 'user'`，只保留用户自建的组。
+   */
+  const keepUserPresetGroups = <T extends { readonly trust: string }>(
+    groups: readonly T[] | undefined,
+  ): readonly T[] | undefined => groups?.filter(group => group.trust === 'user')
   const list: PluginInventorySettingsTabInjected['list'] = async () => {
     const result = await ctx.remote.pluginInventory.list()
     if (!result.ok) {
       throw new Error(`pluginInventory.list failed: ${result.error.code}: ${result.error.message}`)
     }
-    return { ...result.value, entries: result.value.entries.filter(isUserInstalled) }
+    const agentPresets = keepUserPresetGroups(result.value.agentPresets)
+    return {
+      ...result.value,
+      ...(agentPresets === undefined ? {} : { agentPresets }),
+      entries: result.value.entries.filter(isUserInstalled),
+    }
   }
   const mcpList: PluginInventorySettingsTabInjected['list'] = async () => {
     const result = await ctx.remote.pluginInventory.list()

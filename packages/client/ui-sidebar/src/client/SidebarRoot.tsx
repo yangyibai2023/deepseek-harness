@@ -233,6 +233,11 @@ export function SidebarRoot({
         </Tooltip>
       </div>
 
+      {/* HeightLab 2026-08-28（企业版 M3）：营销|办公切换在「新建任务」**上方**，
+          仅企业账号渲染；新建任务等其余内容自然下移。
+          2026-09-15：迁移时此块被错放到新建任务之后（顺序搬反），此处按稳定线归位。 */}
+      {wide && <HlModeSwitcher />}
+
       {/* Expanded, the button carries its own label — tooltip only on the rail. */}
       <Tooltip label={t('session.new.label')} delayMs={500} disabled={wide}>
         <button
@@ -246,10 +251,6 @@ export function SidebarRoot({
           {wide && <span className={clsx(css.newSessionLabel, css.wide)}>{t('session.new')}</span>}
         </button>
       </Tooltip>
-
-      {/* HeightLab 2026-08-28（企业版 M3）：个人|企业切换在新建任务上方，
-          仅企业账号渲染；新建任务等其余内容自然下移。 */}
-      {wide && <HlModeSwitcher />}
 
       {/* HeightLab：自定义导航（创意灵感 / 资料库 / 自动化）。
           rc.2 原生 SVG 描边图标 + 主题 token（css.hlNav*），与原生风格统一。 */}

@@ -463,10 +463,14 @@
 }
 
 /* Hero: the composer sits inside the session scroll body; center there so
-   the tree seat matches active (sticky footer) without a Root remount. */
+   the tree seat matches active (sticky footer) without a Root remount.
+   HeightLab 2026-09-15：hero 页整体固定，不因模板浮层出现滚动条/滚动，
+   避免输入框在模板收起展开时晃动（模板内容由内部 .scroll 自行滚动）。
+   迁移时此处被误改成 overflow-y: auto → 首页可滚动，按稳定线归位为 hidden。 */
 .root[data-phase='hero'] .scrollBody {
   justify-content: center;
-  overflow-y: auto;
+  overflow-x: hidden;
+  overflow-y: hidden;
 }
 
 /* Settling (session replaying, hero/docked unknown): keep the composer seat

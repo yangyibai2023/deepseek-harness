@@ -168,7 +168,7 @@ export function HlModeSwitcher() {
           aria-pressed={sel.mode === 'personal'}
           onClick={() => { choose('personal') }}
         >
-          个人
+          营销
         </button>
         <button
           type="button"
@@ -177,7 +177,7 @@ export function HlModeSwitcher() {
           title={enterpriseName}
           onClick={() => { choose('enterprise') }}
         >
-          企业
+          办公
         </button>
       </div>
       {joinOpen && (
