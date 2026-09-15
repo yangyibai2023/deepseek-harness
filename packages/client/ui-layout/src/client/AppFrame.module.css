@@ -29,6 +29,14 @@
   border-right: 0.5px solid var(--dsw-alias-border-l3);
 }
 
+/* HeightLab：折叠后侧边栏列不再涂灰/描边，图标直接落在背景面板上
+   （0.3.17 观感；展开态保留填充底色）。
+   2026-09-16：迁移丢失本条导致折叠 rail 出现灰色底色条，按稳定线恢复。 */
+.frame[data-sidebar-collapsed] .sidebarCol {
+  background: transparent;
+  border-right: none;
+}
+
 .centerCol {
   min-width: 0;
   display: flex;
