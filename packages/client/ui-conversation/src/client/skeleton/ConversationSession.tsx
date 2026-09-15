@@ -205,6 +205,19 @@ export function ConversationSession({
     }
   }, [actions])
 
+  // HeightLab 2026-09-16：产品要求每次启动都落在**新会话（聊天）页**。
+  // hl_boot 已清掉上次会话选择，但 startInitialSelection 会"复用空白会话"，
+  // 而该会话可能带着上次遗留的 automation 视图 → 启动直接落进自动化页
+  // （用户实测）。仅在本进程首次加载（hl-boot-cleared 存在且未处理过）时，
+  // 把空白会话的 automation 视图重置回 chat；普通刷新不重复执行。
+  useEffect(() => {
+    if (typeof sessionStorage === 'undefined') return
+    if (sessionStorage.getItem('hl-boot-cleared') !== '1') return
+    if (sessionStorage.getItem('hl-boot-view-reset') === '1') return
+    sessionStorage.setItem('hl-boot-view-reset', '1')
+    if (active?.id === 'automation' && session.blank) actions.setView('chat')
+  }, [active?.id, session?.blank, actions])
+
   // HeightLab：自动化视图与右侧边栏互斥（复用 hub 互斥标记与折叠按钮簇），
   // 进入时隐藏右侧按钮与面板，退出/切换会话时恢复。
   useEffect(() => {
