@@ -1,6 +1,9 @@
 /** Composer context-occupancy meter: a ring beside the send button fed by the
  * `contextPressure` projection, with a click-open panel of the heuristic
  * `contextBreakdown` composition (system prompt, tools, conversation).
+ * HeightLab：面板同时收编 DSH 全部原生会话指标（轮次/步骤/耗时/首 token/
+ * 吞吐/缓存命中/输入输出 token）—— 稳定线 0.3.30 的 ContextMeter 同款口径，
+ * 输入框下方不再单独展示（0.3.17 起的产品设定）。
  * Renders nothing until a provider reports both pressure and a route
  * capacity. */
 
@@ -8,6 +11,8 @@ import { useEffect, useRef, useState } from 'react'
 import type { UseProjection } from '@deepseek-ai/dsh-api-session-controller/client'
 // Type-only: the `contextPressure` / `contextBreakdown` projection key merges.
 import type {} from '@deepseek-ai/dsh-token-meter/client'
+// Type-only: merges the sessionStats key into SessionProjectionMap for useProjection.
+// session-stats 的投影键类型未并入本包（无依赖链接），键以受控断言使用，见 stats 处。
 import { Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ComposerBarProps } from '../contract/slots.ts'
 import { contextOccupancy } from '../context-occupancy.ts'
@@ -52,9 +57,81 @@ export interface ContextMeterProps {
   t: ComposerBarProps['t']
 }
 
+/** Duration like `1.2s` / `3m21s` (stable-line formatDuration). */
+function formatDuration(ms: number): string {
+  if (ms < 1_000) return `${Math.round(ms)}ms`
+  const totalSeconds = ms / 1_000
+  if (totalSeconds < 60) {
+    const rounded = Math.round(totalSeconds * 10) / 10
+    return `${rounded}s`
+  }
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = Math.round(totalSeconds - minutes * 60)
+  return `${minutes}m${seconds}s`
+}
+
+/** Throughput like `118 tok/s` (stable-line formatTokensPerSecond). */
+function formatTps(tokensPerSecond: number): string {
+  const rounded = tokensPerSecond >= 100
+    ? String(Math.round(tokensPerSecond))
+    : String(Math.round(tokensPerSecond * 10) / 10)
+  return `${rounded} tok/s`
+}
+
+/** Billed input = uncached input + cache reads + cache writes. */
+function billedInputTokens(usage: {
+  uncachedInputTokens: number
+  cacheReadTokens: number
+  cacheWriteTokens: number
+}): number {
+  return usage.uncachedInputTokens + usage.cacheReadTokens + usage.cacheWriteTokens
+}
+
+/** Cache-hit percent with the stable-line precision ladder: integer first, and
+ * extra decimal digits only while the value would otherwise round to 100. */
+function cacheHitPercent(usage: {
+  uncachedInputTokens: number
+  cacheReadTokens: number
+  cacheWriteTokens: number
+}): string | null {
+  const denominator = billedInputTokens(usage)
+  if (denominator === 0) return null
+  const missedInputTokens = usage.uncachedInputTokens + usage.cacheWriteTokens
+  if (missedInputTokens === 0) return '100'
+  const exact = usage.cacheReadTokens / denominator * 100
+  const integer = Math.floor(exact)
+  if (integer < 100) return String(integer)
+  let scale = 10
+  while (scale < 100_000) {
+    const value = Math.floor(exact * scale) / scale
+    if (value < 100) return value.toFixed(String(scale).length - 1)
+    scale *= 10
+  }
+  return '99.999'
+}
+
 export function ContextMeter({ useProjection, t }: ContextMeterProps) {
   const pressure = useProjection('contextPressure')
   const breakdown = useProjection('contextBreakdown')
+  // HeightLab 2026-09-15：圆环面板收编 DSH **全部**原生指标（与 0.3.30 稳定线
+  // ContextMeter 同口径）：会话统计（轮次/步骤/LLM 与工具耗时/首 token 延迟/
+  // 吞吐）+ token 账目（缓存命中/输入输出）。输入框下方不再展示这些
+  // （0.3.17 起的产品设定），它们的唯一显示通道就是这里。
+  const usage = useProjection('tokenUsage')
+  // 会话统计（轮次/步骤/耗时/首 token/吞吐）来自宿主侧 sessionStats 投影。
+  // 该投影的键类型未并入本包（ui-conversation 未依赖 dsh-session-stats），
+  // 受控断言取数；缺数据时统计区整体不渲染，与稳定线口径一致。
+  interface SessionStatsLike {
+    turns: number
+    steps: number
+    llmMs: number
+    toolMs: number
+    ttftMs: number
+    ttftSteps: number
+    decodeMs: number
+    decodeTokens: number
+  }
+  const stats = useProjection('sessionStats' as never) as SessionStatsLike | undefined
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLSpanElement | null>(null)
   const context = contextOccupancy(pressure)
@@ -102,6 +179,36 @@ export function ContextMeter({ useProjection, t }: ContextMeterProps) {
     ? [{ key: 'total', color: undefined, width: percent }]
     : ROWS.map(row => ({ key: row.key, color: row.color, width: percent * breakdown[row.key] / breakdownTotal }))
   const segments = parts.filter(part => part.width > 0)
+
+  // Secondary session stats: same ledger the stable-line StatsLine fed —
+  // counts, wall times, latency/throughput, then the token bill.
+  const groups: string[] = []
+  if (stats !== undefined && stats.steps > 0) {
+    groups.push(t('stats.counts', { turns: stats.turns, steps: stats.steps }))
+    const durations: string[] = []
+    if (stats.llmMs > 0) durations.push(t('stats.llm', { duration: formatDuration(stats.llmMs) }))
+    if (stats.toolMs > 0) durations.push(t('stats.toolCall', { duration: formatDuration(stats.toolMs) }))
+    if (durations.length > 0) groups.push(durations.join(' · '))
+    const speeds: string[] = []
+    if (stats.ttftSteps > 0) {
+      speeds.push(t('stats.ttftAverage', { duration: formatDuration(stats.ttftMs / stats.ttftSteps) }))
+    }
+    if (stats.decodeMs > 0) {
+      speeds.push(t('stats.tokensPerSecond', {
+        throughput: formatTps(stats.decodeTokens / (stats.decodeMs / 1_000)),
+      }))
+    }
+    if (speeds.length > 0) groups.push(speeds.join(' · '))
+  }
+  if (usage !== undefined
+    && (billedInputTokens(usage) > 0 || usage.outputTokens > 0)) {
+    const cacheHit = cacheHitPercent(usage)
+    if (cacheHit !== null) groups.push(t('stats.cacheHit', { percent: cacheHit }))
+    groups.push(t('stats.tokens', {
+      input: formatTokens(billedInputTokens(usage), t),
+      output: formatTokens(usage.outputTokens, t),
+    }))
+  }
 
   return (
     <span ref={rootRef} className={css.root}>
@@ -162,6 +269,20 @@ export function ContextMeter({ useProjection, t }: ContextMeterProps) {
                 </div>
               ))}
             </dl>
+          )}
+          {groups.length > 0 && (
+            <>
+              <div className={css.statsDivider} aria-hidden />
+              <div className={css.statsTitle}>会话统计</div>
+              <div className={css.statsRows}>
+                {groups.map(group => (
+                  <div key={group} className={css.statsRow}>
+                    <span className={css.statsDot} aria-hidden />
+                    <span>{group}</span>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
         </div>
       )}

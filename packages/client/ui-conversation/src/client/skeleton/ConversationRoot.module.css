@@ -473,6 +473,16 @@
   overflow-y: hidden;
 }
 
+/* HeightLab：新会话页整体上移（中心从 50% → 30%，即上移 20% 视口高度），
+   为输入框下方模板留出更大空间；2026-08-17 先下移 10%（40vh→20vh）后
+   用户反馈偏大，回调 5%（20vh→30vh，中心约 35%）。
+   用不对称 margin 而非 transform，避免影响内部 fixed 定位弹层。
+   2026-09-16：迁移时整条规则丢失（用户反馈"应该整体上移，现在比例不对、
+   下面被裁掉"），按稳定线原样恢复。 */
+.root[data-phase='hero'] .composerSeat {
+  margin-bottom: 30vh;
+}
+
 /* Settling (session replaying, hero/docked unknown): keep the composer seat
    mounted but invisible so no wrong layout flashes before the phase lands. */
 .root[data-phase='settling'] .composerSeat {

@@ -9,6 +9,13 @@ const PLAN_NEXT_ACTION_EN = 'describe your task to generate plan'
 
 /** Simplified Chinese dictionary (the key-set source of truth). */
 export const zh = {
+  'stats.counts': '{turns} 轮 · {steps} 步',
+  'stats.llm': 'LLM {duration}',
+  'stats.toolCall': '工具调用 {duration}',
+  'stats.ttftAverage': '首 token 平均 {duration}',
+  'stats.tokensPerSecond': '{throughput} tok/s',
+  'stats.cacheHit': '缓存命中 {percent}%',
+  'stats.tokens': '输入 {input} tok · 输出 {output} tok',
   'hint.plan': PLAN_NEXT_ACTION_ZH,
   'hint.goal': '输入目标，智能体将持续执行',
   'hint.goal.active': '当前目标进行中。可输入 edit 修改 / pause 暂停 / resume 继续 / clear 清除',
@@ -177,6 +184,13 @@ export type ConversationKey = keyof typeof zh
 
 /** English dictionary, checked complete against the zh key set. */
 export const en = {
+  'stats.counts': '{turns} turns · {steps} steps',
+  'stats.llm': 'LLM {duration}',
+  'stats.toolCall': 'Tool call {duration}',
+  'stats.ttftAverage': 'TTFT avg {duration}',
+  'stats.tokensPerSecond': '{throughput} tok/s',
+  'stats.cacheHit': 'Cache hit {percent}%',
+  'stats.tokens': 'Input {input} tok · Output {output} tok',
   'hint.plan': PLAN_NEXT_ACTION_EN,
   'hint.goal': 'describe the objective for a long-running task',
   'hint.goal.active': 'goal active — edit / pause / resume / clear',
