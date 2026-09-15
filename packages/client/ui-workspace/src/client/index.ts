@@ -185,7 +185,16 @@ export function apply(ctx: Context): void {
   const browserInjected = (): WorkspaceBrowserInjected => ({
     // Explicit group actions keep their target; unscoped New Session inherits
     // the current Session Workspace before the recent-Workspace fallback.
-    startSession: (workspaceId) => { uiWorkspace.startSession(workspaceId) },
+    startSession: (workspaceId) => {
+      // HeightLab 2026-09-16：恢复稳定线行为——开新会话时广播关闭
+      // 创意灵感/资料库覆盖层与自动化视图，否则 hub 白面板会驻留在
+      // 所有页面上（0.1.5 迁移丢失本段，用户实测"进入哪个页面都带白框"）。
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('hl:close-hub'))
+        window.dispatchEvent(new CustomEvent('hl:close-automation'))
+      }
+      uiWorkspace.startSession(workspaceId)
+    },
     open: openSession,
     searchSessions,
     searchResultLimit: sessions.searchResultLimit,
