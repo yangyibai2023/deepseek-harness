@@ -69,7 +69,9 @@ const HEIGHTLAB_ENTRY_IDS: ReadonlySet<string> = new Set([
 
 /** Whether one Loader entry is user-installed (visible in the list). */
 function isUserInstalled(entry: { entryId: string; moduleName: string }): boolean {
-  if (HEIGHTLAB_ENTRY_IDS.has(entry.entryId)) return false
+  // Loader id 可能带 'include:' 等前缀，短 id 与全 id 都比对。
+  const shortId = entry.entryId.split(':').pop() ?? entry.entryId
+  if (HEIGHTLAB_ENTRY_IDS.has(shortId) || HEIGHTLAB_ENTRY_IDS.has(entry.entryId)) return false
   const name = entry.moduleName
   // 用户自装的 MCP 客户端行（module 也是 @deepseek-ai/dsh-mcp-client）只要
   // 不是内置的 heightlab-tools，就算用户自装，两个标签页都会显示并可管理。
@@ -81,6 +83,9 @@ function isUserInstalled(entry: { entryId: string; moduleName: string }): boolea
   if (name.startsWith('cordis:')) return false
   // 我们随产品预装的社区插件也算 shipped（按作者 scope 前缀兜底，防止新版本改 id）。
   if (name.startsWith('@omdsh-dev/')) return false
+  // genui 0.10.0 起包名/Loader id 都改为 @changfenhuang scope（bundle 行 id
+  // 即包名，不再叫 'genui'）——scope 前缀兜底，防止再改名漏出。
+  if (name.startsWith('@changfenhuang/')) return false
   if (name.startsWith('@liustack/')) return false
   if (name.startsWith('@dsh-external/')) return false
   if (name.startsWith('dsh-knowledge')) return false
@@ -139,6 +144,9 @@ export function apply(ctx: ClientContext): void {
     return {
       ...result.value,
       // MCP 标签页只显示用户自装的 MCP（系统内置的 heightlab-tools 隐藏）。
+      // 会话插件组（agentPresets）整体不进 MCP 标签页——2026-09-16 用户实测
+      // 漏出 Colin 指挥官（默认）·28 个内部工具行，即此处漏过滤所致。
+      agentPresets: [],
       entries: result.value.entries.filter(entry => entry.moduleName === MCP_CLIENT_MODULE && isUserInstalled(entry)),
     }
   }
