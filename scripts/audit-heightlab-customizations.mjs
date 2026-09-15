@@ -67,7 +67,11 @@ for (const rel of files) {
       break
     } catch { /* try next */ }
   }
-  if (cur === -2) { problems.push([rel, stable, 'MISSING', '']); continue }
+  if (cur === -2) {
+    // 文件在当前树不存在：先查豁免裁决，未裁决才报告（文件可能被拆分/更名）。
+    if (!DELETED_CUSTOMIZATIONS.has(rel)) problems.push([rel, stable, 'MISSING', ''])
+    continue
+  }
   if (stable - cur >= 3 && !DELETED_CUSTOMIZATIONS.has(curPath ?? rel)) {
     problems.push([rel, stable, cur, curPath ?? ''])
   }
