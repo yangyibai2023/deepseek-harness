@@ -108,9 +108,17 @@ export function apply(ctx: ClientContext): void {
    * 违背「预装一律隐藏、只显示用户自装」的产品设定。
    * 该列表按组带 `trust: 'system' | 'user'`，只保留用户自建的组。
    */
-  const keepUserPresetGroups = <T extends { readonly trust: string }>(
+  // HeightLab（2026-09-16）：我们预装的 6 个专家预设也以 user-trust 落地
+  // （.agent-presets 下发），其内部工具行（persona/tool-bash/…）同属
+  // 「预装一律隐藏」——trust 过滤之外再按预装 id 排除。
+  const SHIPPED_PRESET_IDS: ReadonlySet<string> = new Set([
+    'content-creator', 'image-generator', 'research-analyst',
+    'video-producer', 'general-assistant', 'automation-worker',
+  ])
+  const keepUserPresetGroups = <T extends { readonly trust: string; readonly id: string }>(
     groups: readonly T[] | undefined,
-  ): readonly T[] | undefined => groups?.filter(group => group.trust === 'user')
+  ): readonly T[] | undefined =>
+    groups?.filter(group => group.trust === 'user' && !SHIPPED_PRESET_IDS.has(group.id))
   const list: PluginInventorySettingsTabInjected['list'] = async () => {
     const result = await ctx.remote.pluginInventory.list()
     if (!result.ok) {

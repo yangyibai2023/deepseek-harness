@@ -114,14 +114,20 @@ export async function beginRosterRead<S extends { status: string; error: string 
 export function presetOptions(
   presets: readonly { id: string; trust: 'system' | 'user'; name?: string; description?: string; broken?: string }[],
 ): AgentPresetOption[] {
-  // HeightLab 2026-09-16（用户拍板）：输入框下拉**显示全部专家**——
-  // Colin(standard)、内容创作/图片生成/研究分析/视频制作专家、PTC 模式、
-  // 系统操作专家(minimal)、通用助手(general-assistant)与用户自定义预设。
-  // 排序：Colin 最前 → 领域专家（自定义/内置居中）→ minimal → general-assistant。
-  // 唯一例外：automation-worker 是无人值守自动化专用预设，不进入选择列表。
+  // HeightLab：下拉只保留 standard=Colin、minimal=系统操作专家、
+  // general-assistant=通用 AI 助手，以及用户自定义预设（trust==='user'，
+  // 含 Colin 派发的 4 个领域专家）。0.3.30 稳定线同款白名单。
+  // 历史：2026-09-16 曾按用户拍板放开「显示全部专家」，同日晚用户最终
+  // 实测推翻（PTC/创造模式等混入，与稳定版不一致）→ 回归本白名单。
+  // 排序：Colin 最前，自定义专家居中，系统操作专家其次，通用助手最下面。
+  // automation-worker 是无人值守自动化专用预设，不进入智能体选择列表。
   const rank = (id: string): number => id === 'standard' ? 0 : id === 'minimal' ? 2 : id === 'general-assistant' ? 3 : 1
   return presets
     .filter(preset => preset.broken === undefined)
+    .filter(preset => preset.trust === 'user'
+      || preset.id === 'standard'
+      || preset.id === 'minimal'
+      || preset.id === 'general-assistant')
     .filter(preset => preset.id !== 'automation-worker')
     .sort((left, right) => rank(left.id) - rank(right.id))
     .map(preset => ({

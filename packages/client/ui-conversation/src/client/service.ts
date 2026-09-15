@@ -286,14 +286,20 @@ export class ConversationController extends Service implements IConversation {
       }
       return [{ type: 'file' as const, value: uploadFor(attachment).file }]
     })
-    const serializeAttachments = (): Promise<Parameters<SessionFace['prompt']>[0]> => Promise.all(
-      attachments.map(async (attachment) => {
-        // HeightLab 桥：媒体（图片/视频/音频）上传宿主，模型只收本地路径文本块
-        // （视觉走 minimax MCP 工具；视频专家按路径取素材）。
-        if (attachment.kind !== 'file') return this.uploadMediaAsText(attachment.file)
-        return { type: 'file' as const, receiptId: uploadFor(attachment).receiptId }
-      }),
-    )
+    const serializeAttachments = (): Promise<Parameters<SessionFace['prompt']>[0]> =>
+      Promise.all(
+        attachments.map(async (attachment) => {
+          // HeightLab 桥（2026-09-16）：图片改原生 image 块（DeepSeek 多模态
+          // 直读，取代已下线的 MiniMax 分析注入），同时保留本地路径标记供
+          // 生成工具当参考图路径；视频/音频仍走宿主路径标记（专家取素材）。
+          if (attachment.kind === 'image') {
+            const image = { type: 'image' as const, ...await this.encodeImage(attachment.file) }
+            return [image, await this.uploadMediaAsText(attachment.file)]
+          }
+          if (attachment.kind !== 'file') return [await this.uploadMediaAsText(attachment.file)]
+          return [{ type: 'file' as const, receiptId: uploadFor(attachment).receiptId }]
+        }),
+      ).then(rows => rows.flat())
     const snapshot = session.getSnapshot()
     if (snapshot.subagent !== null) {
       const uploaded = await serializeAttachments()
@@ -617,11 +623,12 @@ export class ConversationController extends Service implements IConversation {
   }
 
   /**
-   * HeightLab bridge: uploaded media (images/videos/audios) are stored by the
-   * Host and referenced by local path in the message text, so the text-only
-   * model never receives media blocks. Images are analyzed via
-   * mcp__minimax__understand_image (heightlab-vision plugin); videos carry
-   * their local path for the video expert (e.g. avatar source material).
+   * HeightLab bridge: uploaded videos/audios are stored by the Host and
+   * referenced by local path in the message text (experts take them as
+   * source material, e.g. avatar clips). Images additionally send a native
+   * image block (DeepSeek multimodal reads it directly, 2026-09-16; the
+   * MiniMax analysis injection was retired) — the path marker stays so
+   * generation tools can use it as a reference-image path.
    */
   private async uploadMediaAsText(file: File): Promise<{ type: 'text'; text: string }> {
     const isVideo = file.type.startsWith('video/') || isVideoName(file.name)
