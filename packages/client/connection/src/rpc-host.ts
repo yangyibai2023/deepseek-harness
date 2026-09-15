@@ -95,6 +95,10 @@ export class HostConnectionService extends Service implements HostConnectionHand
 
   /** Apply the configured Host/Origin fence, then browser authentication. */
   requestRejection(request: ConnectionTrustRequest): ConnectionRequestRejection {
+    // HeightLab desktop：同 browser-auth 的回环豁免（壳注入环境变量）。
+    if (process.env.HEIGHTLAB_ALLOW_LOOPBACK === '1') {
+      return isTrustedApiRequest(request, this.trustedHosts) ? undefined : 403
+    }
     if (!isTrustedApiRequest(request, this.trustedHosts)) return 403
     return this.browserAuth.isAuthenticated(request) ? undefined : 401
   }

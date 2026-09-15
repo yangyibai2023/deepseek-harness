@@ -238,6 +238,12 @@ export class BrowserAuth {
    * @returns true only when the caller may serve index.html.
    */
   authorizeIndex(req: ConnectionIndexRequest, res: ConnectionIndexResponse): boolean {
+    /* HeightLab desktop（2026-09-16）：壳（Tauri）拉起的本地宿主对 127.0.0.1
+       回环豁免令牌/cookie 门禁。0.3.30 及之前无此层且长期稳定；0.1.5 引入后
+       与 WKWebView 303 Set-Cookie 异步持久化竞态叠加，冷启动必然闪现
+       "dsh web authentication required" 数秒（预热/重载均治标不治本）。
+       该环境变量仅由 HeightLab 桌面壳注入，web 部署不受影响。 */
+    if (process.env.HEIGHTLAB_ALLOW_LOOPBACK === '1') return true
     /* v8 ignore next -- node:http always supplies url on server requests. */
     const url = new URL(req.url ?? '/', 'http://dsh.invalid')
     const tokens = url.searchParams.getAll(TOKEN_QUERY)
