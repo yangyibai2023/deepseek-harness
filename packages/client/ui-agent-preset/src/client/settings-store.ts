@@ -121,13 +121,17 @@ export function presetOptions(
   // 实测推翻（PTC/创造模式等混入，与稳定版不一致）→ 回归本白名单。
   // 排序：Colin 最前，自定义专家居中，系统操作专家其次，通用助手最下面。
   // automation-worker 是无人值守自动化专用预设，不进入智能体选择列表。
+  // 我们预装的专家预设经 config roots 出现时可能带 trust:'system'（见
+  // cordis.patch.yml agent-presets roots），ID 显式放行，不依赖 trust 语义。
+  const HEIGHTLAB_PRESET_IDS: ReadonlySet<string> = new Set([
+    'standard', 'minimal', 'general-assistant',
+    'content-creator', 'image-generator', 'research-analyst', 'video-producer',
+  ])
   const rank = (id: string): number => id === 'standard' ? 0 : id === 'minimal' ? 2 : id === 'general-assistant' ? 3 : 1
   return presets
     .filter(preset => preset.broken === undefined)
     .filter(preset => preset.trust === 'user'
-      || preset.id === 'standard'
-      || preset.id === 'minimal'
-      || preset.id === 'general-assistant')
+      || HEIGHTLAB_PRESET_IDS.has(preset.id))
     .filter(preset => preset.id !== 'automation-worker')
     .sort((left, right) => rank(left.id) - rank(right.id))
     .map(preset => ({

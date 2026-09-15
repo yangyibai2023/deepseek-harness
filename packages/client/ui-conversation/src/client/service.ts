@@ -289,12 +289,12 @@ export class ConversationController extends Service implements IConversation {
     const serializeAttachments = (): Promise<Parameters<SessionFace['prompt']>[0]> =>
       Promise.all(
         attachments.map(async (attachment) => {
-          // HeightLab 桥（2026-09-16）：图片改原生 image 块（DeepSeek 多模态
-          // 直读，取代已下线的 MiniMax 分析注入），同时保留本地路径标记供
-          // 生成工具当参考图路径；视频/音频仍走宿主路径标记（专家取素材）。
+          // HeightLab 桥（2026-09-16 深夜）：图片**只发原生 image 块**（上游
+          // 同款；任何多模态模型原生直读）。不再附带本地路径标记文本——
+          // 它会在用户气泡里显示成第二条消息。参考图模式的路径取材改由
+          // 生成工具产物路径承担；视频/音频仍走宿主路径标记（专家取素材）。
           if (attachment.kind === 'image') {
-            const image = { type: 'image' as const, ...await this.encodeImage(attachment.file) }
-            return [image, await this.uploadMediaAsText(attachment.file)]
+            return [{ type: 'image' as const, ...await this.encodeImage(attachment.file) }]
           }
           if (attachment.kind !== 'file') return [await this.uploadMediaAsText(attachment.file)]
           return [{ type: 'file' as const, receiptId: uploadFor(attachment).receiptId }]
