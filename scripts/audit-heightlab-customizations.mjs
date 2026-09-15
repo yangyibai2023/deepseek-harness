@@ -72,7 +72,7 @@ for (const rel of files) {
     if (!DELETED_CUSTOMIZATIONS.has(rel)) problems.push([rel, stable, 'MISSING', ''])
     continue
   }
-  if (stable - cur >= 3 && !DELETED_CUSTOMIZATIONS.has(curPath ?? rel)) {
+  if (stable - cur >= 1 && !DELETED_CUSTOMIZATIONS.has(curPath ?? rel)) {
     problems.push([rel, stable, cur, curPath ?? ''])
   }
 }
