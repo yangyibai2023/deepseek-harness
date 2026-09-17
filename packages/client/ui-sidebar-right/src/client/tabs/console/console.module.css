@@ -47,10 +47,12 @@
   gap: 8px 10px;
 }
 .pairRow {
-  display: grid;
-  grid-template-columns: 1fr 1.3fr;
-  gap: 10px;
-  align-items: start;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid #ececec;
+  border-radius: 10px;
 }
 .field {
   display: flex;

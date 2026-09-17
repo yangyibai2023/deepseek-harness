@@ -40,6 +40,10 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
   const [ratio, setRatio] = useState(VIDEO_REPLICATION_SCHEMA.ratios[0]?.value ?? '9:16')
   const [resolution, setResolution] = useState(VIDEO_REPLICATION_SCHEMA.resolutions[0]?.value ?? '768P')
   const [seconds, setSeconds] = useState(VIDEO_REPLICATION_SCHEMA.seconds.defaultValue)
+  const [durationMode, setDurationMode] = useState<'same' | 'custom'>('same')
+  const [voice, setVoice] = useState<'vo' | 'silent'>('vo')
+  const [subtitle, setSubtitle] = useState<'burn' | 'none'>('burn')
+  const [execution, setExecution] = useState<'step' | 'once'>('step')
   const [fields, setFields] = useState<Record<string, string>>(() => {
     const init: Record<string, string> = {}
     for (const f of VIDEO_REPLICATION_SCHEMA.fields) {
@@ -96,8 +100,19 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
       '【视频复刻任务】请按视频复刻工作流执行，以下参数为用户在创作控制台的指定：',
       `- 模型：${model}`,
       `- 清晰度：${resolution}`,
-      `- 时长：${seconds} 秒`,
+      durationMode === 'same'
+        ? '- 时长：同原视频时长（以实测原片时长为准，不要为凑数拉长节奏）'
+        : `- 时长：${seconds} 秒（原片不足时按分镜节奏自然展开，不要硬凑）`,
       `- 画幅：${ratio}`,
+      voice === 'vo'
+        ? '- 语音：有声口播（按原片口径生成配音/口型）'
+        : '- 语音：静音（绝对不生成任何语音、口播或音效）',
+      subtitle === 'burn'
+        ? '- 字幕：烧录字幕（口播文案以字幕形式烧进画面）'
+        : '- 字幕：无字幕（画面中不得出现任何字幕文字）',
+      execution === 'step'
+        ? '- 执行方式：逐步确认——完成拆解与分镜方案后必须停下，等用户明确确认（如回复「确认/继续」）后才可进入生成；用户未确认前严禁生成任何镜头'
+        : '- 执行方式：一次生成——无需中途确认，但每个阶段完成时必须输出一行进度',
       ...requirementLines,
       ...markers,
     ].join('\n')
@@ -174,10 +189,40 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
           </select>
         </label>
         <label className={css.field}>
-          <span>成片秒数：{seconds} 秒</span>
-          <input type="range" min={VIDEO_REPLICATION_SCHEMA.seconds.min} max={VIDEO_REPLICATION_SCHEMA.seconds.max}
-            step={VIDEO_REPLICATION_SCHEMA.seconds.step} value={seconds}
-            onChange={e => setSeconds(Number(e.target.value))} />
+          <span>时长</span>
+          <select value={durationMode} onChange={e => setDurationMode(e.target.value === 'custom' ? 'custom' : 'same')}>
+            <option value="same">同原视频时长（推荐）</option>
+            <option value="custom">自定义秒数</option>
+          </select>
+        </label>
+        {durationMode === 'custom' ? (
+          <label className={`${css.field} ${css.fieldWide}`}>
+            <span>成片秒数：{seconds} 秒</span>
+            <input type="range" min={VIDEO_REPLICATION_SCHEMA.seconds.min} max={VIDEO_REPLICATION_SCHEMA.seconds.max}
+              step={VIDEO_REPLICATION_SCHEMA.seconds.step} value={seconds}
+              onChange={e => setSeconds(Number(e.target.value))} />
+          </label>
+        ) : null}
+        <label className={css.field}>
+          <span>语音</span>
+          <select value={voice} onChange={e => setVoice(e.target.value === 'silent' ? 'silent' : 'vo')}>
+            <option value="vo">有声口播（按原片口径）</option>
+            <option value="silent">静音（无任何人声）</option>
+          </select>
+        </label>
+        <label className={css.field}>
+          <span>字幕</span>
+          <select value={subtitle} onChange={e => setSubtitle(e.target.value === 'none' ? 'none' : 'burn')}>
+            <option value="burn">烧录字幕</option>
+            <option value="none">无字幕</option>
+          </select>
+        </label>
+        <label className={`${css.field} ${css.fieldWide}`}>
+          <span>执行方式</span>
+          <select value={execution} onChange={e => setExecution(e.target.value === 'once' ? 'once' : 'step')}>
+            <option value="step">逐步确认（推荐）：先出拆解方案，你确认后再生成</option>
+            <option value="once">一次生成：拆解后直接生成成片</option>
+          </select>
         </label>
       </div>
 
