@@ -61,6 +61,11 @@ export async function runCli(): Promise<void> {
   }
 }
 
-if (import.meta.main) {
+// `import.meta.main` is a Bun property; Node (≤22.16, incl. the bundled
+// desktop runtime under --import tsx/esm) leaves it undefined, which silently
+// skipped the CLI and hung the desktop launch screen. Treat "explicitly
+// false" as the only not-main signal: Bun-as-entry (true) and Node-as-entry
+// (undefined) both run; only a real secondary import (false) skips.
+if (import.meta.main !== false) {
   await runCli()
 }
