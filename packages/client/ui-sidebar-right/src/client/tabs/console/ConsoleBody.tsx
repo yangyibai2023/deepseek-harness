@@ -1,6 +1,6 @@
 /**
  * HeightLab 创作控制台（营销模式试点：视频复刻）。
- * 通用层：模型/画面比例/分辨率/成片秒数；专属层：素材槽（上传走 /hl/upload-*）。
+ * 三个编号分区：①素材 ②生成参数 ③改款需求（全部可留空）。
  * 「生成视频」= dispatch hl:send-template（复用输入框自动发送通道，消息入对话
  * 后由 Colin→视频专家执行）；本组件不直接对接生成 API。
  */
@@ -69,16 +69,22 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
     }
   }
 
-  const sourceVideo = slots['source-video']?.[0]?.path ?? ''
-  const canGenerate = sourceVideo !== '' && !busy
+  const sourceVideo = slots['source-video']?.[0]
+  const canGenerate = sourceVideo !== undefined && !busy
+
+  const findField = (id: string): (typeof VIDEO_REPLICATION_SCHEMA.fields)[number] => {
+    const f = VIDEO_REPLICATION_SCHEMA.fields.find(x => x.id === id)
+    if (f === undefined) throw new Error(`console schema missing field: ${id}`)
+    return f
+  }
 
   const generate = (): void => {
-    if (sourceVideo === '') {
-      setError('请先上传原视频')
+    if (sourceVideo === undefined) {
+      setError('请先在 ① 上传素材里选择原视频')
       return
     }
     const markers = [
-      `[用户上传了一个视频，本地路径：${sourceVideo}]`,
+      `[用户上传了一个视频，本地路径：${sourceVideo.path}]`,
       ...Object.entries(slots).flatMap(([slotId, entries]) =>
         slotId === 'source-video' ? [] : (entries ?? []).map(e => `[用户上传了一张图片，本地路径：${e.path}]`)),
     ]
@@ -98,71 +104,116 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
     window.dispatchEvent(new CustomEvent('hl:send-template', { detail: { text } }))
   }
 
+  const renderSlot = (slotId: string): ReactNode => {
+    const spec = VIDEO_REPLICATION_SCHEMA.slots.find(s => s.id === slotId)
+    if (spec === undefined) return null
+    const entries = slots[slotId] ?? []
+    const inputId = `console-file-${slotId}`
+    return (
+      <div key={spec.id} className={spec.required ? `${css.slot} ${css.slotRequired}` : css.slot}>
+        <div className={css.slotLabel}>
+          {spec.label}
+          {spec.required ? <span className={css.badge}>必选</span> : null}
+        </div>
+        <div className={css.slotCaption}>{spec.caption}</div>
+        <label className={css.slotButton} htmlFor={inputId}>
+          {entries.length > 0 ? `已选 ${entries.map(e => e.name).join('、')}` : '点击选择文件'}
+        </label>
+        <input id={inputId} className={css.fileInput} type="file"
+          multiple={spec.max === undefined || spec.max > 1}
+          accept={spec.kind === 'video' ? 'video/*' : 'image/*'}
+          onChange={e => void setFiles(spec.id, spec.kind, e.target.files)} />
+      </div>
+    )
+  }
+
+  const renderField = (f: (typeof VIDEO_REPLICATION_SCHEMA.fields)[number]): ReactNode => (
+    <label key={f.id} className={f.id === 'product' || f.id === 'notes' ? `${css.field} ${css.fieldWide}` : css.field}>
+      <span>{f.label}</span>
+      {f.kind === 'select' ? (
+        <select value={fields[f.id] ?? ''}
+          onChange={e => setFields(prev => ({ ...prev, [f.id]: e.target.value }))}>
+          {(f.options ?? []).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      ) : (
+        <input type="text" value={fields[f.id] ?? ''} placeholder={f.placeholder}
+          onChange={e => setFields(prev => ({ ...prev, [f.id]: e.target.value }))} />
+      )}
+    </label>
+  )
+
   return (
     <div className={css.console}>
-      <div className={css.schemaTitle}>{VIDEO_REPLICATION_SCHEMA.title}</div>
-      <label className={css.field}>
-        <span>模型</span>
-        <select value={model} onChange={e => setModel(e.target.value)}>
-          {VIDEO_REPLICATION_SCHEMA.models.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-      </label>
-      <label className={css.field}>
-        <span>画面比例</span>
-        <select value={ratio} onChange={e => setRatio(e.target.value)}>
-          {VIDEO_REPLICATION_SCHEMA.ratios.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-      </label>
-      <label className={css.field}>
-        <span>分辨率</span>
-        <select value={resolution} onChange={e => setResolution(e.target.value)}>
-          {VIDEO_REPLICATION_SCHEMA.resolutions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-      </label>
-      <label className={css.field}>
-        <span>成片秒数：{seconds} 秒</span>
-        <input type="range" min={VIDEO_REPLICATION_SCHEMA.seconds.min} max={VIDEO_REPLICATION_SCHEMA.seconds.max}
-          step={VIDEO_REPLICATION_SCHEMA.seconds.step} value={seconds}
-          onChange={e => setSeconds(Number(e.target.value))} />
-      </label>
-      <div className={css.groupTitle}>改款需求</div>
-      {VIDEO_REPLICATION_SCHEMA.fields.map(f => (
-        <label key={f.id} className={css.field}>
-          <span>{f.label}</span>
-          {f.kind === 'select' ? (
-            <select value={fields[f.id] ?? ''}
-              onChange={e => setFields(prev => ({ ...prev, [f.id]: e.target.value }))}>
-              {(f.options ?? []).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          ) : (
-            <input type="text" value={fields[f.id] ?? ''} placeholder={f.placeholder}
-              onChange={e => setFields(prev => ({ ...prev, [f.id]: e.target.value }))} />
-          )}
+      <div className={css.head}>
+        <div className={css.schemaTitle}>视频复刻 · 创作控制台</div>
+        <div className={css.headHint}>素材和参数都在这里填，点「生成视频」后任务进入左侧对话执行。</div>
+      </div>
+
+      <div className={css.sectionTitle}>① 复刻基准</div>
+      {renderSlot('source-video')}
+      <div className={css.hint}>视频在这里上传即可，不需要再通过聊天输入框添加。</div>
+
+      <div className={css.sectionTitle}>② 生成参数</div>
+      <div className={css.grid2}>
+        <label className={css.field}>
+          <span>模型</span>
+          <select value={model} onChange={e => setModel(e.target.value)}>
+            {VIDEO_REPLICATION_SCHEMA.models.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
         </label>
-      ))}
-      {(['source-video', 'product-images', 'character-images', 'background-images'] as const).map(slotId => {
-        const spec = VIDEO_REPLICATION_SCHEMA.slots.find(s => s.id === slotId)
-        if (spec === undefined) return null
-        const entries = slots[slotId] ?? []
-        return (
-          <div key={spec.id} className={css.slot}>
-            <div className={css.slotLabel}>{spec.label}{spec.required ? ' · 必选' : ''}</div>
-            <input type="file" multiple={spec.max === undefined || spec.max > 1}
-              accept={spec.kind === 'video' ? 'video/*' : 'image/*'}
-              onChange={e => void setFiles(spec.id, spec.kind, e.target.files)} />
-            {entries.length > 0 ? <div className={css.slotCount}>已上传 {entries.length} 个</div> : null}
-          </div>
-        )
-      })}
+        <label className={css.field}>
+          <span>画面比例</span>
+          <select value={ratio} onChange={e => setRatio(e.target.value)}>
+            {VIDEO_REPLICATION_SCHEMA.ratios.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </label>
+        <label className={css.field}>
+          <span>分辨率</span>
+          <select value={resolution} onChange={e => setResolution(e.target.value)}>
+            {VIDEO_REPLICATION_SCHEMA.resolutions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </label>
+        <label className={css.field}>
+          <span>成片秒数：{seconds} 秒</span>
+          <input type="range" min={VIDEO_REPLICATION_SCHEMA.seconds.min} max={VIDEO_REPLICATION_SCHEMA.seconds.max}
+            step={VIDEO_REPLICATION_SCHEMA.seconds.step} value={seconds}
+            onChange={e => setSeconds(Number(e.target.value))} />
+        </label>
+      </div>
+
+      <div className={css.sectionTitle}>
+        ③ 改什么
+        <span className={css.sectionHint}>不想改的就留空 = 保持原片；图 + 文字一起给最准</span>
+      </div>
+      <div className={css.pairRow}>
+        {renderSlot('product-images')}
+        {renderField(findField('product'))}
+      </div>
+      <div className={css.pairRow}>
+        {renderSlot('character-images')}
+        {renderField(findField('character'))}
+      </div>
+      <div className={css.pairRow}>
+        {renderSlot('background-images')}
+        {renderField(findField('scene'))}
+      </div>
+      <div className={css.grid2}>
+        {renderField(findField('copy-mode'))}
+        {renderField(findField('style'))}
+      </div>
+      {renderField(findField('notes'))}
+
       {error !== '' ? <div className={css.error}>{error}</div> : null}
       <div className={css.actions}>
         <button type="button" className={css.generate} disabled={busy || !canGenerate}
           onClick={() => generate()}>
           生成视频
         </button>
-        <button type="button" className={css.clear} onClick={() => setSlots({})}>清空素材</button>
+        <button type="button" className={css.clear} onClick={() => { setSlots({}); setError('') }}>清空</button>
       </div>
-      <div className={css.status}>等待提交：填好参数与素材后点「生成视频」，任务在对话中执行</div>
+      <div className={css.status}>
+        {canGenerate ? '已就绪：点「生成视频」提交，任务在左侧对话中执行' : '等待提交：先上传原视频（①），其余按需填写'}
+      </div>
     </div>
   )
 }

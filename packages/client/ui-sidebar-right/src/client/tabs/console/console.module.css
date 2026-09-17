@@ -1,61 +1,176 @@
+/* 创作控制台：黑白灰原生风，分区编号卡片式布局（2026-09-18 重设计）。 */
 .console {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 12px;
+  gap: 10px;
+  padding: 14px 12px 16px;
+  font-size: 12px;
+  color: #1a1a1a;
+}
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #ececec;
 }
 .schemaTitle {
-  font-size: 13px;
-  font-weight: 600;
-  opacity: 0.85;
+  font-size: 14px;
+  font-weight: 700;
+}
+.headHint {
+  font-size: 11px;
+  color: #888;
+  line-height: 1.5;
+}
+.sectionTitle {
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.sectionHint {
+  font-size: 11px;
+  font-weight: 400;
+  color: #999;
+}
+.hint {
+  font-size: 11px;
+  color: #999;
+  line-height: 1.5;
+}
+.grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 10px;
+}
+.pairRow {
+  display: grid;
+  grid-template-columns: 1fr 1.3fr;
+  gap: 10px;
+  align-items: start;
 }
 .field {
   display: flex;
   flex-direction: column;
   gap: 4px;
   font-size: 12px;
+  min-width: 0;
+}
+.fieldWide {
+  grid-column: 1 / -1;
 }
 .field span {
-  opacity: 0.7;
+  color: #555;
+  font-weight: 500;
 }
 .field select,
-.field input[type='range'],
-.field input[type='text'] {
+.field input[type='text'],
+.field input[type='range'] {
   width: 100%;
+  box-sizing: border-box;
 }
-.groupTitle {
+.field select,
+.field input[type='text'] {
+  padding: 7px 8px;
+  border: 1px solid #d9d9d9;
+  border-radius: 8px;
+  background: #fff;
   font-size: 12px;
-  font-weight: 600;
-  opacity: 0.7;
+  color: #1a1a1a;
+  outline: none;
+}
+.field select:focus,
+.field input[type='text']:focus {
+  border-color: #1a1a1a;
 }
 .slot {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-size: 12px;
+}
+.slotRequired {
+  padding: 10px;
+  border: 1.5px dashed #b9b9b9;
+  border-radius: 10px;
+  background: #fafafa;
 }
 .slotLabel {
-  opacity: 0.7;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
-.slotCount {
-  opacity: 0.6;
+.badge {
+  font-size: 10px;
+  font-weight: 600;
+  color: #fff;
+  background: #1a1a1a;
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+.slotCaption {
   font-size: 11px;
+  color: #999;
+}
+.slotButton {
+  margin-top: 2px;
+  padding: 7px 10px;
+  border: 1px solid #d9d9d9;
+  border-radius: 8px;
+  background: #fff;
+  text-align: center;
+  cursor: pointer;
+  color: #1a1a1a;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.slotButton:hover {
+  border-color: #1a1a1a;
+}
+.fileInput {
+  display: none;
 }
 .error {
-  color: #e5484d;
+  color: #d33;
   font-size: 12px;
 }
 .actions {
   display: flex;
   gap: 8px;
+  margin-top: 4px;
 }
 .generate {
-  flex: 1;
-  padding: 8px 0;
+  flex: 2;
+  padding: 9px 0;
   cursor: pointer;
+  border: none;
+  border-radius: 8px;
+  background: #1a1a1a;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+}
+.generate:disabled {
+  background: #c8c8c8;
+  cursor: not-allowed;
 }
 .clear {
   flex: 1;
-  padding: 8px 0;
+  padding: 9px 0;
   cursor: pointer;
+  border: 1px solid #d9d9d9;
+  border-radius: 8px;
+  background: #fff;
+  color: #555;
+  font-size: 12px;
+}
+.status {
+  font-size: 11px;
+  color: #999;
+  line-height: 1.5;
 }

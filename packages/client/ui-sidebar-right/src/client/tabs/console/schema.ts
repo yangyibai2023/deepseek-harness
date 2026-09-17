@@ -91,8 +91,8 @@ export const VIDEO_REPLICATION_SCHEMA: ConsoleSchema = {
   ],
   slots: [
     { id: 'source-video', label: '原视频', caption: '要复刻的视频 · 必选', kind: 'video', required: true, max: 1 },
-    { id: 'product-images', label: '产品图', caption: '替换商品实值 · 最多 9 张', kind: 'image', max: 9 },
-    { id: 'character-images', label: '人物图', caption: '可选 · 替换成固定人物', kind: 'image', max: 3 },
-    { id: 'background-images', label: '背景图', caption: '可选 · 替换场景', kind: 'image', max: 3 },
+    { id: 'product-images', label: '产品图', caption: '要换成的新产品照片（白底/实拍更准，最多 9 张）', kind: 'image', max: 9 },
+    { id: 'character-images', label: '人物图', caption: '新人物的参考照片（可选，最多 3 张）', kind: 'image', max: 3 },
+    { id: 'background-images', label: '场景图', caption: '新场景的参考图（可选，最多 3 张）', kind: 'image', max: 3 },
   ],
 }
