@@ -322,6 +322,23 @@ export const TEMPLATE_CARDS: Record<TemplateCategory, Recommendation[]> = {
   ],
 }
 
+// HeightLab 2026-09-17（模板升级 P1，用户拍板）：原示例模板全部为占位、并未
+// 真正生效——全部下架；首个真实模板「视频复刻」上架（skill 包：云镜
+// YJ-331 视频复刻 2.0，源文件见 .claude/research/yunj-plugin/）。后续模板
+// 按 skill 包逐个上架，不上架的不显示。
+for (const key of Object.keys(TEMPLATE_CARDS) as TemplateCategory[]) {
+  ;(TEMPLATE_CARDS[key] as Recommendation[]).length = 0
+}
+TEMPLATE_CARDS.视频.push({
+  title: '视频复刻',
+  desc: '上传原视频 · 分析镜头动作节奏 · 整理复刻方案',
+  color: '#E4F0FF',
+  agent: 'video-producer',
+  prompt: '视频复刻工作流：先分析参考视频的镜头切换、动作与节奏，整理复刻方案；'
+    + '确认后按方案逐镜头生成（模型/清晰度/时长/画幅按用户在创作控制台的选择），合成成片。'
+    + '用户上传的原视频与图片素材路径已随消息给出，直接取用。',
+})
+
 /**
  * 热更新模板目录：优先取服务器 `/hl/templates`（host 代理到云端），
  * 失败/未登录时回退包内默认模板。服务器条目缺省字段用包内同名条目补齐，
