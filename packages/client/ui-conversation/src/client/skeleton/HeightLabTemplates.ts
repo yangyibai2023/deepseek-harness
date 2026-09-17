@@ -17,6 +17,8 @@ export interface Recommendation {
   cover?: 'cover' | 'impact-tech'
   /** 内容模板：激活输入框「平台/形式/风格/要求」对应选项，而不是填提示词。 */
   content?: ContentPrefPatch
+  /** 控制台型模板：做同款不发「直接执行」指令，发模式宣告并引导用户在右栏控制台收集参数。 */
+  console?: boolean
 }
 
 /** 内容创作输入框选项补丁（键名与 ContentToolbar 偏好字段一致）。 */
@@ -337,12 +339,11 @@ TEMPLATE_CARDS.视频.push({
   desc: '上传原视频 · 分析镜头动作节奏 · 整理复刻方案',
   color: '#E4F0FF',
   agent: 'video-producer',
-  prompt: '视频复刻模式（引导等待：用户在右侧创作控制台提交前，不得开始复刻分析或生成）。'
-    + '做同款后先简短回应：已进入视频复刻；引导用户①上传想复刻的原视频（必选），'
-    + '②在右侧创作控制台选择模型/画面比例/分辨率/成片秒数、按需上传产品图等素材，'
-    + '③点「生成视频」提交。收到控制台提交的任务后，按视频复刻工作流执行：'
-    + '分析原视频的镜头切换、动作与节奏→整理复刻方案→确认后逐镜头生成，合成成片；'
-    + '素材路径以消息中的本地路径标记为准，直接取用。',
+  console: true,
+  prompt: '①上传要复刻的原视频（必选）'
+    + '②在右侧创作控制台选择模型/画面比例/分辨率/成片秒数，'
+    + '填写改款需求（替换产品/人物/场景/文案处理/风格），按需上传产品图等素材，'
+    + '③点「生成视频」提交。',
 })
 
 /**
@@ -442,6 +443,14 @@ export function getTemplateNames(): string[] {
 
 /** 做同款指令：标题 + 说明 + 结构描述 + 用户已填写的弹窗信息。 */
 export function sameTemplateText(item: Recommendation, answers: Record<string, string> = {}): string {
+  // 控制台型模板：发「模式宣告」而非执行指令——参数与素材由右栏控制台随后
+  // 提交，宣告阶段不得开始分析/生成（2026-09-18 用户拍板，替换通用包装语）。
+  if (item.console === true) {
+    const guide = item.prompt === undefined || item.prompt === ''
+      ? '①上传必选素材 ②填写参数 ③点击「生成」提交'
+      : item.prompt
+    return `【模板：${item.title}】进入${item.title}模式。请先简短确认已进入，并引导用户在右侧创作控制台完成：${guide}。用户提交前不要开始分析或生成；素材与参数以控制台提交的任务文本为准。`
+  }
   const structure = item.prompt === undefined || item.prompt === ''
     ? ''
     : `（结构要求：${item.prompt}）`

@@ -40,6 +40,13 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
   const [ratio, setRatio] = useState(VIDEO_REPLICATION_SCHEMA.ratios[0]?.value ?? '9:16')
   const [resolution, setResolution] = useState(VIDEO_REPLICATION_SCHEMA.resolutions[0]?.value ?? '768P')
   const [seconds, setSeconds] = useState(VIDEO_REPLICATION_SCHEMA.seconds.defaultValue)
+  const [fields, setFields] = useState<Record<string, string>>(() => {
+    const init: Record<string, string> = {}
+    for (const f of VIDEO_REPLICATION_SCHEMA.fields) {
+      if (f.kind === 'select') init[f.id] = f.options?.[0]?.value ?? ''
+    }
+    return init
+  })
   const [slots, setSlots] = useState<Record<string, SlotEntry[]>>({})
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -75,12 +82,17 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
       ...Object.entries(slots).flatMap(([slotId, entries]) =>
         slotId === 'source-video' ? [] : (entries ?? []).map(e => `[用户上传了一张图片，本地路径：${e.path}]`)),
     ]
+    const requirementLines = VIDEO_REPLICATION_SCHEMA.fields.flatMap(f => {
+      const value = (fields[f.id] ?? '').trim()
+      return value === '' ? [] : [`- ${f.label}：${value}`]
+    })
     const text = [
-      '【视频复刻任务】请按以下参数执行：',
+      '【视频复刻任务】请按视频复刻工作流执行，以下参数为用户在创作控制台的指定：',
       `- 模型：${model}`,
       `- 清晰度：${resolution}`,
       `- 时长：${seconds} 秒`,
       `- 画幅：${ratio}`,
+      ...requirementLines,
       ...markers,
     ].join('\n')
     window.dispatchEvent(new CustomEvent('hl:send-template', { detail: { text } }))
@@ -113,6 +125,21 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
           step={VIDEO_REPLICATION_SCHEMA.seconds.step} value={seconds}
           onChange={e => setSeconds(Number(e.target.value))} />
       </label>
+      <div className={css.groupTitle}>改款需求</div>
+      {VIDEO_REPLICATION_SCHEMA.fields.map(f => (
+        <label key={f.id} className={css.field}>
+          <span>{f.label}</span>
+          {f.kind === 'select' ? (
+            <select value={fields[f.id] ?? ''}
+              onChange={e => setFields(prev => ({ ...prev, [f.id]: e.target.value }))}>
+              {(f.options ?? []).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          ) : (
+            <input type="text" value={fields[f.id] ?? ''} placeholder={f.placeholder}
+              onChange={e => setFields(prev => ({ ...prev, [f.id]: e.target.value }))} />
+          )}
+        </label>
+      ))}
       {(['source-video', 'product-images', 'character-images', 'background-images'] as const).map(slotId => {
         const spec = VIDEO_REPLICATION_SCHEMA.slots.find(s => s.id === slotId)
         if (spec === undefined) return null
