@@ -171,9 +171,10 @@ export const InputBar = memo(function InputBar({
     window.addEventListener('hl:fill-draft', onFill)
     return () => window.removeEventListener('hl:fill-draft', onFill)
   }, [keyboard, inputActions])
-  // 模板「做同款」——直接把同款指令发送出去（不留在输入框）。
+  // 模板「做同款」与创作控制台「生成视频」——同一动作：填入草稿并直接发送
+  //（控制台文本自带素材路径标记）。
   useEffect(() => {
-    const onSendTemplate = (event: Event): void => {
+    const onSendText = (event: Event): void => {
       const detail = (event as CustomEvent<{ text?: unknown }>).detail
       if (typeof detail?.text !== 'string' || detail.text === '') return
       if (inputActions === undefined) return
@@ -182,28 +183,27 @@ export const InputBar = memo(function InputBar({
         inputActions?.submit()
       }, 80)
     }
-    window.addEventListener('hl:send-template', onSendTemplate)
-    return () => window.removeEventListener('hl:send-template', onSendTemplate)
+    window.addEventListener('hl:send-template', onSendText)
+    window.addEventListener('hl:console-submit', onSendText)
+    return () => {
+      window.removeEventListener('hl:send-template', onSendText)
+      window.removeEventListener('hl:console-submit', onSendText)
+    }
   }, [inputActions])
-  // 内容模板「从聊天开始」激活选项时只聚焦输入框（不填提示词）。
+  // 内容模板「从聊天开始」激活选项 / 模板胶囊已插入 → 只聚焦输入框
+  //（不填提示词；Lexical 选区由插入方放置）。
   useEffect(() => {
-    const onSetContentOptions = (): void => {
+    const onFocusEditor = (): void => {
       window.setTimeout(() => {
         keyboard?.editor.getRootElement()?.focus({ preventScroll: true })
       }, 50)
     }
-    window.addEventListener('hl:set-content-options', onSetContentOptions)
-    return () => window.removeEventListener('hl:set-content-options', onSetContentOptions)
-  }, [keyboard])
-  // 模板胶囊已插入 → 聚焦编辑器（Lexical 选区由插入方放置）。
-  useEffect(() => {
-    const onChipInserted = (): void => {
-      window.setTimeout(() => {
-        keyboard?.editor.getRootElement()?.focus({ preventScroll: true })
-      }, 50)
+    window.addEventListener('hl:set-content-options', onFocusEditor)
+    window.addEventListener('hl:template-chip-inserted', onFocusEditor)
+    return () => {
+      window.removeEventListener('hl:set-content-options', onFocusEditor)
+      window.removeEventListener('hl:template-chip-inserted', onFocusEditor)
     }
-    window.addEventListener('hl:template-chip-inserted', onChipInserted)
-    return () => window.removeEventListener('hl:template-chip-inserted', onChipInserted)
   }, [keyboard])
   // 模板胶囊被全部删除（草稿清空）→ 通知智能体选择框切回 Colin。
   // 0.1.5 的草稿经 Lexical 镜像发布为 input.draft，这里跟随它判定。
