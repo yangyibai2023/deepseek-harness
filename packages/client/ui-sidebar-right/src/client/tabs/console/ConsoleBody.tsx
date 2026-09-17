@@ -44,6 +44,7 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
   const [voice, setVoice] = useState<'vo' | 'silent'>('vo')
   const [subtitle, setSubtitle] = useState<'burn' | 'none'>('burn')
   const [execution, setExecution] = useState<'step' | 'once'>('step')
+  const [count, setCount] = useState(1)
   const [fields, setFields] = useState<Record<string, string>>(() => {
     const init: Record<string, string> = {}
     for (const f of VIDEO_REPLICATION_SCHEMA.fields) {
@@ -104,8 +105,9 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
         ? '- 时长：同原视频时长（以实测原片时长为准，不要为凑数拉长节奏）'
         : `- 时长：${seconds} 秒（原片不足时按分镜节奏自然展开，不要硬凑）`,
       `- 画幅：${ratio}`,
+      `- 生成数量：${count} 条（全部交付并编号，供用户挑选）`,
       voice === 'vo'
-        ? '- 语音：有声口播（按原片口径生成配音/口型）'
+        ? '- 语音：有声（忠实原片表演形态：原片是演唱就演唱、是口播就口播，不得改成口播）'
         : '- 语音：静音（绝对不生成任何语音、口播或音效）',
       subtitle === 'burn'
         ? '- 字幕：烧录字幕（口播文案以字幕形式烧进画面）'
@@ -189,6 +191,12 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
           </select>
         </label>
         <label className={css.field}>
+          <span>生成数量</span>
+          <select value={count} onChange={e => setCount(Number(e.target.value))}>
+            {[1, 2, 3, 4].map(n => <option key={n} value={n}>{n} 条{n > 1 ? '（按倍数计费）' : ''}</option>)}
+          </select>
+        </label>
+        <label className={css.field}>
           <span>时长</span>
           <select value={durationMode} onChange={e => setDurationMode(e.target.value === 'custom' ? 'custom' : 'same')}>
             <option value="same">同原视频时长（推荐）</option>
@@ -206,7 +214,7 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
         <label className={css.field}>
           <span>语音</span>
           <select value={voice} onChange={e => setVoice(e.target.value === 'silent' ? 'silent' : 'vo')}>
-            <option value="vo">有声口播（按原片口径）</option>
+            <option value="vo">有声（忠实原片形态：唱则唱、说则说）</option>
             <option value="silent">静音（无任何人声）</option>
           </select>
         </label>
