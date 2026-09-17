@@ -103,6 +103,9 @@ export function flattenEnterpriseTemplates(
   return out
 }
 
+const P1MARK = 'P1MARK-9901'
+void P1MARK
+
 export const TEMPLATE_CARDS: Record<TemplateCategory, Recommendation[]> = {
   推荐: [
     {
@@ -493,3 +496,5 @@ function coverArt(): string {
     '</svg>'
   return `data:image/svg+xml,${encodeURIComponent(svg)}`
 }
+
+// P1MARKER-9901

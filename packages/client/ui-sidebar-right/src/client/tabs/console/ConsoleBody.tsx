@@ -129,7 +129,7 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
       })}
       {error !== '' ? <div className={css.error}>{error}</div> : null}
       <div className={css.actions}>
-        <button type="button" className={css.generate} disabled={busy}
+        <button type="button" className={css.generate} disabled={busy || !canGenerate}
           onClick={() => generate()}>
           生成视频
         </button>
