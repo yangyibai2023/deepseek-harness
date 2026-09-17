@@ -211,11 +211,29 @@ export function AgentPresetSeat({ load, select, introduced, useAgentPresetSeat, 
     : undefined
   // HeightLab：输入框按钮跟随所选智能体——选中非标准（Colin）预设时
   // 显示该预设名称（如「视频制作专家」），标准模式保持 COLIN。
-  const label = workingLabel ?? (
+  // HeightLab（2026-09-18）：按钮文字改为两字缩写，为输入框腾空间。名称
+  // 本身不变——弹出菜单与设置页仍显示全名；映射不到的名称取前两个字。
+  // 恢复方式：删除 agentShortLabel 包裹，恢复直接使用完整名称。
+  const HEIGHTLAB_AGENT_SHORT: ReadonlyArray<readonly [string, string]> = [
+    ['视频制作专家', '视频'],
+    ['内容创作专家', '文案'],
+    ['图片生成专家', '图片'],
+    ['研究分析专家', '研究'],
+    ['通用 AI 助手', '通用'],
+    ['系统操作专家', '系统'],
+    ['自动化执行助手', '自动化'],
+  ]
+  const agentShortLabel = (name: string): string => {
+    const hit = HEIGHTLAB_AGENT_SHORT.find(([full]) => name === full)
+    if (hit !== undefined) return hit[1]
+    if (name.startsWith('Colin')) return 'COLIN'
+    return Array.from(name).slice(0, 2).join('')
+  }
+  const label = agentShortLabel(workingLabel ?? (
     state.current !== '' && chosen !== undefined && chosen.id !== 'standard'
       ? (chosenText?.name ?? state.current)
       : (triggerLabel ?? chosenText?.name ?? state.current)
-  )
+  ))
   const ready = state.options.length > 0 && state.current !== ''
 
   // The introduce cue: the pick was staged from another screen (the settings

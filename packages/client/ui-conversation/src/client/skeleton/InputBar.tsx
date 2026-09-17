@@ -125,6 +125,10 @@ export const InputBar = memo(function InputBar({
   // A continuable child without its live parent cannot accept human input,
   // but its independent Stop below stays available while it runs.
   const continuable = subagent?.address.mode === 'continuable'
+  // HeightLab（2026-09-18）：输入框自建工具条总开关——营销模式参数收集全部
+  // 迁移至右侧「创作控制台」，输入框不再显示视频/图片/内容偏好工具条。
+  // 代码保留；恢复方式：改回 true。
+  const composerToolbarsEnabled = false
   const parentOffline = continuable && subagent.parentAvailable !== true
   // Running input stays free; locked = session removed, the
   // inert no-workspace state, the machine faces absent (no session), or a
@@ -588,11 +592,17 @@ export const InputBar = memo(function InputBar({
               ? null
               : renderSlot('conversation.input.left', {})}
           </div>
-          <div className={css.videoTools}>
-            <VideoToolbar />
-            <ImageToolbar />
-            <ContentToolbar />
-          </div>
+          {/* HeightLab（2026-09-18）：输入框自建工具条（视频/图片/内容偏好）
+              整体停用——营销模式的参数收集全部迁移至右侧「创作控制台」，
+              输入框为用户腾出空间。代码保留不删除；恢复方式：将
+              composerToolbarsEnabled 改回 true。 */}
+          {composerToolbarsEnabled && (
+            <div className={css.videoTools}>
+              <VideoToolbar />
+              <ImageToolbar />
+              <ContentToolbar />
+            </div>
+          )}
           <div className={css.trailing}>
             {input === undefined || sessionId === undefined
               ? null
