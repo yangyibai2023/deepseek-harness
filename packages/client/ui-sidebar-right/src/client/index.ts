@@ -39,6 +39,9 @@ import { SidebarRightTabRegistry } from './tab-registry.ts'
 import { createSidebarRightStore } from './stores.ts'
 import { en, zh } from './locales.ts'
 import { GUIDE_ID, guideDefinition } from './tabs/guide/definition.ts'
+import { CONSOLE_ID, consoleDefinition } from './tabs/console/definition.ts'
+import { ConsoleBody } from './tabs/console/ConsoleBody.tsx'
+import { ConsoleTitle } from './tabs/console/ConsoleTitle.tsx'
 import { guideTabInfoFactory, tabInfoFactory } from './tab-info.ts'
 import type { TabId } from '@deepseek-ai/dsh-client-ui-dockkit'
 import { defaultSeed } from './contract/seed.ts'
@@ -195,7 +198,26 @@ export function apply(ctx: ClientContext): void {
       { name: 'sidebar.right.pane.tab.title', key: GUIDE_ID },
       GuideTitle,
     ))
+    // HeightLab 创作控制台（营销模式）：按需出现的页面型 tab。
+    // 不注册 guide 入口——仅做同款/聊天意图 dispatch hl:open-console 时打开。
+    const disposeConsoleTypes = [tabs.register(consoleDefinition())]
+    const disposeConsoleBody = ctx.slots.inject('sidebar.right.pane.tab', () => ctx.slots.register(
+      { name: 'sidebar.right.pane.tab', key: CONSOLE_ID },
+      ConsoleBody,
+    ))
+    const disposeConsoleTitle = ctx.slots.inject('sidebar.right.pane.tab.title', () => ctx.slots.register(
+      { name: 'sidebar.right.pane.tab.title', key: CONSOLE_ID },
+      ConsoleTitle,
+    ))
+    const onOpenConsole = (): void => {
+      void controller.openTab(CONSOLE_KIND)
+    }
+    window.addEventListener('hl:open-console', onOpenConsole)
     return () => {
+      window.removeEventListener('hl:open-console', onOpenConsole)
+      disposeConsoleTitle()
+      disposeConsoleBody()
+      for (const dispose of disposeConsoleTypes) dispose()
       disposeGuideTitle()
       disposeGuide()
       disposeExpand()

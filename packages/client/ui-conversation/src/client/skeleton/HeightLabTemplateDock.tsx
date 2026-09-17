@@ -23,6 +23,7 @@ import {
   TEMPLATE_CARDS,
   getEnterpriseDock,
   loadTemplateCatalog,
+  sameTemplateText,
   templateThumb,
   type EnterpriseDockData,
   type Recommendation,
@@ -203,6 +204,11 @@ export function HeightLabTemplateDock() {
         title: item.title,
       },
     }))
+    // HeightLab（2026-09-17 营销控制台试点）：做同款直接发送 + 打开右侧创作控制台。
+    window.dispatchEvent(new CustomEvent('hl:send-template', {
+      detail: { text: sameTemplateText(item) },
+    }))
+    window.dispatchEvent(new CustomEvent('hl:open-console'))
   }
 
   const settingsItems: MenuEntry[] = [
