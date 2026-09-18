@@ -190,7 +190,12 @@
 .tableScroll {
   max-width: 100%;
   overflow-x: auto;
-  overscroll-behavior-x: contain;
+  /* HeightLab 2026-09-19：contain → auto。WKWebView 里 `overscroll-behavior-x:
+     contain` 会把悬停在表格上的纵向滚轮也拦截掉（滚动链被掐断），用户必须把
+     鼠标移出表格才能滚动消息流。auto 保留横向滚动、到横向尽头后把滚动链
+     交还父级，纵向滚轮正常冒泡。 */
+  overscroll-behavior-x: auto;
+  overscroll-behavior-y: auto;
 }
 
 /* Wide tables reveal their horizontal bar on hover (or keyboard focus)
