@@ -670,3 +670,39 @@
   text-align: center;
   line-height: 1.6;
 }
+
+/* ── 复刻方式开关（2026-09-19 用户拍板：分镜驱动默认/像素复刻） ── */
+.modeRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.modeBtn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 7px 9px;
+  border: 1.5px solid #e2e2e2;
+  border-radius: 9px;
+  background: #fafafa;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.modeBtn:hover {
+  border-color: #b9b9b9;
+}
+.modeBtnActive {
+  border-color: #1a1a1a;
+  background: #fff;
+}
+.modeName {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+.modeDesc {
+  font-size: 10px;
+  color: #999;
+}

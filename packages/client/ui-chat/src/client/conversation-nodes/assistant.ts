@@ -340,6 +340,15 @@ export const assistantDefinition: ConversationNodeDefinition<AssistantState> = {
             const opened = assistantCtx
             if (opened === undefined) return
             for (const path of openPaths) {
+              // 视频文件：右侧文档预览不支持视频类型，改走系统默认播放器。
+              if (/\.(mp4|mov|m4v|webm|mkv|avi)$/i.test(path)) {
+                void fetch('/hl/open-local', {
+                  method: 'POST',
+                  headers: { 'content-type': 'application/json' },
+                  body: JSON.stringify({ path }),
+                }).catch(() => undefined)
+                continue
+              }
               try {
                 const sessionId = opened.sessions.list.getSnapshot().current
                 if (sessionId === undefined) continue

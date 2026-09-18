@@ -106,6 +106,9 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
   const [subtitle, setSubtitle] = useState<SubtitleChoice>('auto')
   const [execution, setExecution] = useState<'step' | 'once'>('step')
   const [count, setCount] = useState(1)
+  // 复刻方式（2026-09-19 用户拍板）：storyboard=分镜驱动（云镜原版，默认）；
+  // pixel=像素复刻（逐段带原片分段 video_paths 视频参考）。
+  const [repMode, setRepMode] = useState<'storyboard' | 'pixel'>('storyboard')
   const [fields, setFields] = useState<Record<string, string>>(defaultFields)
   const [slots, setSlots] = useState<Record<string, SlotEntry[]>>({})
   const [busy, setBusy] = useState(false)
@@ -131,6 +134,7 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
     setSubtitle('auto')
     setExecution('step')
     setCount(1)
+    setRepMode('storyboard')
     setFields(defaultFields())
     setSlots({})
     setVoiceAsset(null)
@@ -189,6 +193,7 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
     if (draft.voice === 'auto' || draft.voice === 'vo' || draft.voice === 'silent' || draft.voice === 'asset') setVoice(draft.voice)
     if (draft.subtitle === 'auto' || draft.subtitle === 'burn' || draft.subtitle === 'none') setSubtitle(draft.subtitle)
     if (draft.execution === 'step' || draft.execution === 'once') setExecution(draft.execution)
+    if (draft.repMode === 'storyboard' || draft.repMode === 'pixel') setRepMode(draft.repMode)
     if (typeof draft.count === 'number') setCount(draft.count)
     if (draft.fields !== null && typeof draft.fields === 'object') {
       setFields(draft.fields as Record<string, string>)
@@ -199,7 +204,7 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
   }
 
   const buildDraft = (): Record<string, unknown> => ({
-    model, ratio, resolution, seconds, durationMode, voice, subtitle, execution, count,
+    model, ratio, resolution, seconds, durationMode, voice, subtitle, execution, count, repMode,
     fields, slots,
     voiceAssetName: voiceAsset?.name ?? null,
     updatedAt: new Date().toISOString(),
@@ -217,7 +222,7 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
       }).catch(() => undefined)
     }, 2000)
     return () => window.clearTimeout(timer)
-  }, [sessionId, model, ratio, resolution, seconds, durationMode, voice, subtitle, execution, count, fields, slots, voiceAsset])
+  }, [sessionId, model, ratio, resolution, seconds, durationMode, voice, subtitle, execution, count, repMode, fields, slots, voiceAsset])
 
   const openPicker = async (slotId: string, kind: string): Promise<void> => {
     setPicker({ slotId, kind })
@@ -298,9 +303,14 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
           const ref = String(it.voice_reference ?? it.id ?? '')
           if (ref === '') continue
           const name = String(it.title ?? it.name ?? ref)
+          // 公网参考 URL 优先（生成侧 audio_urls 需要 http(s)，云端可达）
+          const publicUrl = typeof it.url === 'string' && it.url !== '' ? it.url : ''
           merged.push({
             id: `set-voice-${ref}`, kind: '声音', name,
-            url: ref, refLines: [`- 音色：用户资产声音「${name}」（${ref}）`],
+            url: publicUrl !== '' ? publicUrl : ref,
+            refLines: publicUrl !== ''
+              ? [`- 音色：用户资产声音「${name}」，声音参考 URL：${publicUrl}（显式指定，非自动附加）`]
+              : [`- 音色：用户资产声音「${name}」（${ref}），生成时经 video_assets 查询参考 URL`],
             origin: '设置·声音克隆', use_count: 0, last_used_at: undefined,
           })
         }
@@ -421,6 +431,9 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
       `- 生成数量：${count} 条（全部交付并编号，供用户挑选）`,
       voiceLine,
       subtitleLine,
+      repMode === 'pixel'
+        ? '- 复刻方式：像素复刻——先用 ffmpeg 按分镜切点把原片分段（落盘工作区），逐段调 heightlab_video_generate 时必须传 video_paths=[该段原片分段]（视频参考生视频），prompt 只描述「保持该段原片画面构图节奏 + 替换控制台指定元素」，上一段末帧作为下一段 image_paths 首图压跳变'
+        : '- 复刻方式：分镜驱动（云镜原版）——按分镜方案逐段生成新画面，携带产品/人物/场景参考图（image_paths），以分镜提示词驱动，不要求也不得伪造原片分段视频参考',
       execution === 'step'
         ? '- 执行方式：逐步确认——完成拆解与分镜方案后必须停下，等用户明确确认（如回复「确认/继续」）后才可进入生成；用户未确认前严禁生成任何镜头'
         : '- 执行方式：一次生成——无需中途确认，但每个阶段完成时必须调用 workflow_stage 输出进度',
@@ -616,6 +629,18 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
       ) : null}
 
       <div className={css.sectionTitle}>① 复刻基准</div>
+      <div className={css.modeRow}>
+        <button type="button" className={repMode === 'storyboard' ? `${css.modeBtn} ${css.modeBtnActive}` : css.modeBtn}
+          onClick={() => setRepMode('storyboard')}>
+          <span className={css.modeName}>分镜驱动</span>
+          <span className={css.modeDesc}>云镜原版 · 按分镜重新演绎</span>
+        </button>
+        <button type="button" className={repMode === 'pixel' ? `${css.modeBtn} ${css.modeBtnActive}` : css.modeBtn}
+          onClick={() => setRepMode('pixel')}>
+          <span className={css.modeName}>像素复刻</span>
+          <span className={css.modeDesc}>逐段贴原片 · 更像原片</span>
+        </button>
+      </div>
       {renderSourceUpload()}
 
       <div className={css.sectionTitle}>
