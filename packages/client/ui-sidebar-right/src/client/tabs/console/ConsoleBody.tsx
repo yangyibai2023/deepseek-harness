@@ -1,11 +1,16 @@
 /**
  * HeightLab 创作控制台（营销模式试点：视频复刻）。
- * 三个编号分区：①复刻基准 ②生成参数 ③改什么（图+文字配对，上下排列）。
+ * 分区：①复刻基准（虚线大上传框+缩略图） ②修改元素（图+文字配对）
+ * ③生成参数（默认折叠+当前值摘要行）。
+ * 会话语义（2026-09-19 用户拍板）：切到老会话=恢复该会话自己的工作流与
+ * 草稿；切到新会话/无状态会话=全部清空（进度归零、素材清空、参数回默认）。
+ * 草稿只在用户真实交互后落盘（dirtyRef 脏标记），杜绝跨会话残留被固化。
+ * 语音/字幕默认「智能识别（跟随原片）」：按阶段1/2 对原片的真实分析判定，
+ * 判定规则写进任务文本由模型执行，禁止猜测。
  * 上方进度条经 /hl/workflow-state 轮询真实工作流状态（FY1-M2）；
- * 素材槽双入口：上传（自动登记资产中心）/ 从资产库选择；
  * 「生成视频」= dispatch hl:send-template（复用输入框自动发送通道）。
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { VIDEO_REPLICATION_SCHEMA } from './schema.ts'
@@ -36,6 +41,9 @@ interface WorkflowProgress {
   status: string
   detail: string
 }
+
+type VoiceChoice = 'auto' | 'vo' | 'asset' | 'silent'
+type SubtitleChoice = 'auto' | 'burn' | 'none'
 
 /** 预估积分折算表（每秒积分，按清晰度；数值可在常数处统一调整）。 */
 const CREDITS_PER_SECOND: Record<string, number> = { '768P': 1, '2K': 2 }
@@ -75,23 +83,30 @@ async function registerAsset(kind: string, name: string, path: string): Promise<
   } catch { /* 归档失败不影响主流程 */ }
 }
 
+/** 本地媒体经 local-media 通道回放（Range 206），裸本地路径在聊天里渲染为问号。 */
+function mediaUrl(path: string): string {
+  const isVideo = /\.(mp4|mov|m4v|webm|avi|mkv)$/i.test(path)
+  return `/hl/local-media/${isVideo ? 'video.mp4' : 'image.jpg'}?path=${encodeURIComponent(path)}`
+}
+
 export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
-  const [model, setModel] = useState(VIDEO_REPLICATION_SCHEMA.models[0]?.value ?? '')
-  const [ratio, setRatio] = useState(VIDEO_REPLICATION_SCHEMA.ratios[0]?.value ?? '9:16')
-  const [resolution, setResolution] = useState(VIDEO_REPLICATION_SCHEMA.resolutions[0]?.value ?? '768P')
-  const [seconds, setSeconds] = useState(VIDEO_REPLICATION_SCHEMA.seconds.defaultValue)
-  const [durationMode, setDurationMode] = useState<'same' | 'custom'>('same')
-  const [voice, setVoice] = useState<'vo' | 'silent' | 'asset'>('vo')
-  const [subtitle, setSubtitle] = useState<'burn' | 'none'>('burn')
-  const [execution, setExecution] = useState<'step' | 'once'>('step')
-  const [count, setCount] = useState(1)
-  const [fields, setFields] = useState<Record<string, string>>(() => {
+  const defaultFields = (): Record<string, string> => {
     const init: Record<string, string> = {}
     for (const f of VIDEO_REPLICATION_SCHEMA.fields) {
       if (f.kind === 'select') init[f.id] = f.options?.[0]?.value ?? ''
     }
     return init
-  })
+  }
+  const [model, setModel] = useState(VIDEO_REPLICATION_SCHEMA.models[0]?.value ?? '')
+  const [ratio, setRatio] = useState(VIDEO_REPLICATION_SCHEMA.ratios[0]?.value ?? '9:16')
+  const [resolution, setResolution] = useState(VIDEO_REPLICATION_SCHEMA.resolutions[0]?.value ?? '768P')
+  const [seconds, setSeconds] = useState(VIDEO_REPLICATION_SCHEMA.seconds.defaultValue)
+  const [durationMode, setDurationMode] = useState<'same' | 'custom'>('same')
+  const [voice, setVoice] = useState<VoiceChoice>('auto')
+  const [subtitle, setSubtitle] = useState<SubtitleChoice>('auto')
+  const [execution, setExecution] = useState<'step' | 'once'>('step')
+  const [count, setCount] = useState(1)
+  const [fields, setFields] = useState<Record<string, string>>(defaultFields)
   const [slots, setSlots] = useState<Record<string, SlotEntry[]>>({})
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -99,9 +114,29 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
   const [picker, setPicker] = useState<{ slotId: string; kind: string } | null>(null)
   const [assetList, setAssetList] = useState<AssetEntry[]>([])
   const [voiceAsset, setVoiceAsset] = useState<AssetEntry | null>(null)
-  // 会话感知：轮询当前会话 id；切到「有复刻状态/草稿」的会话时自动弹出并
-  // 回填表单（FY1-M2 会话恢复，用户拍板语义：首页/无关会话不弹）。
+  // 会话感知：轮询当前会话 id（FY1-M2 会话恢复）。语义（2026-09-19 拍板）：
+  // 老会话有复刻状态/草稿 → 恢复；新会话/无关会话 → 全部清空（进度归零）。
   const [sessionId, setSessionId] = useState('')
+  // 脏标记：只有用户真实交互过的表单才允许落盘草稿——会话切换时的
+  // 重置/恢复动作不算交互，防止上个会话的残留被固化成新会话的草稿。
+  const dirtyRef = useRef(false)
+
+  const resetAll = (): void => {
+    setModel(VIDEO_REPLICATION_SCHEMA.models[0]?.value ?? '')
+    setRatio(VIDEO_REPLICATION_SCHEMA.ratios[0]?.value ?? '9:16')
+    setResolution(VIDEO_REPLICATION_SCHEMA.resolutions[0]?.value ?? '768P')
+    setSeconds(VIDEO_REPLICATION_SCHEMA.seconds.defaultValue)
+    setDurationMode('same')
+    setVoice('auto')
+    setSubtitle('auto')
+    setExecution('step')
+    setCount(1)
+    setFields(defaultFields())
+    setSlots({})
+    setVoiceAsset(null)
+    setError('')
+    setPicker(null)
+  }
 
   useEffect(() => {
     let alive = true
@@ -114,6 +149,7 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
         if (alive && sid !== '' && sid !== lastSession) {
           lastSession = sid
           if (alive) setSessionId(sid)
+          dirtyRef.current = false
           const sres2 = await fetch(`/hl/console-state?session=${encodeURIComponent(sid)}`)
           const state = (await sres2.json()) as {
             workflow?: { template?: string; stage?: string; status?: string; detail?: string } | null
@@ -127,8 +163,12 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
               detail: state.workflow.detail ?? '',
             })
             window.dispatchEvent(new CustomEvent('hl:open-console'))
+          } else {
+            // 新会话/无关会话：进度归零——绝不显示上一个会话的完成态。
+            setProgress(null)
           }
           if (state.draft !== null && state.draft !== undefined) restoreDraft(state.draft)
+          else resetAll()
         }
       } catch { /* 静默：宿主未就绪 */ }
     }
@@ -146,8 +186,8 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
     if (typeof draft.resolution === 'string') setResolution(draft.resolution)
     if (typeof draft.seconds === 'number') setSeconds(draft.seconds)
     if (draft.durationMode === 'custom' || draft.durationMode === 'same') setDurationMode(draft.durationMode)
-    if (draft.voice === 'vo' || draft.voice === 'silent' || draft.voice === 'asset') setVoice(draft.voice)
-    if (draft.subtitle === 'burn' || draft.subtitle === 'none') setSubtitle(draft.subtitle)
+    if (draft.voice === 'auto' || draft.voice === 'vo' || draft.voice === 'silent' || draft.voice === 'asset') setVoice(draft.voice)
+    if (draft.subtitle === 'auto' || draft.subtitle === 'burn' || draft.subtitle === 'none') setSubtitle(draft.subtitle)
     if (draft.execution === 'step' || draft.execution === 'once') setExecution(draft.execution)
     if (typeof draft.count === 'number') setCount(draft.count)
     if (draft.fields !== null && typeof draft.fields === 'object') {
@@ -165,9 +205,10 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
     updatedAt: new Date().toISOString(),
   })
 
-  // 草稿保存：参数/素材任何变化后 2 秒去抖落盘（按当前会话隔离）。
+  // 草稿保存：参数/素材变化后 2 秒去抖落盘（按当前会话隔离），且仅在用户
+  // 真实交互后（dirtyRef）——重置/恢复引起的 state 变化不落盘。
   useEffect(() => {
-    if (sessionId === '') return
+    if (sessionId === '' || !dirtyRef.current) return
     const timer = window.setTimeout(() => {
       void fetch('/hl/console-draft', {
         method: 'POST',
@@ -276,6 +317,7 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
 
   const pickAsset = (a: AssetEntry): void => {
     if (picker === null) return
+    dirtyRef.current = true
     if (picker.slotId === 'voice') {
       setVoiceAsset(a)
       setVoice('asset')
@@ -302,18 +344,29 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
     setBusy(true)
     setError('')
     try {
-      const entries: SlotEntry[] = []
+      const incoming: SlotEntry[] = []
       for (const file of Array.from(files)) {
         const path = await uploadAsset(kind, file)
-        entries.push({ name: file.name, path })
+        incoming.push({ name: file.name, path })
         void registerAsset(SLOT_KIND[slotId] ?? '其他', file.name, path)
       }
-      setSlots(prev => ({ ...prev, [slotId]: entries }))
+      dirtyRef.current = true
+      setSlots(prev => {
+        // 追加语义：图片槽多次上传累加（不超过 max）；原视频槽 max=1 即替换。
+        const spec = VIDEO_REPLICATION_SCHEMA.slots.find(s => s.id === slotId)
+        const merged = [...(prev[slotId] ?? []), ...incoming]
+        return { ...prev, [slotId]: spec?.max === undefined ? merged : merged.slice(0, spec.max) }
+      })
     } catch (err) {
       setError(err instanceof Error ? err.message : '上传失败')
     } finally {
       setBusy(false)
     }
+  }
+
+  const removeSlotEntry = (slotId: string, index: number): void => {
+    dirtyRef.current = true
+    setSlots(prev => ({ ...prev, [slotId]: (prev[slotId] ?? []).filter((_, n) => n !== index) }))
   }
 
   const sourceVideo = slots['source-video']?.[0]
@@ -327,7 +380,7 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
 
   const generate = (): void => {
     if (sourceVideo === undefined) {
-      setError('请先在 ① 上传素材里选择原视频')
+      setError('请先在 ① 复刻基准里上传原视频')
       return
     }
     const markers: string[] = []
@@ -345,11 +398,18 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
       const value = (fields[f.id] ?? '').trim()
       return value === '' ? [] : [`- ${f.label}：${value}`]
     })
-    const voiceLine = voice === 'silent'
-      ? '- 语音：静音（绝对不生成任何语音、口播或音效）'
-      : voice === 'asset' && voiceAsset !== null
-        ? `- 语音：有声（忠实原片表演形态）· 音色使用用户资产声音「${voiceAsset.name}」（${voiceAsset.path}），显式指定，非自动附加`
-        : '- 语音：有声（忠实原片表演形态：原片是演唱就演唱、是口播就口播，不得改成口播）'
+    const voiceLine = voice === 'auto'
+      ? '- 语音：智能识别（跟随原片）——以阶段1/2 对原片的真实分析为准：原片有人声 → 按原片形态生成人声（唱则唱、说则说，不得改成口播）；原片无人声（仅背景音/环境音）→ 不生成任何人声。判定依据须在方案确认里说明，禁止猜测。'
+      : voice === 'silent'
+        ? '- 语音：静音（绝对不生成任何语音、口播或音效）'
+        : voice === 'asset' && voiceAsset !== null
+          ? `- 语音：有声（忠实原片表演形态）· 音色使用用户资产声音「${voiceAsset.name}」（${voiceAsset.path}），显式指定，非自动附加`
+          : '- 语音：有声（忠实原片表演形态：原片是演唱就演唱、是口播就口播，不得改成口播）'
+    const subtitleLine = subtitle === 'auto'
+      ? '- 字幕：智能识别（跟随原片）——以真实抽帧网格图判断原片画面是否带烧录字幕：有 → 同样烧录字幕；无 → 画面不得出现任何字幕文字。'
+      : subtitle === 'burn'
+        ? '- 字幕：烧录字幕（口播文案以字幕形式烧进画面）'
+        : '- 字幕：无字幕（画面中不得出现任何字幕文字）'
     const text = [
       '【视频复刻任务】请按视频复刻工作流执行，以下参数为用户在创作控制台的指定：',
       `- 模型：${model}`,
@@ -360,9 +420,7 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
       `- 画幅：${ratio}`,
       `- 生成数量：${count} 条（全部交付并编号，供用户挑选）`,
       voiceLine,
-      subtitle === 'burn'
-        ? '- 字幕：烧录字幕（口播文案以字幕形式烧进画面）'
-        : '- 字幕：无字幕（画面中不得出现任何字幕文字）',
+      subtitleLine,
       execution === 'step'
         ? '- 执行方式：逐步确认——完成拆解与分镜方案后必须停下，等用户明确确认（如回复「确认/继续」）后才可进入生成；用户未确认前严禁生成任何镜头'
         : '- 执行方式：一次生成——无需中途确认，但每个阶段完成时必须调用 workflow_stage 输出进度',
@@ -373,49 +431,94 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
     window.dispatchEvent(new CustomEvent('hl:send-template', { detail: { text } }))
   }
 
-  const renderSlot = (slotId: string): ReactNode => {
+  const renderAssetPanel = (slotId: string): ReactNode => (
+    <div className={css.assetPanel}>
+      {assetList.length === 0 ? <div className={css.assetEmpty}>暂无{picker?.kind ?? ''}素材（上传过的素材会自动归档到这里；设置里的人物/场景/声音也会出现在此）</div>
+        : assetList.map(a => (
+          <button key={a.id} type="button" className={css.assetItem} onClick={() => pickAsset(a)}>
+            <span className={css.assetName}>{a.name}</span>
+            <span className={css.assetMeta}>{a.kind} · {a.origin ?? '资产库'}{typeof a.use_count === 'number' && a.use_count > 1 ? ` · 用过 ${a.use_count} 次` : ''}</span>
+          </button>
+        ))}
+    </div>
+  )
+
+  // ① 复刻基准：虚线大上传框（点击/拖入）；已有文件 = 缩略图 + 悬浮右上角叉号。
+  const renderSourceUpload = (): ReactNode => {
+    const entries = slots['source-video'] ?? []
+    const entry = entries[0]
+    return (
+      <div className={css.slot}>
+        <div className={css.slotLabel}>
+          原视频
+          <span className={css.badge}>必选</span>
+          <span className={css.slotSpacer} />
+          {entry === undefined ? (
+            <button type="button" className={css.libLink} onClick={() => void openPicker('source-video', '视频')}>从资产库选择</button>
+          ) : null}
+        </div>
+        {entry === undefined ? (
+          <label
+            className={css.uploadBox}
+            htmlFor="console-file-source-video"
+            onDragOver={e => e.preventDefault()}
+            onDrop={e => {
+              e.preventDefault()
+              void setFiles('source-video', 'video', e.dataTransfer.files)
+            }}>
+            <span className={css.uploadPlus}>+</span>
+            <span className={css.uploadText}>点击或拖入要复刻的原视频</span>
+            <span className={css.uploadHint}>MP4 / MOV 等常见格式；抽帧与分镜的唯一依据</span>
+          </label>
+        ) : (
+          <div className={css.thumbBox}>
+            {entry.path !== undefined ? (
+              <video className={css.thumbVideo} src={mediaUrl(entry.path)} muted preload="metadata" playsInline />
+            ) : null}
+            <button type="button" className={css.thumbDelete} title="移除"
+              onClick={() => removeSlotEntry('source-video', 0)}>×</button>
+            <span className={css.thumbName}>{entry.name}</span>
+          </div>
+        )}
+        <input id="console-file-source-video" className={css.fileInput} type="file" accept="video/*"
+          onChange={e => void setFiles('source-video', 'video', e.target.files)} />
+        {picker !== null && picker.slotId === 'source-video' ? renderAssetPanel('source-video') : null}
+      </div>
+    )
+  }
+
+  // ② 修改元素：图片槽 = 缩略图网格 + 未满加号块 + 悬浮叉号删除 + 计数。
+  const renderImageSlot = (slotId: string): ReactNode => {
     const spec = VIDEO_REPLICATION_SCHEMA.slots.find(s => s.id === slotId)
     if (spec === undefined) return null
     const entries = slots[slotId] ?? []
+    const max = spec.max ?? 9
     const inputId = `console-file-${slotId}`
     return (
-      <div key={spec.id} className={spec.required ? `${css.slot} ${css.slotRequired}` : css.slot}>
+      <div className={css.slot}>
         <div className={css.slotLabel}>
           {spec.label}
-          {spec.required ? <span className={css.badge}>必选</span> : null}
+          <span className={css.counter}>{entries.length}/{max}</span>
+          <span className={css.slotSpacer} />
+          <button type="button" className={css.libLink} onClick={() => void openPicker(slotId, SLOT_KIND[slotId] ?? '其他')}>资产库</button>
         </div>
         <div className={css.slotCaption}>{spec.caption}</div>
-        <div className={css.slotActions}>
-          <label className={css.slotButton} htmlFor={inputId}>
-            {entries.length > 0 ? `已选 ${entries.map(e => e.name).join('、')}` : '点击选择文件'}
-          </label>
-          <button type="button" className={css.slotLibrary}
-            onClick={() => void openPicker(slotId, SLOT_KIND[slotId] ?? '其他')}>
-            资产库
-          </button>
-          {entries.length > 0 ? (
-            <button type="button" className={css.slotLibrary}
-              title="移除已选素材"
-              onClick={() => setSlots(prev => ({ ...prev, [slotId]: [] }))}>
-              清除
-            </button>
+        <div className={css.imgGrid}>
+          {entries.map((e, i) => (
+            <div key={`${e.name}-${i}`} className={css.imgCell}>
+              {e.path !== undefined ? <img className={css.imgCellImg} src={mediaUrl(e.path)} alt={e.name} /> : <span className={css.imgNameFallback}>{e.name}</span>}
+              <button type="button" className={css.imgDelete} title="移除" onClick={() => removeSlotEntry(slotId, i)}>×</button>
+            </div>
+          ))}
+          {entries.length < max ? (
+            <label className={css.addTile} htmlFor={inputId} title={`添加${spec.label}（最多 ${max} 张）`}>
+              <span className={css.addTilePlus}>+</span>
+            </label>
           ) : null}
         </div>
-        <input id={inputId} className={css.fileInput} type="file"
-          multiple={spec.max === undefined || spec.max > 1}
-          accept={spec.kind === 'video' ? 'video/*' : 'image/*'}
-          onChange={e => void setFiles(spec.id, spec.kind, e.target.files)} />
-        {picker !== null && picker.slotId === slotId ? (
-          <div className={css.assetPanel}>
-            {assetList.length === 0 ? <div className={css.assetEmpty}>暂无{picker.kind}素材（上传过的素材会自动归档到这里；设置里的人物/场景/声音也会出现在此）</div>
-              : assetList.map(a => (
-                <button key={a.id} type="button" className={css.assetItem} onClick={() => pickAsset(a)}>
-                  <span className={css.assetName}>{a.name}</span>
-                  <span className={css.assetMeta}>{a.kind} · {a.origin ?? '资产库'}{typeof a.use_count === 'number' && a.use_count > 1 ? ` · 用过 ${a.use_count} 次` : ''}</span>
-                </button>
-              ))}
-          </div>
-        ) : null}
+        <input id={inputId} className={css.fileInput} type="file" multiple={max > 1} accept="image/*"
+          onChange={e => void setFiles(slotId, spec.kind, e.target.files)} />
+        {picker !== null && picker.slotId === slotId ? renderAssetPanel(slotId) : null}
       </div>
     )
   }
@@ -447,8 +550,30 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
     ? `预估积分：≈ 原片时长 × ${count} 条 × ${perSecond}/秒（${resolution} · 折算表估算）`
     : `预估积分：≈ ${seconds * count * perSecond}（${seconds}s × ${count} 条 × ${perSecond}/秒 · 折算表估算）`
 
+  const labelOf = (arr: ReadonlyArray<{ value: string; label: string }>, value: string): string =>
+    arr.find(o => o.value === value)?.label ?? value
+  const voiceSummary = voice === 'auto'
+    ? '声音跟随原片'
+    : voice === 'silent'
+      ? '静音'
+      : voice === 'asset'
+        ? `音色:${voiceAsset?.name ?? '待选'}`
+        : '有声'
+  const subtitleSummary = subtitle === 'auto' ? '字幕跟随原片' : subtitle === 'burn' ? '烧录字幕' : '无字幕'
+  const paramSummary = [
+    labelOf(VIDEO_REPLICATION_SCHEMA.models, model),
+    labelOf(VIDEO_REPLICATION_SCHEMA.ratios, ratio),
+    labelOf(VIDEO_REPLICATION_SCHEMA.resolutions, resolution),
+    durationMode === 'same' ? '同原片时长' : `${seconds}秒`,
+    voiceSummary,
+    subtitleSummary,
+  ].join(' · ')
+
   return (
-    <div className={css.console}>
+    <div
+      className={css.console}
+      onChangeCapture={() => { dirtyRef.current = true }}
+      onClickCapture={() => { dirtyRef.current = true }}>
       <div className={css.head}>
         <div className={css.schemaTitle}>视频复刻 · 创作控制台</div>
         <div className={css.headHint}>素材和参数都在这里填，点「生成视频」后任务进入左侧对话执行。</div>
@@ -469,114 +594,22 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
       ) : null}
 
       <div className={css.sectionTitle}>① 复刻基准</div>
-      {renderSlot('source-video')}
-      <div className={css.hint}>视频在这里上传即可，不需要再通过聊天输入框添加。</div>
-
-      <div className={css.sectionTitle}>② 生成参数</div>
-      <div className={css.grid2}>
-        <label className={css.field}>
-          <span>模型</span>
-          <select value={model} onChange={e => setModel(e.target.value)}>
-            {VIDEO_REPLICATION_SCHEMA.models.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
-        </label>
-        <label className={css.field}>
-          <span>画面比例</span>
-          <select value={ratio} onChange={e => setRatio(e.target.value)}>
-            {VIDEO_REPLICATION_SCHEMA.ratios.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
-        </label>
-        <label className={css.field}>
-          <span>分辨率</span>
-          <select value={resolution} onChange={e => setResolution(e.target.value)}>
-            {VIDEO_REPLICATION_SCHEMA.resolutions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
-        </label>
-        <label className={css.field}>
-          <span>生成数量</span>
-          <select value={count} onChange={e => setCount(Number(e.target.value))}>
-            {[1, 2, 3, 4].map(n => <option key={n} value={n}>{n} 条{n > 1 ? '（按倍数计费）' : ''}</option>)}
-          </select>
-        </label>
-        <label className={css.field}>
-          <span>时长</span>
-          <select value={durationMode} onChange={e => setDurationMode(e.target.value === 'custom' ? 'custom' : 'same')}>
-            <option value="same">同原视频时长（推荐）</option>
-            <option value="custom">自定义秒数</option>
-          </select>
-        </label>
-        {durationMode === 'custom' ? (
-          <label className={css.field}>
-            <span>成片秒数：{seconds} 秒</span>
-            <input type="range" min={VIDEO_REPLICATION_SCHEMA.seconds.min} max={VIDEO_REPLICATION_SCHEMA.seconds.max}
-              step={VIDEO_REPLICATION_SCHEMA.seconds.step} value={seconds}
-              onChange={e => setSeconds(Number(e.target.value))} />
-          </label>
-        ) : null}
-        <label className={css.field}>
-          <span>语音</span>
-          <select value={voice} onChange={e => {
-            const v = e.target.value
-            setVoice(v === 'silent' ? 'silent' : v === 'asset' ? 'asset' : 'vo')
-            if (v === 'asset') void openVoicePicker()
-          }}>
-            <option value="vo">有声（忠实原片形态：唱则唱、说则说）</option>
-            <option value="asset">我的资产声音</option>
-            <option value="silent">静音（无任何人声）</option>
-          </select>
-        </label>
-        {voice === 'asset' ? (
-          <>
-            <label className={css.field}>
-              <span>音色来源</span>
-              <button type="button" className={css.slotButton} onClick={() => void openVoicePicker()}>
-                {voiceAsset !== null ? `${voiceAsset.name}（点击更换）` : '从资产库选择声音'}
-              </button>
-            </label>
-            {picker !== null && picker.slotId === 'voice' ? (
-              <div className={css.assetPanel}>
-                {assetList.filter(a => a.kind === '声音').length === 0
-                  ? <div className={css.assetEmpty}>暂无声音资产：可在「设置 → 形象与声音」创建后在此选择</div>
-                  : assetList.filter(a => a.kind === '声音').map(a => (
-                    <button key={a.id} type="button" className={css.assetItem} onClick={() => pickAsset(a)}>
-                      <span className={css.assetName}>{a.name}</span>
-                      <span className={css.assetMeta}>{a.origin ?? '资产库'}{typeof a.use_count === 'number' && a.use_count > 1 ? ` · 用过 ${a.use_count} 次` : ''}</span>
-                    </button>
-                  ))}
-              </div>
-            ) : null}
-          </>
-        ) : null}
-        <label className={css.field}>
-          <span>字幕</span>
-          <select value={subtitle} onChange={e => setSubtitle(e.target.value === 'none' ? 'none' : 'burn')}>
-            <option value="burn">烧录字幕</option>
-            <option value="none">无字幕</option>
-          </select>
-        </label>
-        <label className={`${css.field} ${css.fieldWide}`}>
-          <span>执行方式</span>
-          <select value={execution} onChange={e => setExecution(e.target.value === 'once' ? 'once' : 'step')}>
-            <option value="step">逐步确认（推荐）：先出拆解方案，你确认后再生成</option>
-            <option value="once">一次生成：拆解后直接生成成片</option>
-          </select>
-        </label>
-      </div>
+      {renderSourceUpload()}
 
       <div className={css.sectionTitle}>
-        ③ 改什么
+        ② 修改元素
         <span className={css.sectionHint}>不想改的就留空 = 保持原片；图 + 文字一起给最准</span>
       </div>
       <div className={css.pairRow}>
-        {renderSlot('product-images')}
+        {renderImageSlot('product-images')}
         {renderField(findField('product'))}
       </div>
       <div className={css.pairRow}>
-        {renderSlot('character-images')}
+        {renderImageSlot('character-images')}
         {renderField(findField('character'))}
       </div>
       <div className={css.pairRow}>
-        {renderSlot('background-images')}
+        {renderImageSlot('background-images')}
         {renderField(findField('scene'))}
       </div>
       <div className={css.grid2}>
@@ -585,16 +618,116 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
       </div>
       {renderField(findField('notes'))}
 
+      <details className={css.paramsDetails}>
+        <summary className={css.paramsSummary}>
+          <span className={css.paramsTitle}>③ 生成参数</span>
+          <span className={css.paramsMeta}>{paramSummary}</span>
+          <span className={css.paramsChevron}>▾</span>
+        </summary>
+        <div className={css.paramsBody}>
+          <div className={css.grid2}>
+            <label className={css.field}>
+              <span>模型</span>
+              <select value={model} onChange={e => setModel(e.target.value)}>
+                {VIDEO_REPLICATION_SCHEMA.models.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </label>
+            <label className={css.field}>
+              <span>画面比例</span>
+              <select value={ratio} onChange={e => setRatio(e.target.value)}>
+                {VIDEO_REPLICATION_SCHEMA.ratios.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </label>
+            <label className={css.field}>
+              <span>分辨率</span>
+              <select value={resolution} onChange={e => setResolution(e.target.value)}>
+                {VIDEO_REPLICATION_SCHEMA.resolutions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </label>
+            <label className={css.field}>
+              <span>生成数量</span>
+              <select value={count} onChange={e => setCount(Number(e.target.value))}>
+                {[1, 2, 3, 4].map(n => <option key={n} value={n}>{n} 条{n > 1 ? '（按倍数计费）' : ''}</option>)}
+              </select>
+            </label>
+            <label className={css.field}>
+              <span>时长</span>
+              <select value={durationMode} onChange={e => setDurationMode(e.target.value === 'custom' ? 'custom' : 'same')}>
+                <option value="same">同原视频时长（推荐）</option>
+                <option value="custom">自定义秒数</option>
+              </select>
+            </label>
+            {durationMode === 'custom' ? (
+              <label className={css.field}>
+                <span>成片秒数：{seconds} 秒</span>
+                <input type="range" min={VIDEO_REPLICATION_SCHEMA.seconds.min} max={VIDEO_REPLICATION_SCHEMA.seconds.max}
+                  step={VIDEO_REPLICATION_SCHEMA.seconds.step} value={seconds}
+                  onChange={e => setSeconds(Number(e.target.value))} />
+              </label>
+            ) : null}
+            <label className={css.field}>
+              <span>语音</span>
+              <select value={voice} onChange={e => {
+                const v = e.target.value as VoiceChoice
+                setVoice(v)
+                if (v === 'asset') void openVoicePicker()
+              }}>
+                <option value="auto">智能识别（跟随原片：有人声则有声，无人声则静音）</option>
+                <option value="vo">有声（忠实原片形态：唱则唱、说则说）</option>
+                <option value="asset">我的资产声音</option>
+                <option value="silent">静音（无任何人声）</option>
+              </select>
+            </label>
+            <label className={css.field}>
+              <span>字幕</span>
+              <select value={subtitle} onChange={e => setSubtitle(e.target.value as SubtitleChoice)}>
+                <option value="auto">智能识别（跟随原片：原片有字幕则烧录，无则不加）</option>
+                <option value="burn">烧录字幕</option>
+                <option value="none">无字幕</option>
+              </select>
+            </label>
+            <label className={`${css.field} ${css.fieldWide}`}>
+              <span>执行方式</span>
+              <select value={execution} onChange={e => setExecution(e.target.value === 'once' ? 'once' : 'step')}>
+                <option value="step">逐步确认（推荐）：先出拆解方案，你确认后再生成</option>
+                <option value="once">一次生成：拆解后直接生成成片</option>
+              </select>
+            </label>
+          </div>
+          {voice === 'asset' ? (
+            <>
+              <label className={css.field}>
+                <span>音色来源</span>
+                <button type="button" className={css.slotButton} onClick={() => void openVoicePicker()}>
+                  {voiceAsset !== null ? `${voiceAsset.name}（点击更换）` : '从资产库选择声音'}
+                </button>
+              </label>
+              {picker !== null && picker.slotId === 'voice' ? (
+                <div className={css.assetPanel}>
+                  {assetList.filter(a => a.kind === '声音').length === 0
+                    ? <div className={css.assetEmpty}>暂无声音资产：可在「设置 → 形象与声音」创建后在此选择</div>
+                    : assetList.filter(a => a.kind === '声音').map(a => (
+                      <button key={a.id} type="button" className={css.assetItem} onClick={() => pickAsset(a)}>
+                        <span className={css.assetName}>{a.name}</span>
+                        <span className={css.assetMeta}>{a.origin ?? '资产库'}{typeof a.use_count === 'number' && a.use_count > 1 ? ` · 用过 ${a.use_count} 次` : ''}</span>
+                      </button>
+                    ))}
+                </div>
+              ) : null}
+            </>
+          ) : null}
+        </div>
+      </details>
+
       {error !== '' ? <div className={css.error}>{error}</div> : null}
       <div className={css.actions}>
         <button type="button" className={css.generate} disabled={busy || !canGenerate}
           onClick={() => generate()}>
-          生成视频
+          {busy ? '上传中…' : '生成视频'}
         </button>
-        <button type="button" className={css.clear} onClick={() => { setSlots({}); setError('') }}>清空</button>
       </div>
       <div className={css.status}>
-        {canGenerate ? '已就绪：点「生成视频」提交，任务在左侧对话中执行' : '等待提交：先上传原视频（①），其余按需填写'}
+        {canGenerate ? '已就绪：点「生成视频」提交，任务在左侧对话中执行' : '等待提交：先在 ① 上传原视频，其余按需填写'}
         <span className={css.credits}>{creditsText}</span>
       </div>
     </div>
