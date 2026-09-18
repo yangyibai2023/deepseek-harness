@@ -176,3 +176,151 @@
   color: #999;
   line-height: 1.5;
 }
+
+/* ── FY1-M2 工作流进度条 ── */
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid #ececec;
+  border-radius: 10px;
+  background: #fafafa;
+}
+.progressStages {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+.stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  color: #999;
+  flex: 1;
+}
+.stageDot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1.5px solid #d0d0d0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  background: #fff;
+}
+.stageDone .stageDot {
+  background: #1a1a1a;
+  border-color: #1a1a1a;
+  color: #fff;
+}
+.stageActive .stageDot {
+  border-color: #1a1a1a;
+  color: #1a1a1a;
+  animation: hlPulse 1.4s ease-in-out infinite;
+}
+.stageActive {
+  color: #1a1a1a;
+  font-weight: 600;
+}
+@keyframes hlPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(26, 26, 26, 0.25); }
+  50% { box-shadow: 0 0 0 5px rgba(26, 26, 26, 0); }
+}
+.progressDetail {
+  font-size: 11px;
+  color: #555;
+  line-height: 1.5;
+}
+
+/* ── 资产选择器 ── */
+.slotActions {
+  display: flex;
+  gap: 6px;
+}
+.slotButton {
+  flex: 1;
+  padding: 7px 10px;
+  border: 1px solid #d9d9d9;
+  border-radius: 8px;
+  background: #fff;
+  text-align: center;
+  cursor: pointer;
+  color: #1a1a1a;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.slotButton:hover {
+  border-color: #1a1a1a;
+}
+.slotLibrary {
+  padding: 7px 10px;
+  border: 1px solid #d9d9d9;
+  border-radius: 8px;
+  background: #f4f4f4;
+  cursor: pointer;
+  font-size: 12px;
+  color: #444;
+  white-space: nowrap;
+}
+.slotLibrary:hover {
+  border-color: #1a1a1a;
+  color: #1a1a1a;
+}
+.fileInput {
+  display: none;
+}
+.assetPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px solid #e2e2e2;
+  border-radius: 8px;
+  padding: 6px;
+  background: #fff;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.assetEmpty {
+  font-size: 11px;
+  color: #999;
+  padding: 6px;
+  text-align: center;
+}
+.assetItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font-size: 12px;
+  color: #1a1a1a;
+}
+.assetItem:hover {
+  background: #f2f2f2;
+}
+.assetName {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.assetMeta {
+  font-size: 10px;
+  color: #999;
+}
+.credits {
+  display: block;
+  margin-top: 3px;
+  color: #8a7a3a;
+}

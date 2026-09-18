@@ -1,10 +1,11 @@
 /**
  * HeightLab 创作控制台（营销模式试点：视频复刻）。
- * 三个编号分区：①素材 ②生成参数 ③改款需求（全部可留空）。
- * 「生成视频」= dispatch hl:send-template（复用输入框自动发送通道，消息入对话
- * 后由 Colin→视频专家执行）；本组件不直接对接生成 API。
+ * 三个编号分区：①复刻基准 ②生成参数 ③改什么（图+文字配对，上下排列）。
+ * 上方进度条经 /hl/workflow-state 轮询真实工作流状态（FY1-M2）；
+ * 素材槽双入口：上传（自动登记资产中心）/ 从资产库选择；
+ * 「生成视频」= dispatch hl:send-template（复用输入框自动发送通道）。
  */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { VIDEO_REPLICATION_SCHEMA } from './schema.ts'
@@ -15,6 +16,31 @@ export interface ConsoleBodyProps extends PropsRuntime<'sidebar.right.pane.tab'>
 interface SlotEntry {
   name: string
   path: string
+}
+
+interface AssetEntry {
+  id: string
+  kind: string
+  name: string
+  path: string
+  use_count?: number
+  last_used_at?: string
+}
+
+interface WorkflowProgress {
+  stage: string
+  status: string
+  detail: string
+}
+
+/** 预估积分折算表（每秒积分，按清晰度；数值可在常数处统一调整）。 */
+const CREDITS_PER_SECOND: Record<string, number> = { '768P': 1, '2K': 2 }
+const STAGES = ['拆解', '方案确认', '生成', '质检', '交付'] as const
+const SLOT_KIND: Record<string, string> = {
+  'source-video': '视频',
+  'product-images': '产品',
+  'character-images': '人物',
+  'background-images': '场景',
 }
 
 async function uploadAsset(kind: 'video' | 'image', file: File): Promise<string> {
@@ -35,13 +61,23 @@ async function uploadAsset(kind: 'video' | 'image', file: File): Promise<string>
   return json.path
 }
 
+async function registerAsset(kind: string, name: string, path: string): Promise<void> {
+  try {
+    await fetch('/hl/assets', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ kind, name, path, source: 'upload' }),
+    })
+  } catch { /* 归档失败不影响主流程 */ }
+}
+
 export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
   const [model, setModel] = useState(VIDEO_REPLICATION_SCHEMA.models[0]?.value ?? '')
   const [ratio, setRatio] = useState(VIDEO_REPLICATION_SCHEMA.ratios[0]?.value ?? '9:16')
   const [resolution, setResolution] = useState(VIDEO_REPLICATION_SCHEMA.resolutions[0]?.value ?? '768P')
   const [seconds, setSeconds] = useState(VIDEO_REPLICATION_SCHEMA.seconds.defaultValue)
   const [durationMode, setDurationMode] = useState<'same' | 'custom'>('same')
-  const [voice, setVoice] = useState<'vo' | 'silent'>('vo')
+  const [voice, setVoice] = useState<'vo' | 'silent' | 'asset'>('vo')
   const [subtitle, setSubtitle] = useState<'burn' | 'none'>('burn')
   const [execution, setExecution] = useState<'step' | 'once'>('step')
   const [count, setCount] = useState(1)
@@ -55,6 +91,68 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
   const [slots, setSlots] = useState<Record<string, SlotEntry[]>>({})
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [progress, setProgress] = useState<WorkflowProgress | null>(null)
+  const [picker, setPicker] = useState<{ slotId: string; kind: string } | null>(null)
+  const [assetList, setAssetList] = useState<AssetEntry[]>([])
+  const [voiceAsset, setVoiceAsset] = useState<AssetEntry | null>(null)
+
+  // 真实进度轮询（FY1-M2）：专家经 workflow_stage 工具落盘，控制台只读渲染。
+  useEffect(() => {
+    let alive = true
+    const poll = async (): Promise<void> => {
+      try {
+        const res = await fetch('/hl/workflow-state')
+        const json = (await res.json()) as Partial<WorkflowProgress> & { template?: string }
+        if (alive && json.template === '视频复刻') {
+          setProgress({ stage: json.stage ?? '', status: json.status ?? '', detail: json.detail ?? '' })
+        }
+      } catch { /* 宿主未就绪时静默 */ }
+    }
+    void poll()
+    const timer = window.setInterval(poll, 2500)
+    return () => {
+      alive = false
+      window.clearInterval(timer)
+    }
+  }, [])
+
+  const openPicker = async (slotId: string, kind: string): Promise<void> => {
+    setPicker({ slotId, kind })
+    try {
+      const res = await fetch(`/hl/assets?kind=${encodeURIComponent(kind)}`)
+      const json = (await res.json()) as { assets?: AssetEntry[] }
+      setAssetList(json.assets ?? [])
+    } catch {
+      setAssetList([])
+    }
+  }
+
+  const openVoicePicker = async (): Promise<void> => {
+    setPicker({ slotId: 'voice', kind: '声音' })
+    try {
+      const res = await fetch('/hl/assets?kind=声音')
+      const json = (await res.json()) as { assets?: AssetEntry[] }
+      setAssetList(json.assets ?? [])
+    } catch {
+      setAssetList([])
+    }
+  }
+
+  const pickAsset = (a: AssetEntry): void => {
+    if (picker === null) return
+    if (picker.slotId === 'voice') {
+      setVoiceAsset(a)
+      setVoice('asset')
+    } else {
+      setSlots(prev => ({ ...prev, [picker.slotId]: [{ name: a.name, path: a.path }] }))
+    }
+    void fetch('/hl/assets', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ use_id: a.id }),
+    }).catch(() => undefined)
+    setPicker(null)
+  }
 
   const setFiles = async (slotId: string, kind: 'video' | 'image', files: FileList | null): Promise<void> => {
     if (files === null || files.length === 0) return
@@ -65,6 +163,7 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
       for (const file of Array.from(files)) {
         const path = await uploadAsset(kind, file)
         entries.push({ name: file.name, path })
+        void registerAsset(SLOT_KIND[slotId] ?? '其他', file.name, path)
       }
       setSlots(prev => ({ ...prev, [slotId]: entries }))
     } catch (err) {
@@ -97,6 +196,11 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
       const value = (fields[f.id] ?? '').trim()
       return value === '' ? [] : [`- ${f.label}：${value}`]
     })
+    const voiceLine = voice === 'silent'
+      ? '- 语音：静音（绝对不生成任何语音、口播或音效）'
+      : voice === 'asset' && voiceAsset !== null
+        ? `- 语音：有声（忠实原片表演形态）· 音色使用用户资产声音「${voiceAsset.name}」（${voiceAsset.path}），显式指定，非自动附加`
+        : '- 语音：有声（忠实原片表演形态：原片是演唱就演唱、是口播就口播，不得改成口播）'
     const text = [
       '【视频复刻任务】请按视频复刻工作流执行，以下参数为用户在创作控制台的指定：',
       `- 模型：${model}`,
@@ -106,18 +210,17 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
         : `- 时长：${seconds} 秒（原片不足时按分镜节奏自然展开，不要硬凑）`,
       `- 画幅：${ratio}`,
       `- 生成数量：${count} 条（全部交付并编号，供用户挑选）`,
-      voice === 'vo'
-        ? '- 语音：有声（忠实原片表演形态：原片是演唱就演唱、是口播就口播，不得改成口播）'
-        : '- 语音：静音（绝对不生成任何语音、口播或音效）',
+      voiceLine,
       subtitle === 'burn'
         ? '- 字幕：烧录字幕（口播文案以字幕形式烧进画面）'
         : '- 字幕：无字幕（画面中不得出现任何字幕文字）',
       execution === 'step'
         ? '- 执行方式：逐步确认——完成拆解与分镜方案后必须停下，等用户明确确认（如回复「确认/继续」）后才可进入生成；用户未确认前严禁生成任何镜头'
-        : '- 执行方式：一次生成——无需中途确认，但每个阶段完成时必须输出一行进度',
+        : '- 执行方式：一次生成——无需中途确认，但每个阶段完成时必须调用 workflow_stage 输出进度',
       ...requirementLines,
       ...markers,
     ].join('\n')
+    setProgress(null)
     window.dispatchEvent(new CustomEvent('hl:send-template', { detail: { text } }))
   }
 
@@ -133,13 +236,30 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
           {spec.required ? <span className={css.badge}>必选</span> : null}
         </div>
         <div className={css.slotCaption}>{spec.caption}</div>
-        <label className={css.slotButton} htmlFor={inputId}>
-          {entries.length > 0 ? `已选 ${entries.map(e => e.name).join('、')}` : '点击选择文件'}
-        </label>
+        <div className={css.slotActions}>
+          <label className={css.slotButton} htmlFor={inputId}>
+            {entries.length > 0 ? `已选 ${entries.map(e => e.name).join('、')}` : '点击选择文件'}
+          </label>
+          <button type="button" className={css.slotLibrary}
+            onClick={() => void openPicker(slotId, SLOT_KIND[slotId] ?? '其他')}>
+            资产库
+          </button>
+        </div>
         <input id={inputId} className={css.fileInput} type="file"
           multiple={spec.max === undefined || spec.max > 1}
           accept={spec.kind === 'video' ? 'video/*' : 'image/*'}
           onChange={e => void setFiles(spec.id, spec.kind, e.target.files)} />
+        {picker !== null && picker.slotId === slotId ? (
+          <div className={css.assetPanel}>
+            {assetList.length === 0 ? <div className={css.assetEmpty}>资产库暂无{picker.kind}素材（上传过的会自动归档到这里）</div>
+              : assetList.map(a => (
+                <button key={a.id} type="button" className={css.assetItem} onClick={() => pickAsset(a)}>
+                  <span className={css.assetName}>{a.name}</span>
+                  <span className={css.assetMeta}>{a.kind} · 用过 {typeof a.use_count === 'number' ? a.use_count : 1} 次</span>
+                </button>
+              ))}
+          </div>
+        ) : null}
       </div>
     )
   }
@@ -159,12 +279,38 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
     </label>
   )
 
+  const currentStageIndex = progress === null ? -1 : STAGES.indexOf(progress.stage as never)
+  const stageState = (idx: number): string | undefined => {
+    if (progress === null || currentStageIndex < 0) return css.stageTodo
+    if (idx < currentStageIndex) return css.stageDone
+    if (idx > currentStageIndex) return css.stageTodo
+    return progress.status === 'done' ? css.stageDone : `${css.stageActive}`
+  }
+  const perSecond = CREDITS_PER_SECOND[resolution] ?? 1
+  const creditsText = durationMode === 'same'
+    ? `预估积分：≈ 原片时长 × ${count} 条 × ${perSecond}/秒（${resolution} · 折算表估算）`
+    : `预估积分：≈ ${seconds * count * perSecond}（${seconds}s × ${count} 条 × ${perSecond}/秒 · 折算表估算）`
+
   return (
     <div className={css.console}>
       <div className={css.head}>
         <div className={css.schemaTitle}>视频复刻 · 创作控制台</div>
         <div className={css.headHint}>素材和参数都在这里填，点「生成视频」后任务进入左侧对话执行。</div>
       </div>
+
+      {progress !== null ? (
+        <div className={css.progress}>
+          <div className={css.progressStages}>
+            {STAGES.map((s, idx) => (
+              <div key={s} className={`${css.stage} ${stageState(idx)}`}>
+                <span className={css.stageDot}>{idx < currentStageIndex || (idx === currentStageIndex && progress.status === 'done') ? '✓' : idx + 1}</span>
+                <span className={css.stageName}>{s}</span>
+              </div>
+            ))}
+          </div>
+          {progress.detail !== '' ? <div className={css.progressDetail}>{progress.detail}</div> : null}
+        </div>
+      ) : null}
 
       <div className={css.sectionTitle}>① 复刻基准</div>
       {renderSlot('source-video')}
@@ -204,7 +350,7 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
           </select>
         </label>
         {durationMode === 'custom' ? (
-          <label className={`${css.field} ${css.fieldWide}`}>
+          <label className={css.field}>
             <span>成片秒数：{seconds} 秒</span>
             <input type="range" min={VIDEO_REPLICATION_SCHEMA.seconds.min} max={VIDEO_REPLICATION_SCHEMA.seconds.max}
               step={VIDEO_REPLICATION_SCHEMA.seconds.step} value={seconds}
@@ -213,11 +359,24 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
         ) : null}
         <label className={css.field}>
           <span>语音</span>
-          <select value={voice} onChange={e => setVoice(e.target.value === 'silent' ? 'silent' : 'vo')}>
+          <select value={voice} onChange={e => {
+            const v = e.target.value
+            setVoice(v === 'silent' ? 'silent' : v === 'asset' ? 'asset' : 'vo')
+            if (v === 'asset') void openVoicePicker()
+          }}>
             <option value="vo">有声（忠实原片形态：唱则唱、说则说）</option>
+            <option value="asset">我的资产声音</option>
             <option value="silent">静音（无任何人声）</option>
           </select>
         </label>
+        {voice === 'asset' ? (
+          <label className={css.field}>
+            <span>音色来源</span>
+            <button type="button" className={css.slotButton} onClick={() => void openVoicePicker()}>
+              {voiceAsset !== null ? `${voiceAsset.name}（点击更换）` : '从资产库选择声音'}
+            </button>
+          </label>
+        ) : null}
         <label className={css.field}>
           <span>字幕</span>
           <select value={subtitle} onChange={e => setSubtitle(e.target.value === 'none' ? 'none' : 'burn')}>
@@ -266,6 +425,7 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
       </div>
       <div className={css.status}>
         {canGenerate ? '已就绪：点「生成视频」提交，任务在左侧对话中执行' : '等待提交：先上传原视频（①），其余按需填写'}
+        <span className={css.credits}>{creditsText}</span>
       </div>
     </div>
   )
