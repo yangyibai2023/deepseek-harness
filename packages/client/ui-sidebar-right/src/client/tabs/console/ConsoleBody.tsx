@@ -5,7 +5,7 @@
  * 素材槽双入口：上传（自动登记资产中心）/ 从资产库选择；
  * 「生成视频」= dispatch hl:send-template（复用输入框自动发送通道）。
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { VIDEO_REPLICATION_SCHEMA } from './schema.ts'
@@ -393,6 +393,13 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
             onClick={() => void openPicker(slotId, SLOT_KIND[slotId] ?? '其他')}>
             资产库
           </button>
+          {entries.length > 0 ? (
+            <button type="button" className={css.slotLibrary}
+              title="移除已选素材"
+              onClick={() => setSlots(prev => ({ ...prev, [slotId]: [] }))}>
+              清除
+            </button>
+          ) : null}
         </div>
         <input id={inputId} className={css.fileInput} type="file"
           multiple={spec.max === undefined || spec.max > 1}
