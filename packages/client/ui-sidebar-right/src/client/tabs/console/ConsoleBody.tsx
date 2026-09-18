@@ -15,16 +15,20 @@ export interface ConsoleBodyProps extends PropsRuntime<'sidebar.right.pane.tab'>
 
 interface SlotEntry {
   name: string
-  path: string
+  path?: string | undefined
+  refLines?: string[] | undefined
 }
 
 interface AssetEntry {
   id: string
   kind: string
   name: string
-  path: string
-  use_count?: number
-  last_used_at?: string
+  path?: string | undefined
+  url?: string | undefined
+  refLines?: string[] | undefined
+  origin?: string | undefined
+  use_count?: number | undefined
+  last_used_at?: string | undefined
 }
 
 interface WorkflowProgress {
@@ -118,24 +122,88 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
 
   const openPicker = async (slotId: string, kind: string): Promise<void> => {
     setPicker({ slotId, kind })
-    try {
-      const res = await fetch(`/hl/assets?kind=${encodeURIComponent(kind)}`)
-      const json = (await res.json()) as { assets?: AssetEntry[] }
-      setAssetList(json.assets ?? [])
-    } catch {
-      setAssetList([])
-    }
+    setAssetList(await fetchMergedAssets())
+  }
+
+  /**
+   * 合并四个来源：本地资产登记表（/hl/assets，含历史上传与自动归档）、
+   * 设置→人物（characters）、设置→场景（scenes）、设置→声音克隆（/hl/voices）。
+   * 全部以统一条目呈现，kind 标注来源，任一来源失败不影响其他。
+   */
+  const fetchMergedAssets = async (): Promise<AssetEntry[]> => {
+    const merged: AssetEntry[] = []
+    const local: Array<Promise<void>> = []
+    local.push((async () => {
+      try {
+        const res = await fetch('/hl/assets')
+        const json = (await res.json()) as { assets?: Array<Record<string, unknown>> }
+        for (const a of json.assets ?? []) {
+          merged.push({
+            id: String(a.id ?? ''), kind: String(a.kind ?? '其他'), name: String(a.name ?? ''),
+            path: typeof a.path === 'string' ? a.path : undefined,
+            origin: String(a.source ?? '资产库'), use_count: typeof a.use_count === 'number' ? a.use_count : 0,
+            last_used_at: typeof a.last_used_at === 'string' ? a.last_used_at : undefined,
+          })
+        }
+      } catch { /* 本地源失败忽略 */ }
+    })())
+    local.push((async () => {
+      try {
+        const res = await fetch('/api/content-tools/video-assets/characters')
+        const json = (await res.json()) as { data?: { items?: Array<Record<string, unknown>> } }
+        for (const it of json.data?.items ?? []) {
+          const name = String(it.name ?? '人物资产')
+          const videoUrl = typeof it.video_url === 'string' ? it.video_url : ''
+          const audioUrl = typeof it.audio_url === 'string' && it.audio_url !== '' ? it.audio_url : null
+          const refLines = [`- 人物资产：已选择（${name}）`, `  人物视频参考 URL：${videoUrl}`]
+          if (audioUrl !== null) refLines.push(`  人物声音参考 URL：${audioUrl}`)
+          merged.push({
+            id: `set-char-${String(it.character_reference ?? name)}`,
+            kind: '人物', name, url: videoUrl, refLines, origin: '设置资产',
+            use_count: 0, last_used_at: undefined,
+          })
+        }
+      } catch { /* 设置人物源失败忽略 */ }
+    })())
+    local.push((async () => {
+      try {
+        const res = await fetch('/api/content-tools/video-assets/scenes')
+        const json = (await res.json()) as { data?: { items?: Array<Record<string, unknown>> } }
+        for (const it of json.data?.items ?? []) {
+          const name = String(it.name ?? '场景资产')
+          const imageUrl = typeof it.image_url === 'string' ? it.image_url : ''
+          merged.push({
+            id: `set-scene-${String(it.scene_reference ?? name)}`,
+            kind: '场景', name, url: imageUrl,
+            refLines: [`- 场景：已选择（${name}）`, `  场景图片参考 URL：${imageUrl}`],
+            origin: '设置资产', use_count: 0, last_used_at: undefined,
+          })
+        }
+      } catch { /* 设置场景源失败忽略 */ }
+    })())
+    local.push((async () => {
+      try {
+        const res = await fetch('/hl/voices')
+        const json = (await res.json()) as { data?: { items?: Array<Record<string, unknown>> }; items?: Array<Record<string, unknown>> }
+        for (const it of json.data?.items ?? json.items ?? []) {
+          const ref = String(it.voice_reference ?? it.id ?? '')
+          if (ref === '') continue
+          const name = String(it.title ?? it.name ?? ref)
+          merged.push({
+            id: `set-voice-${ref}`, kind: '声音', name,
+            url: ref, refLines: [`- 音色：用户资产声音「${name}」（${ref}）`],
+            origin: '设置·声音克隆', use_count: 0, last_used_at: undefined,
+          })
+        }
+      } catch { /* 声音源失败忽略 */ }
+    })())
+    await Promise.all(local)
+    return merged
   }
 
   const openVoicePicker = async (): Promise<void> => {
     setPicker({ slotId: 'voice', kind: '声音' })
-    try {
-      const res = await fetch('/hl/assets?kind=声音')
-      const json = (await res.json()) as { assets?: AssetEntry[] }
-      setAssetList(json.assets ?? [])
-    } catch {
-      setAssetList([])
-    }
+    setAssetList(await fetchMergedAssets())
   }
 
   const pickAsset = (a: AssetEntry): void => {
@@ -144,7 +212,14 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
       setVoiceAsset(a)
       setVoice('asset')
     } else {
-      setSlots(prev => ({ ...prev, [picker.slotId]: [{ name: a.name, path: a.path }] }))
+      setSlots(prev => ({
+        ...prev,
+        [picker.slotId]: [{
+          name: a.name,
+          ...(a.path !== undefined ? { path: a.path } : {}),
+          ...(a.refLines !== undefined ? { refLines: a.refLines } : {}),
+        }],
+      }))
     }
     void fetch('/hl/assets', {
       method: 'POST',
@@ -187,11 +262,17 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
       setError('请先在 ① 上传素材里选择原视频')
       return
     }
-    const markers = [
-      `[用户上传了一个视频，本地路径：${sourceVideo.path}]`,
-      ...Object.entries(slots).flatMap(([slotId, entries]) =>
-        slotId === 'source-video' ? [] : (entries ?? []).map(e => `[用户上传了一张图片，本地路径：${e.path}]`)),
-    ]
+    const markers: string[] = []
+    if (sourceVideo !== undefined && sourceVideo.path !== undefined) {
+      markers.push(`[用户上传了一个视频，本地路径：${sourceVideo.path}]`)
+    }
+    for (const [slotId, entries] of Object.entries(slots)) {
+      if (slotId === 'source-video') continue
+      for (const e of entries ?? []) {
+        if (e.refLines !== undefined && e.refLines.length > 0) markers.push(...e.refLines)
+        else if (e.path !== undefined) markers.push(`[用户上传了一张图片，本地路径：${e.path}]`)
+      }
+    }
     const requirementLines = VIDEO_REPLICATION_SCHEMA.fields.flatMap(f => {
       const value = (fields[f.id] ?? '').trim()
       return value === '' ? [] : [`- ${f.label}：${value}`]
@@ -251,11 +332,11 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
           onChange={e => void setFiles(spec.id, spec.kind, e.target.files)} />
         {picker !== null && picker.slotId === slotId ? (
           <div className={css.assetPanel}>
-            {assetList.length === 0 ? <div className={css.assetEmpty}>资产库暂无{picker.kind}素材（上传过的会自动归档到这里）</div>
+            {assetList.length === 0 ? <div className={css.assetEmpty}>暂无{picker.kind}素材（上传过的素材会自动归档到这里；设置里的人物/场景/声音也会出现在此）</div>
               : assetList.map(a => (
                 <button key={a.id} type="button" className={css.assetItem} onClick={() => pickAsset(a)}>
                   <span className={css.assetName}>{a.name}</span>
-                  <span className={css.assetMeta}>{a.kind} · 用过 {typeof a.use_count === 'number' ? a.use_count : 1} 次</span>
+                  <span className={css.assetMeta}>{a.kind} · {a.origin ?? '资产库'}{typeof a.use_count === 'number' && a.use_count > 1 ? ` · 用过 ${a.use_count} 次` : ''}</span>
                 </button>
               ))}
           </div>
@@ -370,12 +451,26 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
           </select>
         </label>
         {voice === 'asset' ? (
-          <label className={css.field}>
-            <span>音色来源</span>
-            <button type="button" className={css.slotButton} onClick={() => void openVoicePicker()}>
-              {voiceAsset !== null ? `${voiceAsset.name}（点击更换）` : '从资产库选择声音'}
-            </button>
-          </label>
+          <>
+            <label className={css.field}>
+              <span>音色来源</span>
+              <button type="button" className={css.slotButton} onClick={() => void openVoicePicker()}>
+                {voiceAsset !== null ? `${voiceAsset.name}（点击更换）` : '从资产库选择声音'}
+              </button>
+            </label>
+            {picker !== null && picker.slotId === 'voice' ? (
+              <div className={css.assetPanel}>
+                {assetList.filter(a => a.kind === '声音').length === 0
+                  ? <div className={css.assetEmpty}>暂无声音资产：可在「设置 → 形象与声音」创建后在此选择</div>
+                  : assetList.filter(a => a.kind === '声音').map(a => (
+                    <button key={a.id} type="button" className={css.assetItem} onClick={() => pickAsset(a)}>
+                      <span className={css.assetName}>{a.name}</span>
+                      <span className={css.assetMeta}>{a.origin ?? '资产库'}{typeof a.use_count === 'number' && a.use_count > 1 ? ` · 用过 ${a.use_count} 次` : ''}</span>
+                    </button>
+                  ))}
+              </div>
+            ) : null}
+          </>
         ) : null}
         <label className={css.field}>
           <span>字幕</span>
