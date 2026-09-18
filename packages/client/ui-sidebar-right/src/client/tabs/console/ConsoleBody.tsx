@@ -122,7 +122,17 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
 
   const openPicker = async (slotId: string, kind: string): Promise<void> => {
     setPicker({ slotId, kind })
-    setAssetList(await fetchMergedAssets())
+    const all = await fetchMergedAssets()
+    // 槽位分类过滤（用户拍板）：人物槽只列人物、场景槽只列场景……
+    // 「其他」（历史上传的未分类素材）在所有槽可见，避免资产被藏住。
+    const slotKinds: Record<string, readonly string[]> = {
+      'source-video': ['视频'],
+      'product-images': ['产品', '其他'],
+      'character-images': ['人物', '其他'],
+      'background-images': ['场景', '其他'],
+    }
+    const allowed = slotKinds[slotId] ?? [kind]
+    setAssetList(all.filter(a => allowed.includes(a.kind)))
   }
 
   /**
