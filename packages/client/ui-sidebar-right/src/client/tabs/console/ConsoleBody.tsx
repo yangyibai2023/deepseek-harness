@@ -431,7 +431,7 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
     window.dispatchEvent(new CustomEvent('hl:send-template', { detail: { text } }))
   }
 
-  const renderAssetPanel = (slotId: string): ReactNode => (
+  const renderAssetPanel = (): ReactNode => (
     <div className={css.assetPanel}>
       {assetList.length === 0 ? <div className={css.assetEmpty}>暂无{picker?.kind ?? ''}素材（上传过的素材会自动归档到这里；设置里的人物/场景/声音也会出现在此）</div>
         : assetList.map(a => (
@@ -482,7 +482,7 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
         )}
         <input id="console-file-source-video" className={css.fileInput} type="file" accept="video/*"
           onChange={e => void setFiles('source-video', 'video', e.target.files)} />
-        {picker !== null && picker.slotId === 'source-video' ? renderAssetPanel('source-video') : null}
+        {picker !== null && picker.slotId === 'source-video' ? renderAssetPanel() : null}
       </div>
     )
   }
@@ -518,7 +518,7 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
         </div>
         <input id={inputId} className={css.fileInput} type="file" multiple={max > 1} accept="image/*"
           onChange={e => void setFiles(slotId, spec.kind, e.target.files)} />
-        {picker !== null && picker.slotId === slotId ? renderAssetPanel(slotId) : null}
+        {picker !== null && picker.slotId === slotId ? renderAssetPanel() : null}
       </div>
     )
   }
