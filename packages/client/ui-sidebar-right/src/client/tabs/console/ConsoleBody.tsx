@@ -5,7 +5,7 @@
  * 素材槽双入口：上传（自动登记资产中心）/ 从资产库选择；
  * 「生成视频」= dispatch hl:send-template（复用输入框自动发送通道）。
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { VIDEO_REPLICATION_SCHEMA } from './schema.ts'
@@ -99,26 +99,84 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
   const [picker, setPicker] = useState<{ slotId: string; kind: string } | null>(null)
   const [assetList, setAssetList] = useState<AssetEntry[]>([])
   const [voiceAsset, setVoiceAsset] = useState<AssetEntry | null>(null)
+  // 会话感知：轮询当前会话 id；切到「有复刻状态/草稿」的会话时自动弹出并
+  // 回填表单（FY1-M2 会话恢复，用户拍板语义：首页/无关会话不弹）。
+  const [sessionId, setSessionId] = useState('')
 
-  // 真实进度轮询（FY1-M2）：专家经 workflow_stage 工具落盘，控制台只读渲染。
   useEffect(() => {
     let alive = true
-    const poll = async (): Promise<void> => {
+    let lastSession = ''
+    const tick = async (): Promise<void> => {
       try {
-        const res = await fetch('/hl/workflow-state')
-        const json = (await res.json()) as Partial<WorkflowProgress> & { template?: string }
-        if (alive && json.template === '视频复刻') {
-          setProgress({ stage: json.stage ?? '', status: json.status ?? '', detail: json.detail ?? '' })
+        const sres = await fetch('/hl/current-session')
+        const sjson = (await sres.json()) as { session_id?: string }
+        const sid = sjson.session_id ?? ''
+        if (alive && sid !== '' && sid !== lastSession) {
+          lastSession = sid
+          if (alive) setSessionId(sid)
+          const sres2 = await fetch(`/hl/console-state?session=${encodeURIComponent(sid)}`)
+          const state = (await sres2.json()) as {
+            workflow?: { template?: string; stage?: string; status?: string; detail?: string } | null
+            draft?: Record<string, unknown> | null
+          }
+          if (!alive) return
+          if (state.workflow?.template === '视频复刻') {
+            setProgress({
+              stage: state.workflow.stage ?? '',
+              status: state.workflow.status ?? '',
+              detail: state.workflow.detail ?? '',
+            })
+            window.dispatchEvent(new CustomEvent('hl:open-console'))
+          }
+          if (state.draft !== null && state.draft !== undefined) restoreDraft(state.draft)
         }
-      } catch { /* 宿主未就绪时静默 */ }
+      } catch { /* 静默：宿主未就绪 */ }
     }
-    void poll()
-    const timer = window.setInterval(poll, 2500)
+    void tick()
+    const timer = window.setInterval(tick, 3000)
     return () => {
       alive = false
       window.clearInterval(timer)
     }
   }, [])
+
+  const restoreDraft = (draft: Record<string, unknown>): void => {
+    if (typeof draft.model === 'string') setModel(draft.model)
+    if (typeof draft.ratio === 'string') setRatio(draft.ratio)
+    if (typeof draft.resolution === 'string') setResolution(draft.resolution)
+    if (typeof draft.seconds === 'number') setSeconds(draft.seconds)
+    if (draft.durationMode === 'custom' || draft.durationMode === 'same') setDurationMode(draft.durationMode)
+    if (draft.voice === 'vo' || draft.voice === 'silent' || draft.voice === 'asset') setVoice(draft.voice)
+    if (draft.subtitle === 'burn' || draft.subtitle === 'none') setSubtitle(draft.subtitle)
+    if (draft.execution === 'step' || draft.execution === 'once') setExecution(draft.execution)
+    if (typeof draft.count === 'number') setCount(draft.count)
+    if (draft.fields !== null && typeof draft.fields === 'object') {
+      setFields(draft.fields as Record<string, string>)
+    }
+    if (draft.slots !== null && typeof draft.slots === 'object') {
+      setSlots(draft.slots as Record<string, SlotEntry[]>)
+    }
+  }
+
+  const buildDraft = (): Record<string, unknown> => ({
+    model, ratio, resolution, seconds, durationMode, voice, subtitle, execution, count,
+    fields, slots,
+    voiceAssetName: voiceAsset?.name ?? null,
+    updatedAt: new Date().toISOString(),
+  })
+
+  // 草稿保存：参数/素材任何变化后 2 秒去抖落盘（按当前会话隔离）。
+  useEffect(() => {
+    if (sessionId === '') return
+    const timer = window.setTimeout(() => {
+      void fetch('/hl/console-draft', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ session: sessionId, draft: buildDraft() }),
+      }).catch(() => undefined)
+    }, 2000)
+    return () => window.clearTimeout(timer)
+  }, [sessionId, model, ratio, resolution, seconds, durationMode, voice, subtitle, execution, count, fields, slots, voiceAsset])
 
   const openPicker = async (slotId: string, kind: string): Promise<void> => {
     setPicker({ slotId, kind })
