@@ -448,7 +448,7 @@ export function sameTemplateText(item: Recommendation, answers: Record<string, s
   if (item.console === true) {
     const guide = item.prompt === undefined || item.prompt === ''
       ? '①上传必选素材 ②填写参数 ③点击「生成」提交'
-      : item.prompt
+      : item.prompt.replace(/。+$/, '')
     return `【模板：${item.title}】进入${item.title}模式。请先简短确认已进入，并引导用户在右侧创作控制台完成：${guide}。用户提交前不要开始分析或生成；素材与参数以控制台提交的任务文本为准。`
   }
   const structure = item.prompt === undefined || item.prompt === ''
