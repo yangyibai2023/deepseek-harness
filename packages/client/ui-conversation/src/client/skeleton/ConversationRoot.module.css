@@ -1352,3 +1352,14 @@
   transform: translate(-50%, 50%);
   pointer-events: none;
 }
+
+/* HeightLab 2026-09-19：dsh-ui 卡片（genui 插件）的表格/文件树滚动容器
+   同样带 `overscroll-behavior-x: contain`——WKWebView 下会把悬停处的纵向
+   滚轮一起拦截（滚动链被掐断），用户必须把鼠标移出表格才能滚动对话。
+   genui 是二进制插件改不了源码，这里全局覆盖恢复滚动链；属性选择器
+   （class 后缀含 tableWrap/fileTree）跨 genui 版本的哈希前缀稳定。 */
+:global([class*='tableWrap']),
+:global([class*='fileTree']) {
+  overscroll-behavior-x: auto !important;
+  overscroll-behavior-y: auto !important;
+}
