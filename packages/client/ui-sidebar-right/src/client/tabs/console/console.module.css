@@ -2,16 +2,16 @@
 .console {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 14px 12px 16px;
+  gap: 8px;
+  padding: 12px 12px 14px;
   font-size: 12px;
   color: #1a1a1a;
 }
 .head {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding-bottom: 10px;
+  gap: 3px;
+  padding-bottom: 8px;
   border-bottom: 1px solid #ececec;
 }
 .schemaTitle {
@@ -24,7 +24,7 @@
   line-height: 1.5;
 }
 .sectionTitle {
-  margin-top: 6px;
+  margin-top: 3px;
   font-size: 12px;
   font-weight: 700;
   display: flex;
@@ -49,8 +49,8 @@
 .pairRow {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 10px;
+  gap: 5px;
+  padding: 7px;
   border: 1px solid #ececec;
   border-radius: 10px;
 }
@@ -198,7 +198,7 @@
   align-items: center;
   justify-content: center;
   gap: 4px;
-  min-height: 108px;
+  min-height: 76px;
   border: 1.5px dashed #c4c4c4;
   border-radius: 10px;
   background: #fafafa;
@@ -210,7 +210,7 @@
   background: #f4f4f4;
 }
 .uploadPlus {
-  font-size: 30px;
+  font-size: 22px;
   font-weight: 300;
   line-height: 1;
   color: #999;
@@ -237,7 +237,7 @@
 .thumbVideo {
   display: block;
   width: 100%;
-  max-height: 170px;
+  max-height: 108px;
   object-fit: contain;
   background: #000;
 }
@@ -281,8 +281,8 @@
 }
 .imgGrid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 6px;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 5px;
 }
 .imgCell {
   position: relative;
@@ -369,7 +369,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 9px 10px;
+  padding: 7px 10px;
   cursor: pointer;
   list-style: none;
   user-select: none;
@@ -413,8 +413,8 @@
 .progress {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 10px;
+  gap: 5px;
+  padding: 7px 8px;
   border: 1px solid #ececec;
   border-radius: 10px;
   background: #fafafa;
@@ -555,4 +555,118 @@
   display: block;
   margin-top: 3px;
   color: #8a7a3a;
+}
+
+/* ── 资产库弹窗（2026-09-19 用户拍板：弹框+缩略图卡片+明确关闭） ── */
+.maskLayer {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.assetModal {
+  width: min(420px, 86vw);
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.22);
+  overflow: hidden;
+}
+.modalHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid #ececec;
+}
+.modalTitle {
+  font-size: 13px;
+  font-weight: 700;
+}
+.modalClose {
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 50%;
+  background: #f2f2f2;
+  color: #444;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.modalClose:hover {
+  background: #e4e4e4;
+  color: #000;
+}
+.modalGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding: 10px 12px 12px;
+  overflow-y: auto;
+}
+.modalCell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 0 0 5px;
+  border: 1px solid #e6e6e6;
+  border-radius: 9px;
+  background: #fff;
+  cursor: pointer;
+  overflow: hidden;
+  text-align: left;
+}
+.modalCell:hover {
+  border-color: #1a1a1a;
+}
+.modalCellImg {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  background: #f6f6f6;
+}
+.modalVoiceTile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  font-size: 22px;
+  color: #666;
+  background: #f6f6f6;
+}
+.modalCellName {
+  font-size: 11px;
+  font-weight: 500;
+  color: #1a1a1a;
+  padding: 0 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.modalCellMeta {
+  font-size: 9px;
+  color: #aaa;
+  padding: 0 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.modalEmpty {
+  grid-column: 1 / -1;
+  font-size: 11px;
+  color: #999;
+  padding: 18px 6px;
+  text-align: center;
+  line-height: 1.6;
 }

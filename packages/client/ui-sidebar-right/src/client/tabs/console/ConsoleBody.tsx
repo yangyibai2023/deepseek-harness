@@ -431,17 +431,41 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
     window.dispatchEvent(new CustomEvent('hl:send-template', { detail: { text } }))
   }
 
-  const renderAssetPanel = (): ReactNode => (
-    <div className={css.assetPanel}>
-      {assetList.length === 0 ? <div className={css.assetEmpty}>暂无{picker?.kind ?? ''}素材（上传过的素材会自动归档到这里；设置里的人物/场景/声音也会出现在此）</div>
-        : assetList.map(a => (
-          <button key={a.id} type="button" className={css.assetItem} onClick={() => pickAsset(a)}>
-            <span className={css.assetName}>{a.name}</span>
-            <span className={css.assetMeta}>{a.kind} · {a.origin ?? '资产库'}{typeof a.use_count === 'number' && a.use_count > 1 ? ` · 用过 ${a.use_count} 次` : ''}</span>
-          </button>
-        ))}
-    </div>
+  // 资产库弹窗（2026-09-19 用户拍板）：点「资产库」弹框，选中即入并自动
+  // 关闭；点遮罩/右上角 × 也可关闭。条目 = 缩略图卡片（不再文字列表）。
+  const assetCard = (a: AssetEntry): ReactNode => (
+    <button key={a.id} type="button" className={css.modalCell} onClick={() => pickAsset(a)}>
+      {a.kind === '声音'
+        ? <span className={css.modalVoiceTile}>♪</span>
+        : a.path !== undefined
+          ? <img className={css.modalCellImg} src={mediaUrl(a.path)} alt={a.name} />
+          : a.url !== undefined && a.url !== ''
+            ? <img className={css.modalCellImg} src={a.url} alt={a.name} />
+            : <span className={css.modalVoiceTile}>？</span>}
+      <span className={css.modalCellName}>{a.name}</span>
+      <span className={css.modalCellMeta}>{a.kind} · {a.origin ?? '资产库'}{typeof a.use_count === 'number' && a.use_count > 1 ? ` · 用过 ${a.use_count} 次` : ''}</span>
+    </button>
   )
+
+  const renderAssetModal = (): ReactNode => {
+    if (picker === null) return null
+    const items = picker.slotId === 'voice' ? assetList.filter(a => a.kind === '声音') : assetList
+    return (
+      <div className={css.maskLayer} onClick={() => setPicker(null)}>
+        <div className={css.assetModal} onClick={e => e.stopPropagation()}>
+          <div className={css.modalHead}>
+            <span className={css.modalTitle}>选择{picker.kind}素材</span>
+            <button type="button" className={css.modalClose} title="关闭" onClick={() => setPicker(null)}>×</button>
+          </div>
+          <div className={css.modalGrid}>
+            {items.length === 0
+              ? <div className={css.modalEmpty}>暂无{picker.kind}素材（上传过的素材会自动归档到这里；设置里的人物/场景/声音也会出现在此）</div>
+              : items.map(assetCard)}
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   // ① 复刻基准：虚线大上传框（点击/拖入）；已有文件 = 缩略图 + 悬浮右上角叉号。
   const renderSourceUpload = (): ReactNode => {
@@ -473,7 +497,7 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
         ) : (
           <div className={css.thumbBox}>
             {entry.path !== undefined ? (
-              <video className={css.thumbVideo} src={mediaUrl(entry.path)} muted preload="metadata" playsInline />
+              <video className={css.thumbVideo} src={`${mediaUrl(entry.path)}#t=0.001`} muted preload="metadata" playsInline />
             ) : null}
             <button type="button" className={css.thumbDelete} title="移除"
               onClick={() => removeSlotEntry('source-video', 0)}>×</button>
@@ -482,7 +506,6 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
         )}
         <input id="console-file-source-video" className={css.fileInput} type="file" accept="video/*"
           onChange={e => void setFiles('source-video', 'video', e.target.files)} />
-        {picker !== null && picker.slotId === 'source-video' ? renderAssetPanel() : null}
       </div>
     )
   }
@@ -518,7 +541,6 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
         </div>
         <input id={inputId} className={css.fileInput} type="file" multiple={max > 1} accept="image/*"
           onChange={e => void setFiles(slotId, spec.kind, e.target.files)} />
-        {picker !== null && picker.slotId === slotId ? renderAssetPanel() : null}
       </div>
     )
   }
@@ -702,17 +724,8 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
                   {voiceAsset !== null ? `${voiceAsset.name}（点击更换）` : '从资产库选择声音'}
                 </button>
               </label>
-              {picker !== null && picker.slotId === 'voice' ? (
-                <div className={css.assetPanel}>
-                  {assetList.filter(a => a.kind === '声音').length === 0
-                    ? <div className={css.assetEmpty}>暂无声音资产：可在「设置 → 形象与声音」创建后在此选择</div>
-                    : assetList.filter(a => a.kind === '声音').map(a => (
-                      <button key={a.id} type="button" className={css.assetItem} onClick={() => pickAsset(a)}>
-                        <span className={css.assetName}>{a.name}</span>
-                        <span className={css.assetMeta}>{a.origin ?? '资产库'}{typeof a.use_count === 'number' && a.use_count > 1 ? ` · 用过 ${a.use_count} 次` : ''}</span>
-                      </button>
-                    ))}
-                </div>
+              {voiceAsset !== null ? (
+                <div className={css.hint}>已选声音：{voiceAsset.name}（点上方按钮可更换）</div>
               ) : null}
             </>
           ) : null}
@@ -730,6 +743,7 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
         {canGenerate ? '已就绪：点「生成视频」提交，任务在左侧对话中执行' : '等待提交：先在 ① 上传原视频，其余按需填写'}
         <span className={css.credits}>{creditsText}</span>
       </div>
+      {renderAssetModal()}
     </div>
   )
 }
