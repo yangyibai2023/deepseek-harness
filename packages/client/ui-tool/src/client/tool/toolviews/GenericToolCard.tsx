@@ -175,7 +175,9 @@ const viewerButtonStyle: React.CSSProperties = {
 /** Pull image URLs (png/jpg/webp/gif) out of tool-result text. */
 function extractImageUrls(text: string): string[] {
   if (!text) return []
-  const re = /(https?:\/\/[^\s)）"'<>]+?\.(?:png|jpe?g|webp|gif))/gi
+  // 2026-09-19：允许 .jpg 后带查询串（local-media 的 ?path=URL 形态）——
+  // 此前非贪婪匹配截断在 image.jpg 丢掉 ?path=，工具卡 <img> 404 显示问号破图。
+  const re = /(https?:\/\/[^\s)）"'<>]+?\.(?:png|jpe?g|webp|gif)(?:\?[^\s)）"'<>]*)?)/gi
   const out: string[] = []
   for (const match of text.matchAll(re)) {
     if (match[1] && !out.includes(match[1])) out.push(match[1])
