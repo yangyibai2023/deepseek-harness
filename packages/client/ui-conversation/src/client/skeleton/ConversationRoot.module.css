@@ -473,6 +473,26 @@
   overflow-y: hidden;
 }
 
+/* HeightLab V31：hero 滚动两态——composerStack 自身为滚动容器：品牌区随
+   滚动滚出、输入卡（.inputCardSeat，sticky 吸底）始终可见、视频模板网格
+   在其下无限滚动（对标 MiniMax Design）。复刻模式保持贴底引导布局不用。 */
+.composerHeroScroll {
+  max-height: 100dvh;
+  overflow-y: auto;
+  scrollbar-width: none;
+  padding-bottom: 0;
+}
+.composerHeroScroll::-webkit-scrollbar {
+  display: none;
+}
+.inputCardSeat {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  padding-top: 10px;
+  background: linear-gradient(to top, #f5f6f7 72%, rgba(245, 246, 247, 0));
+}
+
 /* HeightLab：新会话页整体上移（中心从 50% → 30%，即上移 20% 视口高度），
    为输入框下方模板留出更大空间；2026-08-17 先下移 10%（40vh→20vh）后
    用户反馈偏大，回调 5%（20vh→30vh，中心约 35%）。

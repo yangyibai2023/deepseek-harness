@@ -22,7 +22,11 @@ import {
   IconNewChatOutline16, IconSparkle16, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
-  IconInspirationStroke16, IconLibraryStroke16, IconAutomationStroke16, IconPanelLeftStroke16,
+  // HeightLab V31：创意灵感一级入口暂时隐藏（首页输入框下方的视频模板网格
+  // 已承接其职责，对标 MiniMax Design）。回滚：取消下面数组里 inspiration
+  // 行与第 25 行 import 中的 IconInspirationStroke16 注释即可。
+  // IconInspirationStroke16,
+  IconLibraryStroke16, IconAutomationStroke16, IconPanelLeftStroke16,
 } from './sidebar-icons.tsx'
 import { HlModeSwitcher } from './hl-mode.tsx'
 import type { InjectFace, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
@@ -287,7 +291,9 @@ export function SidebarRoot({
           rc.2 原生 SVG 描边图标 + 主题 token（css.hlNav*），与原生风格统一。 */}
       <div className={css.hlNav}>
         {[
-          { key: 'inspiration', label: '创意灵感', Icon: IconInspirationStroke16, dispatch: 'hl:open-hub', detail: { page: 'inspiration' } },
+          // HeightLab V31（用户拍板）：创意灵感一级入口暂时隐藏——代码保留，
+          // 取消注释即恢复。
+          // { key: 'inspiration', label: '创意灵感', Icon: IconInspirationStroke16, dispatch: 'hl:open-hub', detail: { page: 'inspiration' } },
           { key: 'library', label: '资产中心', Icon: IconLibraryStroke16, dispatch: 'hl:open-hub', detail: { page: 'library' } },
           { key: 'automation', label: '自动化', Icon: IconAutomationStroke16, dispatch: 'hl:open-automation', detail: {} },
         ].map(item => (

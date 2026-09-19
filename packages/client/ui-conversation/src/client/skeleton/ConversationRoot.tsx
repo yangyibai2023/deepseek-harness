@@ -439,8 +439,14 @@ export function ConversationRoot({
   // one disabled textarea, never a second tree. The no-workspace state wins
   // when both hold — picking a workspace is the earlier prerequisite.
   const blocked = !inert && composerBlock !== undefined
+  // HeightLab V31：hero 页滚动两态（对标 MiniMax Design）——composerStack
+  // 自身为滚动容器（.composerHeroScroll）：顶部时品牌区+大输入卡（hero
+  // variant）+模板区露一排半；上滚超过阈值后品牌区滚出、输入卡切紧凑
+  // variant（composer）并 sticky 吸底，模板网格在其下无限滚动。复刻模式
+  // 不参与（保持贴底引导布局）。
+  const [heroCollapsed, setHeroCollapsed] = useState(false)
   const inputBar = renderSlot('conversation.composer.bar', {
-    variant: hero ? 'hero' : 'composer',
+    variant: hero && !heroCollapsed ? 'hero' : 'composer',
     ...(inert
       ? {
         disabled: true,
@@ -457,12 +463,23 @@ export function ConversationRoot({
   })
 
   const composerBar = (
-    <div className={clsx(css.composerStack, hero && (replicationMode ? css.composerHeroReplication : css.composerHero))}>
+    <div
+      className={clsx(
+        css.composerStack,
+        hero && !replicationMode && css.composerHeroScroll,
+        hero && (replicationMode ? css.composerHeroReplication : css.composerHero),
+      )}
+      onScroll={hero && !replicationMode
+        ? (event) => { setHeroCollapsed(event.currentTarget.scrollTop > 32) }
+        : undefined}
+    >
       {hero && <HeroShell t={t} renderSlot={renderSlot} />}
       {hero && heroWorkspaceRow}
       {zone !== undefined && renderSlot('conversation.input.dock', zone)}
-      {inputBar}
-      {/* HeightLab：模板坞（模板胶囊行），仅 hero 显示。 */}
+      {/* V31：输入卡 sticky 吸底——滚动流中始终可见，底部渐变让滚过的内容
+          从卡后淡出（对标 MiniMax 滚动态的紧凑输入条）。 */}
+      {hero ? <div className={css.inputCardSeat}>{inputBar}</div> : inputBar}
+      {/* HeightLab：模板坞（V31 起普通模式=视频模板网格），仅 hero 显示。 */}
       {hero && <HeightLabTemplateDock />}
     </div>
   )

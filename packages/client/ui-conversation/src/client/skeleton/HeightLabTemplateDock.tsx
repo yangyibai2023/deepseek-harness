@@ -30,6 +30,13 @@ import {
   type TemplateCategory,
 } from './HeightLabTemplates.ts'
 import { TemplatePreview } from './TemplatePreview.tsx'
+import { HeightLabVideoGrid } from './HeightLabVideoGrid.tsx'
+
+// HeightLab V31：首页模板区已切换为「视频模板网格」（HeightLabVideoGrid，
+// MiniMax 式大卡，预置成片模板语义）。旧分类模板渲染完整保留在下方
+// SHOW_LEGACY_TEMPLATE_DOCK 分支——置 true 即整体回滚（tags/预览/做同款/
+// 企业专属全功能不变）。
+const SHOW_LEGACY_TEMPLATE_DOCK = false
 
 // HeightLab：术语分类暂不更新，先隐藏（数据保留，恢复时加回 '术语'）。
 const TEMPLATE_TAGS = ['推荐', '文案', '图片', '视频', '办公', '更多'] as const
@@ -347,7 +354,7 @@ export function HeightLabTemplateDock() {
               </div>
             </div>
           </>
-        ) : (
+        ) : SHOW_LEGACY_TEMPLATE_DOCK ? (
         <>
         <div className={css.tags}>
           {visibleTags.map(tag => (
@@ -439,6 +446,8 @@ export function HeightLabTemplateDock() {
           )}
         </div>
         </>
+        ) : (
+        <HeightLabVideoGrid />
         )}
       </div>
       {preview !== null && (
