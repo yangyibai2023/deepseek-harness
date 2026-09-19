@@ -98,6 +98,11 @@ export function apply(ctx: Context): void {
         try {
           localStorage.setItem('hl-console-mode', 'replication')
         } catch { /* 非致命 */ }
+        // HeightLab V29：恢复旧监听的完整职责——EmptyHero/ConversationRoot/
+        // TemplateDock 三处复刻判定都靠 hl:mode-change 事件刷新（左侧引导
+        // 选项区+输入框贴底）。三修删旧监听时漏掉这条广播，左侧因此退回
+        // 普通主页样式（右侧 seed 读 localStorage 不受影响）。
+        window.dispatchEvent(new CustomEvent('hl:mode-change', { detail: { mode: 'replication' } }))
         window.dispatchEvent(new CustomEvent('hl:replication-session-open', { detail: { sessionId } }))
       }).catch((reason: unknown) => {
         console.warn('replication session failed:', reason)

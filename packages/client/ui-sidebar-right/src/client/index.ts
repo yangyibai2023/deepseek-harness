@@ -142,6 +142,10 @@ export function apply(ctx: ClientContext): void {
           if (localStorage.getItem('hl-console-mode') === 'replication') {
             openConsoleRetrying(false)
           }
+          // HeightLab V29：切入会话的复刻带回挂在本时机——store 采用=surface
+          // 就绪（V26b 实证可靠），且不依赖 hl:session-switched 广播链
+          // （V27b/V28 两版广播链均未生效，本时机为主路径）。
+          ensureReplicationConsole(String(scopeKey), 'store-create')
           adoptions.push(adopt(scopeKey as SessionId, instance))
         }
         return instance
@@ -241,6 +245,48 @@ export function apply(ctx: ClientContext): void {
       tryOpen()
     }
     const onOpenConsole = (): void => { openConsoleRetrying(false) }
+    // HeightLab V29 诊断埋点：复刻带回链路各分叉 POST /hl/boot-marker，
+    // 宿主日志（~/.heightlab/logs/dsh-host.log）grep hlReplication 即可
+    // 定位断点；链路确认稳定后整体撤除。
+    const diag = (stage: string, extra: Record<string, unknown> = {}): void => {
+      try {
+        void fetch('/hl/boot-marker', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ hlReplication: true, stage, ...extra }),
+        }).catch(() => { /* 非致命 */ })
+      } catch { /* 非致命 */ }
+    }
+    // HeightLab V29：目标会话的复刻判定与带回（两级判定共用）。打开动作走
+    // openConsoleRetrying 幂等轮询（铁律 17）。普通会话探到双 null 不打扰。
+    const ensureReplicationConsole = (sid: string, source: string): void => {
+      let rep: unknown[] = []
+      try { rep = JSON.parse(localStorage.getItem('hl-replication-sessions') ?? '[]') as unknown[] } catch { /* 忽略 */ }
+      if (Array.isArray(rep) && rep.includes(sid)) {
+        diag('registry-hit', { sid, source })
+        openConsoleRetrying(true)
+        return
+      }
+      diag('probe-start', { sid, source })
+      void fetch(`/hl/console-state?session=${encodeURIComponent(sid)}`)
+        .then(res => res.json() as Promise<{ workflow?: unknown; draft?: unknown }>)
+        .then(state => {
+          if ((state?.workflow ?? null) === null && (state?.draft ?? null) === null) {
+            diag('probe-miss', { sid, source })
+            return
+          }
+          try {
+            const list = JSON.parse(localStorage.getItem('hl-replication-sessions') ?? '[]') as unknown[]
+            if (Array.isArray(list) && !list.includes(sid)) {
+              list.push(sid)
+              localStorage.setItem('hl-replication-sessions', JSON.stringify(list.slice(-50)))
+            }
+          } catch { /* 非致命 */ }
+          diag('probe-hit-open', { sid, source })
+          openConsoleRetrying(true)
+        })
+        .catch(() => { diag('probe-error', { sid, source }) })
+    }
     // HeightLab V24b：用户拍板——回到主页/普通会话时右侧创作工作台自动关闭。
     // 触发：hl:close-console（显式）或 hl:mode-change 清除模式（「新建任务」
     // 等普通入口广播）。关闭 = 在所有已挂载会话里移除控制台 tab。
@@ -257,37 +303,17 @@ export function apply(ctx: ClientContext): void {
         } catch { /* 会话尚未挂载时静默；seed 已带 tab，展开态随会话恢复 */ }
       }, 600)
     }
-    // HeightLab V28：会话切换时自动把创作控制台带回该会话（用户拍板：每个
-    // 会话的工作台与对话对应；普通会话切换不打扰）。两级判定：
-    // ① hl-replication-sessions 登记表（V28 起 ConsoleBody 挂载即登记）；
-    // ② 登记表未命中（V27 之前的历史复刻会话）→ 问宿主该会话名下有无
-    //    工作流/草稿状态文件，有即回填登记表并带回工作台。打开动作走
-    //    openConsoleRetrying 幂等轮询（V27 的 250ms 单发延迟在 surface
-    //    未挂载时会静默丢失，违反宪法铁律 17）。
+    // HeightLab V29：会话切换事件（同进程内切回已建 store 会话的快速路径；
+    // 首次切入由 store-create 时机兜底，见 create 段）。顺带补回缺失的
+    // hl:open-console 注册（V26c「挂载即开」的消费者，此前只有 cleanup 里的
+    // remove——死代码佐证）。
     const onSessionSwitched = (event: Event): void => {
       const sid = (event as CustomEvent<{ sessionId?: unknown }>).detail?.sessionId
       if (typeof sid !== 'string' || sid === '') return
-      let rep: unknown[] = []
-      try { rep = JSON.parse(localStorage.getItem('hl-replication-sessions') ?? '[]') as unknown[] } catch { /* 忽略 */ }
-      if (Array.isArray(rep) && rep.includes(sid)) {
-        openConsoleRetrying(true)
-        return
-      }
-      void fetch(`/hl/console-state?session=${encodeURIComponent(sid)}`)
-        .then(res => res.json() as Promise<{ workflow?: unknown; draft?: unknown }>)
-        .then(state => {
-          if ((state?.workflow ?? null) === null && (state?.draft ?? null) === null) return
-          try {
-            const list = JSON.parse(localStorage.getItem('hl-replication-sessions') ?? '[]') as unknown[]
-            if (Array.isArray(list) && !list.includes(sid)) {
-              list.push(sid)
-              localStorage.setItem('hl-replication-sessions', JSON.stringify(list.slice(-50)))
-            }
-          } catch { /* 非致命 */ }
-          openConsoleRetrying(true)
-        })
-        .catch(() => { /* 宿主不可达：静默，不打扰普通会话 */ })
+      diag('session-switched', { sid })
+      ensureReplicationConsole(sid, 'session-switched')
     }
+    window.addEventListener('hl:open-console', onOpenConsole)
     window.addEventListener('hl:session-switched', onSessionSwitched)
     const onModeCleared = (event: Event): void => {
       if ((event as CustomEvent<{ mode?: unknown }>).detail?.mode === '') onCloseConsole()

@@ -66,9 +66,18 @@ export function ConversationSessionHeader({
   const ancestry = useSessions(s => deriveAncestry(s, sessionId), equalBreadcrumbs)
   // HeightLab V27：会话切换全局广播——右侧栏据此把创作工作台 tab 带到
   // 当前会话（控制台 tab 按 会话 挂载，切会话需显式迁移/聚焦）。
+  // V29 埋点：广播发出事实落宿主日志（hlReplication.stage=broadcast），
+  // 与 ui-sidebar-right 的消费侧埋点对账定位断点。
   useEffect(() => {
     if (sessionId === undefined) return
     window.dispatchEvent(new CustomEvent('hl:session-switched', { detail: { sessionId } }))
+    try {
+      void fetch('/hl/boot-marker', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ hlReplication: true, stage: 'broadcast', sessionId }),
+      }).catch(() => { /* 非致命 */ })
+    } catch { /* 非致命 */ }
   }, [sessionId])
   const session = useSession(s => s)
   const conversation = useConversation(s => s)
