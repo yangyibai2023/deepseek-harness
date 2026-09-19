@@ -159,13 +159,34 @@ export function ConversationRoot({
   const [hub, setHub] = useState<HubPage | null>(null)
   const hubRef = useRef(hub)
   hubRef.current = hub
+  // HeightLab V26c：App 每次启动（进程加载本模块）时清除复刻模式标记——
+  // 模式是「入口点击的一次性意图」，不得跨启动残留（用户实测：重启直接
+  // 进入复刻模式）。sessionStorage 进程内只清一次，同进程内「视频创作→
+  // 爆款复刻」设置的模式不受影响。
+  try {
+    if (sessionStorage.getItem('hl-boot-mode-cleared') === null) {
+      localStorage.removeItem('hl-console-mode')
+      sessionStorage.setItem('hl-boot-mode-cleared', '1')
+    }
+  } catch { /* 隐私模式等存储不可用时跳过 */ }
   // HeightLab V24b：视频复刻模式（侧边栏「视频创作」→「爆款复刻」进入）——
   // 空状态布局切换：hero 引导贴顶、输入卡贴底（.composerHeroReplication）。
   const [replicationMode, setReplicationMode] = useState(
     () => localStorage.getItem('hl-console-mode') === 'replication',
   )
   useEffect(() => {
-    const sync = (): void => setReplicationMode(localStorage.getItem('hl-console-mode') === 'replication')
+    const sync = (): void => {
+      const next = localStorage.getItem('hl-console-mode') === 'replication'
+      setReplicationMode(next)
+      // V26c 用户实测：进入二级页面（本视图挂载）时工作台才可能可靠打开
+      //（此刻会话 surface 必已就绪）——挂载即打开，替代此前不可靠的
+      // 「先广播后挂载」时序。
+      if (next) {
+        window.setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('hl:open-console'))
+        }, 120)
+      }
+    }
     window.addEventListener('hl:mode-change', sync)
     window.addEventListener('storage', sync)
     return () => {
