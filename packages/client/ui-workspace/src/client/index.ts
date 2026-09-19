@@ -185,6 +185,39 @@ export function apply(ctx: Context): void {
   const browserInjected = (): WorkspaceBrowserInjected => ({
     // Explicit group actions keep their target; unscoped New Session inherits
     // the current Session Workspace before the recent-Workspace fallback.
+    // HeightLab V26e：视频创作入口「爆款复刻」——新建会话并在其导航打开前
+    // 设置复刻模式标记（seed 于 tab 创建时同步读取）+ 广播会话就绪（右栏
+    // 展开消费）。不用 openSession 后补打开，零时序竞态。
+    startReplicationSession: (workspaceId) => {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('hl:close-hub'))
+        window.dispatchEvent(new CustomEvent('hl:close-automation'))
+      }
+      // workspaceId 可选（继承当前/最近工作区），openWorkspace 需非空——
+      // 解析逻辑与 navigation.startSession 一致（current → recent → clear）。
+      const snap = workspaces.list.getSnapshot()
+      const sessionsSnap = sessions.list.getSnapshot()
+      const current = sessionsSnap.current
+      const currentWorkspaceId = current === undefined
+        ? undefined
+        : snap.items.find(item => item.sessionIds.includes(current))?.workspaceId
+      // 继承顺序与 navigation.startSession 一致：显式 → 当前会话工作区 → 最近工作区。
+      // （recentWorkspace 为 navigation 内部函数未导出；此处以「含已有会话的
+      // 第一个工作区」近似，复刻入口恒有 HeightLab 工作区，实际不受影响。）
+      const recent = snap.items.find(item => item.sessionIds.some(id => sessionsSnap.byId[id] !== undefined))?.workspaceId
+      const resolved = workspaceId ?? currentWorkspaceId ?? recent
+      if (resolved === undefined) {
+        sessions.clear()
+        ctx.layout.selectPanel(null)
+        return
+      }
+      void uiWorkspace.openWorkspace(resolved, (sessionId) => {
+        try {
+          localStorage.setItem('hl-console-mode', 'replication')
+        } catch { /* 存储不可用时跳过 */ }
+        window.dispatchEvent(new CustomEvent('hl:replication-session-open', { detail: { sessionId } }))
+      })
+    },
     startSession: (workspaceId) => {
       // HeightLab 2026-09-16：恢复稳定线行为——开新会话时广播关闭
       // 创意灵感/资料库覆盖层与自动化视图，否则 hub 白面板会驻留在
