@@ -343,6 +343,22 @@ export class SidebarRightController implements ISidebarRight {
   }
 
   /**
+   * HeightLab V24b：按 tab kind 关闭全部已挂载会话中的该类 tab（控制台随
+   * 模式清除自动收起）。跨会话遍历 adopted stores——controller 自身不持有
+   * 公开快照，这里走各 store 的 actions。
+   */
+  closeKind(kind: string): void {
+    for (const [sessionId, adoption] of this.adopted) {
+      const state = adoption.store.getSnapshot()
+      for (const surface of Object.values(state.bySession)) {
+        for (const tab of Object.values(surface.layout.tabs)) {
+          if (tab.kind === kind) adoption.store.actions.closeTab(sessionId, tab.id)
+        }
+      }
+    }
+  }
+
+  /**
    * Close one tab of the mounted session; the sole docked guide remains open.
    * @param tabId - the tab to close.
    */

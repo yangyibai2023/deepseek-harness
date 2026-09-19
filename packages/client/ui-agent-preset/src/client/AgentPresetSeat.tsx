@@ -337,7 +337,10 @@ export function AgentPresetSeat({ load, select, introduced, useAgentPresetSeat, 
             disabled={triggerDisabled ?? state.busy}
             onClick={() => { setOpen(value => !value) }}
           >
-            {triggerLabel === undefined && (
+            {/* HeightLab 2026-09-19：隐藏智能体 Logo（用户拍板：模型等其他选项
+                均无 Logo，保持一致）。隐藏不删除——恢复方式：移除本条件渲染
+                外层的注释或将下述 CSS 类的 display 改回。 */}
+            {triggerLabel === undefined && false && (
               <IconAgentPresetOutline16 className={introducing ? `${css.seatIcon} ${css.introIcon}` : css.seatIcon} />
             )}
             <span className={css.seatLabel}>{shownLabel}</span>

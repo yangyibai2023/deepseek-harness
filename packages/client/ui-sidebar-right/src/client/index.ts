@@ -212,9 +212,21 @@ export function apply(ctx: ClientContext): void {
     const onOpenConsole = (): void => {
       void controller.openTab(CONSOLE_KIND)
     }
-    window.addEventListener('hl:open-console', onOpenConsole)
+    // HeightLab V24b：用户拍板——回到主页/普通会话时右侧创作工作台自动关闭。
+    // 触发：hl:close-console（显式）或 hl:mode-change 清除模式（「新建任务」
+    // 等普通入口广播）。关闭 = 在所有已挂载会话里移除控制台 tab。
+    const onCloseConsole = (): void => {
+      controller.closeKind(CONSOLE_KIND)
+    }
+    const onModeCleared = (event: Event): void => {
+      if ((event as CustomEvent<{ mode?: unknown }>).detail?.mode === '') onCloseConsole()
+    }
+    window.addEventListener('hl:close-console', onCloseConsole)
+    window.addEventListener('hl:mode-change', onModeCleared)
     return () => {
       window.removeEventListener('hl:open-console', onOpenConsole)
+      window.removeEventListener('hl:close-console', onCloseConsole)
+      window.removeEventListener('hl:mode-change', onModeCleared)
       disposeConsoleTitle()
       disposeConsoleBody()
       for (const dispose of disposeConsoleTypes) dispose()

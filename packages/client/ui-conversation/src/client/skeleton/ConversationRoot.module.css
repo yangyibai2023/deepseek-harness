@@ -1363,3 +1363,30 @@
   overscroll-behavior-x: auto !important;
   overscroll-behavior-y: auto !important;
 }
+
+/* ── HeightLab V24b：视频创作一级页卡片质感（hover 抬升/图标底托/占位态） ── */
+.studioCard:not(:disabled):hover {
+  transform: translateY(-2px);
+  border-color: var(--dsw-alias-border-l3, #d0d0d0);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.09);
+}
+.studioCard:not(:disabled):active {
+  transform: translateY(0);
+}
+.studioIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: #f5f5f3;
+  margin-bottom: 2px;
+}
+.studioCardOff {
+  opacity: 0.55;
+}
+.studioCardOff:hover {
+  transform: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 4px 14px rgba(0, 0, 0, 0.04);
+}

@@ -282,13 +282,13 @@ export function SidebarRoot({
       <Tooltip label="视频创作" delayMs={500} disabled={wide}>
         <button
           type="button"
-          className={css.hlNavItem}
+          className={css.newSession}
           onClick={() => {
             window.dispatchEvent(new CustomEvent('hl:open-hub', { detail: { page: 'video-studio' } }))
           }}
         >
-          <IconSparkle16 size={wide ? 16 : 18} className={css.hlNavIcon} />
-          {wide && <span className={css.hlNavLabel}>视频创作</span>}
+          <IconSparkle16 size={wide ? 16 : 18} />
+          {wide && <span className={clsx(css.newSessionLabel, css.wide)}>视频创作</span>}
         </button>
       </Tooltip>
 

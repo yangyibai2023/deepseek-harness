@@ -54,6 +54,11 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  /* HeightLab 2026-09-19：COLIN 字样与右侧模型选择器样式统一——浅灰、
+     13px/20px（原为继承主色、字号偏大）。 */
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-secondary);
 }
 
 /* Introduce cue: the icon eases in on an overshoot-free expo curve (duration

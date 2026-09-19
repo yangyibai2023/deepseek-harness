@@ -649,3 +649,11 @@
   line-height: 18px;
   cursor: pointer;
 }
+
+/* HeightLab 2026-09-19：折叠/展开态图标颜色统一——DSH 原生的工作区/搜索等
+   图标用 label-primary（黑），与自建 hlNav 的 label-secondary（浅灰）在窄栏
+   深浅不一。统一为浅灰（悬停变深由各组件自身 hover 负责）；只作用于
+   regionArea（工作区浏览区）内的原生图标，隐藏不删除、可随时回滚。 */
+.regionArea svg {
+  color: var(--dsw-alias-label-secondary);
+}

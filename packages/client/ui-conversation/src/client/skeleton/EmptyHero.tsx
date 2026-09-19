@@ -110,7 +110,14 @@ export function HeroShell({ t, renderSlot, children }: HeroShellProps) {
       window.dispatchEvent(new CustomEvent(eventName, { detail: { value } }))
     }
     return (
-      <div className={css.root} data-tauri-drag-region="deep">
+      <div
+        className={css.root}
+        data-tauri-drag-region="deep"
+        /* HeightLab V24b 用户反馈：复刻模式下引导贴顶、输入框必须贴底
+           （与正常聊天一致）。原 root 是垂直居中容器——改为顶部对齐，
+           并让 stack 之后的弹性空间把 composer 推到底部。 */
+        style={{ alignItems: 'flex-start', justifyContent: 'flex-start', paddingTop: 40 }}
+      >
         <div className={css.stack}>
           <div style={{ maxWidth: 640, margin: '0 auto', width: '100%' }}>
             <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 6 }}>视频复刻工作台</div>
@@ -143,7 +150,7 @@ export function HeroShell({ t, renderSlot, children }: HeroShellProps) {
               </div>
             ))}
           </div>
-          <div className={css.body} />
+          <div style={{ flex: 1, minHeight: 24 }} />
         </div>
         {children}
       </div>

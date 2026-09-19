@@ -30,27 +30,34 @@ const STUDIO_CARDS: StudioCard[] = [
 const studioWrapStyle: CSSProperties = {
   maxWidth: 760,
   margin: '0 auto',
-  paddingTop: '4vh',
-  paddingBottom: '6vh',
+  // HeightLab V24b 用户反馈：卡片组垂直居中——「选择页面」而非「网页内容」。
+  minHeight: 'calc(100vh - 120px)',
+  display: 'flex',
+  flexDirection: 'column',
+  justifyContent: 'center',
 }
 const studioGridStyle: CSSProperties = {
   display: 'grid',
   gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-  gap: 14,
+  gap: 16,
 }
 const studioCardStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'flex-start',
-  gap: 6,
-  padding: '16px 14px 14px',
+  gap: 8,
+  padding: '18px 16px 16px',
   border: '1px solid var(--dsw-alias-border-l1, #ececec)',
-  borderRadius: 14,
+  borderRadius: 16,
   background: '#fff',
   textAlign: 'left',
   boxSizing: 'border-box',
+  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05), 0 4px 14px rgba(0, 0, 0, 0.04)',
+  transition: 'transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease',
 }
-const studioIconStyle: CSSProperties = { fontSize: 26, lineHeight: 1.2 }
+// 悬停抬升与图标底托需要伪类，inline style 表达不了——统一放
+// ConversationRoot.module.css 的 .studioCard / .studioIcon 类（V24b）。
+const studioIconStyle: CSSProperties = { fontSize: 24, lineHeight: 1.2 }
 const studioNameStyle: CSSProperties = { fontWeight: 600, fontSize: 13, lineHeight: '18px' }
 const studioDescStyle: CSSProperties = { fontSize: 11, lineHeight: '16px', color: '#999' }
 const studioBadgeStyle: CSSProperties = {
@@ -205,6 +212,7 @@ export function HeightLabHubPage({ page, onClose }: { page: HubPage; onClose: ()
               <button
                 key={card.name}
                 type="button"
+                className={card.enabled ? css.studioCard : `${css.studioCard} ${css.studioCardOff}`}
                 style={studioCardStyle}
                 disabled={!card.enabled}
                 onClick={() => {
@@ -213,7 +221,7 @@ export function HeightLabHubPage({ page, onClose }: { page: HubPage; onClose: ()
                   window.dispatchEvent(new CustomEvent('hl:close-hub'))
                 }}
               >
-                <span style={studioIconStyle} aria-hidden="true">{card.icon}</span>
+                <span className={css.studioIcon} style={studioIconStyle} aria-hidden="true">{card.icon}</span>
                 <span style={studioNameStyle}>
                   {card.name}
                   {!card.enabled ? <span style={{ ...studioBadgeStyle, marginLeft: 6 }}>即将上线</span> : null}
