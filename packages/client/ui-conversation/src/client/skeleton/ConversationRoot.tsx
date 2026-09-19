@@ -441,14 +441,8 @@ export function ConversationRoot({
   // one disabled textarea, never a second tree. The no-workspace state wins
   // when both hold — picking a workspace is the earlier prerequisite.
   const blocked = !inert && composerBlock !== undefined
-  // HeightLab V31：hero 页滚动两态（对标 MiniMax Design）——composerStack
-  // 自身为滚动容器（.composerHeroScroll）：顶部时品牌区+大输入卡（hero
-  // variant）+模板区露一排半；上滚超过阈值后品牌区滚出、输入卡切紧凑
-  // variant（composer）并 sticky 吸底，模板网格在其下无限滚动。复刻模式
-  // 不参与（保持贴底引导布局）。
-  const [heroCollapsed, setHeroCollapsed] = useState(false)
   const inputBar = renderSlot('conversation.composer.bar', {
-    variant: hero && !heroCollapsed ? 'hero' : 'composer',
+    variant: hero ? 'hero' : 'composer',
     ...(inert
       ? {
         disabled: true,
@@ -465,30 +459,17 @@ export function ConversationRoot({
   })
 
   const composerBar = (
-    <div
-      className={clsx(
-        css.composerStack,
-        hero && !replicationMode && css.composerHeroScroll,
-        hero && (replicationMode ? css.composerHeroReplication : css.composerHero),
-      )}
-    >
-      {/* V31c 固定三段布局（用户拍板：输入框必须原地钉住，只有下方模板区
-          内部滚动——禁止整页滚动把输入框滚走）：①品牌区（上滑时平滑收起，
-          让模板区扩展）；②输入卡（固定不滚，上滑时切紧凑 variant「高度
-          收缩」）；③模板容器（flex:1 内部滚动，初始露一排半）。 */}
-      {hero && (
-        <div className={clsx(css.heroBrandSeat, heroCollapsed && css.heroBrandSeatCollapsed)}>
-          <HeroShell t={t} renderSlot={renderSlot} />
-          {heroWorkspaceRow}
-        </div>
-      )}
+    <div className={clsx(css.composerStack, hero && (replicationMode ? css.composerHeroReplication : css.composerHero))}>
+      {hero && <HeroShell t={t} renderSlot={renderSlot} />}
+      {hero && heroWorkspaceRow}
       {zone !== undefined && renderSlot('conversation.input.dock', zone)}
-      {hero ? <div className={css.inputCardSeat}>{inputBar}</div> : inputBar}
+      {inputBar}
+      {/* HeightLab V31d：模板区（视频模板网格，MiniMax 式大卡）——布局完全
+          保持改动前原状：品牌区/输入框位置零改动，模板在输入框下方自己的
+          容器（.videoGridSeat，固定高度内部滚动，参数对齐旧 Dock 的 340px
+          模型）内滑动。旧模板坞 HeightLabTemplateDock 整体保留可回滚。 */}
       {hero && !replicationMode && (
-        <div
-          className={css.videoGridSeat}
-          onScroll={(event) => { setHeroCollapsed(event.currentTarget.scrollTop > 24) }}
-        >
+        <div className={css.videoGridSeat}>
           <HeightLabVideoGrid />
         </div>
       )}

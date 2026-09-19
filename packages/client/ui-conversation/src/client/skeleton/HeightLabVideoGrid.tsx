@@ -95,27 +95,31 @@ export function HeightLabVideoGrid() {
         ))}
       </div>
       <div className={css.cards}>
-        {visible.map(item => (
-          <button
-            key={item.title}
-            type="button"
-            className={`${css.card} ${item.comingSoon === true ? css.cardSoon : ''}`}
-            onClick={() => {
-              // 占位卡不可点；真实能力卡等价一级页「爆款复刻」——
-              // 新建复刻会话并展开创作工作台（与视频创作一级页同一动作）。
-              if (item.comingSoon === true) return
-              window.dispatchEvent(new CustomEvent('hl:start-replication'))
-            }}
-          >
-            <span className={css.cover} style={{ background: item.cover }}>
-              <span className={css.coverLabel}>{item.coverLabel}</span>
-              {item.comingSoon === true && <span className={css.badge}>即将上线</span>}
-            </span>
-            <span className={css.title}>{item.title}</span>
-            <span className={css.desc}>{item.desc}</span>
-            <span className={css.author}>@HeightLab 官方</span>
-          </button>
-        ))}
+        {visible.length === 0 ? (
+          <div className={css.empty}>该分类的模板即将上线，敬请期待</div>
+        ) : (
+          visible.map(item => (
+            <button
+              key={item.title}
+              type="button"
+              className={`${css.card} ${item.comingSoon === true ? css.cardSoon : ''}`}
+              onClick={() => {
+                // 占位卡不可点；真实能力卡等价一级页「爆款复刻」——
+                // 新建复刻会话并展开创作工作台（与视频创作一级页同一动作）。
+                if (item.comingSoon === true) return
+                window.dispatchEvent(new CustomEvent('hl:start-replication'))
+              }}
+            >
+              <span className={css.cover} style={{ background: item.cover }}>
+                <span className={css.coverLabel}>{item.coverLabel}</span>
+                {item.comingSoon === true && <span className={css.badge}>即将上线</span>}
+              </span>
+              <span className={css.title}>{item.title}</span>
+              <span className={css.desc}>{item.desc}</span>
+              <span className={css.author}>@HeightLab 官方</span>
+            </button>
+          ))
+        )}
       </div>
     </div>
   )
