@@ -106,6 +106,9 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
   const [subtitle, setSubtitle] = useState<SubtitleChoice>('auto')
   const [execution, setExecution] = useState<'step' | 'once'>('step')
   const [count, setCount] = useState(1)
+  // 拆解抽帧密度（interval 秒/帧，云镜 extract_frames 参数）：1=标准（每秒1帧）、
+  // 0.5=精细、2=快速。35s 视频默认出 35 帧。
+  const [frameInterval, setFrameInterval] = useState<'0.5' | '1' | '2'>('1')
   // 复刻方式（2026-09-19 用户拍板）：storyboard=分镜驱动（云镜原版，默认）；
   // pixel=像素复刻（逐段带原片分段 video_paths 视频参考）。
   const [repMode, setRepMode] = useState<'storyboard' | 'pixel'>('storyboard')
@@ -134,6 +137,7 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
     setSubtitle('auto')
     setExecution('step')
     setCount(1)
+    setFrameInterval('1')
     setRepMode('storyboard')
     setFields(defaultFields())
     setSlots({})
@@ -195,6 +199,7 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
     if (draft.execution === 'step' || draft.execution === 'once') setExecution(draft.execution)
     if (draft.repMode === 'storyboard' || draft.repMode === 'pixel') setRepMode(draft.repMode)
     if (typeof draft.count === 'number') setCount(draft.count)
+    if (draft.frameInterval === '0.5' || draft.frameInterval === '1' || draft.frameInterval === '2') setFrameInterval(draft.frameInterval)
     if (draft.fields !== null && typeof draft.fields === 'object') {
       setFields(draft.fields as Record<string, string>)
     }
@@ -204,7 +209,7 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
   }
 
   const buildDraft = (): Record<string, unknown> => ({
-    model, ratio, resolution, seconds, durationMode, voice, subtitle, execution, count, repMode,
+    model, ratio, resolution, seconds, durationMode, voice, subtitle, execution, count, repMode, frameInterval,
     fields, slots,
     voiceAssetName: voiceAsset?.name ?? null,
     updatedAt: new Date().toISOString(),
@@ -222,7 +227,7 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
       }).catch(() => undefined)
     }, 2000)
     return () => window.clearTimeout(timer)
-  }, [sessionId, model, ratio, resolution, seconds, durationMode, voice, subtitle, execution, count, repMode, fields, slots, voiceAsset])
+  }, [sessionId, model, ratio, resolution, seconds, durationMode, voice, subtitle, execution, count, repMode, frameInterval, fields, slots, voiceAsset])
 
   const openPicker = async (slotId: string, kind: string): Promise<void> => {
     setPicker({ slotId, kind })
@@ -423,6 +428,7 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
     const text = [
       '【视频复刻任务】请按视频复刻工作流执行，以下参数为用户在创作控制台的指定：',
       `- 模型：${model}`,
+      `- 拆解抽帧密度：每 ${frameInterval} 秒一帧（分镜网格图用；35s 片子默认约 35 帧）`,
       `- 清晰度：${resolution}`,
       durationMode === 'same'
         ? '- 时长：同原视频时长（以实测原片时长为准，不要为凑数拉长节奏）'
@@ -689,6 +695,14 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
               <span>分辨率</span>
               <select value={resolution} onChange={e => setResolution(e.target.value)}>
                 {VIDEO_REPLICATION_SCHEMA.resolutions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </label>
+            <label className={css.field}>
+              <span>拆解抽帧密度</span>
+              <select value={frameInterval} onChange={e => setFrameInterval(e.target.value as '0.5' | '1' | '2')}>
+                <option value="1">每秒 1 帧（标准，推荐）</option>
+                <option value="0.5">每 0.5 秒 1 帧（精细，图更大）</option>
+                <option value="2">每 2 秒 1 帧（快速，图更小）</option>
               </select>
             </label>
             <label className={css.field}>
