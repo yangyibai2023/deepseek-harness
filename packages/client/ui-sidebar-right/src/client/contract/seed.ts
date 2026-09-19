@@ -24,6 +24,17 @@ export interface SidebarRightSeed {
  * @returns the sole entry, or the guide when there are zero or multiple entries.
  */
 export function defaultSeed(tabs: SidebarRightTabRegistry): SidebarRightSeed {
+  // HeightLab 2026-09-20（V26e，用户拍板的第一性原理修复）：视频复刻入口
+  // 的会话**天生**以创作控制台为首 tab——不再依赖「先建会话再 openTab」的
+  // 跨组件时序（此前三轮弹出失败全部倒在该时序上）。入口侧只写
+  // hl-console-mode 标记；本 seed 在新会话 store 创建的同步时刻读取，
+  // 无竞态。普通模式/历史行为不变（registry 只有一个 guide 时仍回 guide）。
+  if (typeof localStorage !== 'undefined' && localStorage.getItem('hl-console-mode') === 'replication') {
+    const definition = tabs.get('heightlab-console')
+    if (definition !== undefined) {
+      return { kind: 'heightlab-console', title: definition.title(pageAddress('heightlab-console')) }
+    }
+  }
   const [only, ...others] = tabs.guide()
   const single = only !== undefined && others.length === 0
   const kind = single ? only.kind : GUIDE_KIND

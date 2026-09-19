@@ -247,10 +247,12 @@ export function apply(ctx: ClientContext): void {
     }
     window.addEventListener('hl:close-console', onCloseConsole)
     window.addEventListener('hl:mode-change', onModeCleared)
+    window.addEventListener('hl:start-replication', onStartReplication)
     return () => {
       window.removeEventListener('hl:open-console', onOpenConsole)
       window.removeEventListener('hl:close-console', onCloseConsole)
       window.removeEventListener('hl:mode-change', onModeCleared)
+      window.removeEventListener('hl:start-replication', onStartReplication)
       disposeConsoleTitle()
       disposeConsoleBody()
       for (const dispose of disposeConsoleTypes) dispose()

@@ -111,16 +111,9 @@ export function SidebarRoot({
       window.localStorage.setItem('hl-console-mode', 'replication')
       window.dispatchEvent(new CustomEvent('hl:mode-change', { detail: { mode: 'replication' } }))
       window.dispatchEvent(new CustomEvent('hl:close-hub'))
-      // 2026-09-19 二修：新会话 surface 挂载耗时不定（宿主建会话+store 采用），
-      // 单次延迟实测仍可能落空——改为轮询重试（openTab 幂等：同 kind 重复
-      // 打开只是 reveal/聚焦，无副作用）；另有 ui-sidebar-right 在 store
-      // 采用时机上的自动打开兜底，双保险。
-      let attempt = 0
-      const openTimer = window.setInterval(() => {
-        attempt += 1
-        window.dispatchEvent(new CustomEvent('hl:open-console'))
-        if (attempt >= 6) window.clearInterval(openTimer)
-      }, 600)
+      // 2026-09-20 三修（第一性原理，用户拍板）：不再广播打开——新会话的
+      // sidebar-right seed 在 store 创建时读取 hl-console-mode，复刻模式下
+      // 默认首 tab 即创作控制台（contract/seed.ts），天生存在、无时序竞态。
     }
     window.addEventListener('hl:start-replication', onStart)
     return () => { window.removeEventListener('hl:start-replication', onStart) }
