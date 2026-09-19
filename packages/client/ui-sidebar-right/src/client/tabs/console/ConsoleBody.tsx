@@ -188,6 +188,31 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
     }
   }, [])
 
+  // Dock 快捷标签同步（2026-09-19）：复刻模式下输入框上方的快捷标签
+  // 远程切换控制台的复刻方式/语音/字幕（外部用户意图，计入脏标记落盘）。
+  useEffect(() => {
+    const onMode = (e: Event): void => {
+      const v = (e as CustomEvent<{ value?: unknown }>).detail?.value
+      if (v === 'storyboard' || v === 'pixel') { dirtyRef.current = true; setRepMode(v) }
+    }
+    const onVoice = (e: Event): void => {
+      const v = (e as CustomEvent<{ value?: unknown }>).detail?.value
+      if (v === 'auto' || v === 'vo' || v === 'asset' || v === 'silent') { dirtyRef.current = true; setVoice(v) }
+    }
+    const onSubtitle = (e: Event): void => {
+      const v = (e as CustomEvent<{ value?: unknown }>).detail?.value
+      if (v === 'auto' || v === 'burn' || v === 'none') { dirtyRef.current = true; setSubtitle(v) }
+    }
+    window.addEventListener('hl:rep-mode', onMode)
+    window.addEventListener('hl:rep-voice', onVoice)
+    window.addEventListener('hl:rep-subtitle', onSubtitle)
+    return () => {
+      window.removeEventListener('hl:rep-mode', onMode)
+      window.removeEventListener('hl:rep-voice', onVoice)
+      window.removeEventListener('hl:rep-subtitle', onSubtitle)
+    }
+  }, [])
+
   const restoreDraft = (draft: Record<string, unknown>): void => {
     if (typeof draft.model === 'string') setModel(draft.model)
     if (typeof draft.ratio === 'string') setRatio(draft.ratio)

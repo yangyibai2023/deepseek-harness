@@ -19,7 +19,7 @@
 import { useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import {
-  IconNewChatOutline16, Tooltip,
+  IconNewChatOutline16, IconSparkle16, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
   IconInspirationStroke16, IconLibraryStroke16, IconAutomationStroke16, IconPanelLeftStroke16,
@@ -189,7 +189,12 @@ export function SidebarRoot({
             type="button"
             className={clsx(css.brand, css.wide)}
             aria-label={t('session.new.label')}
-            onClick={() => { startSession() }}
+            onClick={() => {
+            // HeightLab 2026-09-19：普通创作入口清除控制台模式标记。
+            window.localStorage.removeItem('hl-console-mode')
+            window.dispatchEvent(new CustomEvent('hl:mode-change', { detail: { mode: '' } }))
+            startSession()
+          }}
           >
             <span className={css.brandIdentity} aria-hidden="true">
               <span className={css.brandMark}>
@@ -244,11 +249,35 @@ export function SidebarRoot({
           type="button"
           className={css.newSession}
           aria-label={t('session.new.label')}
-          onClick={() => { startSession() }}
+          onClick={() => {
+          // HeightLab 2026-09-19：普通创作入口清除控制台模式标记。
+          window.localStorage.removeItem('hl-console-mode')
+          window.dispatchEvent(new CustomEvent('hl:mode-change', { detail: { mode: '' } }))
+          startSession()
+          }}
         >
           {/* HeightLab 2026-08-26：展开态 16px，与 hlNav/添加工作区一致。 */}
           <IconNewChatOutline16 size={wide ? 16 : 18} />
           {wide && <span className={clsx(css.newSessionLabel, css.wide)}>{t('session.new')}</span>}
+        </button>
+      </Tooltip>
+
+      {/* HeightLab 2026-09-19：「视频复刻」一级创作入口（对标 Minimax Design
+          的能力入口形态）——新建会话 + 静默激活复刻模式（不自动发消息）+
+          打开右侧创作工作台；输入框上方标签组由 Dock 按模式切换。 */}
+      <Tooltip label="视频复刻" delayMs={500} disabled={wide}>
+        <button
+          type="button"
+          className={css.hlNavItem}
+          onClick={() => {
+            startSession()
+            window.localStorage.setItem('hl-console-mode', 'replication')
+            window.dispatchEvent(new CustomEvent('hl:mode-change', { detail: { mode: 'replication' } }))
+            window.dispatchEvent(new CustomEvent('hl:open-console'))
+          }}
+        >
+          <IconSparkle16 size={wide ? 16 : 18} className={css.hlNavIcon} />
+          {wide && <span className={css.hlNavLabel}>视频复刻</span>}
         </button>
       </Tooltip>
 

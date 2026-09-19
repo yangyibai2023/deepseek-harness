@@ -33,6 +33,45 @@ import { TemplatePreview } from './TemplatePreview.tsx'
 
 // HeightLab：术语分类暂不更新，先隐藏（数据保留，恢复时加回 '术语'）。
 const TEMPLATE_TAGS = ['推荐', '文案', '图片', '视频', '办公', '更多'] as const
+
+/** HeightLab 2026-09-19：视频复刻模式快捷标签组（对标 Minimax Design 的
+ *  能力入口工作台）——全部只同步控制台参数或预填输入框，不自动发送。 */
+type RepChip = { label: string; kind: 'console' | 'mode' | 'voice' | 'subtitle' | 'prefill'; value: string }
+const REPLICATION_GROUPS: Array<{ title: string; chips: RepChip[] }> = [
+  {
+    title: '开始',
+    chips: [
+      { label: '① 上传原视频', kind: 'console', value: '' },
+    ],
+  },
+  {
+    title: '复刻方式',
+    chips: [
+      { label: '分镜驱动（云镜原版）', kind: 'mode', value: 'storyboard' },
+      { label: '像素复刻（贴原片）', kind: 'mode', value: 'pixel' },
+    ],
+  },
+  {
+    title: '声音 / 字幕',
+    chips: [
+      { label: '声音跟随原片', kind: 'voice', value: 'auto' },
+      { label: '用我的声音', kind: 'voice', value: 'asset' },
+      { label: '静音', kind: 'voice', value: 'silent' },
+      { label: '字幕跟随原片', kind: 'subtitle', value: 'auto' },
+      { label: '烧录字幕', kind: 'subtitle', value: 'burn' },
+      { label: '无字幕', kind: 'subtitle', value: 'none' },
+    ],
+  },
+  {
+    title: '常用改款（点击预填到输入框，自行补充后发送）',
+    chips: [
+      { label: '换产品', kind: 'prefill', value: '替换产品：新产品名称、外观/包装/品牌细节是' },
+      { label: '换人物', kind: 'prefill', value: '替换人物：新人物的性别/年龄/形象/着装是' },
+      { label: '换风格', kind: 'prefill', value: '风格改为：' },
+      { label: '换场景', kind: 'prefill', value: '场景改为：' },
+    ],
+  },
+]
 type TemplateTag = typeof TEMPLATE_TAGS[number]
 // HeightLab 2026-08-29（企业版 M6）：企业模式标签行最左侧加「专属」，
 // 展示本企业定制模板；个人模式保持六标签不变。
@@ -99,6 +138,25 @@ export function HeightLabTemplateDock() {
   // Manus 式收起：输入框聚焦时内容向下滑出消失。
   const [retracted, setRetracted] = useState(false)
   const [preview, setPreview] = useState<{ item: Recommendation; tag: DockTag } | null>(null)
+  // HeightLab 2026-09-19：视频复刻一级入口的模式感知——侧边栏「视频复刻」
+  // 设置 hl-console-mode 并广播 hl:mode-change；复刻模式下 Dock 标签区切换为
+  // 复刻快捷标签（上传/复刻方式/口径/常用改款短语，全部只预填/同步参数，
+  // 不自动发送任何消息）。普通「开始创作」会清回普通模式。
+  const [replicationMode, setReplicationMode] = useState(
+    () => localStorage.getItem('hl-console-mode') === 'replication',
+  )
+
+  useEffect(() => {
+    const sync = (): void => {
+      setReplicationMode(localStorage.getItem('hl-console-mode') === 'replication')
+    }
+    window.addEventListener('hl:mode-change', sync)
+    window.addEventListener('storage', sync)
+    return () => {
+      window.removeEventListener('hl:mode-change', sync)
+      window.removeEventListener('storage', sync)
+    }
+  }, [])
 
   // HeightLab：输入框智能体与模板标签联动——选图片专家→「图片」，
   // 视频专家→「视频」，文案专家→「文案」；无联动时回落模式默认
@@ -241,6 +299,51 @@ export function HeightLabTemplateDock() {
   return (
     <div className={css.dock} style={dockStyle}>
       <div className={css.pop}>
+        {replicationMode ? (
+          <>
+            <div className={css.tags}>
+              <span className={css.repTitle}>视频复刻 · 快捷操作</span>
+              <span className={css.repHint}>在右侧控制台完成配置后点「生成视频」</span>
+            </div>
+            <div className={`${css.content} ${contentClass}`}>
+              <div className={css.scroll}>
+                {REPLICATION_GROUPS.map(group => (
+                  <div key={group.title} className={css.repGroup}>
+                    <div className={css.repGroupTitle}>{group.title}</div>
+                    <div className={css.repChipRow}>
+                      {group.chips.map(chip => (
+                        <button
+                          key={chip.label}
+                          type="button"
+                          className={css.repChip}
+                          onClick={() => {
+                            if (chip.kind === 'console') {
+                              window.dispatchEvent(new CustomEvent('hl:open-console'))
+                              return
+                            }
+                            if (chip.kind === 'prefill') {
+                              window.dispatchEvent(new CustomEvent('hl:fill-draft', { detail: { text: chip.value } }))
+                              return
+                            }
+                            const eventName = chip.kind === 'mode'
+                              ? 'hl:rep-mode'
+                              : chip.kind === 'voice'
+                                ? 'hl:rep-voice'
+                                : 'hl:rep-subtitle'
+                            window.dispatchEvent(new CustomEvent(eventName, { detail: { value: chip.value } }))
+                          }}
+                        >
+                          {chip.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        ) : (
+        <>
         <div className={css.tags}>
           {visibleTags.map(tag => (
             <button
@@ -330,6 +433,8 @@ export function HeightLabTemplateDock() {
             </div>
           )}
         </div>
+        </>
+        )}
       </div>
       {preview !== null && (
         <TemplatePreview

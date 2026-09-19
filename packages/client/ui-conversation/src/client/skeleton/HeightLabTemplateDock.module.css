@@ -305,3 +305,42 @@
 .plainItem:hover {
   color: var(--dsw-alias-label-primary);
 }
+
+/* ── 视频复刻模式快捷标签（2026-09-19 对标 Minimax Design 能力入口） ── */
+.repTitle {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--dsw-alias-label-primary, #1a1a1a);
+}
+.repHint {
+  font-size: 11px;
+  color: #999;
+}
+.repGroup {
+  margin-bottom: 10px;
+}
+.repGroupTitle {
+  font-size: 11px;
+  font-weight: 600;
+  color: #888;
+  margin: 8px 0 5px;
+}
+.repChipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.repChip {
+  padding: 6px 10px;
+  border: 1px solid #d9d9d9;
+  border-radius: 16px;
+  background: #fff;
+  color: #1a1a1a;
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.repChip:hover {
+  border-color: #1a1a1a;
+  background: #f6f6f6;
+}
