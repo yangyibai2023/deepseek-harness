@@ -447,7 +447,13 @@
   /* Card cap + both clearances: the hero input card lands at exactly the same
      width as the docked composer at every viewport. */
   width: min(calc(var(--dsh-composer-card-max-width) + 2 * var(--dsh-composer-side-clearance)), 100%);
-  z-index: 1;
+  /* HeightLab V31e：视口兜底——内容（品牌+输入卡+两排模板）总高不足一屏时
+     全部自然显示（两排完整、无裁切无滚动）；超出时 stack 被钳制，模板区
+     转为内部滚动。品牌区/输入卡不参与压缩（见下方 shrink 规则）。 */
+  max-height: 100dvh;
+}
+.composerHero > :not(.videoGridSeat) {
+  flex-shrink: 0;
 }
 
 .heroWorkspaceRow {
@@ -477,10 +483,12 @@
    位置零改动），唯一新增：输入框下方固定高度的视频模板容器，内部滚动
    （参数对齐旧 Dock .scroll 的 340px 模型：两排多一点，页面不滚）。
    V31/V31b/V31c 的整页滚动/sticky/固定三段方案全部废弃。 */
+/* HeightLab V31e：去掉固定 340px（用户反馈"空间够就完整显示两排，别被
+   裁切"）——flex:1 自适应：空间足=两排完整自然显示；空间不足=容器被
+   max-height 钳制后自动转为内部滚动（min-height 保底可见）。 */
 .videoGridSeat {
-  height: 340px;
-  max-height: 340px;
-  width: 100%;
+  flex: 1 1 auto;
+  min-height: 180px;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: none;
