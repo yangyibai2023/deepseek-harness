@@ -473,24 +473,40 @@
   overflow-y: hidden;
 }
 
-/* HeightLab V31：hero 滚动两态——composerStack 自身为滚动容器：品牌区随
-   滚动滚出、输入卡（.inputCardSeat，sticky 吸底）始终可见、视频模板网格
-   在其下无限滚动（对标 MiniMax Design）。复刻模式保持贴底引导布局不用。 */
+/* HeightLab V31c：hero 固定三段布局（用户拍板：输入框原地钉住、只有下方
+   模板区内部滚动；禁止整页滚动把输入框滚走——V31/V31b 两版的 sticky/
+   整页滚动方案均违背此要求）。stack 高度锁定视口，内部 flex 分配：
+   ①品牌区（.heroBrandSeat，上滑平滑收起）→ ②输入卡（固定，滚动时切紧凑
+   variant=高度收缩）→ ③模板容器（.videoGridSeat，flex:1 内部滚动，
+   初始露一排半）。复刻模式保持贴底引导布局不用。 */
 .composerHeroScroll {
-  max-height: 100dvh;
-  overflow-y: auto;
-  scrollbar-width: none;
+  height: 100dvh;
+  overflow: hidden;
   padding-bottom: 0;
 }
-.composerHeroScroll::-webkit-scrollbar {
+.heroBrandSeat {
+  max-height: 480px;
+  opacity: 1;
+  overflow: hidden;
+  transition: max-height 0.35s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s ease;
+}
+.heroBrandSeatCollapsed {
+  max-height: 0;
+  opacity: 0;
+}
+.videoGridSeat {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+  padding-top: 10px;
+}
+.videoGridSeat::-webkit-scrollbar {
   display: none;
 }
 .inputCardSeat {
-  position: sticky;
-  bottom: 0;
-  z-index: 2;
-  /* V31b：不加任何背景/渐变——用户铁令「输入框必须足够干净」；首版加的
-     #f5f6f7 渐变在白色页面上显形成脏色块（灰阴影观感），已删。 */
+  /* V31b：不加任何背景/渐变——用户铁令「输入框必须足够干净」。V31c 起
+     固定（非 sticky）：输入框原地钉住，滚动只发生在下方模板容器。 */
 }
 
 /* HeightLab：新会话页整体上移（中心从 50% → 30%，即上移 20% 视口高度），

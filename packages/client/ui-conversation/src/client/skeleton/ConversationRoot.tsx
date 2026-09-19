@@ -471,22 +471,27 @@ export function ConversationRoot({
         hero && !replicationMode && css.composerHeroScroll,
         hero && (replicationMode ? css.composerHeroReplication : css.composerHero),
       )}
-      onScroll={hero && !replicationMode
-        ? (event) => { setHeroCollapsed(event.currentTarget.scrollTop > 32) }
-        : undefined}
     >
-      {hero && <HeroShell t={t} renderSlot={renderSlot} />}
-      {hero && heroWorkspaceRow}
+      {/* V31c 固定三段布局（用户拍板：输入框必须原地钉住，只有下方模板区
+          内部滚动——禁止整页滚动把输入框滚走）：①品牌区（上滑时平滑收起，
+          让模板区扩展）；②输入卡（固定不滚，上滑时切紧凑 variant「高度
+          收缩」）；③模板容器（flex:1 内部滚动，初始露一排半）。 */}
+      {hero && (
+        <div className={clsx(css.heroBrandSeat, heroCollapsed && css.heroBrandSeatCollapsed)}>
+          <HeroShell t={t} renderSlot={renderSlot} />
+          {heroWorkspaceRow}
+        </div>
+      )}
       {zone !== undefined && renderSlot('conversation.input.dock', zone)}
-      {/* V31：输入卡 sticky 吸底——滚动流中始终可见，底部渐变让滚过的内容
-          从卡后淡出（对标 MiniMax 滚动态的紧凑输入条）。 */}
       {hero ? <div className={css.inputCardSeat}>{inputBar}</div> : inputBar}
-      {/* HeightLab V31：模板区=视频模板网格（静态嵌入页面流，MiniMax 式）。
-          注意不走 HeightLabTemplateDock——那是旧「浮层容器」（popup 定位），
-          静态网格放进去会定位失效（V31 首版踩坑：模板不可见）。复刻模式
-          下旧 Dock 本就 return null，行为不变；回滚=恢复下一行并还原 import。
-          {hero && <HeightLabTemplateDock />} */}
-      {hero && !replicationMode && <HeightLabVideoGrid />}
+      {hero && !replicationMode && (
+        <div
+          className={css.videoGridSeat}
+          onScroll={(event) => { setHeroCollapsed(event.currentTarget.scrollTop > 24) }}
+        >
+          <HeightLabVideoGrid />
+        </div>
+      )}
     </div>
   )
 
