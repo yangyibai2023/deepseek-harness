@@ -237,6 +237,19 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
     updatedAt: new Date().toISOString(),
   })
 
+  // 复刻会话登记（V28 提前到挂载即登记；V27 时挂在草稿保存成功之后，零
+  // 交互的会话切走再切回会漏登记，导致切入时不自动带回工作台）。
+  useEffect(() => {
+    if (sessionId === '') return
+    try {
+      const list = JSON.parse(localStorage.getItem('hl-replication-sessions') ?? '[]')
+      if (Array.isArray(list) && !list.includes(sessionId)) {
+        list.push(sessionId)
+        localStorage.setItem('hl-replication-sessions', JSON.stringify(list.slice(-50)))
+      }
+    } catch { /* 非致命 */ }
+  }, [sessionId])
+
   // 草稿保存：参数/素材变化后 2 秒去抖落盘（按当前会话隔离），且仅在用户
   // 真实交互后（dirtyRef）——重置/恢复引起的 state 变化不落盘。
   useEffect(() => {
@@ -247,14 +260,6 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ session: sessionId, draft: buildDraft() }),
       }).catch(() => undefined)
-      // 登记复刻会话（V27：切换会话时右侧栏自动带回工作台的依据）。
-      try {
-        const list = JSON.parse(localStorage.getItem('hl-replication-sessions') ?? '[]')
-        if (Array.isArray(list) && !list.includes(sessionId)) {
-          list.push(sessionId)
-          localStorage.setItem('hl-replication-sessions', JSON.stringify(list.slice(-50)))
-        }
-      } catch { /* 非致命 */ }
     }, 2000)
     return () => window.clearTimeout(timer)
   }, [sessionId, model, ratio, resolution, seconds, durationMode, voice, subtitle, execution, count, repMode, frameInterval, fields, slots, voiceAsset])

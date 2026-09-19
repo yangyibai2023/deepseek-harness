@@ -224,7 +224,7 @@ export function apply(ctx: ClientContext): void {
     // 工作台不弹出」。改为带重试的打开：每 400ms 一次、最多 8 次（覆盖
     // 新会话创建→视图挂载→面板绑定的全部时序），就绪即成功；多触发点
     // （入口/二级页挂载/做同款）均安全——openTab 幂等，重复只是聚焦。
-    const onOpenConsole = (): void => {
+    const openConsoleRetrying = (expand: boolean): void => {
       let attempt = 0
       const tryOpen = (): void => {
         attempt += 1
@@ -232,10 +232,15 @@ export function apply(ctx: ClientContext): void {
           controller.openTab(CONSOLE_KIND)
         } catch {
           if (attempt < 8) window.setTimeout(tryOpen, 400)
+          return
+        }
+        if (expand) {
+          try { if (!controller.isExpanded()) controller.toggleExpanded() } catch { /* 展开失败静默 */ }
         }
       }
       tryOpen()
     }
+    const onOpenConsole = (): void => { openConsoleRetrying(false) }
     // HeightLab V24b：用户拍板——回到主页/普通会话时右侧创作工作台自动关闭。
     // 触发：hl:close-console（显式）或 hl:mode-change 清除模式（「新建任务」
     // 等普通入口广播）。关闭 = 在所有已挂载会话里移除控制台 tab。
@@ -252,21 +257,36 @@ export function apply(ctx: ClientContext): void {
         } catch { /* 会话尚未挂载时静默；seed 已带 tab，展开态随会话恢复 */ }
       }, 600)
     }
-    // HeightLab V27：会话切换时——若目标会话属于复刻会话（hl-replication-sessions
-    // 登记表），自动把创作控制台 tab 带到该会话并聚焦（用户拍板：每个会话的
-    // 工作台与对话对应）。普通会话切换不打扰。
+    // HeightLab V28：会话切换时自动把创作控制台带回该会话（用户拍板：每个
+    // 会话的工作台与对话对应；普通会话切换不打扰）。两级判定：
+    // ① hl-replication-sessions 登记表（V28 起 ConsoleBody 挂载即登记）；
+    // ② 登记表未命中（V27 之前的历史复刻会话）→ 问宿主该会话名下有无
+    //    工作流/草稿状态文件，有即回填登记表并带回工作台。打开动作走
+    //    openConsoleRetrying 幂等轮询（V27 的 250ms 单发延迟在 surface
+    //    未挂载时会静默丢失，违反宪法铁律 17）。
     const onSessionSwitched = (event: Event): void => {
       const sid = (event as CustomEvent<{ sessionId?: unknown }>).detail?.sessionId
       if (typeof sid !== 'string' || sid === '') return
-      let rep = []
-      try { rep = JSON.parse(localStorage.getItem('hl-replication-sessions') ?? '[]') } catch { /* 忽略 */ }
-      if (!Array.isArray(rep) || !rep.includes(sid)) return
-      window.setTimeout(() => {
-        try {
-          controller.openTab(CONSOLE_KIND)
-          if (!controller.isExpanded()) controller.toggleExpanded()
-        } catch { /* 面板未挂载时静默 */ }
-      }, 250)
+      let rep: unknown[] = []
+      try { rep = JSON.parse(localStorage.getItem('hl-replication-sessions') ?? '[]') as unknown[] } catch { /* 忽略 */ }
+      if (Array.isArray(rep) && rep.includes(sid)) {
+        openConsoleRetrying(true)
+        return
+      }
+      void fetch(`/hl/console-state?session=${encodeURIComponent(sid)}`)
+        .then(res => res.json() as Promise<{ workflow?: unknown; draft?: unknown }>)
+        .then(state => {
+          if ((state?.workflow ?? null) === null && (state?.draft ?? null) === null) return
+          try {
+            const list = JSON.parse(localStorage.getItem('hl-replication-sessions') ?? '[]') as unknown[]
+            if (Array.isArray(list) && !list.includes(sid)) {
+              list.push(sid)
+              localStorage.setItem('hl-replication-sessions', JSON.stringify(list.slice(-50)))
+            }
+          } catch { /* 非致命 */ }
+          openConsoleRetrying(true)
+        })
+        .catch(() => { /* 宿主不可达：静默，不打扰普通会话 */ })
     }
     window.addEventListener('hl:session-switched', onSessionSwitched)
     const onModeCleared = (event: Event): void => {
