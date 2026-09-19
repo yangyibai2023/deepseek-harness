@@ -489,8 +489,8 @@
   position: sticky;
   bottom: 0;
   z-index: 2;
-  padding-top: 10px;
-  background: linear-gradient(to top, #f5f6f7 72%, rgba(245, 246, 247, 0));
+  /* V31b：不加任何背景/渐变——用户铁令「输入框必须足够干净」；首版加的
+     #f5f6f7 渐变在白色页面上显形成脏色块（灰阴影观感），已删。 */
 }
 
 /* HeightLab：新会话页整体上移（中心从 50% → 30%，即上移 20% 视口高度），

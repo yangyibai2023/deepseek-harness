@@ -9,7 +9,9 @@ import type { ConversationSlotProps, InputZone } from '../contract/slots.ts'
 import { conversationPhase } from '../contract/snapshot.ts'
 import { HeroShell, WorkspaceChip, workspaceLabel } from './EmptyHero.tsx'
 // HeightLab：模板坞（hero 输入卡下方）与创意灵感/资料库覆盖层页。
-import { HeightLabTemplateDock } from './HeightLabTemplateDock.tsx'
+import { HeightLabVideoGrid } from './HeightLabVideoGrid.tsx'
+// V31 回滚：恢复旧模板坞时取消注释（并还原上方渲染行）。
+// import { HeightLabTemplateDock } from './HeightLabTemplateDock.tsx'
 import { HeightLabHubPage, type HubPage } from './HeightLabHubPage.tsx'
 import css from './ConversationRoot.module.css'
 
@@ -479,8 +481,12 @@ export function ConversationRoot({
       {/* V31：输入卡 sticky 吸底——滚动流中始终可见，底部渐变让滚过的内容
           从卡后淡出（对标 MiniMax 滚动态的紧凑输入条）。 */}
       {hero ? <div className={css.inputCardSeat}>{inputBar}</div> : inputBar}
-      {/* HeightLab：模板坞（V31 起普通模式=视频模板网格），仅 hero 显示。 */}
-      {hero && <HeightLabTemplateDock />}
+      {/* HeightLab V31：模板区=视频模板网格（静态嵌入页面流，MiniMax 式）。
+          注意不走 HeightLabTemplateDock——那是旧「浮层容器」（popup 定位），
+          静态网格放进去会定位失效（V31 首版踩坑：模板不可见）。复刻模式
+          下旧 Dock 本就 return null，行为不变；回滚=恢复下一行并还原 import。
+          {hero && <HeightLabTemplateDock />} */}
+      {hero && !replicationMode && <HeightLabVideoGrid />}
     </div>
   )
 
