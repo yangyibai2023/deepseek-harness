@@ -37,7 +37,8 @@ const TEMPLATE_TAGS = ['推荐', '文案', '图片', '视频', '办公', '更多
 /** HeightLab 2026-09-19：视频复刻模式快捷标签组（对标 Minimax Design 的
  *  能力入口工作台）——全部只同步控制台参数或预填输入框，不自动发送。 */
 type RepChip = { label: string; kind: 'console' | 'mode' | 'voice' | 'subtitle' | 'prefill'; value: string }
-const REPLICATION_GROUPS: Array<{ title: string; chips: RepChip[] }> = [
+export const REPLICATION_GROUPS: Array<{ title: string; chips: RepChip[] }> = [
+  // eslint-disable-next-line no-spaced-func -- exported for EmptyHero guide reuse
   {
     title: '开始',
     chips: [
@@ -295,6 +296,10 @@ export function HeightLabTemplateDock() {
   const dockStyle = brandColor !== null
     ? ({ '--hl-brand': brandColor } as CSSProperties)
     : undefined
+
+  // HeightLab V24b：复刻模式引导已上移到会话空状态区（EmptyHero 位置），
+  // Dock 不再重复显示，避免同一组操作出现在两处。
+  if (replicationMode) return null
 
   return (
     <div className={css.dock} style={dockStyle}>

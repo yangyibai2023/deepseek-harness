@@ -104,6 +104,19 @@ export function SidebarRoot({
   // Wide content stays mounted while the collapse animates (fading via
   // .collapsed .wide), unmounts at settle, and remounts right away on expand.
   const [settled, setSettled] = useState(collapsed)
+  // HeightLab V24b：视频创作一级页「爆款复刻」进入动作（新建会话+复刻模式+开工作台）。
+  useEffect(() => {
+    const onStart = (): void => {
+      startSession()
+      window.localStorage.setItem('hl-console-mode', 'replication')
+      window.dispatchEvent(new CustomEvent('hl:mode-change', { detail: { mode: 'replication' } }))
+      window.dispatchEvent(new CustomEvent('hl:open-console'))
+      window.dispatchEvent(new CustomEvent('hl:close-hub'))
+    }
+    window.addEventListener('hl:start-replication', onStart)
+    return () => { window.removeEventListener('hl:start-replication', onStart) }
+  }, [startSession])
+
   useEffect(() => {
     if (!collapsed) { setSettled(false); return }
     const timer = window.setTimeout(() => { setSettled(true) }, COLLAPSE_SETTLE_MS)
@@ -262,22 +275,20 @@ export function SidebarRoot({
         </button>
       </Tooltip>
 
-      {/* HeightLab 2026-09-19：「视频复刻」一级创作入口（对标 Minimax Design
-          的能力入口形态）——新建会话 + 静默激活复刻模式（不自动发消息）+
-          打开右侧创作工作台；输入框上方标签组由 Dock 按模式切换。 */}
-      <Tooltip label="视频复刻" delayMs={500} disabled={wide}>
+      {/* HeightLab 2026-09-19（V24b）：「视频创作」一级入口——打开一级选择页
+          （8 个视频模板卡片，Hub 视图 video-studio），不直接进对话/工作台。
+          点卡片「爆款复刻」广播 hl:start-replication，由本组件监听执行
+          新建会话+复刻模式激活+打开右侧工作台。 */}
+      <Tooltip label="视频创作" delayMs={500} disabled={wide}>
         <button
           type="button"
           className={css.hlNavItem}
           onClick={() => {
-            startSession()
-            window.localStorage.setItem('hl-console-mode', 'replication')
-            window.dispatchEvent(new CustomEvent('hl:mode-change', { detail: { mode: 'replication' } }))
-            window.dispatchEvent(new CustomEvent('hl:open-console'))
+            window.dispatchEvent(new CustomEvent('hl:open-hub', { detail: { page: 'video-studio' } }))
           }}
         >
           <IconSparkle16 size={wide ? 16 : 18} className={css.hlNavIcon} />
-          {wide && <span className={css.hlNavLabel}>视频复刻</span>}
+          {wide && <span className={css.hlNavLabel}>视频创作</span>}
         </button>
       </Tooltip>
 
@@ -302,6 +313,10 @@ export function SidebarRoot({
           </button>
         ))}
       </div>
+
+      {/* HeightLab V24b：视频创作一级页点「爆款复刻」→ 在这里执行真正的
+          进入动作（startSession 在本组件手里；ConversationRoot 只负责关 Hub）。 */}
+      {/* handled in useEffect below */}
 
       {panels.length > 0 && (
         <nav className={css.panelList} aria-label={t('panels.label')}>

@@ -2,8 +2,8 @@
 
 /** Simplified Chinese dictionary (the key-set source of truth). */
 export const zh = {
-  'session.new': '开始创作',
-  'session.new.label': '开始创作',
+  'session.new': '新建任务',
+  'session.new.label': '新建任务',
   'toggle.open': '打开侧边栏',
   'toggle.collapse': '收起侧边栏',
   'panels.label': '全局面板',

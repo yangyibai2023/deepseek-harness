@@ -61,6 +61,10 @@ export function WorkspaceChip({ buttonRef, label, menuOpen = false, onClick, t }
   )
 }
 
+// HeightLab V24b：复刻模式空状态引导（替代品牌 hero）。数据与 Dock 共用。
+import { useEffect, useState } from 'react'
+import { REPLICATION_GROUPS } from './HeightLabTemplateDock.tsx'
+
 /** Hero chrome props. The workspace row rides the InputBar accessory hole, not here. */
 export interface HeroShellProps {
   /** The owner's locale seat, passed down as a plain prop. */
@@ -79,6 +83,72 @@ export interface HeroShellProps {
  * @returns the centered hero element tree.
  */
 export function HeroShell({ t, renderSlot, children }: HeroShellProps) {
+  // HeightLab V24b：视频复刻二级页面的空状态 = 引导选项区（无品牌 logo/品牌语）。
+  const [replicationMode, setReplicationMode] = useState(
+    () => localStorage.getItem('hl-console-mode') === 'replication',
+  )
+  useEffect(() => {
+    const sync = (): void => setReplicationMode(localStorage.getItem('hl-console-mode') === 'replication')
+    window.addEventListener('hl:mode-change', sync)
+    window.addEventListener('storage', sync)
+    return () => {
+      window.removeEventListener('hl:mode-change', sync)
+      window.removeEventListener('storage', sync)
+    }
+  }, [])
+  if (replicationMode) {
+    const chipClick = (kind: string, value: string): void => {
+      if (kind === 'console') {
+        window.dispatchEvent(new CustomEvent('hl:open-console'))
+        return
+      }
+      if (kind === 'prefill') {
+        window.dispatchEvent(new CustomEvent('hl:fill-draft', { detail: { text: value } }))
+        return
+      }
+      const eventName = kind === 'mode' ? 'hl:rep-mode' : kind === 'voice' ? 'hl:rep-voice' : 'hl:rep-subtitle'
+      window.dispatchEvent(new CustomEvent(eventName, { detail: { value } }))
+    }
+    return (
+      <div className={css.root} data-tauri-drag-region="deep">
+        <div className={css.stack}>
+          <div style={{ maxWidth: 640, margin: '0 auto', width: '100%' }}>
+            <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 6 }}>视频复刻工作台</div>
+            <div style={{ fontSize: 12, color: '#999', marginBottom: 14 }}>
+              在右侧控制台上传原视频并完成配置后点「生成视频」；下方快捷选项可直接切换参数或预填改款需求。
+            </div>
+            {REPLICATION_GROUPS.map(group => (
+              <div key={group.title} style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#888', margin: '0 0 5px' }}>{group.title}</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {group.chips.map(chip => (
+                    <button
+                      key={chip.label}
+                      type="button"
+                      onClick={() => chipClick(chip.kind, chip.value)}
+                      style={{
+                        padding: '6px 10px',
+                        border: '1px solid #d9d9d9',
+                        borderRadius: 16,
+                        background: '#fff',
+                        color: '#1a1a1a',
+                        fontSize: 12,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {chip.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className={css.body} />
+        </div>
+        {children}
+      </div>
+    )
+  }
   return (
     /* HeightLab：新对话页顶部/空白区域作为透明拖拽区（无可见条、不占布局），
        让覆盖式标题栏下也能拖拽移动窗口；输入卡片位于其上层，不影响交互。 */
