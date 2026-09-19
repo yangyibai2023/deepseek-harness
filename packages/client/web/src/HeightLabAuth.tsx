@@ -38,6 +38,37 @@ body[data-hl-auth='out'] [data-dsh-better-sidebar],
 body[data-hl-auth='out'] [data-dsh-panel-host] {
   display: none !important;
 }
+/* HeightLab 2026-09-20（V30）：登录页质感——按钮层级（黑主+幽灵副）、
+   邀请码 focus 态、进场淡入上移。登录卡本身无底色（嵌在页面背景上）。 */
+@keyframes hl-auth-fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+.hl-auth-btn {
+  width: 100%;
+  padding: 11px 0;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  transition: opacity 0.15s ease, border-color 0.15s ease;
+}
+.hl-auth-btn:disabled { opacity: 0.6; cursor: default; }
+.hl-auth-btn-primary {
+  background: var(--dsw-alias-button-primary-fill, #0f1115);
+  color: var(--dsw-alias-label-primary-foreground, #fff);
+}
+.hl-auth-btn-primary:hover:not(:disabled) { opacity: 0.88; }
+.hl-auth-btn-ghost {
+  background: transparent;
+  color: var(--dsw-alias-label-primary, #111);
+  border: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.14));
+}
+.hl-auth-btn-ghost:hover:not(:disabled) { border-color: rgba(0, 0, 0, 0.32); }
+#hl-invite-code:focus { border-color: #0f1115; }
+#hl-invite-code::placeholder { color: rgba(0, 0, 0, 0.32); }
 `
 
 function ensureAuthCss(): void {
@@ -292,29 +323,15 @@ const pageStyle: React.CSSProperties = {
   color: 'var(--dsw-alias-label-primary, #111)',
 }
 
+// HeightLab 2026-09-20（V30）：登录卡去白底/阴影/圆角——直接嵌在页面背景上；
+// 质感靠排版与按钮层级（黑主按钮+幽灵副按钮）+ 进场淡入上移（见 AUTH_CSS）。
 const cardStyle: React.CSSProperties = {
-  background: 'var(--dsw-alias-bg-layer-1, #fff)',
-  borderRadius: '16px',
-  padding: '40px 36px',
-  minWidth: '320px',
-  maxWidth: '400px',
-  boxShadow: '0 16px 48px rgba(0,0,0,0.12)',
+  width: 'min(360px, calc(100vw - 48px))',
   display: 'flex',
   flexDirection: 'column',
-  gap: '16px',
+  gap: '12px',
   textAlign: 'center',
-}
-
-const primaryButtonStyle: React.CSSProperties = {
-  padding: '10px 0',
-  borderRadius: '10px',
-  border: 'none',
-  cursor: 'pointer',
-  fontSize: 14,
-  fontWeight: 600,
-  background: 'var(--dsw-alias-button-primary-fill, #0f1115)',
-  color: 'var(--dsw-alias-label-primary-foreground, #fff)',
-  transition: 'background 0.15s ease',
+  animation: 'hl-auth-fade-up 0.45s cubic-bezier(0.22, 1, 0.36, 1) both',
 }
 
 const inputStyle: React.CSSProperties = {
@@ -420,28 +437,51 @@ export function HeightLabLoginPage({ initialError }: { initialError?: string | n
   return (
     <div style={pageStyle}>
       <div style={cardStyle}>
-        {/* HeightLab：登录页品牌区 = 原图 logo + 品牌名 + 标语。 */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+        {/* HeightLab：登录页品牌区 = 原图 logo + 品牌名。V30 删老标语
+            「一句话，启动你的营销引擎」（与官网 v2 口径不符，宪法铁律 19）。 */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 24 }}>
           {/* HeightLab 2026-08-26：黑色胶囊 PNG（透明底），已随 build:web
               进 public→dist，不再依赖运行时拷贝；内联 potrace SVG 会把
               负形底色画成黑方块，弃用。 */}
           <img
             src="/heightlab-logo.png"
             alt=""
-            width={30}
-            height={30}
+            width={38}
+            height={38}
             style={{ display: 'block', userSelect: 'none', objectFit: 'contain' }}
           />
-          <span style={{ fontSize: 22, fontWeight: 700 }}>HeightLab</span>
+          <span style={{ fontSize: 26, fontWeight: 700, letterSpacing: '0.2px' }}>HeightLab</span>
         </div>
-        <div style={{ opacity: 0.7, fontSize: 13 }}>一句话，启动你的营销引擎</div>
 
-        <div style={{ textAlign: 'left' }}>
+        <button
+          type="button"
+          className="hl-auth-btn hl-auth-btn-primary"
+          disabled={busy}
+          onClick={() => void startLogin()}
+        >
+          登录
+        </button>
+        <button
+          type="button"
+          className="hl-auth-btn hl-auth-btn-ghost"
+          disabled={busy}
+          onClick={() => void startRegister()}
+        >
+          注册新账号
+        </button>
+
+        {error && (
+          <div role="alert" style={{ ...errorStyle, textAlign: 'center' }}>{error}</div>
+        )}
+
+        {/* HeightLab V30：邀请码从最上方移到最下方并弱化（仅注册需要；
+            校验/绑定逻辑不变）。 */}
+        <div style={{ marginTop: 18, paddingTop: 18, borderTop: '1px solid var(--dsw-alias-border-l2, rgba(0,0,0,0.08))' }}>
           <label
             htmlFor="hl-invite-code"
-            style={{ display: 'block', fontSize: 12, marginBottom: 6, color: 'var(--dsw-alias-label-secondary, #61666b)' }}
+            style={{ display: 'block', fontSize: 12, marginBottom: 8, color: 'var(--dsw-alias-label-secondary, #8a9097)' }}
           >
-            注册邀请码（仅注册需要）
+            新用户注册需要邀请码
           </label>
           <input
             id="hl-invite-code"
@@ -459,31 +499,10 @@ export function HeightLabLoginPage({ initialError }: { initialError?: string | n
           />
         </div>
 
-        {error && (
-          <div role="alert" style={errorStyle}>{error}</div>
-        )}
-
-        <button
-          type="button"
-          style={{ ...primaryButtonStyle, opacity: busy ? 0.65 : 1, cursor: busy ? 'default' : 'pointer' }}
-          disabled={busy}
-          onClick={() => void startRegister()}
-        >
-          注册
-        </button>
-        <button
-          type="button"
-          style={{ ...primaryButtonStyle, opacity: busy ? 0.65 : 1, cursor: busy ? 'default' : 'pointer' }}
-          disabled={busy}
-          onClick={() => void startLogin()}
-        >
-          登录
-        </button>
-
         {devMode && (
           <button
             type="button"
-            style={{ ...primaryButtonStyle, background: 'transparent', color: 'inherit', border: '1px solid currentColor' }}
+            className="hl-auth-btn hl-auth-btn-ghost"
             onClick={() => {
               setStoredToken('hl-local-mock-token')
               void pushTokenToHost('hl-local-mock-token')
