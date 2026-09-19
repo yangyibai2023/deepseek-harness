@@ -165,7 +165,7 @@ export function ConversationRoot({
   useEffect(() => {
     const onOpen = (event: Event): void => {
       const detail = (event as CustomEvent<{ page?: unknown }>).detail
-      if (detail?.page === 'inspiration' || detail?.page === 'library') {
+      if (detail?.page === 'inspiration' || detail?.page === 'library' || detail?.page === 'video-studio') {
         if (detail.page !== 'library') {
           window.dispatchEvent(new CustomEvent('hl:close-knowledge'))
         }
