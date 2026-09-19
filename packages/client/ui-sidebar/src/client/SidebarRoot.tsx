@@ -104,20 +104,9 @@ export function SidebarRoot({
   // Wide content stays mounted while the collapse animates (fading via
   // .collapsed .wide), unmounts at settle, and remounts right away on expand.
   const [settled, setSettled] = useState(collapsed)
-  // HeightLab V24b：视频创作一级页「爆款复刻」进入动作（新建会话+复刻模式+开工作台）。
-  useEffect(() => {
-    const onStart = (): void => {
-      startSession()
-      window.localStorage.setItem('hl-console-mode', 'replication')
-      window.dispatchEvent(new CustomEvent('hl:mode-change', { detail: { mode: 'replication' } }))
-      window.dispatchEvent(new CustomEvent('hl:close-hub'))
-      // 2026-09-20 三修（第一性原理，用户拍板）：不再广播打开——新会话的
-      // sidebar-right seed 在 store 创建时读取 hl-console-mode，复刻模式下
-      // 默认首 tab 即创作控制台（contract/seed.ts），天生存在、无时序竞态。
-    }
-    window.addEventListener('hl:start-replication', onStart)
-    return () => { window.removeEventListener('hl:start-replication', onStart) }
-  }, [startSession])
+  // HeightLab V26e：hl:start-replication 的消费方已迁移至 ui-workspace
+  // （openWorkspace beforeOpen 精确时机：设置复刻模式标记+广播会话就绪），
+  // 本组件不再监听——避免与 ui-workspace 路径双重创建会话。
 
   useEffect(() => {
     if (!collapsed) { setSettled(false); return }
@@ -206,10 +195,10 @@ export function SidebarRoot({
             aria-label={t('session.new.label')}
             onClick={() => {
             // HeightLab 2026-09-19：普通创作入口清除控制台模式标记。
-            window.localStorage.removeItem('hl-console-mode')
-            window.dispatchEvent(new CustomEvent('hl:mode-change', { detail: { mode: '' } }))
-            startSession()
-          }}
+              window.localStorage.removeItem('hl-console-mode')
+              window.dispatchEvent(new CustomEvent('hl:mode-change', { detail: { mode: '' } }))
+              startSession()
+            }}
           >
             <span className={css.brandIdentity} aria-hidden="true">
               <span className={css.brandMark}>
@@ -266,9 +255,9 @@ export function SidebarRoot({
           aria-label={t('session.new.label')}
           onClick={() => {
           // HeightLab 2026-09-19：普通创作入口清除控制台模式标记。
-          window.localStorage.removeItem('hl-console-mode')
-          window.dispatchEvent(new CustomEvent('hl:mode-change', { detail: { mode: '' } }))
-          startSession()
+            window.localStorage.removeItem('hl-console-mode')
+            window.dispatchEvent(new CustomEvent('hl:mode-change', { detail: { mode: '' } }))
+            startSession()
           }}
         >
           {/* HeightLab 2026-08-26：展开态 16px，与 hlNav/添加工作区一致。 */}
@@ -279,8 +268,8 @@ export function SidebarRoot({
 
       {/* HeightLab 2026-09-19（V24b）：「视频创作」一级入口——打开一级选择页
           （8 个视频模板卡片，Hub 视图 video-studio），不直接进对话/工作台。
-          点卡片「爆款复刻」广播 hl:start-replication，由本组件监听执行
-          新建会话+复刻模式激活+打开右侧工作台。 */}
+          点卡片「爆款复刻」广播 hl:start-replication，由 ui-workspace 监听
+          执行新建会话+复刻模式（V26e-b 迁移，本组件不再监听）。 */}
       <Tooltip label="视频创作" delayMs={500} disabled={wide}>
         <button
           type="button"
