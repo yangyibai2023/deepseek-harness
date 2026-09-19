@@ -89,7 +89,11 @@ function mediaUrl(path: string): string {
   return `/hl/local-media/${isVideo ? 'video.mp4' : 'image.jpg'}?path=${encodeURIComponent(path)}`
 }
 
-export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
+export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
+  // HeightLab V27：slot runtime 注入的当前会话身份（UI 切换会话即实时变化）——
+  // 替代此前的 /hl/current-session 轮询（该文件只在消息 turn 开始时写盘，
+  // 切会话不发消息则永不更新 = 「所有会话共享最后一次状态」串扰的根因）。
+  const { sessionId: runtimeSessionId } = props
   const defaultFields = (): Record<string, string> => {
     const init: Record<string, string> = {}
     for (const f of VIDEO_REPLICATION_SCHEMA.fields) {
@@ -120,9 +124,10 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
   const [picker, setPicker] = useState<{ slotId: string; kind: string } | null>(null)
   const [assetList, setAssetList] = useState<AssetEntry[]>([])
   const [voiceAsset, setVoiceAsset] = useState<AssetEntry | null>(null)
-  // 会话感知：轮询当前会话 id（FY1-M2 会话恢复）。语义（2026-09-19 拍板）：
-  // 老会话有复刻状态/草稿 → 恢复；新会话/无关会话 → 全部清空（进度归零）。
-  const [sessionId, setSessionId] = useState('')
+  // 会话感知（V27 修正）：sessionId 来自 slot runtime 的实时注入（UI 切换
+  // 会话即变化），语义（2026-09-19 拍板）：老会话有复刻状态/草稿 → 恢复；
+  // 新会话/无关会话 → 全部清空（进度归零）。
+  const sessionId = typeof runtimeSessionId === 'string' ? runtimeSessionId : ''
   // 脏标记：只有用户真实交互过的表单才允许落盘草稿——会话切换时的
   // 重置/恢复动作不算交互，防止上个会话的残留被固化成新会话的草稿。
   const dirtyRef = useRef(false)
@@ -146,47 +151,39 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
     setPicker(null)
   }
 
+  // 会话切换驱动（V27 修正）：sessionId 变化（含首挂）即拉取该会话的
+  // 工作流与草稿——有则恢复、无则全清。同步清 dirtyRef 防止「A 的内容经
+  // 保存 effect 串写进 B 的草稿」。
   useEffect(() => {
+    if (sessionId === '') return
     let alive = true
-    let lastSession = ''
-    const tick = async (): Promise<void> => {
+    dirtyRef.current = false
+    const load = async (): Promise<void> => {
       try {
-        const sres = await fetch('/hl/current-session')
-        const sjson = (await sres.json()) as { session_id?: string }
-        const sid = sjson.session_id ?? ''
-        if (alive && sid !== '' && sid !== lastSession) {
-          lastSession = sid
-          if (alive) setSessionId(sid)
-          dirtyRef.current = false
-          const sres2 = await fetch(`/hl/console-state?session=${encodeURIComponent(sid)}`)
-          const state = (await sres2.json()) as {
-            workflow?: { template?: string; stage?: string; status?: string; detail?: string } | null
-            draft?: Record<string, unknown> | null
-          }
-          if (!alive) return
-          if (state.workflow?.template === '视频复刻') {
-            setProgress({
-              stage: state.workflow.stage ?? '',
-              status: state.workflow.status ?? '',
-              detail: state.workflow.detail ?? '',
-            })
-            window.dispatchEvent(new CustomEvent('hl:open-console'))
-          } else {
-            // 新会话/无关会话：进度归零——绝不显示上一个会话的完成态。
-            setProgress(null)
-          }
-          if (state.draft !== null && state.draft !== undefined) restoreDraft(state.draft)
-          else resetAll()
+        const res = await fetch(`/hl/console-state?session=${encodeURIComponent(sessionId)}`)
+        const state = (await res.json()) as {
+          workflow?: { template?: string; stage?: string; status?: string; detail?: string } | null
+          draft?: Record<string, unknown> | null
         }
+        if (!alive) return
+        if (state.workflow?.template === '视频复刻') {
+          setProgress({
+            stage: state.workflow.stage ?? '',
+            status: state.workflow.status ?? '',
+            detail: state.workflow.detail ?? '',
+          })
+          window.dispatchEvent(new CustomEvent('hl:open-console'))
+        } else {
+          // 新会话/无关会话：进度归零——绝不显示上一个会话的完成态。
+          setProgress(null)
+        }
+        if (state.draft !== null && state.draft !== undefined) restoreDraft(state.draft)
+        else resetAll()
       } catch { /* 静默：宿主未就绪 */ }
     }
-    void tick()
-    const timer = window.setInterval(tick, 3000)
-    return () => {
-      alive = false
-      window.clearInterval(timer)
-    }
-  }, [])
+    void load()
+    return () => { alive = false }
+  }, [sessionId])
 
   // Dock 快捷标签同步（2026-09-19）：复刻模式下输入框上方的快捷标签
   // 远程切换控制台的复刻方式/语音/字幕（外部用户意图，计入脏标记落盘）。
@@ -379,13 +376,18 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
     setPicker(null)
   }
 
-  const setFiles = async (slotId: string, kind: 'video' | 'image', files: FileList | null): Promise<void> => {
-    if (files === null || files.length === 0) return
+  const setFiles = async (slotId: string, kind: 'video' | 'image', fileList: FileList | null, inputEl?: HTMLInputElement): Promise<void> => {
+    if (fileList === null || fileList.length === 0) return
     setBusy(true)
     setError('')
     try {
+      // V27 修复：先快照 FileList 再立即清空 input value——否则删除素材后
+      // 重新选择同一文件时 value 未变、onChange 不触发（浏览器经典陷阱），
+      // 表现为「删除后传不了了」。
+      const files = Array.from(fileList)
+      if (inputEl !== undefined) inputEl.value = ''
       const incoming: SlotEntry[] = []
-      for (const file of Array.from(files)) {
+      for (const file of files) {
         const path = await uploadAsset(kind, file)
         incoming.push({ name: file.name, path })
         void registerAsset(SLOT_KIND[slotId] ?? '其他', file.name, path)
@@ -549,7 +551,7 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
           </div>
         )}
         <input id="console-file-source-video" className={css.fileInput} type="file" accept="video/*"
-          onChange={e => void setFiles('source-video', 'video', e.target.files)} />
+          onChange={e => void setFiles('source-video', 'video', e.target.files, e.currentTarget)} />
       </div>
     )
   }
@@ -584,7 +586,7 @@ export function ConsoleBody(_props: ConsoleBodyProps): ReactNode {
           ) : null}
         </div>
         <input id={inputId} className={css.fileInput} type="file" multiple={max > 1} accept="image/*"
-          onChange={e => void setFiles(slotId, spec.kind, e.target.files)} />
+          onChange={e => void setFiles(slotId, spec.kind, e.target.files, e.currentTarget)} />
       </div>
     )
   }
