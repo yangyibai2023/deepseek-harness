@@ -242,6 +242,16 @@ export function apply(ctx: ClientContext): void {
     const onCloseConsole = (): void => {
       controller.closeKind(CONSOLE_KIND)
     }
+    // HeightLab V26e：视频创作入口「爆款复刻」（hl:start-replication）——
+    // 新会话 seed 已天生带控制台首 tab（contract/seed.ts）；这里只负责
+    // 右栏若处于收起状态则自动展开，确保用户进入二级页面即见工作台。
+    const onStartReplication = (): void => {
+      window.setTimeout(() => {
+        try {
+          if (!controller.isExpanded()) controller.toggleExpanded()
+        } catch { /* 会话尚未挂载时静默；seed 已带 tab，展开态随会话恢复 */ }
+      }, 600)
+    }
     const onModeCleared = (event: Event): void => {
       if ((event as CustomEvent<{ mode?: unknown }>).detail?.mode === '') onCloseConsole()
     }
