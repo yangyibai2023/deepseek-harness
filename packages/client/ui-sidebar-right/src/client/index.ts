@@ -134,13 +134,13 @@ export function apply(ctx: ClientContext): void {
       create: (scopeKey) => {
         const instance = handle.create(scopeKey)
         if (scopeKey !== undefined) {
-          // HeightLab V24b 二修：复刻模式下新会话 surface 就绪（store 采用）
-          // 即自动打开创作工作台——侧边栏入口的一次性延迟广播会因挂载耗时
-          // 不定而落空，这里挂在「store 采用」这个精确时机上，双保险之一。
+          // HeightLab V24b 二修（V28 复核升级）：复刻模式下新会话 surface 就绪
+          // （store 采用）即自动打开创作工作台——挂在「store 采用」这个精确
+          // 时机上，且走幂等重试（V26c 教训：openTab 在 surface 未挂载时抛错
+          // 被吞，单发延迟不可靠）。seed 已带首 tab，本开启是双保险——但
+          // 双保险自己必须可靠（宪法铁律 17）。
           if (localStorage.getItem('hl-console-mode') === 'replication') {
-            window.setTimeout(() => {
-              void controller.openTab(CONSOLE_KIND)
-            }, 250)
+            openConsoleRetrying(false)
           }
           adoptions.push(adopt(scopeKey as SessionId, instance))
         }
