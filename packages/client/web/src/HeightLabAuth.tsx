@@ -38,23 +38,26 @@ body[data-hl-auth='out'] [data-dsh-better-sidebar],
 body[data-hl-auth='out'] [data-dsh-panel-host] {
   display: none !important;
 }
-/* HeightLab 2026-09-20（V30）：登录页质感——按钮层级（黑主+幽灵副）、
-   邀请码 focus 态、进场淡入上移。登录卡本身无底色（嵌在页面背景上）。 */
+/* HeightLab 2026-09-20（V30b）：登录页质感——参考现代 SaaS 登录页
+   （Linear/Vercel 式极简单列）：高按钮大圆角、输入框白底浮起+focus 光晕、
+   邀请码弱化置底。登录卡本身无底色（嵌在页面背景上）。 */
 @keyframes hl-auth-fade-up {
   from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: none; }
 }
 .hl-auth-btn {
   width: 100%;
-  padding: 11px 0;
-  border-radius: 10px;
+  padding: 13px 0;
+  border-radius: 12px;
   border: none;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
+  letter-spacing: 0.02em;
   font-family: inherit;
-  transition: opacity 0.15s ease, border-color 0.15s ease;
+  transition: opacity 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
 }
+.hl-auth-btn:active:not(:disabled) { transform: scale(0.985); }
 .hl-auth-btn:disabled { opacity: 0.6; cursor: default; }
 .hl-auth-btn-primary {
   background: var(--dsw-alias-button-primary-fill, #0f1115);
@@ -67,8 +70,14 @@ body[data-hl-auth='out'] [data-dsh-panel-host] {
   border: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.14));
 }
 .hl-auth-btn-ghost:hover:not(:disabled) { border-color: rgba(0, 0, 0, 0.32); }
-#hl-invite-code:focus { border-color: #0f1115; }
-#hl-invite-code::placeholder { color: rgba(0, 0, 0, 0.32); }
+#hl-invite-code {
+  background: #fff;
+}
+#hl-invite-code:focus {
+  border-color: #0f1115;
+  box-shadow: 0 0 0 3px rgba(15, 17, 21, 0.08);
+}
+#hl-invite-code::placeholder { color: rgba(0, 0, 0, 0.28); }
 `
 
 function ensureAuthCss(): void {
@@ -326,10 +335,10 @@ const pageStyle: React.CSSProperties = {
 // HeightLab 2026-09-20（V30）：登录卡去白底/阴影/圆角——直接嵌在页面背景上；
 // 质感靠排版与按钮层级（黑主按钮+幽灵副按钮）+ 进场淡入上移（见 AUTH_CSS）。
 const cardStyle: React.CSSProperties = {
-  width: 'min(360px, calc(100vw - 48px))',
+  width: 'min(380px, calc(100vw - 48px))',
   display: 'flex',
   flexDirection: 'column',
-  gap: '12px',
+  gap: '14px',
   textAlign: 'center',
   animation: 'hl-auth-fade-up 0.45s cubic-bezier(0.22, 1, 0.36, 1) both',
 }
@@ -337,13 +346,14 @@ const cardStyle: React.CSSProperties = {
 const inputStyle: React.CSSProperties = {
   width: '100%',
   boxSizing: 'border-box',
-  padding: '10px 12px',
-  borderRadius: '10px',
+  padding: '12px 14px',
+  borderRadius: '12px',
   border: '1px solid var(--dsw-alias-border-l2, rgba(0,0,0,0.1))',
-  background: 'var(--dsw-alias-bg-base, #fff)',
+  background: '#fff',
   color: 'var(--dsw-alias-label-primary, #111)',
   fontSize: 14,
   outline: 'none',
+  transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
 }
 
 const errorStyle: React.CSSProperties = {
@@ -439,18 +449,18 @@ export function HeightLabLoginPage({ initialError }: { initialError?: string | n
       <div style={cardStyle}>
         {/* HeightLab：登录页品牌区 = 原图 logo + 品牌名。V30 删老标语
             「一句话，启动你的营销引擎」（与官网 v2 口径不符，宪法铁律 19）。 */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 32 }}>
           {/* HeightLab 2026-08-26：黑色胶囊 PNG（透明底），已随 build:web
               进 public→dist，不再依赖运行时拷贝；内联 potrace SVG 会把
               负形底色画成黑方块，弃用。 */}
           <img
             src="/heightlab-logo.png"
             alt=""
-            width={38}
-            height={38}
+            width={42}
+            height={42}
             style={{ display: 'block', userSelect: 'none', objectFit: 'contain' }}
           />
-          <span style={{ fontSize: 26, fontWeight: 700, letterSpacing: '0.2px' }}>HeightLab</span>
+          <span style={{ fontSize: 28, fontWeight: 700, letterSpacing: '0.2px' }}>HeightLab</span>
         </div>
 
         <button
