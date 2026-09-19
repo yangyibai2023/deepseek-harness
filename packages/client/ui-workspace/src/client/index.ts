@@ -11,7 +11,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { RemoteHostFacts } from '@deepseek-ai/dsh-api-remotes/client'
 import type { ISessions } from '@deepseek-ai/dsh-api-session-controller/client'
-import type { IWorkspaces, WorkspaceSnapshot } from '@deepseek-ai/dsh-api-workspace-controller/client'
+import type { IWorkspaces, WorkspaceId, WorkspaceSnapshot } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { HostObservable, SnapshotSelectorHook } from '@deepseek-ai/dsh-client-ui-slots'
 // Type-only: pulls the Controller service merges.
 import type {} from '@deepseek-ai/dsh-api-session-controller/client'
@@ -77,6 +77,35 @@ export function apply(ctx: Context): void {
     ctx, ctx.remote.directoryPicker, workspaces, sessions)
   ctx.slots.provideRoot({ hooks: { workspaces: workspaces.list } })
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-workspace: dictionaries')
+
+  // HeightLab V26e-b：视频创作一级页「爆款复刻」（hl:start-replication）——
+  // 新建会话并在导航打开前设置复刻模式标记 + 广播会话就绪（右栏展开消费）。
+  // 上一轮误删了侧边栏的旧监听而未接上本处理，导致入口点击无反应——本轮补齐。
+  ctx.effect(() => {
+    if (typeof window === 'undefined') return () => {}
+    const onStart = (event: Event): void => {
+      const detail = (event as CustomEvent<{ workspaceId?: unknown }>).detail
+      const detailWorkspaceId = typeof detail?.workspaceId === 'string' ? detail.workspaceId : undefined
+      const sessionList = sessions.list.getSnapshot()
+      const current = sessionList.current
+      const currentWorkspaceId = current === undefined
+        ? undefined
+        : workspaces.list.getSnapshot().items.find(item => item.sessionIds.includes(current))?.workspaceId
+      // 事件里来的 workspaceId 已满足 WorkspaceId 品牌约束（同构字符串），断言收窄。
+      const target = (detailWorkspaceId ?? currentWorkspaceId) as WorkspaceId | undefined
+      if (target === undefined) return
+      void uiWorkspace.openWorkspace(target, (sessionId) => {
+        try {
+          localStorage.setItem('hl-console-mode', 'replication')
+        } catch { /* 非致命 */ }
+        window.dispatchEvent(new CustomEvent('hl:replication-session-open', { detail: { sessionId } }))
+      }).catch((reason: unknown) => {
+        console.warn('replication session failed:', reason)
+      })
+    }
+    window.addEventListener('hl:start-replication', onStart)
+    return () => { window.removeEventListener('hl:start-replication', onStart) }
+  }, 'ui-workspace: replication entry')
 
   // ── HeightLab 定制（自 0.3.x 稳定线迁移，API 按 0.1.5 适配）──────────
   // 全新环境自动完成首次初始化——没有工作区时自动创建「~/HeightLab」
