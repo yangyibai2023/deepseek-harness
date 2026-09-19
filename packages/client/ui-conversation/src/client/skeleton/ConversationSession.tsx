@@ -64,6 +64,12 @@ export function ConversationSessionHeader({
   const selectedId = useStore(s => s.view)
   const active = resolveActiveView(tabs, selectedId)
   const ancestry = useSessions(s => deriveAncestry(s, sessionId), equalBreadcrumbs)
+  // HeightLab V27：会话切换全局广播——右侧栏据此把创作工作台 tab 带到
+  // 当前会话（控制台 tab 按 会话 挂载，切会话需显式迁移/聚焦）。
+  useEffect(() => {
+    if (sessionId === undefined) return
+    window.dispatchEvent(new CustomEvent('hl:session-switched', { detail: { sessionId } }))
+  }, [sessionId])
   const session = useSession(s => s)
   const conversation = useConversation(s => s)
   const hideChrome = session.blank && conversationPhase(session, conversation) === 'blank'

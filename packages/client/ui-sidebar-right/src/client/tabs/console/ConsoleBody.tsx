@@ -247,6 +247,14 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ session: sessionId, draft: buildDraft() }),
       }).catch(() => undefined)
+      // 登记复刻会话（V27：切换会话时右侧栏自动带回工作台的依据）。
+      try {
+        const list = JSON.parse(localStorage.getItem('hl-replication-sessions') ?? '[]')
+        if (Array.isArray(list) && !list.includes(sessionId)) {
+          list.push(sessionId)
+          localStorage.setItem('hl-replication-sessions', JSON.stringify(list.slice(-50)))
+        }
+      } catch { /* 非致命 */ }
     }, 2000)
     return () => window.clearTimeout(timer)
   }, [sessionId, model, ratio, resolution, seconds, durationMode, voice, subtitle, execution, count, repMode, frameInterval, fields, slots, voiceAsset])

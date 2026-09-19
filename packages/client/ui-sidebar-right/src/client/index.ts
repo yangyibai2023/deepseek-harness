@@ -252,6 +252,23 @@ export function apply(ctx: ClientContext): void {
         } catch { /* 会话尚未挂载时静默；seed 已带 tab，展开态随会话恢复 */ }
       }, 600)
     }
+    // HeightLab V27：会话切换时——若目标会话属于复刻会话（hl-replication-sessions
+    // 登记表），自动把创作控制台 tab 带到该会话并聚焦（用户拍板：每个会话的
+    // 工作台与对话对应）。普通会话切换不打扰。
+    const onSessionSwitched = (event: Event): void => {
+      const sid = (event as CustomEvent<{ sessionId?: unknown }>).detail?.sessionId
+      if (typeof sid !== 'string' || sid === '') return
+      let rep = []
+      try { rep = JSON.parse(localStorage.getItem('hl-replication-sessions') ?? '[]') } catch { /* 忽略 */ }
+      if (!Array.isArray(rep) || !rep.includes(sid)) return
+      window.setTimeout(() => {
+        try {
+          controller.openTab(CONSOLE_KIND)
+          if (!controller.isExpanded()) controller.toggleExpanded()
+        } catch { /* 面板未挂载时静默 */ }
+      }, 250)
+    }
+    window.addEventListener('hl:session-switched', onSessionSwitched)
     const onModeCleared = (event: Event): void => {
       if ((event as CustomEvent<{ mode?: unknown }>).detail?.mode === '') onCloseConsole()
     }
@@ -263,6 +280,7 @@ export function apply(ctx: ClientContext): void {
       window.removeEventListener('hl:close-console', onCloseConsole)
       window.removeEventListener('hl:mode-change', onModeCleared)
       window.removeEventListener('hl:start-replication', onStartReplication)
+    window.removeEventListener('hl:session-switched', onSessionSwitched)
       disposeConsoleTitle()
       disposeConsoleBody()
       for (const dispose of disposeConsoleTypes) dispose()
