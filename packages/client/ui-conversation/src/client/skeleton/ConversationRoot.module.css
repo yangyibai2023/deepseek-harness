@@ -1390,3 +1390,15 @@
   transform: none;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 4px 14px rgba(0, 0, 0, 0.04);
 }
+
+/* ── HeightLab V24b：视频复刻二级页空状态布局（用户拍板：引导贴顶、
+   输入卡贴底——与正常聊天一致，而非原生的居中悬浮组合） ── */
+.composerHeroReplication {
+  align-self: stretch;
+  flex: 1;
+  justify-content: flex-start;
+  padding-bottom: 14px;
+}
+.composerHeroReplication > :last-child {
+  margin-top: auto;
+}

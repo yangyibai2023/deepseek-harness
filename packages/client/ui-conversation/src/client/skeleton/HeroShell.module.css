@@ -242,3 +242,19 @@
   line-height: 18px;
   color: var(--dsw-alias-state-error-primary);
 }
+
+/* HeightLab 2026-09-19：headline 打字机光标 + 行高锁定（防打字行跳动）。 */
+.typingCaret {
+  display: inline-block;
+  color: var(--dsw-alias-label-secondary, #999);
+  animation: hl-caret 1s steps(1) infinite;
+  margin-left: 1px;
+}
+@keyframes hl-caret {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+.titleGroup span:first-child {
+  min-height: 1.4em;
+  display: inline-block;
+}

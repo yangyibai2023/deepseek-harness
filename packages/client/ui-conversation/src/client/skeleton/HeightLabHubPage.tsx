@@ -70,7 +70,7 @@ const studioBadgeStyle: CSSProperties = {
 
 const PAGE_TITLES: Record<HubPage, string> = {
   inspiration: '创意灵感',
-  library: '资料库',
+  library: '资产中心',
   automation: '自动化',
   'video-studio': '视频创作',
 }

@@ -210,7 +210,7 @@ export function AgentPresetSeat({ load, select, introduced, useAgentPresetSeat, 
     ? (activeName ?? activeAgent)
     : undefined
   // HeightLab：输入框按钮跟随所选智能体——选中非标准（Colin）预设时
-  // 显示该预设名称（如「视频制作专家」），标准模式保持 COLIN。
+  // 显示该预设名称（如「视频制作专家」），标准模式保持 Colin（2026-09-19 用户要求小写，与模型字号/观感一致）。
   // HeightLab（2026-09-18）：按钮文字改为两字缩写，为输入框腾空间。名称
   // 本身不变——弹出菜单与设置页仍显示全名；映射不到的名称取前两个字。
   // 恢复方式：删除 agentShortLabel 包裹，恢复直接使用完整名称。
@@ -226,7 +226,7 @@ export function AgentPresetSeat({ load, select, introduced, useAgentPresetSeat, 
   const agentShortLabel = (name: string): string => {
     const hit = HEIGHTLAB_AGENT_SHORT.find(([full]) => name === full)
     if (hit !== undefined) return hit[1]
-    if (name.startsWith('Colin')) return 'COLIN'
+    if (name.startsWith('Colin')) return 'Colin'
     return Array.from(name).slice(0, 2).join('')
   }
   const label = agentShortLabel(workingLabel ?? (

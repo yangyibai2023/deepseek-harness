@@ -159,6 +159,20 @@ export function ConversationRoot({
   const [hub, setHub] = useState<HubPage | null>(null)
   const hubRef = useRef(hub)
   hubRef.current = hub
+  // HeightLab V24b：视频复刻模式（侧边栏「视频创作」→「爆款复刻」进入）——
+  // 空状态布局切换：hero 引导贴顶、输入卡贴底（.composerHeroReplication）。
+  const [replicationMode, setReplicationMode] = useState(
+    () => localStorage.getItem('hl-console-mode') === 'replication',
+  )
+  useEffect(() => {
+    const sync = (): void => setReplicationMode(localStorage.getItem('hl-console-mode') === 'replication')
+    window.addEventListener('hl:mode-change', sync)
+    window.addEventListener('storage', sync)
+    return () => {
+      window.removeEventListener('hl:mode-change', sync)
+      window.removeEventListener('storage', sync)
+    }
+  }, [])
 
   // HeightLab：创意灵感 / 资料库 = 覆盖层页面（替换聊天页，类似 Z Code；
   // 侧边栏保留）。关闭时回到聊天。自动化由 ConversationSession 管理视图。
@@ -422,7 +436,7 @@ export function ConversationRoot({
   })
 
   const composerBar = (
-    <div className={clsx(css.composerStack, hero && css.composerHero)}>
+    <div className={clsx(css.composerStack, hero && (replicationMode ? css.composerHeroReplication : css.composerHero))}>
       {hero && <HeroShell t={t} renderSlot={renderSlot} />}
       {hero && heroWorkspaceRow}
       {zone !== undefined && renderSlot('conversation.input.dock', zone)}

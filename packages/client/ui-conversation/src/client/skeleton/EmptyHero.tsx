@@ -65,6 +65,49 @@ export function WorkspaceChip({ buttonRef, label, menuOpen = false, onClick, t }
 import { useEffect, useState } from 'react'
 import { REPLICATION_GROUPS } from './HeightLabTemplateDock.tsx'
 
+/** HeightLab 2026-09-19：主页空状态 headline 打字机（官网式，循环播放）。 */
+// 与新官网 hero 完全一致的两句轮播（data-hero-typewriter / -secondary）。
+const HERO_TYPING_PHRASES = [
+  '从一张产品图，到一支带货视频',
+  '文案、图片、视频，电商内容一站生成',
+]
+
+function useTypewriter(phrases: readonly string[], typeMs = 95, holdMs = 2600, deleteMs = 42, gapMs = 600): string {
+  const [text, setText] = useState('')
+  useEffect(() => {
+    let phrase = 0
+    let chars = 0
+    let deleting = false
+    let timer = 0
+    const step = (): void => {
+      const current = phrases[phrase] ?? ''
+      if (!deleting) {
+        chars += 1
+        setText(current.slice(0, chars))
+        if (chars >= current.length) {
+          deleting = true
+          timer = window.setTimeout(step, holdMs)
+          return
+        }
+        timer = window.setTimeout(step, typeMs)
+      } else {
+        chars -= 1
+        setText(current.slice(0, chars))
+        if (chars <= 0) {
+          deleting = false
+          phrase = (phrase + 1) % phrases.length
+          timer = window.setTimeout(step, gapMs)
+          return
+        }
+        timer = window.setTimeout(step, deleteMs)
+      }
+    }
+    timer = window.setTimeout(step, 500)
+    return () => { window.clearTimeout(timer) }
+  }, [phrases, typeMs, holdMs, deleteMs, gapMs])
+  return text
+}
+
 /** Hero chrome props. The workspace row rides the InputBar accessory hole, not here. */
 export interface HeroShellProps {
   /** The owner's locale seat, passed down as a plain prop. */
@@ -83,6 +126,7 @@ export interface HeroShellProps {
  * @returns the centered hero element tree.
  */
 export function HeroShell({ t, renderSlot, children }: HeroShellProps) {
+  const typed = useTypewriter(HERO_TYPING_PHRASES)
   // HeightLab V24b：视频复刻二级页面的空状态 = 引导选项区（无品牌 logo/品牌语）。
   const [replicationMode, setReplicationMode] = useState(
     () => localStorage.getItem('hl-console-mode') === 'replication',
@@ -171,8 +215,12 @@ export function HeroShell({ t, renderSlot, children }: HeroShellProps) {
             })}
           </span>
           <span className={css.titleGroup}>
-            {/* Own element: keeps the headline text addressable apart from the badge. */}
-            <span>{t('hero.headline')}</span>
+            {/* Own element: keeps the headline text addressable apart from the badge.
+                HeightLab 2026-09-19：headline 打字机循环（官网式动效）。 */}
+            <span>
+              {typed}
+              <span className={css.typingCaret}>▍</span>
+            </span>
             <span className={css.previewBadge}>{t('hero.preview')}</span>
           </span>
         </div>
