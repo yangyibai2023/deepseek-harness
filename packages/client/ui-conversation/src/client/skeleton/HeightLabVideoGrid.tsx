@@ -9,7 +9,7 @@
  *  - 其余为「即将上线」占位卡，数据结构按终态设计（封面/标题/描述/分类/
  *    时长），接入真实模板库时只换数据不动架构。
  */
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import css from './HeightLabVideoGrid.module.css'
 
 interface VideoTemplate {
@@ -77,11 +77,39 @@ const VIDEO_TEMPLATES: VideoTemplate[] = [
 
 export function HeightLabVideoGrid() {
   const [category, setCategory] = useState<string>('精选')
+  // V31f 运行时探针：挂载 1s 后上报容器与内容的真实几何尺寸到宿主日志
+  //（~/.heightlab/logs/dsh-host.log，grep hlVideoGrid），用于远程定位
+  // 「模板区不可见/被裁」类问题；确认长期稳定后可撤除。
+  const rootRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const el = rootRef.current
+      if (el === null) return
+      const parent = el.parentElement
+      const rect = el.getBoundingClientRect()
+      try {
+        void fetch('/hl/boot-marker', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            hlVideoGrid: true,
+            seatHeight: parent?.getBoundingClientRect().height ?? null,
+            seatTop: parent?.getBoundingClientRect().top ?? null,
+            gridHeight: rect.height,
+            gridTop: rect.top,
+            innerHeight: window.innerHeight,
+            cards: el.querySelectorAll('button').length,
+          }),
+        }).catch(() => { /* 非致命 */ })
+      } catch { /* 非致命 */ }
+    }, 1000)
+    return () => { window.clearTimeout(timer) }
+  }, [])
   const visible = category === '精选'
     ? VIDEO_TEMPLATES
     : VIDEO_TEMPLATES.filter(item => item.category === category)
   return (
-    <div className={css.grid}>
+    <div className={css.grid} ref={rootRef}>
       <div className={css.categories}>
         {CATEGORIES.map(item => (
           <button
