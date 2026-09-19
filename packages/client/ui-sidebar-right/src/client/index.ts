@@ -219,8 +219,22 @@ export function apply(ctx: ClientContext): void {
       { name: 'sidebar.right.pane.tab.title', key: CONSOLE_ID },
       ConsoleTitle,
     ))
+    // HeightLab V26c 二修：openTab 在新会话 surface 未挂载时同步抛错
+    //（'no session surface is mounted'），此前被静默吞掉导致「进入视频复刻
+    // 工作台不弹出」。改为带重试的打开：每 400ms 一次、最多 8 次（覆盖
+    // 新会话创建→视图挂载→面板绑定的全部时序），就绪即成功；多触发点
+    // （入口/二级页挂载/做同款）均安全——openTab 幂等，重复只是聚焦。
     const onOpenConsole = (): void => {
-      void controller.openTab(CONSOLE_KIND)
+      let attempt = 0
+      const tryOpen = (): void => {
+        attempt += 1
+        try {
+          controller.openTab(CONSOLE_KIND)
+        } catch {
+          if (attempt < 8) window.setTimeout(tryOpen, 400)
+        }
+      }
+      tryOpen()
     }
     // HeightLab V24b：用户拍板——回到主页/普通会话时右侧创作工作台自动关闭。
     // 触发：hl:close-console（显式）或 hl:mode-change 清除模式（「新建任务」
