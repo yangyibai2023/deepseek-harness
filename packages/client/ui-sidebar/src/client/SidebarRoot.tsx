@@ -111,11 +111,16 @@ export function SidebarRoot({
       window.localStorage.setItem('hl-console-mode', 'replication')
       window.dispatchEvent(new CustomEvent('hl:mode-change', { detail: { mode: 'replication' } }))
       window.dispatchEvent(new CustomEvent('hl:close-hub'))
-      // 2026-09-19 用户实测：startSession 后新会话的右侧 surface 尚未挂载，
-      // 立即 openTab 会落空（工作台不弹出）。延迟到 surface 就绪后再打开。
-      window.setTimeout(() => {
+      // 2026-09-19 二修：新会话 surface 挂载耗时不定（宿主建会话+store 采用），
+      // 单次延迟实测仍可能落空——改为轮询重试（openTab 幂等：同 kind 重复
+      // 打开只是 reveal/聚焦，无副作用）；另有 ui-sidebar-right 在 store
+      // 采用时机上的自动打开兜底，双保险。
+      let attempt = 0
+      const openTimer = window.setInterval(() => {
+        attempt += 1
         window.dispatchEvent(new CustomEvent('hl:open-console'))
-      }, 700)
+        if (attempt >= 6) window.clearInterval(openTimer)
+      }, 600)
     }
     window.addEventListener('hl:start-replication', onStart)
     return () => { window.removeEventListener('hl:start-replication', onStart) }

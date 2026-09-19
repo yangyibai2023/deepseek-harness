@@ -133,7 +133,17 @@ export function apply(ctx: ClientContext): void {
       ...handle,
       create: (scopeKey) => {
         const instance = handle.create(scopeKey)
-        if (scopeKey !== undefined) adoptions.push(adopt(scopeKey as SessionId, instance))
+        if (scopeKey !== undefined) {
+          // HeightLab V24b 二修：复刻模式下新会话 surface 就绪（store 采用）
+          // 即自动打开创作工作台——侧边栏入口的一次性延迟广播会因挂载耗时
+          // 不定而落空，这里挂在「store 采用」这个精确时机上，双保险之一。
+          if (localStorage.getItem('hl-console-mode') === 'replication') {
+            window.setTimeout(() => {
+              void controller.openTab(CONSOLE_KIND)
+            }, 250)
+          }
+          adoptions.push(adopt(scopeKey as SessionId, instance))
+        }
         return instance
       },
     }
