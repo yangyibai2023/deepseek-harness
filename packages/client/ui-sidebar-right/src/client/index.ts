@@ -316,6 +316,17 @@ export function apply(ctx: ClientContext): void {
       const sid = (event as CustomEvent<{ sessionId?: unknown }>).detail?.sessionId
       if (typeof sid !== 'string' || sid === '') return
       diag('session-switched', { sid })
+      // V31g：切到「非复刻会话」时同步清理复刻上下文——旧控制台 tab 会残留
+      // 挂到新上下文（挤压输入框）、hl-console-mode 残留会压制模板面板
+      //（用户实测：复刻→回主页后右栏不收、模板区被挤）。切到复刻会话则由
+      // ensureReplicationConsole 带回工作台。
+      let rep: unknown[] = []
+      try { rep = JSON.parse(localStorage.getItem('hl-replication-sessions') ?? '[]') as unknown[] } catch { /* 忽略 */ }
+      if (!(Array.isArray(rep) && rep.includes(sid))) {
+        controller.closeKind(CONSOLE_KIND)
+        try { localStorage.removeItem('hl-console-mode') } catch { /* 忽略 */ }
+        window.dispatchEvent(new CustomEvent('hl:mode-change', { detail: { mode: '' } }))
+      }
       ensureReplicationConsole(sid, 'session-switched')
     }
     window.addEventListener('hl:open-console', onOpenConsole)
