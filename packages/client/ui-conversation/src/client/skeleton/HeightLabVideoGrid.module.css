@@ -39,7 +39,7 @@
 
 .cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(236px, 1fr));
+  grid-template-columns: repeat(3, 1fr); /* V31g：固定一行 3 个（用户拍板） */
   gap: 10px;
 }
 
@@ -174,4 +174,28 @@
   top: 0;
   z-index: 1;
   background: #f5f6f7;
+}
+
+/* HeightLab V31g：分类行与输入框拉开距离（不留紧贴感）、无底色直接嵌在
+   页面上（用户拍板）。sticky 顶部留出与输入框的间距。 */
+.categories {
+  padding-top: 24px;
+  background: transparent;
+}
+
+/* HeightLab V31g 修正：fixed 面板的水平校准——输入框在侧栏（280px）右侧
+   的内容区内居中（实测中心 775 = 50%+135px），面板必须用同一基准，
+   否则整体偏左。原 50%-196px 少算了这 135px。 */
+.seat {
+  left: calc(50% - 217px);
+  right: auto;
+  width: min(var(--dsh-composer-card-max-width, 712px), calc(100vw - 460px));
+}
+
+/* HeightLab V31g 修正2：水平位置/宽度改由组件 JS 动态同步输入框位置
+   （ResizeObserver），CSS 不再硬编码校准值（随窗口宽度漂移）。 */
+.seat {
+  left: auto;
+  right: auto;
+  width: auto;
 }

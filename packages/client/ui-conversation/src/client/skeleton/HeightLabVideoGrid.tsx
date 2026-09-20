@@ -23,7 +23,7 @@ interface VideoTemplate {
   category: string
 }
 
-const CATEGORIES = ['精选', '带货视频', '产品展示', '品牌广告', 'MV'] as const
+const CATEGORIES = ['精选', '带货视频', '产品展示', '品牌广告', '口播讲解'] as const
 
 const VIDEO_TEMPLATES: VideoTemplate[] = [
   {
@@ -58,12 +58,12 @@ const VIDEO_TEMPLATES: VideoTemplate[] = [
     category: '品牌广告',
   },
   {
-    title: '爆款 MV 风',
-    desc: '卡点剪辑 + 潮流贴纸的音乐短片模板，带动直播间与短视频氛围',
+    title: '口播讲解',
+    desc: '清晰表达 + 重点强调的口播讲解模板，适合课程与产品说明',
     cover: 'linear-gradient(135deg, #ec4899, #8b5cf6)',
-    coverLabel: '爆款 MV',
+    coverLabel: '口播讲解',
     comingSoon: true,
-    category: 'MV',
+    category: '口播讲解',
   },
   {
     title: '开箱测评',
@@ -104,6 +104,28 @@ export function HeightLabVideoGrid() {
       } catch { /* 非致命 */ }
     }, 1000)
     return () => { window.clearTimeout(timer) }
+  }, [])
+  // V31g：面板与输入框动态对齐——fixed 定位相对视口，而输入框在侧栏右侧的
+  // 内容区内居中，纯 CSS 校准值随窗口宽度漂移；用 ResizeObserver 实时读取
+  // 输入框位置同步面板 left/width，永远精确等宽对齐。
+  useEffect(() => {
+    const el = rootRef.current
+    if (el === null) return
+    const align = (): void => {
+      const card = document.querySelector('[data-composer-card]')
+      if (card === null) return
+      const r = card.getBoundingClientRect()
+      el.style.left = `${r.left}px`
+      el.style.width = `${r.width}px`
+    }
+    align()
+    const ro = new ResizeObserver(align)
+    ro.observe(document.body)
+    window.addEventListener('resize', align)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('resize', align)
+    }
   }, [])
   const visible = category === '精选'
     ? VIDEO_TEMPLATES
