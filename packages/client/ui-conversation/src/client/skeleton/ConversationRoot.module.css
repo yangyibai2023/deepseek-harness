@@ -473,13 +473,13 @@
   overflow-y: hidden;
 }
 
-/* HeightLab V31d（V31f 回归确认）：模板区容器——对齐旧 Dock .scroll 的
-   已验证模型：固定 340px、内部滚动、页面不滚、输入框/品牌区零改动。
-   V31e 的 flex 自适应在真机上导致模板区整体不可见（原因待运行时探针
-   数据定位），故回滚到用户实测过「位置对、模板可见」的 V31d 形态。 */
+/* HeightLab V31g：容器高度自适应视口（探针实测：视口 781px、容器顶部
+   381px → 可用 400px；内容紧凑化后两排 ≈372px 恰好完整放入）。空间够=
+   两排完整显示无裁切；空间不够=自动转内部滚动（min-height 保底）。 */
 .videoGridSeat {
-  height: 340px;
-  max-height: 340px;
+  height: auto;
+  max-height: calc(100vh - 395px);
+  min-height: 200px;
   width: 100%;
   overflow-y: auto;
   overscroll-behavior: contain;

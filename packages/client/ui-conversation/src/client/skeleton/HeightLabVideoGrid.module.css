@@ -40,19 +40,19 @@
 .cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(236px, 1fr));
-  gap: 14px;
+  gap: 10px;
 }
 
 .card {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 6px;
+  gap: 4px;
   text-align: left;
   background: #fff;
   border: 1px solid rgba(17, 17, 17, 0.06);
   border-radius: 14px;
-  padding: 10px 10px 12px;
+  padding: 8px 8px 8px;
   cursor: pointer;
   font-family: inherit;
   transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
@@ -69,7 +69,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  aspect-ratio: 16 / 9;
+  /* V31g：固定 88px（探针实测视口 781/容器顶 381 → 两排完整显示需每排
+     ≤163px，比例封面 141px 放不下）。接入真实封面后维持此高度。 */
+  height: 88px;
   border-radius: 10px;
   overflow: hidden;
 }
@@ -113,24 +115,25 @@
 }
 
 .title {
-  font-size: 15px;
+  font-size: 14px;
+  line-height: 20px;
   font-weight: 600;
   color: #111;
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
 .desc {
-  font-size: 13px;
-  line-height: 18px;
+  font-size: 12px;
+  line-height: 16px;
   color: #8a9097;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
 .author {
-  font-size: 12px;
+  font-size: 11px;
   color: #a5abb2;
 }
 
