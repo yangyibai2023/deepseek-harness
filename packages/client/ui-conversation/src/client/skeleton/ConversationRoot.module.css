@@ -1419,3 +1419,33 @@
 .composerHeroReplication > :last-child {
   margin-top: auto;
 }
+
+/* HeightLab V31-final：模板区作为独立板块——fixed 定位锚定输入框正下方，
+   脱离 scrollBody 的居中流。品牌语/输入框在 scrollBody 内保持居中不动，
+   模板区独立内部滚动。top=输入框底部+间距（实测约 360px），bottom=0，
+   宽度=输入框同款变量居中。 */
+.videoGridSeat {
+  position: fixed;
+  top: 360px;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  width: min(var(--dsh-composer-card-max-width, 712px), calc(100vw - 48px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  padding: 8px 0 12px;
+  z-index: 4;
+}
+.videoGridSeat::-webkit-scrollbar {
+  display: none;
+}
+
+/* HeightLab V31-final：模板区与输入框左右边缘完全对齐（实测输入框 left=419
+   right=1131，以视口中心为基准居中）——修正 fixed 定位下以视口为基准的偏移。 */
+.videoGridSeat {
+  left: calc(50% - 356px);
+  right: calc(50% - 356px);
+  margin: 0;
+}

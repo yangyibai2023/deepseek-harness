@@ -464,15 +464,9 @@ export function ConversationRoot({
       {hero && heroWorkspaceRow}
       {zone !== undefined && renderSlot('conversation.input.dock', zone)}
       {inputBar}
-      {/* HeightLab V31d：模板区（视频模板网格，MiniMax 式大卡）——布局完全
-          保持改动前原状：品牌区/输入框位置零改动，模板在输入框下方自己的
-          容器（.videoGridSeat，固定高度内部滚动，参数对齐旧 Dock 的 340px
-          模型）内滑动。旧模板坞 HeightLabTemplateDock 整体保留可回滚。 */}
-      {hero && !replicationMode && (
-        <div className={css.videoGridSeat}>
-          <HeightLabVideoGrid />
-        </div>
-      )}
+      {/* HeightLab V31-final：模板区已从 composerStack 摘出——作为 scrollBody
+          的兄弟节点（见下方），fixed 定位锚定输入框正下方。品牌语/输入框
+          在 scrollBody 内保持居中不动，模板区独立内部滚动。 */}
     </div>
   )
 
@@ -505,6 +499,10 @@ export function ConversationRoot({
           {sessionId === undefined ? null : renderSlot('conversation.session', {})}
           {composerSeat}
         </div>
+        {/* HeightLab V31-final：模板区作为 scrollBody 的兄弟节点——fixed 定位
+            锚定输入框正下方（脱离 scrollBody 的居中流），品牌语/输入框在
+            scrollBody 内保持居中不动，模板区独立内部滚动。 */}
+        {hero && !replicationMode && <HeightLabVideoGrid />}
         {/* Width handles only while a transcript is on screen; the hero has no
             content column to size. */}
         {phase === 'active' && (['left', 'right'] as const).map(side => (

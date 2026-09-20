@@ -144,3 +144,34 @@
   font-size: 13px;
   color: #a5abb2;
 }
+
+/* HeightLab V31-final：模板区作为独立板块——fixed 定位锚定输入框正下方，
+   脱离内容流。品牌语/输入框位置永久不变，模板区独立内部滚动。 */
+.seat {
+  position: fixed;
+  top: 360px;
+  bottom: 0;
+  left: calc(50% - 356px);
+  right: calc(50% - 356px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  padding: 8px 0 12px;
+  z-index: 4;
+}
+.seat::-webkit-scrollbar {
+  display: none;
+}
+
+/* HeightLab V31-final 修正：①水平对齐输入框中心（视口中心偏右 160px =
+   侧栏 280/2）；②chips 分类行固定不滚——滚动只发生在卡片网格内部。 */
+.seat {
+  left: calc(50% + 160px - 356px);
+  right: calc(50% - 160px - 356px);
+}
+.categories {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f5f6f7;
+}

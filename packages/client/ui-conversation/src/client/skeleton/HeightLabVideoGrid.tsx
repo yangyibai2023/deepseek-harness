@@ -109,7 +109,8 @@ export function HeightLabVideoGrid() {
     ? VIDEO_TEMPLATES
     : VIDEO_TEMPLATES.filter(item => item.category === category)
   return (
-    <div className={css.grid} ref={rootRef}>
+    <div className={css.seat} ref={rootRef}>
+      <div className={css.grid}>
       <div className={css.categories}>
         {CATEGORIES.map(item => (
           <button
@@ -150,5 +151,6 @@ export function HeightLabVideoGrid() {
         )}
       </div>
     </div>
+  </div>
   )
 }
