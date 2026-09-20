@@ -119,12 +119,23 @@ export function HeightLabVideoGrid() {
       el.style.width = `${r.width}px`
     }
     align()
+    // V31g：观察两层——①输入卡（宽度变化）；②scrollBody（右栏开合/侧栏
+    // 折叠改变其宽度，输入卡只移位置不变宽度，RO(card) 不触发——实测补）。
+    // 双观察覆盖所有布局变化源，触发 align 重新对齐输入框。
+    const card = document.querySelector('[data-composer-card]')
+    const scrollBody = document.querySelector('[class*="scrollBody"]')
     const ro = new ResizeObserver(align)
+    if (card !== null) ro.observe(card)
+    if (scrollBody !== null) ro.observe(scrollBody)
     ro.observe(document.body)
     window.addEventListener('resize', align)
+    window.addEventListener('hl:close-console', align)
+    window.addEventListener('hl:mode-change', align)
     return () => {
       ro.disconnect()
       window.removeEventListener('resize', align)
+      window.removeEventListener('hl:close-console', align)
+      window.removeEventListener('hl:mode-change', align)
     }
   }, [])
   const visible = category === '精选'

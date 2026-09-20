@@ -290,8 +290,13 @@ export function apply(ctx: ClientContext): void {
     // HeightLab V24b：用户拍板——回到主页/普通会话时右侧创作工作台自动关闭。
     // 触发：hl:close-console（显式）或 hl:mode-change 清除模式（「新建任务」
     // 等普通入口广播）。关闭 = 在所有已挂载会话里移除控制台 tab。
+    // V31g：控制台关闭且无其他活动 tab 时，同时收起右栏栏体——空栏残留
+    // 会把主页模板区挤压变形且无法自行恢复（用户实测）。
     const onCloseConsole = (): void => {
       controller.closeKind(CONSOLE_KIND)
+      try {
+        if (controller.active() === undefined && controller.isExpanded()) controller.toggleExpanded()
+      } catch { /* 右栏未挂载时静默 */ }
     }
     // HeightLab V26e：视频创作入口「爆款复刻」（hl:start-replication）——
     // 新会话 seed 已天生带控制台首 tab（contract/seed.ts）；这里只负责
