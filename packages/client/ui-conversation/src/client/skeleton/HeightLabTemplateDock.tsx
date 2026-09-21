@@ -30,13 +30,6 @@ import {
   type TemplateCategory,
 } from './HeightLabTemplates.ts'
 import { TemplatePreview } from './TemplatePreview.tsx'
-import { HeightLabVideoGrid } from './HeightLabVideoGrid.tsx'
-
-// HeightLab V31：首页模板区已切换为「视频模板网格」（HeightLabVideoGrid，
-// MiniMax 式大卡，预置成片模板语义）。旧分类模板渲染完整保留在下方
-// SHOW_LEGACY_TEMPLATE_DOCK 分支——置 true 即整体回滚（tags/预览/做同款/
-// 企业专属全功能不变）。
-const SHOW_LEGACY_TEMPLATE_DOCK = false
 
 // HeightLab：术语分类暂不更新，先隐藏（数据保留，恢复时加回 '术语'）。
 const TEMPLATE_TAGS = ['推荐', '文案', '图片', '视频', '办公', '更多'] as const
@@ -45,7 +38,6 @@ const TEMPLATE_TAGS = ['推荐', '文案', '图片', '视频', '办公', '更多
  *  能力入口工作台）——全部只同步控制台参数或预填输入框，不自动发送。 */
 type RepChip = { label: string; kind: 'console' | 'mode' | 'voice' | 'subtitle' | 'prefill'; value: string }
 export const REPLICATION_GROUPS: Array<{ title: string; chips: RepChip[] }> = [
-  // eslint-disable-next-line no-spaced-func -- exported for EmptyHero guide reuse
   {
     title: '开始',
     chips: [
@@ -354,100 +346,98 @@ export function HeightLabTemplateDock() {
               </div>
             </div>
           </>
-        ) : SHOW_LEGACY_TEMPLATE_DOCK ? (
-        <>
-        <div className={css.tags}>
-          {visibleTags.map(tag => (
-            <button
-              key={tag}
-              type="button"
-              className={`${css.tag} ${active === tag ? css.tagActive : ''} ${
-                active === tag && tag === EXCLUSIVE_TAG && brandColor !== null ? css.tagExclusiveActive : ''
-              }`}
-              aria-pressed={active === tag}
-              onClick={() => {
-                // HeightLab：「更多」直接打开「创意灵感」占位页面。
-                if (tag === '更多') {
-                  window.dispatchEvent(new CustomEvent('hl:open-hub', { detail: { page: 'inspiration' } }))
-                  return
-                }
-                setActive(active === tag ? modeFallback() : tag)
-              }}
-            >
-              {tag === EXCLUSIVE_TAG && enterprise?.branding?.logoUrl != null && (
-                <img className={css.tagLogo} src={enterprise.branding.logoUrl} alt="" draggable={false} />
-              )}
-              {tag}
-            </button>
-          ))}
-          <button
-            type="button"
-            className={css.fold}
-            aria-label={folded ? '展开模板' : '折叠模板'}
-            aria-expanded={!folded}
-            title={folded ? '展开模板' : '折叠模板'}
-            onClick={() => setFolded(value => !value)}
-          >
-            <FoldIcon folded={folded} />
-          </button>
-          <Menu
-            open={settingsOpen}
-            onClose={() => setSettingsOpen(false)}
-            items={settingsItems}
-            selectedIds={[defaultMode === 'closed' ? 'default-closed' : 'default-open']}
-            onSelect={(id) => {
-              const next = id === 'default-closed' ? 'closed' : 'open'
-              setSettingsOpen(false)
-              setDefaultMode(next)
-              setFolded(next === 'closed')
-              try {
-                localStorage.setItem(DEFAULT_MODE_KEY, next)
-              } catch { /* 非致命 */ }
-            }}
-            anchor={settingsTrigger}
-            portal
-          />
-        </div>
+        ) : (
+          <>
+            <div className={css.tags}>
+              {visibleTags.map(tag => (
+                <button
+                  key={tag}
+                  type="button"
+                  className={`${css.tag} ${active === tag ? css.tagActive : ''} ${
+                    active === tag && tag === EXCLUSIVE_TAG && brandColor !== null ? css.tagExclusiveActive : ''
+                  }`}
+                  aria-pressed={active === tag}
+                  onClick={() => {
+                    // HeightLab：「更多」直接打开「创意灵感」占位页面。
+                    if (tag === '更多') {
+                      window.dispatchEvent(new CustomEvent('hl:open-hub', { detail: { page: 'inspiration' } }))
+                      return
+                    }
+                    setActive(active === tag ? modeFallback() : tag)
+                  }}
+                >
+                  {tag === EXCLUSIVE_TAG && enterprise?.branding?.logoUrl != null && (
+                    <img className={css.tagLogo} src={enterprise.branding.logoUrl} alt="" draggable={false} />
+                  )}
+                  {tag}
+                </button>
+              ))}
+              <button
+                type="button"
+                className={css.fold}
+                aria-label={folded ? '展开模板' : '折叠模板'}
+                aria-expanded={!folded}
+                title={folded ? '展开模板' : '折叠模板'}
+                onClick={() => setFolded(value => !value)}
+              >
+                <FoldIcon folded={folded} />
+              </button>
+              <Menu
+                open={settingsOpen}
+                onClose={() => setSettingsOpen(false)}
+                items={settingsItems}
+                selectedIds={[defaultMode === 'closed' ? 'default-closed' : 'default-open']}
+                onSelect={(id) => {
+                  const next = id === 'default-closed' ? 'closed' : 'open'
+                  setSettingsOpen(false)
+                  setDefaultMode(next)
+                  setFolded(next === 'closed')
+                  try {
+                    localStorage.setItem(DEFAULT_MODE_KEY, next)
+                  } catch { /* 非致命 */ }
+                }}
+                anchor={settingsTrigger}
+                portal
+              />
+            </div>
 
-        <div className={`${css.content} ${contentClass}`}>
-          {active === EXCLUSIVE_TAG && enterprise !== null && (
-            <div className={css.scroll}>
-              {enterprise.exclusive.length === 0 ? (
-                // M6 空态：无专属模板或全部因权限不可见时同文案（不泄露存在性）。
-                <div className={css.empty}>管理员还没有配置专属模板</div>
-              ) : (
-                <div className={css.grid}>
-                  {enterprise.exclusive.map(item => (
-                    <button key={`${item.sourceCategory}:${item.title}`} type="button" className={css.item} onClick={() => setPreview({ item, tag: EXCLUSIVE_TAG })}>
-                      <img className={css.thumb} src={templateThumb(item)} alt="" draggable={false} />
-                      <span className={css.itemTitle}>
-                        {item.title}
-                        <span className={css.itemCat}>{item.sourceCategory}</span>
-                      </span>
-                      <span className={css.itemDesc}>{item.desc}</span>
-                    </button>
-                  ))}
+            <div className={`${css.content} ${contentClass}`}>
+              {active === EXCLUSIVE_TAG && enterprise !== null && (
+                <div className={css.scroll}>
+                  {enterprise.exclusive.length === 0 ? (
+                  // M6 空态：无专属模板或全部因权限不可见时同文案（不泄露存在性）。
+                    <div className={css.empty}>管理员还没有配置专属模板</div>
+                  ) : (
+                    <div className={css.grid}>
+                      {enterprise.exclusive.map(item => (
+                        <button key={`${item.sourceCategory}:${item.title}`} type="button" className={css.item} onClick={() => setPreview({ item, tag: EXCLUSIVE_TAG })}>
+                          <img className={css.thumb} src={templateThumb(item)} alt="" draggable={false} />
+                          <span className={css.itemTitle}>
+                            {item.title}
+                            <span className={css.itemCat}>{item.sourceCategory}</span>
+                          </span>
+                          <span className={css.itemDesc}>{item.desc}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              {active !== '更多' && active !== EXCLUSIVE_TAG && (
+                <div className={css.scroll}>
+                  <div className={css.grid}>
+                    {cards[active].map(item => (
+                      <button key={item.title} type="button" className={css.item} onClick={() => setPreview({ item, tag: active })}>
+                        <img className={css.thumb} src={templateThumb(item)} alt="" draggable={false} />
+                        <span className={css.itemTitle}>{item.title}</span>
+                        <span className={css.itemDesc}>{item.desc}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
-          )}
-          {active !== '更多' && active !== EXCLUSIVE_TAG && (
-            <div className={css.scroll}>
-              <div className={css.grid}>
-                {cards[active].map(item => (
-                  <button key={item.title} type="button" className={css.item} onClick={() => setPreview({ item, tag: active })}>
-                    <img className={css.thumb} src={templateThumb(item)} alt="" draggable={false} />
-                    <span className={css.itemTitle}>{item.title}</span>
-                    <span className={css.itemDesc}>{item.desc}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-        </>
-        ) : (
-        <HeightLabVideoGrid />
+          </>
         )}
       </div>
       {preview !== null && (

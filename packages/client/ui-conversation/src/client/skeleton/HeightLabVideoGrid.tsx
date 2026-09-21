@@ -73,6 +73,57 @@ const VIDEO_TEMPLATES: VideoTemplate[] = [
     comingSoon: true,
     category: '精选',
   },
+  // V32：占位卡补到 12 张（4 排）——对标页的滚动状态（第二排滑入、
+  // 品牌收缩、输入卡停靠）需要足够的滚动行程才有内容可演示；
+  // 接入真实模板库时整表替换。
+  {
+    title: '夏日冰饮大片',
+    desc: '清爽质感与高速镜头的饮品带货模板，适合夏季上新',
+    cover: 'linear-gradient(135deg, #38bdf8, #0284c7)',
+    coverLabel: '夏日冰饮',
+    comingSoon: true,
+    category: '带货视频',
+  },
+  {
+    title: '新品发布会',
+    desc: '舞台灯光与产品特写结合的发布叙事，适合新品首曝',
+    cover: 'linear-gradient(135deg, #1e293b, #334155)',
+    coverLabel: '发布会',
+    comingSoon: true,
+    category: '品牌广告',
+  },
+  {
+    title: '知识科普口播',
+    desc: '要点卡片 + 口播讲解的科普结构，适合课程与说明',
+    cover: 'linear-gradient(135deg, #f59e0b, #d97706)',
+    coverLabel: '科普口播',
+    comingSoon: true,
+    category: '口播讲解',
+  },
+  {
+    title: '工厂溯源',
+    desc: '产线实拍与工艺细节的溯源短片，建立品质信任',
+    cover: 'linear-gradient(135deg, #64748b, #334155)',
+    coverLabel: '工厂溯源',
+    comingSoon: true,
+    category: '产品展示',
+  },
+  {
+    title: '剧情种草',
+    desc: '情景短剧带入产品场景的种草结构，软性传达卖点',
+    cover: 'linear-gradient(135deg, #a855f7, #6d28d9)',
+    coverLabel: '剧情种草',
+    comingSoon: true,
+    category: '带货视频',
+  },
+  {
+    title: '节日营销',
+    desc: '节日氛围与促销信息结合的营销模板，适合节点投放',
+    cover: 'linear-gradient(135deg, #ef4444, #b91c1c)',
+    coverLabel: '节日营销',
+    comingSoon: true,
+    category: '品牌广告',
+  },
 ]
 
 export function HeightLabVideoGrid() {
@@ -105,85 +156,64 @@ export function HeightLabVideoGrid() {
     }, 1000)
     return () => { window.clearTimeout(timer) }
   }, [])
-  // V31g：面板与输入框动态对齐——fixed 定位相对视口，而输入框在侧栏右侧的
-  // 内容区内居中，纯 CSS 校准值随窗口宽度漂移；用 ResizeObserver 实时读取
-  // 输入框位置同步面板 left/width，永远精确等宽对齐。
-  useEffect(() => {
-    const el = rootRef.current
-    if (el === null) return
-    const align = (): void => {
-      const card = document.querySelector('[data-composer-card]')
-      if (card === null) return
-      const r = card.getBoundingClientRect()
-      el.style.left = `${r.left}px`
-      el.style.width = `${r.width}px`
-    }
-    align()
-    // V31g：观察两层——①输入卡（宽度变化）；②scrollBody（右栏开合/侧栏
-    // 折叠改变其宽度，输入卡只移位置不变宽度，RO(card) 不触发——实测补）。
-    // 双观察覆盖所有布局变化源，触发 align 重新对齐输入框。
-    const card = document.querySelector('[data-composer-card]')
-    const scrollBody = document.querySelector('[class*="scrollBody"]')
-    const ro = new ResizeObserver(align)
-    if (card !== null) ro.observe(card)
-    if (scrollBody !== null) ro.observe(scrollBody)
-    ro.observe(document.body)
-    window.addEventListener('resize', align)
-    window.addEventListener('hl:close-console', align)
-    window.addEventListener('hl:mode-change', align)
-    return () => {
-      ro.disconnect()
-      window.removeEventListener('resize', align)
-      window.removeEventListener('hl:close-console', align)
-      window.removeEventListener('hl:mode-change', align)
-    }
-  }, [])
+  // V32：模板区回到文档流（composerStack 滚动容器内、与输入卡同宽居中），
+  // 水平对齐由布局天然保证——V31g 的 fixed 定位 + JS ResizeObserver 动态
+  // 对齐整段删除（fixed 相对视口、脱离内容流，正是「模板区不渲染/错位」
+  // 一类问题的根源）。
   const visible = category === '精选'
     ? VIDEO_TEMPLATES
     : VIDEO_TEMPLATES.filter(item => item.category === category)
   return (
     <div className={css.seat} ref={rootRef}>
       <div className={css.grid}>
-      <div className={css.categories}>
-        {CATEGORIES.map(item => (
-          <button
-            key={item}
-            type="button"
-            className={`${css.chip} ${category === item ? css.chipActive : ''}`}
-            onClick={() => { setCategory(item) }}
-          >
-            {item}
-          </button>
-        ))}
-      </div>
-      <div className={css.cards}>
-        {visible.length === 0 ? (
-          <div className={css.empty}>该分类的模板即将上线，敬请期待</div>
-        ) : (
-          visible.map(item => (
+        <div className={css.categories}>
+          {CATEGORIES.map(item => (
             <button
-              key={item.title}
+              key={item}
               type="button"
-              className={`${css.card} ${item.comingSoon === true ? css.cardSoon : ''}`}
-              onClick={() => {
+              className={`${css.chip} ${category === item ? css.chipActive : ''}`}
+              onClick={() => { setCategory(item) }}
+            >
+              {item}
+            </button>
+          ))}
+        </div>
+        <div className={css.cards}>
+          {visible.length === 0 ? (
+            <div className={css.empty}>该分类的模板即将上线，敬请期待</div>
+          ) : (
+            visible.map(item => (
+              <button
+                key={item.title}
+                type="button"
+                className={`${css.card} ${item.comingSoon === true ? css.cardSoon : ''}`}
+                onClick={() => {
                 // 占位卡不可点；真实能力卡等价一级页「爆款复刻」——
                 // 新建复刻会话并展开创作工作台（与视频创作一级页同一动作）。
-                if (item.comingSoon === true) return
-                window.dispatchEvent(new CustomEvent('hl:start-replication'))
-              }}
-            >
-              <span className={css.cover} style={{ background: item.cover }}>
-                <span className={css.coverLabel}>{item.coverLabel}</span>
-                {item.comingSoon === true && <span className={css.badge}>即将上线</span>}
-              </span>
-              <span className={css.title}>{item.title}</span>
-              <span className={css.desc}>{item.desc}</span>
-              <span className={css.author}>@HeightLab 官方</span>
-            </button>
-          ))
-        )}
+                  if (item.comingSoon === true) return
+                  window.dispatchEvent(new CustomEvent('hl:start-replication'))
+                }}
+              >
+                <span className={css.cover} style={{ background: item.cover }}>
+                  <span className={css.coverLabel}>{item.coverLabel}</span>
+                  {item.comingSoon === true && <span className={css.badge}>即将上线</span>}
+                  {/* V32：hover 覆盖层（对标页悬停态）——封面压暗 + 居中播放点
+                    + 「查看提示词」胶囊；纯展示，点击落在本卡既有动作上。 */}
+                  <span className={css.hoverShade} aria-hidden>
+                    <span className={css.playDot}>
+                      <span className={css.playTri} />
+                    </span>
+                    <span className={css.promptPill}>查看提示词</span>
+                  </span>
+                </span>
+                <span className={css.title}>{item.title}</span>
+                <span className={css.desc}>{item.desc}</span>
+                <span className={css.author}>@HeightLab 官方</span>
+              </button>
+            ))
+          )}
+        </div>
       </div>
     </div>
-  </div>
   )
 }

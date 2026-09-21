@@ -1,4 +1,15 @@
-/* HeightLab V31：视频模板网格（对标 MiniMax Design 卡片语言）。 */
+/* HeightLab V31/V32：视频模板网格（对标 MiniMax Design 卡片语言）。
+   V32 定稿：模板区回到文档流——作为 composerStack 滚动容器的流内块，
+   与输入卡同宽（容器宽 - 两侧 16px clearance）且天然居中对齐；
+   滚动、品牌收缩、输入卡停靠全部由 ConversationRoot.module.css 的
+   V32 滚动流块驱动，本文件只负责网格自身样式。 */
+
+.seat {
+  width: calc(100% - 32px);
+  margin: 0 auto;
+  flex-shrink: 0;
+  padding-bottom: 16px;
+}
 
 .grid {
   display: flex;
@@ -7,12 +18,18 @@
   width: 100%;
 }
 
+/* 分类行：与输入框拉开 24px 距离、无可见底色（底色 = 页面底色，
+   仅用于停靠时遮住从身后滚过的卡片）；输入卡停靠后它停在卡下方。 */
 .categories {
+  position: sticky;
+  top: 116px;
+  z-index: 1;
   display: flex;
   gap: 6px;
   justify-content: center;
   flex-wrap: wrap;
-  padding: 0 8px;
+  padding: 24px 8px 0;
+  background: var(--dsw-alias-bg-base, #f5f6f7);
 }
 
 .chip {
@@ -69,9 +86,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  /* V31g：固定 88px（探针实测视口 781/容器顶 381 → 两排完整显示需每排
-     ≤163px，比例封面 141px 放不下）。接入真实封面后维持此高度。 */
-  height: 88px;
+  /* V32：16:9 比例的封面（列宽 ~225px）——对标页卡片以视频封面为主体；
+     滚动状态（第二排滑入等）也依赖这个更高的卡身提供行程。 */
+  height: 132px;
   border-radius: 10px;
   overflow: hidden;
 }
@@ -92,6 +109,56 @@
   color: #fff;
   background: rgba(17, 17, 17, 0.55);
   padding: 3px 9px;
+  border-radius: 999px;
+  backdrop-filter: blur(4px);
+}
+
+/* V32：hover 覆盖层（对标页悬停态）——默认透明不可点，悬停浮现：
+   封面压暗 + 居中播放点 + 底部「查看提示词」胶囊。 */
+.hoverShade {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0) 30%, rgba(0, 0, 0, 0.45) 100%);
+  opacity: 0;
+  transition: opacity 0.18s ease;
+  pointer-events: none;
+}
+
+.card:hover .hoverShade {
+  opacity: 1;
+}
+
+.playDot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+}
+
+.playTri {
+  width: 0;
+  height: 0;
+  margin-left: 3px;
+  border-top: 7px solid transparent;
+  border-bottom: 7px solid transparent;
+  border-left: 11px solid #111;
+}
+
+.promptPill {
+  font-size: 12px;
+  line-height: 1;
+  color: #fff;
+  background: rgba(17, 17, 17, 0.65);
+  padding: 7px 14px;
   border-radius: 999px;
   backdrop-filter: blur(4px);
 }
@@ -143,59 +210,4 @@
   padding: 48px 0;
   font-size: 13px;
   color: #a5abb2;
-}
-
-/* HeightLab V31-final：模板区作为独立板块——fixed 定位锚定输入框正下方，
-   脱离内容流。品牌语/输入框位置永久不变，模板区独立内部滚动。 */
-.seat {
-  position: fixed;
-  top: 360px;
-  bottom: 0;
-  left: calc(50% - 356px);
-  right: calc(50% - 356px);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: none;
-  padding: 8px 0 12px;
-  z-index: 4;
-}
-.seat::-webkit-scrollbar {
-  display: none;
-}
-
-/* HeightLab V31-final 修正：①水平对齐输入框中心（视口中心偏右 160px =
-   侧栏 280/2）；②chips 分类行固定不滚——滚动只发生在卡片网格内部。 */
-.seat {
-  left: calc(50% + 160px - 356px);
-  right: calc(50% - 160px - 356px);
-}
-.categories {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  background: #f5f6f7;
-}
-
-/* HeightLab V31g：分类行与输入框拉开距离（不留紧贴感）、无底色直接嵌在
-   页面上（用户拍板）。sticky 顶部留出与输入框的间距。 */
-.categories {
-  padding-top: 24px;
-  background: transparent;
-}
-
-/* HeightLab V31g 修正：fixed 面板的水平校准——输入框在侧栏（280px）右侧
-   的内容区内居中（实测中心 775 = 50%+135px），面板必须用同一基准，
-   否则整体偏左。原 50%-196px 少算了这 135px。 */
-.seat {
-  left: calc(50% - 217px);
-  right: auto;
-  width: min(var(--dsh-composer-card-max-width, 712px), calc(100vw - 460px));
-}
-
-/* HeightLab V31g 修正2：水平位置/宽度改由组件 JS 动态同步输入框位置
-   （ResizeObserver），CSS 不再硬编码校准值（随窗口宽度漂移）。 */
-.seat {
-  left: auto;
-  right: auto;
-  width: auto;
 }

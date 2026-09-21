@@ -8,10 +8,10 @@ import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
 import type { ConversationSlotProps, InputZone } from '../contract/slots.ts'
 import { conversationPhase } from '../contract/snapshot.ts'
 import { HeroShell, WorkspaceChip, workspaceLabel } from './EmptyHero.tsx'
-// HeightLab：模板坞（hero 输入卡下方）与创意灵感/资料库覆盖层页。
+// HeightLab：首页视频模板网格（V32：hero 输入卡下方、栈内滚动）与
+// 创意灵感/资料库覆盖层页。模板坞组件（HeightLabTemplateDock）已由
+// VideoGrid 取代，文件保留——EmptyHero 仍引用其 REPLICATION_GROUPS。
 import { HeightLabVideoGrid } from './HeightLabVideoGrid.tsx'
-// V31 回滚：恢复旧模板坞时取消注释（并还原上方渲染行）。
-// import { HeightLabTemplateDock } from './HeightLabTemplateDock.tsx'
 import { HeightLabHubPage, type HubPage } from './HeightLabHubPage.tsx'
 import css from './ConversationRoot.module.css'
 
@@ -458,19 +458,54 @@ export function ConversationRoot({
         : hero ? { placeholder: t('placeholder.hero') } : {}),
   })
 
+  // HeightLab V32：hero 滚动流——composerStack 成为滚动容器，scrollTop
+  // 0→111px（品牌区+工作区行的总高）映射为 --hl-collapse 0→1，驱动品牌
+  // 包装层收缩淡出（对标 MiniMax 轻滑动态）；输入卡 sticky 停靠由纯 CSS
+  // 完成（见 module.css V32 块）。初始态几何与 V29 完全一致。
+  const stackRef = useRef<HTMLDivElement | null>(null)
+  const onStackScroll = useCallback((event: React.UIEvent<HTMLDivElement>): void => {
+    const el = event.currentTarget
+    const collapse = Math.min(1, Math.max(0, el.scrollTop / 111))
+    el.style.setProperty('--hl-collapse', collapse.toFixed(4))
+  }, [])
+
   const composerBar = (
-    <div className={clsx(css.composerStack, hero && (replicationMode ? css.composerHeroReplication : css.composerHero))}>
-      {hero && <HeroShell t={t} renderSlot={renderSlot} />}
-      {hero && heroWorkspaceRow}
+    <div
+      ref={stackRef}
+      className={clsx(css.composerStack, hero && (replicationMode ? css.composerHeroReplication : css.composerHero))}
+      onScroll={hero && !replicationMode ? onStackScroll : undefined}
+    >
+      {hero && (replicationMode ? (
+        <>
+          <HeroShell t={t} renderSlot={renderSlot} />
+          {heroWorkspaceRow}
+        </>
+      ) : (
+        // V32：品牌收缩包装层——收缩淡出只作用于普通 hero；复刻态布局
+        // （贴顶引导）不参与，保持原结构。
+        <div className={css.heroBrandWrap}>
+          <HeroShell t={t} renderSlot={renderSlot} />
+          {heroWorkspaceRow}
+        </div>
+      ))}
       {zone !== undefined && renderSlot('conversation.input.dock', zone)}
       {inputBar}
-      {/* HeightLab V31-final：模板区已从 composerStack 摘出——作为 scrollBody
-          的兄弟节点（见下方），fixed 定位锚定输入框正下方。品牌语/输入框
-          在 scrollBody 内保持居中不动，模板区独立内部滚动。 */}
+      {/* HeightLab V32：首页视频模板网格（仅普通 hero；复刻态不渲染）。 */}
+      {hero && !replicationMode && <HeightLabVideoGrid />}
     </div>
   )
 
   const phase = settling ? 'settling' : hero ? 'hero' : 'active'
+  // HeightLab V32：离开 hero 再回来时（新会话/返回首页），栈内滚动位置与
+  // 收缩变量必须归零——溢出被收回时 scrollTop 静默清零、不触发 scroll
+  // 事件，残留的 --hl-collapse=1 会让品牌区在初始态就被隐藏。
+  useEffect(() => {
+    if (phase !== 'hero') return
+    const el = stackRef.current
+    if (el === null) return
+    el.scrollTop = 0
+    el.style.removeProperty('--hl-collapse')
+  }, [phase])
   const composer = renderSlotChain(
     'conversation.composer',
     { sessionId, session, pendingInteraction },
@@ -499,10 +534,6 @@ export function ConversationRoot({
           {sessionId === undefined ? null : renderSlot('conversation.session', {})}
           {composerSeat}
         </div>
-        {/* HeightLab V31-final：模板区作为 scrollBody 的兄弟节点——fixed 定位
-            锚定输入框正下方（脱离 scrollBody 的居中流），品牌语/输入框在
-            scrollBody 内保持居中不动，模板区独立内部滚动。 */}
-        {hero && !replicationMode && <HeightLabVideoGrid />}
         {/* Width handles only while a transcript is on screen; the hero has no
             content column to size. */}
         {phase === 'active' && (['left', 'right'] as const).map(side => (
