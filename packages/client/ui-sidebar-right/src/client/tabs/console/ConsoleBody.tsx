@@ -42,7 +42,7 @@ interface WorkflowProgress {
   detail: string
 }
 
-type VoiceChoice = 'auto' | 'vo' | 'asset' | 'silent' | 'original'
+type VoiceChoice = 'auto' | 'vo' | 'asset' | 'silent' | 'original' | 'origclone'
 type SubtitleChoice = 'auto' | 'burn' | 'none'
 
 /** 预估积分折算表（每秒积分，按清晰度；数值可在常数处统一调整）。 */
@@ -194,7 +194,7 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
     }
     const onVoice = (e: Event): void => {
       const v = (e as CustomEvent<{ value?: unknown }>).detail?.value
-      if (v === 'auto' || v === 'vo' || v === 'asset' || v === 'silent' || v === 'original') { dirtyRef.current = true; setVoice(v) }
+      if (v === 'auto' || v === 'vo' || v === 'asset' || v === 'silent' || v === 'original' || v === 'origclone') { dirtyRef.current = true; setVoice(v) }
     }
     const onSubtitle = (e: Event): void => {
       const v = (e as CustomEvent<{ value?: unknown }>).detail?.value
@@ -216,7 +216,7 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
     if (typeof draft.resolution === 'string') setResolution(draft.resolution)
     if (typeof draft.seconds === 'number') setSeconds(draft.seconds)
     if (draft.durationMode === 'custom' || draft.durationMode === 'same') setDurationMode(draft.durationMode)
-    if (draft.voice === 'auto' || draft.voice === 'vo' || draft.voice === 'silent' || draft.voice === 'asset' || draft.voice === 'original') setVoice(draft.voice)
+    if (draft.voice === 'auto' || draft.voice === 'vo' || draft.voice === 'silent' || draft.voice === 'asset' || draft.voice === 'original' || draft.voice === 'origclone') setVoice(draft.voice)
     if (draft.subtitle === 'auto' || draft.subtitle === 'burn' || draft.subtitle === 'none') setSubtitle(draft.subtitle)
     if (draft.execution === 'step' || draft.execution === 'once') setExecution(draft.execution)
     if (draft.repMode === 'storyboard' || draft.repMode === 'pixel') setRepMode(draft.repMode)
@@ -458,8 +458,10 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
       : voice === 'silent'
         ? '- 语音：静音（绝对不生成任何语音、口播或音效）'
         : voice === 'original'
-          ? '- 语音：原片声音（2026-09-22 用户拍板模式）——原片音轨整体作为成片音轨与主时间轴：旁白/BGM/环境音全部来自原片，禁止任何 TTS、重配音或旁白重排；分镜切点必须落在原片语音停顿处（silencedetect 实测边界）；每段生成时长 ≥ 对应原片段时长，生成后逐段裁切到原段精确时长（ffprobe 实测误差 ≤1 帧）再拼接，语音/口型/节奏与原片逐帧对齐；字幕直接用阶段2 原片 SRT（原片真实时间码），禁止按生成节拍重算；改款改动了口播文案时必须 ask_user：①保留原声原词（如实提示措辞与新画面矛盾）或 ②仅改动句 TTS 重配（如实说明该句音色与原声有差异），禁止默认替用户决定。'
-          : voice === 'asset' && voiceAsset !== null
+          ? '- 语音：原片声音（2026-09-22 用户拍板模式）——原片音轨整体作为成片音轨与主时间轴：旁白/BGM/环境音全部来自原片，禁止任何 TTS、重配音或旁白重排；分镜切点必须落在原片语音停顿处（silencedetect 实测边界）；每段生成时长 ≥ 对应原片段时长，生成后逐段裁切到原段精确时长（ffprobe 实测误差 ≤1 帧）再拼接，语音/口型/节奏与原片逐帧对齐；字幕直接用阶段2 原片 SRT（原片真实时间码），禁止按生成节拍重算；改款改动了口播文案时必须 ask_user：①保留原声原词（如实提示措辞与新画面矛盾）或 ②仅改动句 TTS 重配（TTS 优先用原片声线克隆，见 persona c4；如实说明残余差异），禁止默认替用户决定。'
+          : voice === 'origclone'
+            ? '- 语音：原片音色克隆（2026-09-22 用户拍板模式，用于按原片结构重写文案）——用原片旁白的声线念全部（重写后）文案：①阶段2 用 ffmpeg silencedetect 取原片最长连续旁白段（≥10s 最佳）去噪裁纯人声做样本；②talking_head_production {action:"create_voice", audio_source:<样本>} 提交克隆（免费），克隆训练与其它工作并行、TTS 前 voice_clone_status 轮询到 ready；③节奏=原句时间窗网格：每句 TTS 后用 atempo 精确适配原句时长窗（0.8-1.3 倍以内，超限如实告知），按原句起始时间放置、保留原片句间停顿——全片韵律与原片一致；④逐句响度对齐原句实测 mean_volume；⑤样本 <10s 或 BGM 压制严重时事先告知克隆相似度可能受限；克隆失败/超时回退通用 TTS 并如实说明。字幕与文案以用户重写稿为准。'
+            : voice === 'asset' && voiceAsset !== null
             ? `- 语音：有声（忠实原片表演形态）· 音色使用用户资产声音「${voiceAsset.name}」（${voiceAsset.path}），显式指定，非自动附加`
             : '- 语音：有声（忠实原片表演形态：原片是演唱就演唱、是口播就口播，不得改成口播）'
     const subtitleLine = subtitle === 'auto'
@@ -641,9 +643,11 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
       ? '静音'
       : voice === 'original'
         ? '原片声音'
-        : voice === 'asset'
-          ? `音色:${voiceAsset?.name ?? '待选'}`
-          : '有声'
+        : voice === 'origclone'
+          ? '原片音色克隆'
+          : voice === 'asset'
+            ? `音色:${voiceAsset?.name ?? '待选'}`
+            : '有声'
   const subtitleSummary = subtitle === 'auto' ? '字幕跟随原片' : subtitle === 'burn' ? '烧录字幕' : '无字幕'
   const paramSummary = [
     labelOf(VIDEO_REPLICATION_SCHEMA.models, model),
@@ -713,6 +717,23 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
         {renderField(findField('copy-mode'))}
         {renderField(findField('style'))}
       </div>
+      {/* 声音（2026-09-23 用户拍板）：与文案同为复刻核心要素，从折叠的
+          生成参数区上移到文案下方常驻展示，不再折叠。 */}
+      <label className={`${css.field} ${css.fieldWide}`}>
+        <span>声音</span>
+        <select value={voice} onChange={e => {
+          const v = e.target.value as VoiceChoice
+          setVoice(v)
+          if (v === 'asset') void openVoicePicker()
+        }}>
+          <option value="auto">智能识别（跟随原片：有人声则有声，无人声则静音）</option>
+          <option value="original">原片声音（直接用原片音轨：旁白/BGM/节奏与原片完全一致，推荐复刻自己的视频）</option>
+          <option value="origclone">原片音色克隆（克隆原片旁白声线念全部文案，节奏按原片对齐；适合按原片结构重写）</option>
+          <option value="vo">有声（忠实原片形态：唱则唱、说则说）</option>
+          <option value="asset">我的资产声音</option>
+          <option value="silent">静音（无任何人声）</option>
+        </select>
+      </label>
       {renderField(findField('notes'))}
 
       <details className={css.paramsDetails}>
@@ -770,20 +791,6 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
                   onChange={e => setSeconds(Number(e.target.value))} />
               </label>
             ) : null}
-            <label className={css.field}>
-              <span>语音</span>
-              <select value={voice} onChange={e => {
-                const v = e.target.value as VoiceChoice
-                setVoice(v)
-                if (v === 'asset') void openVoicePicker()
-              }}>
-                <option value="auto">智能识别（跟随原片：有人声则有声，无人声则静音）</option>
-                <option value="original">原片声音（直接用原片音轨：旁白/BGM/节奏与原片完全一致，推荐复刻自己的视频）</option>
-                <option value="vo">有声（忠实原片形态：唱则唱、说则说）</option>
-                <option value="asset">我的资产声音</option>
-                <option value="silent">静音（无任何人声）</option>
-              </select>
-            </label>
             <label className={css.field}>
               <span>字幕</span>
               <select value={subtitle} onChange={e => setSubtitle(e.target.value as SubtitleChoice)}>
