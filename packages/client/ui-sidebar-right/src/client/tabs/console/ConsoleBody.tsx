@@ -483,7 +483,7 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
       subtitleLine,
       repMode === 'pixel'
         ? '- 复刻方式：像素复刻——先用 ffmpeg 按分镜切点把原片分段（落盘工作区），逐段调 heightlab_video_generate 时必须传 video_paths=[该段原片分段]（视频参考生视频），prompt 只描述「保持该段原片画面构图节奏 + 替换控制台指定元素」，上一段末帧作为下一段 image_paths 首图压跳变'
-        : '- 复刻方式：分镜驱动（云镜原版）——按分镜方案逐段生成新画面，携带产品/人物/场景参考图（image_paths），以分镜提示词驱动，不要求也不得伪造原片分段视频参考',
+        : '- 复刻方式：分镜驱动（原版）——按分镜方案逐段生成新画面，携带产品/人物/场景参考图（image_paths），以分镜提示词驱动，不要求也不得伪造原片分段视频参考',
       execution === 'step'
         ? '- 执行方式：逐步确认——完成拆解与分镜方案后必须停下，等用户明确确认（如回复「确认/继续」）后才可进入生成；用户未确认前严禁生成任何镜头'
         : '- 执行方式：一次生成——无需中途确认，但每个阶段完成时必须调用 workflow_stage 输出进度',
@@ -687,7 +687,7 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
         <button type="button" className={repMode === 'storyboard' ? `${css.modeBtn} ${css.modeBtnActive}` : css.modeBtn}
           onClick={() => setRepMode('storyboard')}>
           <span className={css.modeName}>分镜驱动</span>
-          <span className={css.modeDesc}>云镜原版 · 按分镜重新演绎</span>
+          <span className={css.modeDesc}>官方原版 · 按分镜重新演绎</span>
         </button>
         <button type="button" className={repMode === 'pixel' ? `${css.modeBtn} ${css.modeBtnActive}` : css.modeBtn}
           onClick={() => setRepMode('pixel')}>

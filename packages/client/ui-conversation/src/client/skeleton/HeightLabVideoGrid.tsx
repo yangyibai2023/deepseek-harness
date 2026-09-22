@@ -94,25 +94,7 @@ export function HeightLabVideoGrid() {
         </div>
         <div className={css.cards}>
           {category === '精选' ? (
-            <>
-              {/* 首位功能卡：真实能力入口（等价一级页爆款复刻）。 */}
-              <button
-                type="button"
-                className={css.card}
-                onClick={() => { window.dispatchEvent(new CustomEvent('hl:start-replication')) }}
-              >
-                <span className={css.cover} style={{ background: 'linear-gradient(135deg, #1f2937, #111827 55%, #4b5563)' }}>
-                  <span className={css.coverLabel}>视频复刻</span>
-                  <span className={css.hoverShade} aria-hidden>
-                    <span className={css.playDot}><span className={css.playTri} /></span>
-                    <span className={css.promptPill}>开始复刻</span>
-                  </span>
-                </span>
-                <span className={css.title}>视频复刻 · 爆款同款</span>
-                <span className={css.desc}>上传一条爆款视频，AI 拆解分镜与节奏，一键生成同款带货视频</span>
-              </button>
-              {featured.map(renderCatalogCard)}
-            </>
+            featured.map(renderCatalogCard)
           ) : visible.length === 0 ? (
             <div className={css.empty}>该分类的模板即将上线，敬请期待</div>
           ) : (
