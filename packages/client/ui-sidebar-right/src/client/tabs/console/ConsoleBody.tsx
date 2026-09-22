@@ -42,7 +42,7 @@ interface WorkflowProgress {
   detail: string
 }
 
-type VoiceChoice = 'auto' | 'vo' | 'asset' | 'silent'
+type VoiceChoice = 'auto' | 'vo' | 'asset' | 'silent' | 'original'
 type SubtitleChoice = 'auto' | 'burn' | 'none'
 
 /** 预估积分折算表（每秒积分，按清晰度；数值可在常数处统一调整）。 */
@@ -194,7 +194,7 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
     }
     const onVoice = (e: Event): void => {
       const v = (e as CustomEvent<{ value?: unknown }>).detail?.value
-      if (v === 'auto' || v === 'vo' || v === 'asset' || v === 'silent') { dirtyRef.current = true; setVoice(v) }
+      if (v === 'auto' || v === 'vo' || v === 'asset' || v === 'silent' || v === 'original') { dirtyRef.current = true; setVoice(v) }
     }
     const onSubtitle = (e: Event): void => {
       const v = (e as CustomEvent<{ value?: unknown }>).detail?.value
@@ -216,7 +216,7 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
     if (typeof draft.resolution === 'string') setResolution(draft.resolution)
     if (typeof draft.seconds === 'number') setSeconds(draft.seconds)
     if (draft.durationMode === 'custom' || draft.durationMode === 'same') setDurationMode(draft.durationMode)
-    if (draft.voice === 'auto' || draft.voice === 'vo' || draft.voice === 'silent' || draft.voice === 'asset') setVoice(draft.voice)
+    if (draft.voice === 'auto' || draft.voice === 'vo' || draft.voice === 'silent' || draft.voice === 'asset' || draft.voice === 'original') setVoice(draft.voice)
     if (draft.subtitle === 'auto' || draft.subtitle === 'burn' || draft.subtitle === 'none') setSubtitle(draft.subtitle)
     if (draft.execution === 'step' || draft.execution === 'once') setExecution(draft.execution)
     if (draft.repMode === 'storyboard' || draft.repMode === 'pixel') setRepMode(draft.repMode)
@@ -457,9 +457,11 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
       ? '- 语音：智能识别（跟随原片）——以阶段1/2 对原片的真实分析为准：原片有人声 → 按原片形态生成人声（唱则唱、说则说，不得改成口播）；原片无人声（仅背景音/环境音）→ 不生成任何人声。判定依据须在方案确认里说明，禁止猜测。'
       : voice === 'silent'
         ? '- 语音：静音（绝对不生成任何语音、口播或音效）'
-        : voice === 'asset' && voiceAsset !== null
-          ? `- 语音：有声（忠实原片表演形态）· 音色使用用户资产声音「${voiceAsset.name}」（${voiceAsset.path}），显式指定，非自动附加`
-          : '- 语音：有声（忠实原片表演形态：原片是演唱就演唱、是口播就口播，不得改成口播）'
+        : voice === 'original'
+          ? '- 语音：原片声音（2026-09-22 用户拍板模式）——原片音轨整体作为成片音轨与主时间轴：旁白/BGM/环境音全部来自原片，禁止任何 TTS、重配音或旁白重排；分镜切点必须落在原片语音停顿处（silencedetect 实测边界）；每段生成时长 ≥ 对应原片段时长，生成后逐段裁切到原段精确时长（ffprobe 实测误差 ≤1 帧）再拼接，语音/口型/节奏与原片逐帧对齐；字幕直接用阶段2 原片 SRT（原片真实时间码），禁止按生成节拍重算；改款改动了口播文案时必须 ask_user：①保留原声原词（如实提示措辞与新画面矛盾）或 ②仅改动句 TTS 重配（如实说明该句音色与原声有差异），禁止默认替用户决定。'
+          : voice === 'asset' && voiceAsset !== null
+            ? `- 语音：有声（忠实原片表演形态）· 音色使用用户资产声音「${voiceAsset.name}」（${voiceAsset.path}），显式指定，非自动附加`
+            : '- 语音：有声（忠实原片表演形态：原片是演唱就演唱、是口播就口播，不得改成口播）'
     const subtitleLine = subtitle === 'auto'
       ? '- 字幕：智能识别（跟随原片）——以真实抽帧网格图判断原片画面是否带烧录字幕：有 → 同样烧录字幕；无 → 画面不得出现任何字幕文字。'
       : subtitle === 'burn'
@@ -637,9 +639,11 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
     ? '声音跟随原片'
     : voice === 'silent'
       ? '静音'
-      : voice === 'asset'
-        ? `音色:${voiceAsset?.name ?? '待选'}`
-        : '有声'
+      : voice === 'original'
+        ? '原片声音'
+        : voice === 'asset'
+          ? `音色:${voiceAsset?.name ?? '待选'}`
+          : '有声'
   const subtitleSummary = subtitle === 'auto' ? '字幕跟随原片' : subtitle === 'burn' ? '烧录字幕' : '无字幕'
   const paramSummary = [
     labelOf(VIDEO_REPLICATION_SCHEMA.models, model),
@@ -774,6 +778,7 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
                 if (v === 'asset') void openVoicePicker()
               }}>
                 <option value="auto">智能识别（跟随原片：有人声则有声，无人声则静音）</option>
+                <option value="original">原片声音（直接用原片音轨：旁白/BGM/节奏与原片完全一致，推荐复刻自己的视频）</option>
                 <option value="vo">有声（忠实原片形态：唱则唱、说则说）</option>
                 <option value="asset">我的资产声音</option>
                 <option value="silent">静音（无任何人声）</option>
