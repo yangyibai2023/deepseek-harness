@@ -13,6 +13,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import { schemaForSkill, type TemplateSchema } from './templateSchemas.ts'
 import { VIDEO_REPLICATION_SCHEMA } from './schema.ts'
 import css from './console.module.css'
 
@@ -108,6 +109,42 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
   const [durationMode, setDurationMode] = useState<'same' | 'custom'>('same')
   const [voice, setVoice] = useState<VoiceChoice>('auto')
   const [subtitle, setSubtitle] = useState<SubtitleChoice>('auto')
+  // V40：模板工作台模式——首页模板卡点击进入（hl:open-template-console），
+  // 右侧面板按该模板 skill 的参数 schema 渲染；普通控制台入口（hl:open-console
+  // /hl:start-replication）清除本模式。sessionStorage 持久化以扛 tab 重挂载。
+  const [templateSchema, setTemplateSchema] = useState<TemplateSchema | null>(null)
+  const [templateName, setTemplateName] = useState('')
+  const [templateValues, setTemplateValues] = useState<Record<string, string>>({})
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem('hl-template-console')
+      if (saved !== null) {
+        const parsed = JSON.parse(saved) as { template?: string; skill?: string }
+        if (parsed.skill !== undefined) {
+          setTemplateSchema(schemaForSkill(parsed.skill))
+          setTemplateName(parsed.template ?? '')
+        }
+      }
+    } catch { /* 非致命 */ }
+    const onOpen = (e: Event): void => {
+      const detail = (e as CustomEvent<{ template?: string; skill?: string }>).detail ?? {}
+      setTemplateSchema(schemaForSkill(detail.skill ?? ''))
+      setTemplateName(detail.template ?? '')
+      setTemplateValues({})
+      try { sessionStorage.setItem('hl-template-console', JSON.stringify({ template: detail.template ?? '', skill: detail.skill ?? '' })) } catch { /* 非致命 */ }
+      dirtyRef.current = true
+    }
+    const onClear = (): void => {
+      setTemplateSchema(null)
+      try { sessionStorage.removeItem('hl-template-console') } catch { /* 非致命 */ }
+    }
+    window.addEventListener('hl:open-template-console', onOpen)
+    window.addEventListener('hl:open-console', onClear)
+    return () => {
+      window.removeEventListener('hl:open-template-console', onOpen)
+      window.removeEventListener('hl:open-console', onClear)
+    }
+  }, [])
   const [execution, setExecution] = useState<'step' | 'once'>('step')
   const [count, setCount] = useState(1)
   // 拆解抽帧密度（interval 秒/帧，云镜 extract_frames 参数）：1=标准（每秒1帧）、
@@ -658,6 +695,76 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
     subtitleSummary,
   ].join(' · ')
 
+  // V40：模板工作台——按 skill schema 渲染的模板专属面板（替代复刻控制台）。
+  if (templateSchema !== null) {
+    const taskText = [
+      `【模板创作任务】模板：${templateName || templateSchema.title}（skill: ${templateSchema.skill}）`,
+      ...templateSchema.sections.flatMap(sec => sec.fields.map(f => {
+        const v = (templateValues[f.id] ?? '').trim()
+        if (f.type === 'images') return v === '' ? `- ${f.label}：进入对话后按提示上传` : `- ${f.label}：${v}`
+        if (f.type === 'video') return v === '' ? `- ${f.label}：进入对话后按提示上传` : `- ${f.label}：${v}`
+        return v === '' ? null : `- ${f.label}：${v}`
+      }).filter((x): x is string => x !== null)),
+      `- 官方 skill 全文：~/.heightlab/yunj-skills/${templateSchema.skill}/SKILL.md——必须先读取该文件并严格按其工作流与产出规范执行；本任务参数与其冲突时以 skill 为准。`,
+    ].join('\n')
+    return (
+      <div
+        className={css.console}
+        onChangeCapture={() => { dirtyRef.current = true }}
+        onClickCapture={() => { dirtyRef.current = true }}>
+        <div className={css.head}>
+          <div className={css.schemaTitle}>{templateSchema.title}</div>
+          <div className={css.headHint}>{templateSchema.intro}</div>
+        </div>
+        {templateSchema.sections.map(sec => (
+          <div key={sec.title}>
+            <div className={css.sectionTitle}>{sec.title}</div>
+            <div className={css.grid2}>
+              {sec.fields.map(f => {
+                const wide = f.wide === true || f.type === 'textarea'
+                const value = templateValues[f.id] ?? ''
+                if (f.type === 'images' || f.type === 'video') {
+                  return (
+                    <label key={f.id} className={`${css.field} ${css.fieldWide}`}>
+                      <span>{f.label}</span>
+                      <input type="text" placeholder="进入对话后按提示上传素材" value={value}
+                        onChange={e => setTemplateValues(v => ({ ...v, [f.id]: e.target.value }))} />
+                    </label>
+                  )
+                }
+                if (f.type === 'select') {
+                  return (
+                    <label key={f.id} className={wide ? `${css.field} ${css.fieldWide}` : css.field}>
+                      <span>{f.label}</span>
+                      <select value={value} onChange={e => setTemplateValues(v => ({ ...v, [f.id]: e.target.value }))}>
+                        {(f.options ?? []).map(o => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                    </label>
+                  )
+                }
+                return (
+                  <label key={f.id} className={wide ? `${css.field} ${css.fieldWide}` : css.field}>
+                    <span>{f.label}</span>
+                    {f.type === 'textarea'
+                      ? <textarea rows={3} placeholder={f.placeholder ?? ''} value={value}
+                          onChange={e => setTemplateValues(v => ({ ...v, [f.id]: e.target.value }))} />
+                      : <input type={f.type === 'number' ? 'number' : 'text'} placeholder={f.placeholder ?? ''} value={value}
+                          onChange={e => setTemplateValues(v => ({ ...v, [f.id]: e.target.value }))} />}
+                  </label>
+                )
+              })}
+            </div>
+          </div>
+        ))}
+        <button type="button" className={css.paramsSummary} onClick={() => {
+          window.dispatchEvent(new CustomEvent('hl:send-template', { detail: { text: taskText } }))
+        }}>
+          <span className={css.paramsTitle}>{templateSchema.actionLabel} ↗</span>
+          <span className={css.paramsMeta}>任务进入左侧对话执行</span>
+        </button>
+      </div>
+    )
+  }
   return (
     <div
       className={css.console}

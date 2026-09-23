@@ -245,6 +245,10 @@ export function apply(ctx: ClientContext): void {
       tryOpen()
     }
     const onOpenConsole = (): void => { openConsoleRetrying(false) }
+    // HeightLab V40：模板工作台——首页模板卡点击（hl:open-template-console）
+    // 打开创作控制台 tab；ConsoleBody 按 detail.skill 的 schema 渲染模板面板。
+    const onOpenTemplateConsole = (): void => { openConsoleRetrying(true) }
+    window.addEventListener('hl:open-template-console', onOpenTemplateConsole)
     // HeightLab V29 诊断埋点：复刻带回链路各分叉 POST /hl/boot-marker，
     // 宿主日志（~/.heightlab/logs/dsh-host.log）grep hlReplication 即可
     // 定位断点；链路确认稳定后整体撤除。

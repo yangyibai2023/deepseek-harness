@@ -61,7 +61,7 @@ export function HeightLabVideoGrid() {
       className={css.card}
       onClick={() => {
         // 云镜真实模板卡：进入复刻工作台并携带模板名（工作台侧可预填）。
-        window.dispatchEvent(new CustomEvent('hl:start-replication', { detail: { template: item.name } }))
+        window.dispatchEvent(new CustomEvent('hl:open-template-console', { detail: { template: item.name, skill: item.skill } }))
       }}
     >
       <span className={css.cover}>
