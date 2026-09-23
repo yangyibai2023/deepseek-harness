@@ -229,6 +229,11 @@ export function apply(ctx: ClientContext): void {
     // 新会话创建→视图挂载→面板绑定的全部时序），就绪即成功；多触发点
     // （入口/二级页挂载/做同款）均安全——openTab 幂等，重复只是聚焦。
     const openConsoleRetrying = (expand: boolean): void => {
+      // V40 修复：展开判定改 DOM 实测——isExpanded() 状态可能与 DOM 脱同步
+      //（实测列宽 0 但状态=已展开 → 展开被跳过，面板挂在 0 宽列上位移出屏，
+      // 用户看到「点了没反应」）。以侧栏列实际宽度为准，不足就强制切换。
+      const colWidth = (): number =>
+        document.querySelector('[class*="rightbarCol"]')?.getBoundingClientRect().width ?? 0
       let attempt = 0
       const tryOpen = (): void => {
         attempt += 1
@@ -238,9 +243,14 @@ export function apply(ctx: ClientContext): void {
           if (attempt < 8) window.setTimeout(tryOpen, 400)
           return
         }
-        if (expand) {
-          try { if (!controller.isExpanded()) controller.toggleExpanded() } catch { /* 展开失败静默 */ }
+        if (!expand) return
+        let expandAttempt = 0
+        const tryExpand = (): void => {
+          expandAttempt += 1
+          try { if (colWidth() < 300) controller.toggleExpanded() } catch { /* 静默重试 */ }
+          if (colWidth() < 300 && expandAttempt < 12) window.setTimeout(tryExpand, 300)
         }
+        tryExpand()
       }
       tryOpen()
     }
