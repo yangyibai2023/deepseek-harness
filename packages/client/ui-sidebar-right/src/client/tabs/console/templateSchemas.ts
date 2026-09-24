@@ -37,6 +37,9 @@ const COMMON_OUTPUT: TemplateSection = {
     { id: 'ratio', label: '画面比例', type: 'select', options: ['9:16（竖屏，推荐）', '16:9（横屏）', '1:1', '3:4'] },
     { id: 'quality', label: '清晰度', type: 'select', options: ['768P（标准）', '2K（高清）'] },
     { id: 'duration', label: '时长', type: 'select', options: ['同脚本/原片节奏（推荐）', '5 秒', '10 秒', '15 秒'] },
+    { id: 'generation_mode', label: '生成方式', type: 'select', options: ['完整成片单条（推荐）', '分段独立生成后拼接'] },
+    { id: 'delivery_mode', label: '交付模式', type: 'select', options: ['快速交付（成片核验即交付，推荐）', '深度检查（逐帧复核后交付）'] },
+    { id: 'output_language', label: '输出语言', type: 'select', options: ['中文（默认）', '英语', '日语', '按素材语言'] },
     NOTES,
   ],
 }
@@ -102,6 +105,7 @@ export const TEMPLATE_SCHEMAS: Record<string, TemplateSchema> = {
         { id: 'subtitle', label: '字幕', type: 'select', options: ['智能识别（跟随原片）', '烧录字幕', '无字幕'] },
         { id: 'replace_product', label: '替换产品（名称/外观/卖点，不改可留空）', type: 'text', wide: true },
         { id: 'reference_confirm', label: '参考图确认', type: 'select', options: ['参考图须在写提示词前经我确认（推荐）', '跳过确认'] },
+        { id: 'device_visibility', label: '拍摄设备是否可见', type: 'select', options: ['不入镜（默认）', '设备可见（手持自拍感）'] },
       ]},
       COMMON_OUTPUT,
     ],
@@ -196,6 +200,7 @@ export const TEMPLATE_SCHEMAS: Record<string, TemplateSchema> = {
         { id: 'reference_images', label: '参考图（人物/背景/产品一致性）', type: 'images' },
         { id: 'reference_video', label: '参考视频/音频（可选）', type: 'video' },
         { id: 'model_tier', label: '模型档位', type: 'select', options: ['标准', '增强版（参考视频分析后）'] },
+        { id: 'creator_mode', label: '创作模式', type: 'select', options: ['reference_creator（参考创作，推荐）', 'text_locked_creator（文字锁定）'] },
       ]},
       COMMON_OUTPUT,
     ],
@@ -211,6 +216,7 @@ export const TEMPLATE_SCHEMAS: Record<string, TemplateSchema> = {
         { id: 'product_images', label: '产品图（≤9 张）', type: 'images' },
         { id: 'reference_video', label: '参考视频/关键帧（可选）', type: 'video' },
         { id: 'market', label: '市场/人群', type: 'text', placeholder: '例：国内抖音 女装 25-40 岁' },
+        { id: 'multi_product', label: '多产品口径', type: 'select', options: ['每款分别生成一条（官方默认）', '合并为一条'] },
       ]},
       { title: '场景与节奏', fields: [
         { id: 'scene_note', label: '场景模板确认', type: 'text', placeholder: '例：服装卡点变装（默认按所选模板）' },
