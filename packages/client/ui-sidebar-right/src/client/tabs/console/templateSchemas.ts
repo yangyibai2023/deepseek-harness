@@ -1,8 +1,7 @@
 /**
- * HeightLab V40：模板工作台参数 schema——13 个官方 skill 族各一套。
- * 每个 schema 由该 skill 的 SKILL.md 内容设计（它向用户要什么输入，
- * 工作台就有什么字段）；模板卡点击 → 按 item.skill 命中对应 schema。
- * 字段类型：text/textarea/select/number/images/video。
+ * HeightLab V43：模板工作台参数 schema——13 个官方 skill 族全量展开
+ * （字段源自各 SKILL.md 实际定义的输入与选择项；1.1 深展轮）。
+ * 图片/视频字段在模块加载时动态注册为控制台上传槽位（见文件尾部）。
  */
 
 export interface TemplateField {
@@ -28,30 +27,35 @@ export interface TemplateSchema {
   sections: TemplateSection[]
 }
 
+const NOTES: TemplateField = { id: 'notes', label: '特别要求（未尽事项写这里）', type: 'text', wide: true }
 const COMMON_OUTPUT: TemplateSection = {
   title: '输出要求',
   fields: [
     { id: 'ratio', label: '画面比例', type: 'select', options: ['9:16（竖屏，推荐）', '16:9（横屏）', '1:1', '3:4'] },
     { id: 'quality', label: '清晰度', type: 'select', options: ['768P（标准）', '2K（高清）'] },
-    { id: 'duration', label: '时长', type: 'select', options: ['同原片/脚本节奏（推荐）', '5 秒', '10 秒', '15 秒'] },
+    { id: 'duration', label: '时长', type: 'select', options: ['同脚本/原片节奏（推荐）', '5 秒', '10 秒', '15 秒'] },
+    NOTES,
   ],
 }
 
 const ROUTER_SCHEMA: TemplateSchema = {
   skill: 'yunjing-studio-router',
   title: '视频创意模板',
-  intro: '官方视频创意模板（该分类下各模板共用总控工作流，按模板名进入对应分支）。',
+  intro: '官方视频创意模板总控（按模板名进入对应分支，产出策划/分镜/纯净 Prompt）。',
   actionLabel: '开始创作',
   sections: [
     {
       title: '创作输入',
       fields: [
-        { id: 'product', label: '产品名称与卖点', type: 'textarea', required: true, wide: true },
+        { id: 'product', label: '产品名称与卖点/Hook', type: 'textarea', required: true, wide: true },
         { id: 'product_images', label: '产品图（≤9 张）', type: 'images' },
-        { id: 'reference_video', label: '参考视频（可选）', type: 'video' },
-        { id: 'notes', label: '特别要求', type: 'text', wide: true },
+        { id: 'reference_video', label: '参考视频/关键帧（可选）', type: 'video' },
+        { id: 'style', label: '拍摄风格', type: 'select', options: ['手持自拍', '固定机位', '桌面俯拍', '户外漫步', '按模板默认'] },
+        { id: 'audience', label: '目标人群', type: 'text' },
+        NOTES,
       ],
     },
+    COMMON_OUTPUT,
   ],
 }
 
@@ -59,190 +63,200 @@ export const TEMPLATE_SCHEMAS: Record<string, TemplateSchema> = {
   'yunjing-studio-original-ugc': {
     skill: 'yunjing-studio-original-ugc',
     title: '原创 UGC 1.0 · 经典广告',
-    intro: '经典精简 UGC 广告结构：一次收集完整资料并输出精简可执行方案。',
+    intro: '经典精简 UGC：填写产品名称、用途与真实卖点，输出脚本、口播、6 个 B-roll 与剪辑顺序。',
     actionLabel: '开始创作',
     sections: [
-      {
-        title: '产品与卖点',
-        fields: [
-          { id: 'product', label: '产品名称与品类', type: 'text', placeholder: '例：不锈钢细网滤筛 / 厨房好物', required: true },
-          { id: 'selling_points', label: '核心卖点（每行一条）', type: 'textarea', placeholder: '例：食品级不锈钢\n加高加深不洒漏', required: true, wide: true },
-          { id: 'audience', label: '目标人群', type: 'text', placeholder: '例：25-40 岁家庭用户' },
-          { id: 'product_images', label: '产品图（≤9 张，白底/实拍最佳）', type: 'images' },
-        ],
-      },
-      {
-        title: '创意方向',
-        fields: [
-          { id: 'ugc_type', label: 'UGC 类型', type: 'select', options: ['口播推荐', '产品测评', '开箱', '痛点解决', 'B-roll 展示'] },
-          { id: 'platform', label: '投放平台', type: 'select', options: ['抖音', 'TikTok', 'Reels', '视频号', '小红书'] },
-          { id: 'language', label: '口播语言', type: 'select', options: ['中文', '英语', '日语'] },
-        ],
-      },
+      { title: '产品与卖点', fields: [
+        { id: 'product', label: '产品名称/用途', type: 'text', required: true },
+        { id: 'selling_points', label: '真实卖点（每行一条）', type: 'textarea', required: true, wide: true },
+        { id: 'audience', label: '目标人群', type: 'text' },
+        { id: 'product_images', label: '产品图（≤9 张，白底/实拍最佳）', type: 'images' },
+      ]},
+      { title: '创意方向', fields: [
+        { id: 'ugc_type', label: 'UGC 类型', type: 'select', options: ['口播推荐', '产品测评', '开箱', '痛点解决', 'B-roll 展示'] },
+        { id: 'voice_form', label: '声音形态', type: 'select', options: ['口播', '旁白', '纯画面+音乐', 'ASMR'] },
+        { id: 'shoot_style', label: '拍摄风格', type: 'select', options: ['手持自拍', '固定机位', '桌面俯拍', '户外漫步', '风格库推荐'] },
+        { id: 'platform', label: '投放平台', type: 'select', options: ['抖音', 'TikTok', 'Reels', '视频号', '小红书'] },
+        { id: 'language', label: '口播语言', type: 'select', options: ['中文', '英语', '日语'] },
+      ]},
       COMMON_OUTPUT,
     ],
   },
   'yunjing-studio-ugc-2': {
     skill: 'yunjing-studio-ugc-2',
     title: '原创 UGC 2.0 · 多镜头智能分镜',
-    intro: '多镜头连续叙事：智能分镜、连续对白、人物/背景/产品/声音连续性锁定。',
+    intro: '多镜头连续叙事：智能分镜、连续对白，锁定人物/背景/产品/声音连续性。',
     actionLabel: '开始创作',
     sections: [
-      {
-        title: '产品与素材',
-        fields: [
-          { id: 'product', label: '产品名称与品类', type: 'text', required: true },
-          { id: 'selling_points', label: '核心卖点（每行一条）', type: 'textarea', required: true, wide: true },
-          { id: 'product_images', label: '产品图（≤9 张）', type: 'images' },
-          { id: 'reference_video', label: '参考视频（可选，模仿其节奏）', type: 'video' },
-        ],
-      },
-      {
-        title: '叙事与连续性',
-        fields: [
-          { id: 'narrative', label: '叙事类型', type: 'select', options: ['真人测评', '开箱', '手持展示', '生活方式', '前后对比'] },
-          { id: 'host_setting', label: '达人设定', type: 'text', placeholder: '例：30 岁居家妈妈，亲和口语' },
-          { id: 'continuity', label: '连续性锁定', type: 'select', options: ['人物+背景+产品+声音全部锁定（推荐）', '仅锁定产品'] },
-        ],
-      },
+      { title: '产品与素材', fields: [
+        { id: 'product', label: '产品名称与品类', type: 'text', required: true },
+        { id: 'selling_points', label: '卖点与可用证据（每行一条）', type: 'textarea', required: true, wide: true },
+        { id: 'product_images', label: '产品图（≤9 张）', type: 'images' },
+        { id: 'reference_video', label: '参考视频（可选，模仿其节奏）', type: 'video' },
+      ]},
+      { title: '叙事与连续性', fields: [
+        { id: 'narrative', label: '叙事类型', type: 'select', options: ['真人测评', '开箱', '手持展示', '生活方式', '痛点解决', '前后对比'] },
+        { id: 'host_setting', label: '达人设定', type: 'text', placeholder: '例：30 岁居家妈妈，亲和口语' },
+        { id: 'reference_strategy', label: '参考素材策略', type: 'select', options: ['required（必须上传参考，推荐）', '可选'] },
+        { id: 'platform', label: '投放平台', type: 'select', options: ['抖音', 'TikTok', 'Reels', 'Meta 短视频'] },
+      ]},
       COMMON_OUTPUT,
     ],
   },
   'yunjing-studio-video-replication-v2': {
     skill: 'yunjing-studio-video-replication-v2',
     title: '视频复刻 V2 · 精细复刻',
-    intro: '拆解原片分镜/字幕/节奏后逐段复刻，可替换产品/人物/场景元素。',
+    intro: '拆解原片分镜/字幕/节奏后逐段复刻；素材/模型/时长/比例确认后冻结。',
     actionLabel: '开始复刻',
     sections: [
-      {
-        title: '原片与拆解',
-        fields: [
-          { id: 'source_video', label: '原视频', type: 'video', required: true },
-          { id: 'frame_interval', label: '拆解抽帧密度', type: 'select', options: ['每秒 1 帧（标准）', '每 0.5 秒 1 帧（精细）', '每 2 秒 1 帧（快速）'] },
-        ],
-      },
-      {
-        title: '复刻口径',
-        fields: [
-          { id: 'rep_mode', label: '复刻方式', type: 'select', options: ['分镜驱动（原版，默认）', '像素复刻（贴原片）'] },
-          { id: 'voice', label: '声音', type: 'select', options: ['原片声音（推荐）', '原片音色克隆', '智能识别', '我的资产声音', '静音'] },
-          { id: 'subtitle', label: '字幕', type: 'select', options: ['智能识别（跟随原片）', '烧录字幕', '无字幕'] },
-          { id: 'replace_product', label: '替换产品（名称/外观/卖点，不改可留空）', type: 'text', wide: true },
-        ],
-      },
+      { title: '原片与拆解', fields: [
+        { id: 'source_video', label: '原视频', type: 'video', required: true },
+        { id: 'frame_interval', label: '拆解抽帧密度', type: 'select', options: ['每秒 1 帧（标准）', '每 0.5 秒 1 帧（精细）', '每 2 秒 1 帧（快速）'] },
+        { id: 'enhanced', label: '分析版本', type: 'select', options: ['标准分析', '增强版（参考视频分析后选择）'] },
+      ]},
+      { title: '复刻口径（确认后冻结）', fields: [
+        { id: 'rep_mode', label: '复刻方式', type: 'select', options: ['分镜驱动（原版，默认）', '像素复刻（贴原片）'] },
+        { id: 'voice', label: '声音', type: 'select', options: ['原片声音（推荐）', '原片音色克隆', '智能识别', '我的资产声音', '静音'] },
+        { id: 'subtitle', label: '字幕', type: 'select', options: ['智能识别（跟随原片）', '烧录字幕', '无字幕'] },
+        { id: 'replace_product', label: '替换产品（名称/外观/卖点，不改可留空）', type: 'text', wide: true },
+        { id: 'reference_confirm', label: '参考图确认', type: 'select', options: ['参考图须在写提示词前经我确认（推荐）', '跳过确认'] },
+      ]},
       COMMON_OUTPUT,
     ],
   },
   'yunjing-studio-detail-page-director': {
     skill: 'yunjing-studio-detail-page-director',
     title: '商品详情页导演',
-    intro: '商品详情页面的信息结构与视觉编排方案。',
+    intro: '卖点矩阵、多角度展示、生活方式图、包装细节、组件结构与品牌收尾编排。',
     actionLabel: '开始创作',
     sections: [
-      {
-        title: '商品信息',
-        fields: [
-          { id: 'product', label: '商品名称与品类', type: 'text', required: true },
-          { id: 'selling_points', label: '卖点/参数（每行一条）', type: 'textarea', required: true, wide: true },
-          { id: 'product_images', label: '商品图（≤9 张）', type: 'images' },
-        ],
-      },
-      {
-        title: '编排偏好',
-        fields: [
-          { id: 'platform', label: '目标平台', type: 'select', options: ['淘宝/天猫', '京东', '拼多多', '抖音商城', '独立站'] },
-          { id: 'structure', label: '结构偏好', type: 'select', options: ['卖点分层（推荐）', '场景带入', '参数对比'] },
-        ],
-      },
+      { title: '商品信息', fields: [
+        { id: 'product', label: '商品名称与品类', type: 'text', required: true },
+        { id: 'selling_points', label: '卖点矩阵（每行一条）', type: 'textarea', required: true, wide: true },
+        { id: 'product_images', label: '商品参考图（≤9 张）', type: 'images', required: true },
+      ]},
+      { title: '编排偏好', fields: [
+        { id: 'platform', label: '目标平台', type: 'select', options: ['淘宝/天猫', '京东', '拼多多', '抖音商城', '独立站'] },
+        { id: 'modules', label: '内容模块', type: 'select', options: ['卖点信息图', '多角度展示', '生活方式图', '包装细节', '组件结构', '使用步骤', '品牌收尾'] },
+        { id: 'text_rule', label: '图内文字', type: 'select', options: ['保持已确认文字的原文（推荐）', '允许改写'] },
+        { id: 'forbid', label: '禁项', type: 'select', options: ['不出现平台界面/零售商标识/采购渠道（推荐）', '无特殊要求'] },
+      ]},
     ],
   },
   'yunjing-studio-ecommerce-images': {
     skill: 'yunjing-studio-ecommerce-images',
     title: '电商图片创作',
-    intro: '商品图与营销图的 AI 批量生成。',
+    intro: '商品图与营销图批量生成：每张自动换一套构图方向，不重复同一张。',
     actionLabel: '开始创作',
     sections: [
-      {
-        title: '商品素材',
-        fields: [
-          { id: 'product_images', label: '商品图（≤9 张）', type: 'images', required: true },
-          { id: 'product', label: '商品介绍', type: 'textarea', placeholder: '例：植物精华滥用管瓶，主打清爽质地与日常护理，面向 25-40 岁女性', wide: true },
-        ],
-      },
-      {
-        title: '生成偏好',
-        fields: [
-          { id: 'language', label: '目标语言', type: 'select', options: ['中文', '英语'] },
-          { id: 'platform', label: '销售平台', type: 'select', options: ['自动推荐', '抖音', '天猫', '京东'] },
-          { id: 'count', label: '生成数量', type: 'number' },
-        ],
-      },
+      { title: '商品素材', fields: [
+        { id: 'product_images', label: '商品图（≤9 张，可一次多选）', type: 'images', required: true },
+        { id: 'product', label: '商品介绍（不会写没关系）', type: 'textarea', placeholder: '例：植物精华滥用管瓶，主打清爽质地与日常护理，面向 25-40 岁女性', wide: true },
+      ]},
+      { title: '生成偏好', fields: [
+        { id: 'language', label: '目标语言', type: 'select', options: ['中文', '英语'] },
+        { id: 'platform', label: '销售平台', type: 'select', options: ['自动推荐', '抖音', '天猫', '京东', '独立站'] },
+        { id: 'composition', label: '构图方向', type: 'select', options: ['每张自动换一套（主视觉/卖点拆解/场景图/细节特写，推荐）', '统一构图'] },
+        { id: 'count', label: '生成数量', type: 'number' },
+        { id: 'selling_copy', label: '卖点文案（适用时）', type: 'textarea', wide: true },
+      ]},
     ],
   },
   'yunjing-studio-brand-strategy': {
     skill: 'yunjing-studio-brand-strategy',
-    title: '品牌策略',
+    title: '品牌策略（YJ-101 族）',
     intro: '品牌定位、人群与内容策略方案。',
     actionLabel: '开始创作',
     sections: [
-      {
-        title: '品牌输入',
-        fields: [
-          { id: 'brand', label: '品牌/产品名', type: 'text', required: true },
-          { id: 'positioning', label: '当前定位与诉求', type: 'textarea', required: true, wide: true },
-          { id: 'competitors', label: '竞品（可选，每行一个）', type: 'textarea', wide: true },
-        ],
-      },
+      { title: '品牌输入', fields: [
+        { id: 'brand', label: '品牌/产品名', type: 'text', required: true },
+        { id: 'positioning', label: '当前定位与诉求', type: 'textarea', required: true, wide: true },
+        { id: 'competitors', label: '竞品（可选，每行一个）', type: 'textarea', wide: true },
+        NOTES,
+      ]},
     ],
   },
   'yunjing-studio-customer-insight': {
     skill: 'yunjing-studio-customer-insight',
-    title: '客户洞察',
+    title: '客户洞察（YJ-201 族）',
     intro: '目标人群的痛点、动机与内容偏好洞察。',
     actionLabel: '开始创作',
     sections: [
-      {
-        title: '洞察对象',
-        fields: [
-          { id: 'product', label: '产品/服务', type: 'text', required: true },
-          { id: 'audience', label: '目标人群描述', type: 'textarea', required: true, wide: true },
-          { id: 'goal', label: '想验证的问题', type: 'text', placeholder: '例：为什么犹豫下单' },
-        ],
-      },
+      { title: '洞察对象', fields: [
+        { id: 'product', label: '产品/服务', type: 'text', required: true },
+        { id: 'audience', label: '目标人群描述', type: 'textarea', required: true, wide: true },
+        { id: 'goal', label: '想验证的问题', type: 'text' },
+        NOTES,
+      ]},
     ],
   },
   'yunjing-studio-meta-optimizer': {
     skill: 'yunjing-studio-meta-optimizer',
-    title: '投放素材优化',
+    title: '投放素材优化（YJ-501）',
     intro: '广告投放素材的诊断与迭代优化方案。',
     actionLabel: '开始创作',
     sections: [
-      {
-        title: '素材与目标',
-        fields: [
-          { id: 'material_desc', label: '现有素材描述/数据', type: 'textarea', required: true, wide: true },
-          { id: 'goal', label: '优化目标', type: 'select', options: ['提升点击率', '提升转化率', '降低 ACP', '延长停留'] },
-        ],
-      },
+      { title: '素材与目标', fields: [
+        { id: 'material_desc', label: '现有素材描述/数据', type: 'textarea', required: true, wide: true },
+        { id: 'goal', label: '优化目标', type: 'select', options: ['提升点击率', '提升转化率', '降低 ACP', '延长停留'] },
+        NOTES,
+      ]},
     ],
   },
   'yunjing-studio-sd2-generate': {
     skill: 'yunjing-studio-sd2-generate',
-    title: 'SD2 视频渠道',
-    intro: 'SD2 视频渠道的生成与计费口径。',
+    title: 'SD2 视频渠道（YJ-801）',
+    intro: 'SD2 渠道生成：真实模型 ID、一次创建、轮询取件；参考素材门禁校验。',
     actionLabel: '开始创作',
     sections: [
-      {
-        title: '生成输入',
-        fields: [
-          { id: 'prompt', label: '画面/Prompt 描述', type: 'textarea', required: true, wide: true },
-          { id: 'reference_video', label: '参考视频（可选）', type: 'video' },
-        ],
-      },
+      { title: '生成输入', fields: [
+        { id: 'prompt', label: '画面/Prompt 描述', type: 'textarea', required: true, wide: true },
+        { id: 'reference_images', label: '参考图（人物/背景/产品一致性）', type: 'images' },
+        { id: 'reference_video', label: '参考视频/音频（可选）', type: 'video' },
+        { id: 'model_tier', label: '模型档位', type: 'select', options: ['标准', '增强版（参考视频分析后）'] },
+      ]},
       COMMON_OUTPUT,
     ],
   },
-  'yunjing-studio-router': ROUTER_SCHEMA,
+  'global-video-prompt-director': {
+    skill: 'global-video-prompt-director',
+    title: '全局视频提示词导演（YJ-320 族 · 43 场景）',
+    intro: '自动场景主播等 43 个场景模板的总导演：把产品/市场/素材做成策划、分镜与纯净 Prompt。',
+    actionLabel: '开始创作',
+    sections: [
+      { title: '创作输入', fields: [
+        { id: 'product', label: '产品名称与卖点/Hook', type: 'textarea', required: true, wide: true },
+        { id: 'product_images', label: '产品图（≤9 张）', type: 'images' },
+        { id: 'reference_video', label: '参考视频/关键帧（可选）', type: 'video' },
+        { id: 'market', label: '市场/人群', type: 'text', placeholder: '例：国内抖音 女装 25-40 岁' },
+      ]},
+      { title: '场景与节奏', fields: [
+        { id: 'scene_note', label: '场景模板确认', type: 'text', placeholder: '例：服装卡点变装（默认按所选模板）' },
+        { id: 'style', label: '拍摄风格', type: 'select', options: ['按模板默认', '手持自拍', '固定机位', '一镜到底', '快剪卡点'] },
+        NOTES,
+      ]},
+      COMMON_OUTPUT,
+    ],
+  },
+  'yunjing-studio-video-replication': {
+    skill: 'yunjing-studio-video-replication',
+    title: '视频复刻 V1（兼容）',
+    intro: 'V1 复刻工作流（新任务请用 V2）。',
+    actionLabel: '开始复刻',
+    sections: [
+      { title: '输入', fields: [
+        { id: 'source_video', label: '原视频', type: 'video', required: true },
+        NOTES,
+      ]},
+    ],
+  },
+  'yunjing-studio-updater': {
+    skill: 'yunjing-studio-updater',
+    title: '插件更新（系统）',
+    intro: '系统内部模板，不对外使用。',
+    actionLabel: '开始',
+    sections: [{ title: '输入', fields: [{ id: 'notes', label: '说明', type: 'text', wide: true }] }],
+  },
 }
 
 // V41：把全部 images/video 字段注册为控制台通用槽位——模板工作台直接
