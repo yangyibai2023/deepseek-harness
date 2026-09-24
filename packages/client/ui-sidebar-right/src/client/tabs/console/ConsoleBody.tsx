@@ -639,7 +639,7 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
             </label>
           ) : null}
         </div>
-        <input id={inputId} className={css.fileInput} type="file" multiple={max > 1} accept="image/*"
+        <input id={inputId} className={css.fileInput} type="file" multiple={max > 1 && spec.kind !== 'video'} accept={spec.kind === 'video' ? 'video/*' : 'image/*'}
           onChange={e => void setFiles(slotId, spec.kind, e.target.files, e.currentTarget)} />
       </div>
     )
@@ -699,12 +699,16 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
   if (templateSchema !== null) {
     const taskText = [
       `【模板创作任务】模板：${templateName || templateSchema.title}（skill: ${templateSchema.skill}）`,
-      ...templateSchema.sections.flatMap(sec => sec.fields.map(f => {
+      ...templateSchema.sections.flatMap(sec => sec.fields.flatMap(f => {
+        // V41：素材字段读真实槽位条目（本地路径标记，agent 侧可直接取用）。
+        if (f.type === 'images' || f.type === 'video') {
+          const entries = slots[`tpl-${f.id}`] ?? []
+          if (entries.length === 0) return []
+          return entries.map(e => `- ${f.label}：${e.path !== undefined ? e.path : `（未就绪：${e.name}）`}`)
+        }
         const v = (templateValues[f.id] ?? '').trim()
-        if (f.type === 'images') return v === '' ? `- ${f.label}：进入对话后按提示上传` : `- ${f.label}：${v}`
-        if (f.type === 'video') return v === '' ? `- ${f.label}：进入对话后按提示上传` : `- ${f.label}：${v}`
-        return v === '' ? null : `- ${f.label}：${v}`
-      }).filter((x): x is string => x !== null)),
+        return v === '' ? [] : [`- ${f.label}：${v}`]
+      })),
       `- 官方 skill 全文：~/.heightlab/yunj-skills/${templateSchema.skill}/SKILL.md——必须先读取该文件并严格按其工作流与产出规范执行；本任务参数与其冲突时以 skill 为准。`,
     ].join('\n')
     return (
@@ -724,12 +728,12 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
                 const wide = f.wide === true || f.type === 'textarea'
                 const value = templateValues[f.id] ?? ''
                 if (f.type === 'images' || f.type === 'video') {
+                  // V41：真实上传槽位（复用复刻控制台上传链：缩略图/删除/
+                  // 资产库；任务下发自动携带本地路径标记）。
                   return (
-                    <label key={f.id} className={`${css.field} ${css.fieldWide}`}>
-                      <span>{f.label}</span>
-                      <input type="text" placeholder="进入对话后按提示上传素材" value={value}
-                        onChange={e => setTemplateValues(v => ({ ...v, [f.id]: e.target.value }))} />
-                    </label>
+                    <div key={f.id} className={css.fieldWide}>
+                      {renderImageSlot(`tpl-${f.id}`)}
+                    </div>
                   )
                 }
                 if (f.type === 'select') {

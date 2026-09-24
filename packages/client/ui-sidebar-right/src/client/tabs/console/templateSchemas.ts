@@ -245,6 +245,35 @@ export const TEMPLATE_SCHEMAS: Record<string, TemplateSchema> = {
   'yunjing-studio-router': ROUTER_SCHEMA,
 }
 
+// V41：把全部 images/video 字段注册为控制台通用槽位——模板工作台直接
+// 复用复刻控制台的整套上传链（缩略图/删除/资产库/本地路径落盘）。字段 id
+// 跨 schema 去重（同名槽位共享素材，切换模板不丢已传文件）。
+import { VIDEO_REPLICATION_SCHEMA } from './schema.ts'
+import type { ConsoleUploadSlotSpec } from './schema.ts'
+const extraSlots: ConsoleUploadSlotSpec[] = []
+for (const schema of Object.values(TEMPLATE_SCHEMAS)) {
+  for (const sec of schema.sections) {
+    for (const f of sec.fields) {
+      if (f.type !== 'images' && f.type !== 'video') continue
+      const id = `tpl-${f.id}`
+      if (extraSlots.some(s => s.id === id) || VIDEO_REPLICATION_SCHEMA.slots.some(s => s.id === id)) continue
+      extraSlots.push({
+        id,
+        label: f.label,
+        caption: f.type === 'video' ? '上传后随任务进入对话（单文件）' : '上传后随任务进入对话',
+        max: f.type === 'video' ? 1 : 9,
+        kind: f.type === 'video' ? 'video' : 'image',
+      })
+    }
+  }
+}
+// slots 声明为 readonly 是防误改约定；模板槽位是同一 schema 的合法扩展点，
+// 此处经类型断言整体替换（运行时为普通数组）。
+;(VIDEO_REPLICATION_SCHEMA as unknown as { slots: ConsoleUploadSlotSpec[] }).slots = [
+  ...VIDEO_REPLICATION_SCHEMA.slots,
+  ...extraSlots,
+]
+
 /** 模板 → schema（目录项 skill 未命中时回落总控）。 */
 export function schemaForSkill(skill: string): TemplateSchema {
   return TEMPLATE_SCHEMAS[skill] ?? ROUTER_SCHEMA
