@@ -13,7 +13,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import { schemaForSkill, type TemplateSchema } from './templateSchemas.ts'
+import { schemaForTemplate, type TemplateSchema } from './templateSchemas.ts'
 import { VIDEO_REPLICATION_SCHEMA } from './schema.ts'
 import css from './console.module.css'
 
@@ -119,19 +119,19 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
     try {
       const saved = sessionStorage.getItem('hl-template-console')
       if (saved !== null) {
-        const parsed = JSON.parse(saved) as { template?: string; skill?: string }
+        const parsed = JSON.parse(saved) as { id?: string; template?: string; skill?: string }
         if (parsed.skill !== undefined) {
-          setTemplateSchema(schemaForSkill(parsed.skill))
+          setTemplateSchema(schemaForTemplate(parsed.id ?? '', parsed.skill))
           setTemplateName(parsed.template ?? '')
         }
       }
     } catch { /* 非致命 */ }
     const onOpen = (e: Event): void => {
-      const detail = (e as CustomEvent<{ template?: string; skill?: string }>).detail ?? {}
-      setTemplateSchema(schemaForSkill(detail.skill ?? ''))
+      const detail = (e as CustomEvent<{ id?: string; template?: string; skill?: string }>).detail ?? {}
+      setTemplateSchema(schemaForTemplate(detail.id ?? '', detail.skill ?? ''))
       setTemplateName(detail.template ?? '')
       setTemplateValues({})
-      try { sessionStorage.setItem('hl-template-console', JSON.stringify({ template: detail.template ?? '', skill: detail.skill ?? '' })) } catch { /* 非致命 */ }
+      try { sessionStorage.setItem('hl-template-console', JSON.stringify({ id: detail.id ?? '', template: detail.template ?? '', skill: detail.skill ?? '' })) } catch { /* 非致命 */ }
       dirtyRef.current = true
     }
     const onClear = (): void => {

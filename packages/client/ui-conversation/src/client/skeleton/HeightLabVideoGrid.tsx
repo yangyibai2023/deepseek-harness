@@ -64,9 +64,9 @@ export function HeightLabVideoGrid() {
         // ConsoleBody 尚未挂载、监听器不存在，事件会丢失；挂载后从
         // sessionStorage 恢复模板模式（时序与面板展开重试解耦）。
         try {
-          sessionStorage.setItem('hl-template-console', JSON.stringify({ template: item.name, skill: item.skill }))
+          sessionStorage.setItem('hl-template-console', JSON.stringify({ id: item.id, template: item.name, skill: item.skill }))
         } catch { /* 非致命 */ }
-        window.dispatchEvent(new CustomEvent('hl:open-template-console', { detail: { template: item.name, skill: item.skill } }))
+        window.dispatchEvent(new CustomEvent('hl:open-template-console', { detail: { id: item.id, template: item.name, skill: item.skill } }))
       }}
     >
       <span className={css.cover}>

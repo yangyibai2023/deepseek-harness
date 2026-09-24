@@ -1,8 +1,11 @@
 /**
  * HeightLab V43：模板工作台参数 schema——13 个官方 skill 族全量展开
- * （字段源自各 SKILL.md 实际定义的输入与选择项；1.1 深展轮）。
- * 图片/视频字段在模块加载时动态注册为控制台上传槽位（见文件尾部）。
+ * （字段源自各 SKILL.md 实际定义的输入与选择项）+ 模板级专属字段扩展
+ * （TEMPLATE_FIELD_EXTENSIONS，key=目录项 id）。
+ * 图片/视频字段在模块加载时统一动态注册为控制台上传槽位（文件尾部）。
  */
+import { VIDEO_REPLICATION_SCHEMA } from './schema.ts'
+import type { ConsoleUploadSlotSpec } from './schema.ts'
 
 export interface TemplateField {
   id: string
@@ -35,27 +38,6 @@ const COMMON_OUTPUT: TemplateSection = {
     { id: 'quality', label: '清晰度', type: 'select', options: ['768P（标准）', '2K（高清）'] },
     { id: 'duration', label: '时长', type: 'select', options: ['同脚本/原片节奏（推荐）', '5 秒', '10 秒', '15 秒'] },
     NOTES,
-  ],
-}
-
-const ROUTER_SCHEMA: TemplateSchema = {
-  skill: 'yunjing-studio-router',
-  title: '视频创意模板',
-  intro: '官方视频创意模板总控（按模板名进入对应分支，产出策划/分镜/纯净 Prompt）。',
-  actionLabel: '开始创作',
-  sections: [
-    {
-      title: '创作输入',
-      fields: [
-        { id: 'product', label: '产品名称与卖点/Hook', type: 'textarea', required: true, wide: true },
-        { id: 'product_images', label: '产品图（≤9 张）', type: 'images' },
-        { id: 'reference_video', label: '参考视频/关键帧（可选）', type: 'video' },
-        { id: 'style', label: '拍摄风格', type: 'select', options: ['手持自拍', '固定机位', '桌面俯拍', '户外漫步', '按模板默认'] },
-        { id: 'audience', label: '目标人群', type: 'text' },
-        NOTES,
-      ],
-    },
-    COMMON_OUTPUT,
   ],
 }
 
@@ -258,37 +240,77 @@ export const TEMPLATE_SCHEMAS: Record<string, TemplateSchema> = {
     sections: [{ title: '输入', fields: [{ id: 'notes', label: '说明', type: 'text', wide: true }] }],
   },
 }
+export const TEMPLATE_FIELD_EXTENSIONS: Record<string, TemplateField[]> = {
+  'yj-401-fashion-tryon': [
+    { id: 'model_desc', label: '模特要求', type: 'text', placeholder: '例：亚洲女性 25 岁，身高 170' },
+    { id: 'garment_desc', label: '服装描述', type: 'text', placeholder: '例：黑色连衣裙' },
+    { id: 'tryon_scene', label: '场景', type: 'select', options: ['纯色影棚', '街头', '室内家居', '户外'] },
+  ],
+  'yj-401-image-text-edit': [
+    { id: 'original_image', label: '原图（含待改文字）', type: 'images', required: true },
+    { id: 'text_change', label: '文字改成什么', type: 'textarea', required: true, wide: true },
+  ],
+  'yj-401-product-model': [
+    { id: 'model_desc', label: '模特要求', type: 'text', placeholder: '例：男模 30 岁 商务感' },
+    { id: 'model_scene', label: '场景', type: 'select', options: ['纯色影棚', '电商棚拍', '街头', '室内家居', '户外'] },
+  ],
+  'yj-401-benchmark-replica': [
+    { id: 'benchmark_image', label: '对标版式参考图', type: 'images' },
+    { id: 'keep_structure', label: '版式结构', type: 'select', options: ['与对标图完全一致（推荐）', '允许微调'] },
+  ],
+  'yj-401-commercial-poster': [
+    { id: 'poster_style', label: '海报风格', type: 'select', options: ['促销大促', '品牌质感', '极简', '节日主题'] },
+    { id: 'poster_text', label: '海报文案（标题/副标题）', type: 'textarea', wide: true },
+  ],
+  'yj-401-custom-batch-edit': [
+    { id: 'edit_instruction', label: '编辑指令（每行一条）', type: 'textarea', required: true, wide: true },
+    { id: 'batch_count', label: '批量数量', type: 'number' },
+  ],
+  'yj-401-original-main-detail': [
+    { id: 'main_image_style', label: '主图风格', type: 'select', options: ['白底', '场景化', '模特着用'] },
+    { id: 'detail_structure', label: '详情结构', type: 'select', options: ['卖点分层（推荐）', '场景带入', '参数对比'] },
+  ],
+}
+/** 模板 → schema（基础族 schema + 该模板专属字段段落）。 */
+export function schemaForTemplate(templateId: string, skill: string): TemplateSchema {
+  const base = schemaForSkill(skill)
+  const ext = TEMPLATE_FIELD_EXTENSIONS[templateId]
+  if (ext === undefined || ext.length === 0) return base
+  const sections = base.sections.slice()
+  const lastSection = sections[sections.length - 1]
+  const insertAt = sections.length > 0 && lastSection?.title === '输出要求' ? sections.length - 1 : sections.length
+  sections.splice(insertAt, 0, { title: '本模板专属', fields: ext })
+  return { ...base, sections }
+}
+
+export function schemaForSkill(skill: string): TemplateSchema {
+  return TEMPLATE_SCHEMAS[skill] ?? TEMPLATE_SCHEMAS['yunjing-studio-router'] ?? TEMPLATE_SCHEMAS[Object.keys(TEMPLATE_SCHEMAS)[0] ?? 'yunjing-studio-router'] as TemplateSchema
+}
 
 // V41：把全部 images/video 字段注册为控制台通用槽位——模板工作台直接
 // 复用复刻控制台的整套上传链（缩略图/删除/资产库/本地路径落盘）。字段 id
-// 跨 schema 去重（同名槽位共享素材，切换模板不丢已传文件）。
-import { VIDEO_REPLICATION_SCHEMA } from './schema.ts'
-import type { ConsoleUploadSlotSpec } from './schema.ts'
+// 跨 schema 去重（同名槽位共享素材，切换模板不丢已传文件）。slots 声明为
+// readonly 是防误改约定，此处为合法扩展点（类型断言整体替换）。
 const extraSlots: ConsoleUploadSlotSpec[] = []
-for (const schema of Object.values(TEMPLATE_SCHEMAS)) {
-  for (const sec of schema.sections) {
-    for (const f of sec.fields) {
-      if (f.type !== 'images' && f.type !== 'video') continue
-      const id = `tpl-${f.id}`
-      if (extraSlots.some(s => s.id === id) || VIDEO_REPLICATION_SCHEMA.slots.some(s => s.id === id)) continue
-      extraSlots.push({
-        id,
-        label: f.label,
-        caption: f.type === 'video' ? '上传后随任务进入对话（单文件）' : '上传后随任务进入对话',
-        max: f.type === 'video' ? 1 : 9,
-        kind: f.type === 'video' ? 'video' : 'image',
-      })
-    }
+const fieldGroups: TemplateField[][] = [
+  ...Object.values(TEMPLATE_SCHEMAS).map(schema => schema.sections.flatMap(sec => sec.fields)),
+  ...Object.values(TEMPLATE_FIELD_EXTENSIONS),
+]
+for (const fields of fieldGroups) {
+  for (const f of fields) {
+    if (f.type !== 'images' && f.type !== 'video') continue
+    const id = `tpl-${f.id}`
+    if (extraSlots.some(s => s.id === id) || VIDEO_REPLICATION_SCHEMA.slots.some(s => s.id === id)) continue
+    extraSlots.push({
+      id,
+      label: f.label,
+      caption: f.type === 'video' ? '上传后随任务进入对话（单文件）' : '上传后随任务进入对话',
+      max: f.type === 'video' ? 1 : 9,
+      kind: f.type === 'video' ? 'video' : 'image',
+    })
   }
 }
-// slots 声明为 readonly 是防误改约定；模板槽位是同一 schema 的合法扩展点，
-// 此处经类型断言整体替换（运行时为普通数组）。
 ;(VIDEO_REPLICATION_SCHEMA as unknown as { slots: ConsoleUploadSlotSpec[] }).slots = [
   ...VIDEO_REPLICATION_SCHEMA.slots,
   ...extraSlots,
 ]
-
-/** 模板 → schema（目录项 skill 未命中时回落总控）。 */
-export function schemaForSkill(skill: string): TemplateSchema {
-  return TEMPLATE_SCHEMAS[skill] ?? ROUTER_SCHEMA
-}
