@@ -717,7 +717,7 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
         onChangeCapture={() => { dirtyRef.current = true }}
         onClickCapture={() => { dirtyRef.current = true }}>
         <div className={css.head}>
-          <div className={css.schemaTitle}>{templateSchema.title}</div>
+          <div className={css.schemaTitle}>{templateName || templateSchema.title}</div>
           <div className={css.headHint}>{templateSchema.intro}</div>
         </div>
         {templateSchema.sections.map(sec => (

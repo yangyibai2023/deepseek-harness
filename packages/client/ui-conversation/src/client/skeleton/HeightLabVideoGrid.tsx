@@ -60,7 +60,12 @@ export function HeightLabVideoGrid() {
       type="button"
       className={css.card}
       onClick={() => {
-        // 云镜真实模板卡：进入复刻工作台并携带模板名（工作台侧可预填）。
+        // V41 修复：模板标记必须在派发事件前落 sessionStorage——面板收起时
+        // ConsoleBody 尚未挂载、监听器不存在，事件会丢失；挂载后从
+        // sessionStorage 恢复模板模式（时序与面板展开重试解耦）。
+        try {
+          sessionStorage.setItem('hl-template-console', JSON.stringify({ template: item.name, skill: item.skill }))
+        } catch { /* 非致命 */ }
         window.dispatchEvent(new CustomEvent('hl:open-template-console', { detail: { template: item.name, skill: item.skill } }))
       }}
     >
