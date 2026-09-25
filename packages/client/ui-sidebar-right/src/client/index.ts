@@ -142,10 +142,9 @@ export function apply(ctx: ClientContext): void {
           if (localStorage.getItem('hl-console-mode') === 'replication') {
             openConsoleRetrying(false)
           }
-          // HeightLab V29：切入会话的复刻带回挂在本时机——store 采用=surface
-          // 就绪（V26b 实证可靠），且不依赖 hl:session-switched 广播链
-          // （V27b/V28 两版广播链均未生效，本时机为主路径）。
-          ensureReplicationConsole(String(scopeKey), 'store-create')
+          // HeightLab V29 + V48 启动门禁：切入会话的复刻带回挂在本时机；
+          // 但启动 3 秒内的 store-create 属被动恢复，不弹工作台。
+          if (!inBootWindow('store-create')) ensureReplicationConsole(String(scopeKey), 'store-create')
           adoptions.push(adopt(scopeKey as SessionId, instance))
         }
         return instance
@@ -228,7 +227,16 @@ export function apply(ctx: ClientContext): void {
     // 工作台不弹出」。改为带重试的打开：每 400ms 一次、最多 8 次（覆盖
     // 新会话创建→视图挂载→面板绑定的全部时序），就绪即成功；多触发点
     // （入口/二级页挂载/做同款）均安全——openTab 幂等，重复只是聚焦。
+    // V48：启动 3 秒内的 store-create/session-switched 属被动恢复（App 重开
+    // 自动选中上次会话），不是用户主动切入——不弹工作台、不展开（用户实测
+    // 重开 App 右栏自动弹+开合拉锯的根因之一）。用户主动点会话在 3 秒后，
+    // 不受影响；本轮跳过后用户再点一次即可正常弹出。
+    const bootAt = Date.now()
+    const inBootWindow = (source: string): boolean =>
+      (source === 'store-create' || source === 'session-switched') && Date.now() - bootAt < 3000
+    let expandLoopRunning = false
     const openConsoleRetrying = (expand: boolean): void => {
+      if (expand && expandLoopRunning) return
       // V40 修复：展开判定改 DOM 实测——isExpanded() 状态可能与 DOM 脱同步
       //（实测列宽 0 但状态=已展开 → 展开被跳过，面板挂在 0 宽列上位移出屏，
       // 用户看到「点了没反应」）。以侧栏列实际宽度为准，不足就强制切换。
@@ -245,10 +253,12 @@ export function apply(ctx: ClientContext): void {
         }
         if (!expand) return
         let expandAttempt = 0
+        expandLoopRunning = true
         const tryExpand = (): void => {
           expandAttempt += 1
           try { if (colWidth() < 300) controller.toggleExpanded() } catch { /* 静默重试 */ }
           if (colWidth() < 300 && expandAttempt < 12) window.setTimeout(tryExpand, 300)
+          else expandLoopRunning = false
         }
         tryExpand()
       }
@@ -341,7 +351,7 @@ export function apply(ctx: ClientContext): void {
         try { localStorage.removeItem('hl-console-mode') } catch { /* 忽略 */ }
         window.dispatchEvent(new CustomEvent('hl:mode-change', { detail: { mode: '' } }))
       }
-      ensureReplicationConsole(sid, 'session-switched')
+      if (!inBootWindow('session-switched')) ensureReplicationConsole(sid, 'session-switched')
     }
     window.addEventListener('hl:open-console', onOpenConsole)
     window.addEventListener('hl:session-switched', onSessionSwitched)
