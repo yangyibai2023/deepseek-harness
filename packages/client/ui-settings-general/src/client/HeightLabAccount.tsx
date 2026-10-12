@@ -160,7 +160,7 @@ export function HeightLabAccount() {
   const [accountError, setAccountError] = useState<string | null>(null)
   const [accountStatus, setAccountStatus] = useState<string | null>(null)
 
-  const signOut = (): void => {
+  const signOut = (): void => { // VXXTEST123
     try {
       void fetch('/hl/signout', { method: 'POST' }).catch(() => { /* ignore */ })
       localStorage.removeItem('heightlab-token')
@@ -171,15 +171,20 @@ export function HeightLabAccount() {
     // reload 会撞上宿主重启窗口闪"无法连接"错误页——改为轮询宿主恢复
     // 后再进入登录页（上限 15 秒防卡死）。
     const bootAt = Date.now()
+    // 稳定判定：连续两次 200（间隔 500ms）才算宿主真正就绪——单次 200 可能
+    // 来自旧实例死亡前的最后响应，立即 reload 会撞进重启窗口闪错误页。
+    let stableHits = 0
     const waitHostThenLogin = (): void => {
       fetch('/hl/app-info', { cache: 'no-store' })
         .then((r) => {
-          if (r.ok) { window.location.reload() } else { retry() }
+          if (!r.ok) { stableHits = 0; retry(); return }
+          stableHits += 1
+          if (stableHits >= 2) { window.location.reload() } else { setTimeout(waitHostThenLogin, 500) }
         })
-        .catch(retry)
+        .catch(() => { stableHits = 0; retry() })
     }
     const retry = (): void => {
-      if (Date.now() - bootAt > 15000) { window.location.reload(); return }
+      if (Date.now() - bootAt > 20000) { window.location.reload(); return }
       setTimeout(waitHostThenLogin, 400)
     }
     setTimeout(waitHostThenLogin, 800)
