@@ -253,7 +253,11 @@ export function virtualManifest(
   const prefix = `${name.replace('/', '+')}@`
   const entries = readdirSync(virtual)
   for (const entry of entries.filter(dir => dir.startsWith(prefix))) {
-    const manifest = JSON.parse(readFileSync(resolve(virtual, entry, 'node_modules', name, 'package.json'), 'utf8')) as VirtualManifest
+    // 平台专属包（如 win32-arm64）在异构开发机上常是 pnpm 虚拟存根 +
+    // 断链；existsSync 跟随符号链接，断链返回 false，跳过而非 ENOENT 崩。
+    const candidate = resolve(virtual, entry, 'node_modules', name, 'package.json')
+    if (!existsSync(candidate)) continue
+    const manifest = JSON.parse(readFileSync(candidate, 'utf8')) as VirtualManifest
     if (expectedVersion === undefined || manifest.version === expectedVersion) return manifest
   }
   for (const dir of entries) {

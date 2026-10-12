@@ -160,7 +160,7 @@ export function HeightLabAccount() {
   const [accountError, setAccountError] = useState<string | null>(null)
   const [accountStatus, setAccountStatus] = useState<string | null>(null)
 
-  const signOut = (): void => { // VXXTEST123
+  const signOut = (): void => {
     try {
       void fetch('/hl/signout', { method: 'POST' }).catch(() => { /* ignore */ })
       localStorage.removeItem('heightlab-token')
@@ -168,31 +168,35 @@ export function HeightLabAccount() {
       localStorage.removeItem('heightlab-pkce-verifier')
     } catch { /* ignore */ }
     // HeightLab：登出会触发壳重启宿主（无用户模式，隔离用户数据）。盲目
-    // reload 会撞上宿主重启窗口闪"无法连接"错误页——改为轮询宿主恢复
-    // 后再进入登录页（上限 15 秒防卡死）。
-    const bootAt = Date.now()
-    // 稳定判定：连续两次 200（间隔 500ms）才算宿主真正就绪——单次 200 可能
-    // 来自旧实例死亡前的最后响应，立即 reload 会撞进重启窗口闪错误页。
+    // reload 会撞上宿主重启窗口闪"无法连接"错误页。正确状态机：
+    // ① 先等宿主"死"一次（fetch 失败=重启已开始；若 10s 内一直 200 说明
+    //   本轮无重启，直接 reload 清状态）；② 再等连续两次 200（稳定恢复）
+    //   才 reload。禁止按固定时限盲 reload——冷 provisioning 实测可达
+    //   8-9 分钟（2026-10-12），壳会先切 splash 并在就绪后接管导航，
+    //   这里只是无壳导航时的兜底。
+    let sawDown = false
     let stableHits = 0
-    const waitHostThenLogin = (): void => {
+    const poll = (): void => {
       fetch('/hl/app-info', { cache: 'no-store' })
         .then((r) => {
-          if (!r.ok) { stableHits = 0; retry(); return }
+          if (!r.ok) { sawDown = true; stableHits = 0; setTimeout(poll, 500); return }
+          if (!sawDown) {
+            // 宿主一直活着（本轮无重启）：稳定 200 达标即刷新进入登录页。
+            stableHits += 1
+            if (stableHits >= 4) { window.location.reload() } else { setTimeout(poll, 500) }
+            return
+          }
           stableHits += 1
-          if (stableHits >= 2) { window.location.reload() } else { setTimeout(waitHostThenLogin, 500) }
+          if (stableHits >= 2) { window.location.reload() } else { setTimeout(poll, 500) }
         })
-        .catch(() => { stableHits = 0; retry() })
+        .catch(() => { sawDown = true; stableHits = 0; setTimeout(poll, 500) })
     }
-    const retry = (): void => {
-      if (Date.now() - bootAt > 20000) { window.location.reload(); return }
-      setTimeout(waitHostThenLogin, 400)
-    }
-    setTimeout(waitHostThenLogin, 800)
+    setTimeout(poll, 600)
   }
 
   const refresh = (): void => {
     fetch('/hl/me')
-      .then((r) => r.json())
+      .then(r => r.json())
       .then((data) => {
         if (data?.ok) {
           setProfile({
@@ -206,7 +210,7 @@ export function HeightLabAccount() {
       })
       .catch(() => { /* 保持默认显示 */ })
     fetch('/hl/balance')
-      .then((r) => r.json())
+      .then(r => r.json())
       .then((data) => {
         if (data?.ok) {
           setBalance(data)
@@ -218,7 +222,7 @@ export function HeightLabAccount() {
       })
       .catch(() => { setBalance(null); setBalanceError('余额获取失败') })
     fetch('/hl/payment-topups')
-      .then((r) => r.json())
+      .then(r => r.json())
       .then((data) => {
         if (data?.ok) setOrders(Array.isArray(data.entries) ? data.entries : [])
       })
@@ -379,7 +383,11 @@ export function HeightLabAccount() {
     }
   }
 
-  const postAccount = async (path: string, body: Record<string, unknown>): Promise<Record<string, unknown> & { ok: boolean; message?: string }> => {
+  type PostAccountResult = Record<string, unknown> & { ok: boolean; message?: string }
+  const postAccount = async (
+    path: string,
+    body: Record<string, unknown>,
+  ): Promise<PostAccountResult> => {
     const res = await fetch(path, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -742,63 +750,63 @@ export function HeightLabAccount() {
 
       {open && (
         <div style={overlayStyle} onClick={() => { if (!busy) { setOpen(false); setCheckoutUrl(null) } }}>
-        <div style={{ ...modalStyle, width: checkoutUrl ? 480 : undefined }} onClick={(e) => e.stopPropagation()}>
-          <div style={{ fontWeight: 600 }}>充值</div>
-          {!checkoutUrl && (
-            <>
-              {/* 内测专享：月度会员 ¥299/月（原价 ¥599/月 五折） */}
-              <div
-                style={{
-                  padding: '12px 14px',
-                  borderRadius: '12px',
-                  border: '1px solid var(--dsw-alias-brand-primary)',
-                  background: 'var(--dsw-alias-bg-layer-3)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 12,
-                }}
-              >
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 600 }}>内测专享 · 月度会员</div>
-                  <div style={{ fontSize: 12, opacity: 0.65, marginTop: 2 }}>
-                    原价 ¥599/月 · 内测期间五折优惠
+          <div style={{ ...modalStyle, width: checkoutUrl ? 480 : undefined }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontWeight: 600 }}>充值</div>
+            {!checkoutUrl && (
+              <>
+                {/* 内测专享：月度会员 ¥299/月（原价 ¥599/月 五折） */}
+                <div
+                  style={{
+                    padding: '12px 14px',
+                    borderRadius: '12px',
+                    border: '1px solid var(--dsw-alias-brand-primary)',
+                    background: 'var(--dsw-alias-bg-layer-3)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                  }}
+                >
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>内测专享 · 月度会员</div>
+                    <div style={{ fontSize: 12, opacity: 0.65, marginTop: 2 }}>
+                      原价 ¥599/月 · 内测期间五折优惠
+                    </div>
                   </div>
+                  <div style={{ fontSize: 22, fontWeight: 700 }}>¥299/月</div>
                 </div>
-                <div style={{ fontSize: 22, fontWeight: 700 }}>¥299/月</div>
-              </div>
-              <div style={{ fontSize: 12, opacity: 0.55, marginTop: 2 }}>
-                历史订单不影响新充值，可随时创建并支付。
-              </div>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                {(['alipay', 'wxpay'] as const).map((method) => (
-                  <button
-                    key={method}
-                    type="button"
-                    style={{ ...buttonStyle, flex: 1, border: payMethod === method ? '2px solid var(--dsw-alias-brand-primary)' : '1px solid currentColor' }}
-                    onClick={() => setPayMethod(method)}
-                  >
-                    {method === 'alipay' ? '支付宝' : '微信支付'}
-                  </button>
-                ))}
-              </div>
-              <button
-                type="button"
-                style={{ ...primaryButtonStyle, width: '100%', justifyContent: 'center', padding: '10px 0' }}
-                disabled={busy}
-                onClick={() => { void recharge(299) }}
-              >
-                {busy ? '处理中…' : '立即充值 ¥299/月'}
-              </button>
-            </>
-          )}
-          {checkoutUrl && (
-            <iframe
-              src={checkoutUrl}
-              title="支付"
-              style={{ width: '100%', height: 560, border: '1px solid #ddd', borderRadius: 8, background: '#fff' }}
-            />
-          )}
+                <div style={{ fontSize: 12, opacity: 0.55, marginTop: 2 }}>
+                  历史订单不影响新充值，可随时创建并支付。
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {(['alipay', 'wxpay'] as const).map(method => (
+                    <button
+                      key={method}
+                      type="button"
+                      style={{ ...buttonStyle, flex: 1, border: payMethod === method ? '2px solid var(--dsw-alias-brand-primary)' : '1px solid currentColor' }}
+                      onClick={() => setPayMethod(method)}
+                    >
+                      {method === 'alipay' ? '支付宝' : '微信支付'}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  style={{ ...primaryButtonStyle, width: '100%', justifyContent: 'center', padding: '10px 0' }}
+                  disabled={busy}
+                  onClick={() => { void recharge(299) }}
+                >
+                  {busy ? '处理中…' : '立即充值 ¥299/月'}
+                </button>
+              </>
+            )}
+            {checkoutUrl && (
+              <iframe
+                src={checkoutUrl}
+                title="支付"
+                style={{ width: '100%', height: 560, border: '1px solid #ddd', borderRadius: 8, background: '#fff' }}
+              />
+            )}
             {status && <div style={{ opacity: 0.8, fontSize: 13 }}>{status}</div>}
             {checkoutUrl && (
               <button type="button" style={buttonStyle} onClick={() => { refresh(); setStatus('余额已刷新') }}>
@@ -814,7 +822,7 @@ export function HeightLabAccount() {
 
       {editOpen && (
         <div style={overlayStyle} onClick={() => { if (!saving) { setEditOpen(false); setEditError(null) } }}>
-          <div style={{ ...modalStyle, width: 360 }} onClick={(e) => e.stopPropagation()}>
+          <div style={{ ...modalStyle, width: 360 }} onClick={e => e.stopPropagation()}>
             <div style={{ fontWeight: 600 }}>编辑资料</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               {avatarPreview
@@ -842,7 +850,7 @@ export function HeightLabAccount() {
                   type="file"
                   accept="image/png,image/jpeg,image/webp,image/gif"
                   style={{ display: 'none' }}
-                  onChange={(e) => pickAvatar(e.target.files?.[0])}
+                  onChange={e => pickAvatar(e.target.files?.[0])}
                 />
               </label>
             </div>
@@ -853,7 +861,7 @@ export function HeightLabAccount() {
                 style={inputStyle}
                 maxLength={32}
                 placeholder="1-32 位字母、数字、下划线或连字符"
-                onChange={(e) => setEditUsername(e.target.value)}
+                onChange={e => setEditUsername(e.target.value)}
               />
             </div>
             {editError && <div style={{ fontSize: 12, color: '#d1242f' }}>{editError}</div>}
@@ -872,7 +880,7 @@ export function HeightLabAccount() {
 
       {accountModal && (
         <div style={overlayStyle} onClick={closeAccountModal}>
-          <div style={{ ...modalStyle, width: 380 }} onClick={(e) => e.stopPropagation()}>
+          <div style={{ ...modalStyle, width: 380 }} onClick={e => e.stopPropagation()}>
             <div style={{ fontWeight: 600 }}>
               {accountModal === 'email' ? '更换邮箱' : '修改密码'}
             </div>
@@ -889,7 +897,7 @@ export function HeightLabAccount() {
                         type="password"
                         maxLength={128}
                         placeholder="用于验证身份"
-                        onChange={(e) => setIdentityPassword(e.target.value)}
+                        onChange={e => setIdentityPassword(e.target.value)}
                       />
                     </div>
                     <button
@@ -928,7 +936,7 @@ export function HeightLabAccount() {
                             style={inputStyle}
                             inputMode="numeric"
                             placeholder="输入邮件中的验证码"
-                            onChange={(e) => setIdentityCode(e.target.value)}
+                            onChange={e => setIdentityCode(e.target.value)}
                           />
                         </div>
                         <button
@@ -963,7 +971,7 @@ export function HeightLabAccount() {
                     maxLength={254}
                     type="email"
                     placeholder="you@example.com"
-                    onChange={(e) => setNewEmail(e.target.value)}
+                    onChange={e => setNewEmail(e.target.value)}
                   />
                 </div>
                 {!newEmailCodeSent ? (
@@ -984,7 +992,7 @@ export function HeightLabAccount() {
                         style={inputStyle}
                         inputMode="numeric"
                         placeholder="输入新邮箱收到的验证码"
-                        onChange={(e) => setNewEmailCode(e.target.value)}
+                        onChange={e => setNewEmailCode(e.target.value)}
                       />
                     </div>
                     <button
@@ -1010,7 +1018,7 @@ export function HeightLabAccount() {
                     type="password"
                     maxLength={128}
                     placeholder="8-128 位"
-                    onChange={(e) => setNewPassword(e.target.value)}
+                    onChange={e => setNewPassword(e.target.value)}
                   />
                 </div>
                 <div>
@@ -1021,7 +1029,7 @@ export function HeightLabAccount() {
                     type="password"
                     maxLength={128}
                     placeholder="再次输入新密码"
-                    onChange={(e) => setNewPasswordConfirm(e.target.value)}
+                    onChange={e => setNewPasswordConfirm(e.target.value)}
                   />
                 </div>
                 <button
