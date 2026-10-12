@@ -167,7 +167,22 @@ export function HeightLabAccount() {
       localStorage.removeItem('heightlab-account-token')
       localStorage.removeItem('heightlab-pkce-verifier')
     } catch { /* ignore */ }
-    window.location.reload()
+    // HeightLab：登出会触发壳重启宿主（无用户模式，隔离用户数据）。盲目
+    // reload 会撞上宿主重启窗口闪"无法连接"错误页——改为轮询宿主恢复
+    // 后再进入登录页（上限 15 秒防卡死）。
+    const bootAt = Date.now()
+    const waitHostThenLogin = (): void => {
+      fetch('/hl/app-info', { cache: 'no-store' })
+        .then((r) => {
+          if (r.ok) { window.location.reload() } else { retry() }
+        })
+        .catch(retry)
+    }
+    const retry = (): void => {
+      if (Date.now() - bootAt > 15000) { window.location.reload(); return }
+      setTimeout(waitHostThenLogin, 400)
+    }
+    setTimeout(waitHostThenLogin, 800)
   }
 
   const refresh = (): void => {
