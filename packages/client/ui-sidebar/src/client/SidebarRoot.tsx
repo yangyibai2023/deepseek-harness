@@ -287,6 +287,21 @@ export function SidebarRoot({
         </button>
       </Tooltip>
 
+      {/* HeightLab 2026-10-14：技能中心一级入口——官方市场/我的沉淀/创建，
+          三栏页（HeightLabSkillHub），经技能注册表与 $DSH_HOME/skills。 */}
+      <Tooltip label="技能" delayMs={500} disabled={wide}>
+        <button
+          type="button"
+          className={css.newSession}
+          onClick={() => {
+            window.dispatchEvent(new CustomEvent('hl:open-hub', { detail: { page: 'skill-hub' } }))
+          }}
+        >
+          <IconSparkle16 size={wide ? 16 : 18} />
+          {wide && <span className={clsx(css.newSessionLabel, css.wide)}>技能</span>}
+        </button>
+      </Tooltip>
+
       {/* HeightLab：自定义导航（创意灵感 / 资料库 / 自动化）。
           rc.2 原生 SVG 描边图标 + 主题 token（css.hlNav*），与原生风格统一。 */}
       <div className={css.hlNav}>

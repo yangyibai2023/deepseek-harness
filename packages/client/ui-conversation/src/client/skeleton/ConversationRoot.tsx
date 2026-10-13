@@ -14,6 +14,7 @@ import { HeroShell, WorkspaceChip, workspaceLabel } from './EmptyHero.tsx'
 import { HeightLabVideoGrid } from './HeightLabVideoGrid.tsx'
 import { QuotaNotice } from './QuotaNotice.tsx'
 import { HeightLabHubPage, type HubPage } from './HeightLabHubPage.tsx'
+import { HeightLabSkillHub } from './HeightLabSkillHub.tsx'
 import css from './ConversationRoot.module.css'
 
 /** Full props composed from the slot contract. */
@@ -203,7 +204,7 @@ export function ConversationRoot({
   useEffect(() => {
     const onOpen = (event: Event): void => {
       const detail = (event as CustomEvent<{ page?: unknown }>).detail
-      if (detail?.page === 'inspiration' || detail?.page === 'library' || detail?.page === 'video-studio') {
+      if (detail?.page === 'inspiration' || detail?.page === 'library' || detail?.page === 'video-studio' || detail?.page === 'skill-hub') {
         if (detail.page !== 'library') {
           window.dispatchEvent(new CustomEvent('hl:close-knowledge'))
         }
@@ -553,13 +554,17 @@ export function ConversationRoot({
           × 关闭时同时回到对话，避免下层残留自动化视图）。 */}
       {hub !== null && (
         <div className={css.hubOverlay}>
-          <HeightLabHubPage
-            page={hub}
-            onClose={() => {
-              setHub(null)
-              window.dispatchEvent(new CustomEvent('hl:close-automation'))
-            }}
-          />
+          {hub === 'skill-hub' ? (
+            <HeightLabSkillHub onClose={() => { setHub(null); window.dispatchEvent(new CustomEvent('hl:close-knowledge')) }} />
+          ) : (
+            <HeightLabHubPage
+              page={hub}
+              onClose={() => {
+                setHub(null)
+                window.dispatchEvent(new CustomEvent('hl:close-automation'))
+              }}
+            />
+          )}
         </div>
       )}
     </div>

@@ -12,7 +12,7 @@ import { TemplatePreview } from './TemplatePreview.tsx'
 import { HeightLabLibraryPage } from './HeightLabLibraryPage.tsx'
 import css from './ConversationRoot.module.css'
 
-export type HubPage = 'inspiration' | 'library' | 'automation' | 'video-studio'
+export type HubPage = 'inspiration' | 'library' | 'automation' | 'video-studio' | 'skill-hub'
 
 /** HeightLab V24b：视频创作一级页的 8 个模板卡片（第一排流量转化/第二排人设内容）。 */
 type StudioCard = { name: string; desc: string; icon: string; enabled: boolean }
@@ -69,6 +69,7 @@ const studioBadgeStyle: CSSProperties = {
 }
 
 const PAGE_TITLES: Record<HubPage, string> = {
+  'skill-hub': '技能中心',
   inspiration: '创意灵感',
   library: '资产中心',
   automation: '自动化',
