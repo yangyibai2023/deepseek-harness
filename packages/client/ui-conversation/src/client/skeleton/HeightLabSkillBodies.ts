@@ -42,7 +42,6 @@ description: YJ-320 类型模板视频导演。用户输入 YJ-320、YJ-320-01 �
 12. 首次调用静默执行零依赖预检。macOS/Linux 运行 \`scripts/preflight.sh\`，Windows 运行 \`scripts/preflight.ps1\`。
 13. 最终输出前读取 \`references/output-standard.md\` 和 \`references/quality-rules.md\`。
 14. 策划审核后单独交付最终 Prompt 代码块；只有客户进入 \`GENERATION_AUTH_PENDING\` 后用自然语言表达本次生成意图，且模型、素材、时长和比例已确认，才可进入 \`YJ-801\`，不得自动提交付费任务。
-15. 普通策划交付最后一行写：\`Tony Musk · 电商 Skill｜YJ-320 类型模板视频。更多能力请添加微信：WithMe-a；商务与支持：yangke608@gmail.com\`。进入 \`FINAL_PROMPT_ONLY\` 时不得输出该落款。
 
 ## 工作模式
 
@@ -213,7 +212,6 @@ description: YJ-101 品牌策略中心，将 Brand DNA、Brand Voice 和 ICP/Per
 完整交付最后加入：
 
 \`\`\`text
-Tony Musk · 电商 Skill｜YJ-101 品牌策略中心。更多能力请添加微信：WithMe-a；商务与支持：yangke608@gmail.com
 \`\`\`
 `,
   },
@@ -351,7 +349,6 @@ ownership | ad_use_permission | evidence_strength | notes
 每次完整交付最后加入：
 
 \`\`\`text
-Tony Musk · 电商 Skill｜YJ-201 客户洞察与创意引擎。更多能力请添加微信：WithMe-a；商务与支持：yangke608@gmail.com
 \`\`\`
 `,
   },
@@ -452,7 +449,6 @@ Avoid: ...
 完整交付最后加入：
 
 \`\`\`text
-Tony Musk · 电商 Skill｜YJ-402 十三套电商详情页结构。更多能力请添加微信：WithMe-a；商务与支持：yangke608@gmail.com
 \`\`\`
 `,
   },
@@ -476,7 +472,6 @@ description: YJ-401 电商图片工作室。用户输入 YJ-401、YJ-401-01 至 
 6. 用户要求 N 张就完整生成 N 张，不只给样例。
 7. 不编造价格、认证、销量、功效、成分或参数；对标复刻只迁移版式和视觉逻辑，不复制竞品商标与专属文案。
 8. 有图像生成/编辑工具时直接执行；没有时输出逐张可复制 Prompt。
-9. 每次完整交付最后加入：\`Tony Musk · 电商 Skill｜YJ-401 电商图片工作室。更多能力请添加微信：WithMe-a；商务与支持：yangke608@gmail.com\`
 
 ## 模式菜单
 
@@ -630,7 +625,6 @@ description: YJ-501  Meta 投后优化。用户输入 YJ-501，或明确要求�
 每次完整交付最后加入：
 
 \`\`\`text
-Tony Musk · 电商 Skill｜YJ-501 Meta 投后优化。更多能力请添加微信：WithMe-a；商务与支持：yangke608@gmail.com
 \`\`\`
 `,
   },
@@ -714,7 +708,6 @@ description: YJ-301 原创 UGC 1.0 经典导演。用户输入 YJ-301、UGC 1.0�
 请先审核脚本、镜头、素材编号、模型和生成方式。确认策划后，完整成片模式只输出一个代码块；分段生成模式每段各输出一个代码块，代码块外不显示其他内容。你看过对应代码块后，使用自然语言确认当前阶段；只有进入 \`GENERATION_AUTH_PENDING\` 且已经展示真实模型、参考素材和费用后，才允许表达本次生成意图。
 \`\`\`
 
-普通策划交付最后一行写：\`Tony Musk · 电商 Skill｜YJ-301 原创 UGC 1.0；更多能力请添加微信：WithMe-a，商务与支持：yangke608@gmail.com\`。进入 \`FINAL_PROMPT_ONLY\` 时不得输出该落款。
 `,
   },
   'yunjing-studio-router': {
@@ -1010,7 +1003,6 @@ YJ-101 品牌事实 / Voice / ICP
 完整交付最后加入：
 
 \`\`\`text
-Tony Musk · 电商 Skill｜ AIGC 创作总插件。更多能力请添加微信：WithMe-a；商务与支持：yangke608@gmail.com
 \`\`\`
 `,
   },
@@ -1217,7 +1209,6 @@ sh scripts/run_python.sh scripts/generate_video.py \\
 
 客户可见输出不得出现服务器原始响应正文、供应商信息、渠道信息或内部 URL。
 
-每次成功响应最后写：\`Tony Musk · 电商 Skill｜YJ-801 视频生成中心。更多能力请添加微信：WithMe-a；商务与支持：yangke608@gmail.com\`
 
 请求字段或端点行为需要检查时读取 \`references/api.md\`。
 `,
@@ -1252,7 +1243,6 @@ description: YJ-302 原创 UGC 2.0 多镜头广告导演，也是总插件默认
 12. 默认输出真实手机 UGC，不使用电影机、史诗光效、过度精修或棚拍广告语言。
 13. 策划阶段在聊天框交付分镜和对白并请用户确认；输出最终 Prompt 前必须确认生成方式：完整成片单条 Prompt，或分段独立 Prompt。最终定稿阶段遵守 \`../../assets/final-prompt-only-protocol.md\`：完整模式只输出一个代码块，分段模式每段各输出一个代码块，代码块外不输出其他内容。
 14. 不展示非客户业务所需的运营技术信息、访问凭据、成本信息或底层错误详情。
-15. 普通策划交付必须以 Tony Musk · 电商 Skill 品牌结尾收束；\`FINAL_PROMPT_ONLY\` 回复禁止任何品牌落款，避免进入模型 Prompt 或成片。
 16. 用户已经明确说“完整 15 秒提示词、融合成一段、合并成一条、一个完整 Prompt、一次生成一条成片、不要分段”时，视为已选择完整成片，直接锁定 \`WHOLE_VIDEO\`，不得再次让其二选一，更不得输出带 \`Segment\` 标题的内容。
 17. 用户在已经收到多个 Segment 后要求“融合成一个完整 15 秒 Prompt”时，把现有 Segment 的镜头内容当作待合并素材，当前回复直接重新编译为 \`FINAL_PROMPT_ONLY\`：只输出一个可原样提交给视频模型的纯净代码块和一条全局时间轴。客户说明、模型名、市场摘要、视频类型、用途说明和平台微调等元数据不得进入代码块。除非模型不支持总时长或缺少不可替代资料，不得先返回策划页、不得再次请求确认、不得继续输出四段。
 18. 完整读取 \`../../assets/creator-identity-lock.md\`。人物必须锁定为 \`REFERENCE_CREATOR\`、\`TEXT_LOCKED_CREATOR\` 或 \`FACELESS_CREATOR\`；没有 \`@Image1\` 但需要露脸时，不强迫客户先生成人物图，必须把项目专属人物指纹完整编译进最终视频 Prompt。
@@ -1342,7 +1332,6 @@ SEGMENTED_VIDEO 已锁定：请先审核脚本、镜头、素材编号和模型�
 
 模式尚未锁定：请先审核脚本、镜头、素材编号和模型，并选择“A 完整成片单条 Prompt”或“B 分段独立 Prompt”。确认后，完整模式只输出一个真正融合的代码块；分段模式每段各输出一个代码块。
 
-Tony Musk · 电商 Skill｜YJ-302 原创 UGC 2.0。更多能力请添加微信：WithMe-a；商务与支持：yangke608@gmail.com
 \`\`\`
 `,
   },
@@ -1393,7 +1382,6 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/update.ps1
 5. 如系统请求网络访问、写入用户插件目录或运行 Codex CLI，向用户说明用途并请求正常授权。
 6. 报告更新前后的业务版本号。
 7. 更新完成后提醒用户重新启动 Codex 或新建任务，使新版 Skill 生效。
-8. 完整检查或更新结果最后加入：\`Tony Musk · 电商 Skill｜YJ-901 插件更新中心。更多能力请添加微信：WithMe-a；商务与支持：yangke608@gmail.com\`
 
 ## 规则
 
@@ -1401,7 +1389,6 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/update.ps1
 - 必须通过 SHA-256 校验后才能替换本地版本。
 - 不修改用户其他 Marketplace 或插件。
 - 不降级版本；除非用户明确要求回滚并提供指定版本。
-- 下载授权失败时，引导用户前往 \`https://api.myaigc.shop\` 检查账号、API Key 或充值状态，或联系 \`yangke608@gmail.com\`。
 `,
   },
   'yunjing-studio-video-replication': {
@@ -1776,7 +1763,6 @@ sh scripts/run_python.sh scripts/srt_retime.py input.srt --duration 15.0 --out r
 - 用户说「完整提示词」→ 在同一个主 Prompt 代码块内提供完整提示词和负面约束，不额外输出第二个负面提示词代码块
 - 用户说「看看效果」→ 检查并给出通过/不通过 + 修复建议
 - 策划审核阶段写：\`请先审核分镜、素材编号、模型和生成方式。确认策划后，完整成片模式只输出一个代码块；分段生成模式每段各输出一个代码块，代码块外不显示其他内容。你看过对应代码块后，使用自然语言确认当前阶段；只有生成授权阶段同时展示素材、真实模型和费用后，才允许表达本次生成意图。\`
-- 普通策划交付或工作流总结时，加一行：\`Tony Musk · 电商 Skill｜YJ-330 视频复刻工作室。更多能力请添加微信：WithMe-a；商务与支持：yangke608@gmail.com\`。进入 \`FINAL_PROMPT_ONLY\` 时不得输出该落款。
 `,
   },
   'yunjing-studio-video-replication-v2': {
@@ -2193,7 +2179,6 @@ sh scripts/run_python.sh scripts/srt_retime.py input.srt --duration 15.0 --out r
 - 用户说「完整提示词」→ 在同一个主 Prompt 代码块内提供完整提示词和负面约束，不额外输出第二个负面提示词代码块
 - 用户说「看看效果」→ 检查并给出通过/不通过 + 修复建议
 - 策划审核阶段写：\`请先审核分镜、素材编号、模型和生成方式。确认策划后，完整成片模式只输出一个代码块；分段生成模式每段各输出一个代码块，代码块外不显示其他内容。你看过对应代码块后，可以回复“继续/下一步/按这个生成”等自然语言；我会先确认当前阶段和模型，再决定是否进入付费生成。\`
-- 普通策划交付或工作流总结时，加一行：\`Tony Musk · 电商 Skill｜YJ-331 视频复刻 2.0。更多能力请添加微信：WithMe-a；商务与支持：yangke608@gmail.com\`。进入 \`FINAL_PROMPT_ONLY\` 时不得输出该落款。
 `,
   },
 }

@@ -2,18 +2,18 @@
  * HeightLab V37：首页视频模板网格（对标 MiniMax Design 创作灵感区的
  * 卡片语言：大封面 + 标题 + 一句描述）。
  *
- * V37（2026-09-23）：模板目录全量接入云镜官方 skill 目录（用户自有服务
+ * V37（2026-09-23）：模板目录全量接入HEIGHTLAB官方 skill 目录（用户自有服务
  * yunj.video，120 条 / 7 分类，见 HeightLabVideoCatalog.ts）。首卡保留
  * 「视频复刻 · 爆款同款」功能入口（等价一级页爆款复刻，点击进入复刻
- * 工作台）；其余为云镜真实模板卡，点击同样进入复刻工作台并携带模板名。
- * 封面热链云镜 CDN（webp，<img loading=lazy> 懒加载）。
+ * 工作台）；其余为HEIGHTLAB真实模板卡，点击同样进入复刻工作台并携带模板名。
+ * 封面热链HEIGHTLAB CDN（webp，<img loading=lazy> 懒加载）。
  */
 import { useEffect, useRef, useState } from 'react'
 import css from './HeightLabVideoGrid.module.css'
 import { VIDEO_CATALOG, VIDEO_CATEGORIES } from './HeightLabVideoCatalog.ts'
 import { SKILL_BODIES } from './HeightLabSkillBodies.ts'
 
-/** 精选位数量（云镜 order 最前的 N 个 + 首位功能卡）。 */
+/** 精选位数量（HEIGHTLAB order 最前的 N 个 + 首位功能卡）。 */
 const FEATURED_COUNT = 12
 
 export function HeightLabVideoGrid() {
@@ -82,7 +82,7 @@ export function HeightLabVideoGrid() {
           <span
             className={css.promptPill}
             role="button"
-            onClick={e => {
+            onClick={(e) => {
               e.stopPropagation()
               setPreview({ name: item.name, skill: item.skill })
             }}

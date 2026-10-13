@@ -47,7 +47,7 @@ export const REPLICATION_GROUPS: Array<{ title: string; chips: RepChip[] }> = [
   {
     title: '复刻方式',
     chips: [
-      { label: '分镜驱动（云镜原版）', kind: 'mode', value: 'storyboard' },
+      { label: '分镜驱动', kind: 'mode', value: 'storyboard' },
       { label: '像素复刻（贴原片）', kind: 'mode', value: 'pixel' },
     ],
   },

@@ -328,7 +328,7 @@ export const TEMPLATE_CARDS: Record<TemplateCategory, Recommendation[]> = {
 }
 
 // HeightLab 2026-09-17（模板升级 P1，用户拍板）：原示例模板全部为占位、并未
-// 真正生效——全部下架；首个真实模板「视频复刻」上架（skill 包：云镜
+// 真正生效——全部下架；首个真实模板「视频复刻」上架（skill 包：HEIGHTLAB
 // YJ-331 视频复刻 2.0，源文件见 .claude/research/yunj-plugin/）。后续模板
 // 按 skill 包逐个上架，不上架的不显示。
 for (const key of Object.keys(TEMPLATE_CARDS) as TemplateCategory[]) {

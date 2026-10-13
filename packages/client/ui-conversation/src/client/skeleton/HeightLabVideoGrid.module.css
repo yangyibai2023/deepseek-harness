@@ -111,7 +111,7 @@
   user-select: none;
 }
 
-/* V37：云镜模板卡封面图（热链 CDN，懒加载），铺满封面区。 */
+/* V37：HEIGHTLAB模板卡封面图（热链 CDN，懒加载），铺满封面区。 */
 .coverImg {
   position: absolute;
   inset: 0;
