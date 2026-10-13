@@ -30,7 +30,7 @@ description: YJ-320 类型模板视频导演。用户输入 YJ-320、YJ-320-01 �
 
 1. 第一次正式回复必须先确定视频模板。用户未指定模板时，展示 \`references/template-menu.md\`；即使已经上传产品图，也不要先问国家、语言或模型。
 2. 菜单必须按 A–H 分区，并在每个表格中从左到右、从上到下连续显示 01–45，不得显示跳号的旧编号。
-3. \`[TOP]\` 代表原创 UGC 2.0。用户选择 TOP 时转到 \`yunjing-studio-ugc-2\`，不要继续执行模板问诊；经典 UGC 1.0 使用 \`YJ-301\`。
+3. \`[TOP]\` 代表原创 UGC 2.0。用户选择 TOP 时转到 \`heightlab-studio-ugc-2\`，不要继续执行模板问诊；经典 UGC 1.0 使用 \`YJ-301\`。
 4. 客户看到的新编号通过 \`references/menu-number-map.json\` 映射到 \`prompt-catalog.json\` 的旧版来源编号与模板 ID。
 5. 用户已经给出有效新编号、\`YJ-320-01\` 至 \`YJ-320-45\` 子编号或清晰模板名称时，跳过菜单；完整子编号先提取末尾两位模板号，再进入一次性问诊表。
 6. 模板确定后读取 \`references/template-intake.md\`，把通用问题和模板专项问题合并成一张表，一次问完。
@@ -120,11 +120,11 @@ description: YJ-320 类型模板视频导演。用户输入 YJ-320、YJ-320-01 �
 \`\`\`
 `,
   },
-  'yunjing-studio-brand-strategy': {
-    dir: 'yunjing-studio-brand-strategy',
+  'heightlab-studio-brand-strategy': {
+    dir: 'heightlab-studio-brand-strategy',
     title: '品牌策略',
     body: `---
-name: yunjing-studio-brand-strategy
+name: heightlab-studio-brand-strategy
 description: YJ-101 品牌策略中心，将 Brand DNA、Brand Voice 和 ICP/Persona 合并为可复用品牌上下文。用户输入 YJ-101、YJ-101-DNA、YJ-101-VOICE、YJ-101-ICP，或提出品牌定位、品牌语气、目标客户、市场定位、品牌档案和 claims 约束时使用；为 UGC、图片广告、详情页、VOC、Hook、Creative Brief 和 Meta 投后优化提供统一事实与受众基础，默认在聊天框交付。
 ---
 
@@ -215,11 +215,11 @@ description: YJ-101 品牌策略中心，将 Brand DNA、Brand Voice 和 ICP/Per
 \`\`\`
 `,
   },
-  'yunjing-studio-customer-insight': {
-    dir: 'yunjing-studio-customer-insight',
+  'heightlab-studio-customer-insight': {
+    dir: 'heightlab-studio-customer-insight',
     title: '客户洞察',
     body: `---
-name: yunjing-studio-customer-insight
+name: heightlab-studio-customer-insight
 description: YJ-201 客户洞察与创意引擎。用户输入 YJ-201、YJ-201-VOC、YJ-201-HOOK、YJ-201-BRIEF、YJ-201-RESEARCH，或要求分析评论、VOC、痛点、异议、广告 Hook、Creative Brief、竞品广告抽象结构和原创创意变体时使用。把用户提供的评论、问卷、客服记录、广告样本、字幕、截图或研究摘要转成可追溯洞察并交给 UGC、图片广告或 Meta 优化；不自动抓取外部数据。
 ---
 
@@ -352,11 +352,11 @@ ownership | ad_use_permission | evidence_strength | notes
 \`\`\`
 `,
   },
-  'yunjing-studio-detail-page-director': {
-    dir: 'yunjing-studio-detail-page-director',
+  'heightlab-studio-detail-page-director': {
+    dir: 'heightlab-studio-detail-page-director',
     title: '商品详情页导演',
     body: `---
-name: yunjing-studio-detail-page-director
+name: heightlab-studio-detail-page-director
 description: YJ-402 十三套电商详情页结构 Prompt 导演。用户输入 YJ-402、YJ-402-01 至 YJ-402-13，或要求商品白底主图、卖点信息图、多角度展示、生活方式图、包装细节、组件结构、宽幅详情页、使用场景、卖点矩阵、成分材质、属性指南、使用步骤和品牌收尾图时使用。先按 01–13 选择页面结构，再基于商品图和已验证资料输出逐张可复制图片 Prompt；只输出 Prompt，不自动调用图片生成服务。
 ---
 
@@ -452,11 +452,11 @@ Avoid: ...
 \`\`\`
 `,
   },
-  'yunjing-studio-ecommerce-images': {
-    dir: 'yunjing-studio-ecommerce-images',
+  'heightlab-studio-ecommerce-images': {
+    dir: 'heightlab-studio-ecommerce-images',
     title: '电商图片创作',
     body: `---
-name: yunjing-studio-ecommerce-images
+name: heightlab-studio-ecommerce-images
 description: YJ-401 电商图片工作室。用户输入 YJ-401、YJ-401-01 至 YJ-401-07，或要求原创商品主图/详情图、对标复刻、商品模特图、服装试穿换装、商业海报、图片改字和自定义批量出图时使用。先选择七种工作模式，再一次收齐图片、文案、语言、比例、质量和数量；有生图能力时完整生成，无生图能力时输出逐张 Prompt。
 ---
 
@@ -503,11 +503,11 @@ description: YJ-401 电商图片工作室。用户输入 YJ-401、YJ-401-01 至 
 批量图保持产品一致；模特图与换装图保持人物、发型、妆感、场景和光线一致。
 `,
   },
-  'yunjing-studio-meta-optimizer': {
-    dir: 'yunjing-studio-meta-optimizer',
+  'heightlab-studio-meta-optimizer': {
+    dir: 'heightlab-studio-meta-optimizer',
     title: '投放优化',
     body: `---
-name: yunjing-studio-meta-optimizer
+name: heightlab-studio-meta-optimizer
 description: YJ-501  Meta 投后优化。用户输入 YJ-501，或明确要求分析 Meta/Facebook/Instagram Ads 数据、计算 CTR/CPC/CPM/CPA/ROAS/Hook Rate/Hold Rate、判断素材疲劳或完成投后复盘时使用。CSV、Excel、表格或 JSON 只是素材，单独上传且未说明分析目标时先由总入口询问用途。完成字段映射、数据质量检查、指标计算、素材分层比较和下一轮 Hook、UGC、静态广告与 Creative Brief 建议；默认只分析用户提供的数据，不连接 Meta API。
 ---
 
@@ -628,11 +628,11 @@ description: YJ-501  Meta 投后优化。用户输入 YJ-501，或明确要求�
 \`\`\`
 `,
   },
-  'yunjing-studio-original-ugc': {
-    dir: 'yunjing-studio-original-ugc',
+  'heightlab-studio-original-ugc': {
+    dir: 'heightlab-studio-original-ugc',
     title: '原创 UGC 1.0',
     body: `---
-name: yunjing-studio-original-ugc
+name: heightlab-studio-original-ugc
 description: YJ-301 原创 UGC 1.0 经典导演。用户输入 YJ-301、UGC 1.0、UGC1、经典 UGC 或希望快速获得精简广告结构、Hook、口播、B-roll、分镜、参考图和适配 Seedance/Veo/可灵/Grok 的标准 Prompt 时使用。一次收集完整资料并输出精简可执行方案；普通“UGC”请求由总入口同时提供 YJ-301 与 YJ-302 选择。
 ---
 
@@ -652,8 +652,8 @@ description: YJ-301 原创 UGC 1.0 经典导演。用户输入 YJ-301、UGC 1.0�
 8. 默认生成像真实手机拍摄的 UGC，不使用电影机、史诗光效或夸张广告片语言。
 9. 默认只给 3 个最优 Hook、1 套最终口播和 6 个关键 B-roll，避免交付过长。用户要求“详细版”时再扩展到 10 个 Hook 和 3 版口播。
 10. 读取 \`references/ugc-production-reference.md\` 获取平台时长、拍摄风格、场景、口播和 B-roll 规则；读取 \`../../assets/creator-identity-lock.md\` 选择并执行人物模式。
-11. 根据生成方式只读取一个母版：完整成片使用 \`../yunjing-studio-ugc-2/references/whole-video-prompt-master.md\`；分段生成使用 \`../yunjing-studio-ugc-2/references/original-segment-prompt-master.md\`。两套结构不得混用。客户明确要求“完整 15 秒、融合成一段、合并成一条、一个完整 Prompt、一次生成一条成片、不要分段”时直接锁定完整成片母版。
-12. 遵守 \`../../assets/final-prompt-only-protocol.md\`。策划审核时先确认完整成片或分段生成；完整模式输出一个 Prompt 代码块，分段模式每段输出一个独立代码块。客户看过对应代码块并再次确认具体模型后，才交给 \`yunjing-studio-sd2-generate\`。
+11. 根据生成方式只读取一个母版：完整成片使用 \`../heightlab-studio-ugc-2/references/whole-video-prompt-master.md\`；分段生成使用 \`../heightlab-studio-ugc-2/references/original-segment-prompt-master.md\`。两套结构不得混用。客户明确要求“完整 15 秒、融合成一段、合并成一条、一个完整 Prompt、一次生成一条成片、不要分段”时直接锁定完整成片母版。
+12. 遵守 \`../../assets/final-prompt-only-protocol.md\`。策划审核时先确认完整成片或分段生成；完整模式输出一个 Prompt 代码块，分段模式每段输出一个独立代码块。客户看过对应代码块并再次确认具体模型后，才交给 \`heightlab-studio-sd2-generate\`。
 13. 用户已经用“完整、融合、合并、一条、一次成片、不要分段”等表达明确选择完整成片时，不再询问第 4 项，直接锁定 \`WHOLE_VIDEO\`；最终代码块内禁止出现 \`Segment\`、多套 Prompt 头、重复 Audio 或任务元数据标签。
 14. 用户在已经收到多个 Segment 后明确要求融合成完整成片时，直接把现有镜头内容重新编译为一个可原样提交给视频模型的 \`FINAL_PROMPT_ONLY\` 纯净代码块。除非模型不支持总时长或仍缺不可替代资料，不返回策划页、不重复确认，也不保留任何 Segment、模型名、市场摘要或客户说明。
 
@@ -710,11 +710,11 @@ description: YJ-301 原创 UGC 1.0 经典导演。用户输入 YJ-301、UGC 1.0�
 
 `,
   },
-  'yunjing-studio-router': {
-    dir: 'yunjing-studio-router',
+  'heightlab-studio-router': {
+    dir: 'heightlab-studio-router',
     title: '模板路由（视频创意模板总控）',
     body: `---
-name: yunjing-studio-router
+name: heightlab-studio-router
 description: YJ-000  AIGC 创作总插件唯一智能入口。用于判断用户是明确提出最终目标、只艾特或打开插件、提出模糊需求，还是只上传了尚未说明用途的图片、视频、表格、评论或品牌资料；随后在“直接进入专业 Skill、显示与素材相关的 2–4 项小菜单、显示可扩展的一级结果菜单”之间选择。用户输入 YJ 编号、功能名称、业务目标、上传未分配用途的素材、不知道该选什么，或只调用插件而没有说明需求时使用。目标明确时直接开始对应流程，不重复展示菜单；附件本身不得被当作业务意图。
 ---
 
@@ -942,14 +942,14 @@ CREATOR_STATE
 
 ### 只说“广告优化”
 
-- 有 Meta/Facebook/Instagram 数据，或询问 CTR、CPA、ROAS、Hook Rate、Hold Rate：进入 \`yunjing-studio-meta-optimizer\`。
-- 没有投放数据，要找评论洞察、Hook、广告角度或 Creative Brief：进入 \`yunjing-studio-customer-insight\`。
+- 有 Meta/Facebook/Instagram 数据，或询问 CTR、CPA、ROAS、Hook Rate、Hold Rate：进入 \`heightlab-studio-meta-optimizer\`。
+- 没有投放数据，要找评论洞察、Hook、广告角度或 Creative Brief：进入 \`heightlab-studio-customer-insight\`。
 - 两者都不明确时，只问一次二选一，不展示总菜单。
 
 ### 只说“广告脚本”
 
-- 要研究评论、选择角度、写 Hook 或 Brief：进入 \`yunjing-studio-customer-insight\`。
-- 要真人 UGC 成片脚本、分镜、对白或模型 Prompt：进入 \`yunjing-studio-ugc-2\`。
+- 要研究评论、选择角度、写 Hook 或 Brief：进入 \`heightlab-studio-customer-insight\`。
+- 要真人 UGC 成片脚本、分镜、对白或模型 Prompt：进入 \`heightlab-studio-ugc-2\`。
 
 ## 多阶段任务
 
@@ -967,18 +967,18 @@ YJ-101 品牌事实 / Voice / ICP
 
 ## 专业功能映射
 
-- \`YJ-101\` → \`$yunjing-studio-brand-strategy\`。
-- \`YJ-201\` → \`$yunjing-studio-customer-insight\`。
-- \`YJ-301\` → \`$yunjing-studio-original-ugc\`。
-- \`YJ-302\` → \`$yunjing-studio-ugc-2\`，默认 TOP 原创 UGC。
+- \`YJ-101\` → \`$heightlab-studio-brand-strategy\`。
+- \`YJ-201\` → \`$heightlab-studio-customer-insight\`。
+- \`YJ-301\` → \`$heightlab-studio-original-ugc\`。
+- \`YJ-302\` → \`$heightlab-studio-ugc-2\`，默认 TOP 原创 UGC。
 - \`YJ-320\` → \`$global-video-prompt-director\`。
-- \`YJ-330\` → \`$yunjing-studio-video-replication\`，视频复刻 1.0 经典版。
-- \`YJ-331\` → \`$yunjing-studio-video-replication-v2\`，视频复刻 2.0 增强版。
-- \`YJ-401\` → \`$yunjing-studio-ecommerce-images\`。
-- \`YJ-402\` → \`$yunjing-studio-detail-page-director\`。
-- \`YJ-501\` → \`$yunjing-studio-meta-optimizer\`。
-- \`YJ-801\` → \`$yunjing-studio-sd2-generate\`，统一多模型视频生成中心，只处理已经完成最终 Prompt 审核、模型确认与付费确认的任务。
-- \`YJ-901\` → \`$yunjing-studio-updater\`。
+- \`YJ-330\` → \`$heightlab-studio-video-replication\`，视频复刻 1.0 经典版。
+- \`YJ-331\` → \`$heightlab-studio-video-replication-v2\`，视频复刻 2.0 增强版。
+- \`YJ-401\` → \`$heightlab-studio-ecommerce-images\`。
+- \`YJ-402\` → \`$heightlab-studio-detail-page-director\`。
+- \`YJ-501\` → \`$heightlab-studio-meta-optimizer\`。
+- \`YJ-801\` → \`$heightlab-studio-sd2-generate\`，统一多模型视频生成中心，只处理已经完成最终 Prompt 审核、模型确认与付费确认的任务。
+- \`YJ-901\` → \`$heightlab-studio-updater\`。
 
 ## 付费生成审批门
 
@@ -1006,11 +1006,11 @@ YJ-101 品牌事实 / Voice / ICP
 \`\`\`
 `,
   },
-  'yunjing-studio-sd2-generate': {
-    dir: 'yunjing-studio-sd2-generate',
+  'heightlab-studio-sd2-generate': {
+    dir: 'heightlab-studio-sd2-generate',
     title: 'SD2 视频渠道',
     body: `---
-name: yunjing-studio-sd2-generate
+name: heightlab-studio-sd2-generate
 description: YJ-801 统一多模型视频生成中心。仅用于客户已经看过最终 Prompt、确认实际参考素材清单、真实模型、时长、比例和费用，并在 GENERATION_AUTH_PENDING 阶段用自然语言表达本次一次性生成意图后，实时核对 API 可用视频模型，通过同一套安全脚本上传共享参考素材、选择真实模型 ID、创建一次任务、轮询、下载和验证 MP4。缺少授权文件、素材策略或实际参考图时必须在付费创建前停止；支持恢复同一 task_id，禁止自动重复付费创建。
 ---
 
@@ -1213,11 +1213,11 @@ sh scripts/run_python.sh scripts/generate_video.py \\
 请求字段或端点行为需要检查时读取 \`references/api.md\`。
 `,
   },
-  'yunjing-studio-ugc-2': {
-    dir: 'yunjing-studio-ugc-2',
+  'heightlab-studio-ugc-2': {
+    dir: 'heightlab-studio-ugc-2',
     title: '原创 UGC 2.0',
     body: `---
-name: yunjing-studio-ugc-2
+name: heightlab-studio-ugc-2
 description: YJ-302 原创 UGC 2.0 多镜头广告导演，也是总插件默认 TOP UGC 路线。用户输入 YJ-302、UGC 2.0、UGC2、智能分镜、多镜头 UGC，或要求真人测评、开箱、手持展示、生活方式、痛点解决、TikTok/Reels/Meta 视频、分镜对白和可复制 Prompt 时使用。把人物、背景、产品和品牌证据转成按叙事节拍分段、逐镜单动作、跨镜连续且适配 Seedance 等模型的真实手机 UGC；只负责聊天内策划与 Prompt，不自动创建付费任务。
 ---
 
@@ -1335,11 +1335,11 @@ SEGMENTED_VIDEO 已锁定：请先审核脚本、镜头、素材编号和模型�
 \`\`\`
 `,
   },
-  'yunjing-studio-updater': {
-    dir: 'yunjing-studio-updater',
+  'heightlab-studio-updater': {
+    dir: 'heightlab-studio-updater',
     title: '插件更新',
     body: `---
-name: yunjing-studio-updater
+name: heightlab-studio-updater
 description: YJ-901 插件更新中心。用于检查、安装或更新 Codex 私有总插件；用户输入 YJ-901、帮我更新插件、检查更新、升级插件、安装最新版，或询问当前插件版本时使用。支持 macOS 和 Windows，并通过官方发布服务下载与校验。
 ---
 
@@ -1391,11 +1391,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/update.ps1
 - 不降级版本；除非用户明确要求回滚并提供指定版本。
 `,
   },
-  'yunjing-studio-video-replication': {
-    dir: 'yunjing-studio-video-replication',
+  'heightlab-studio-video-replication': {
+    dir: 'heightlab-studio-video-replication',
     title: '视频复刻 V1',
     body: `---
-name: yunjing-studio-video-replication
+name: heightlab-studio-video-replication
 description: YJ-330 视频复刻 1.0 经典工作室。用户输入 YJ-330、明确选择视频复刻 1.0，或在总路由完成参考视频分析后选择经典版时使用。完成固定时间抽帧、真实 ASR 字幕、主体与场景替换、分镜改版确认、Seedance/Veo/即梦/Grok Prompt、按实时模型上限分段和按需成片检查；依赖缺失时先一次列齐，取得客户同意后自动安装。只说“视频复刻”但没有参考视频时不得进入本 Skill。
 ---
 
@@ -1765,11 +1765,11 @@ sh scripts/run_python.sh scripts/srt_retime.py input.srt --duration 15.0 --out r
 - 策划审核阶段写：\`请先审核分镜、素材编号、模型和生成方式。确认策划后，完整成片模式只输出一个代码块；分段生成模式每段各输出一个代码块，代码块外不显示其他内容。你看过对应代码块后，使用自然语言确认当前阶段；只有生成授权阶段同时展示素材、真实模型和费用后，才允许表达本次生成意图。\`
 `,
   },
-  'yunjing-studio-video-replication-v2': {
-    dir: 'yunjing-studio-video-replication-v2',
+  'heightlab-studio-video-replication-v2': {
+    dir: 'heightlab-studio-video-replication-v2',
     title: '视频复刻 V2',
     body: `---
-name: yunjing-studio-video-replication-v2
+name: heightlab-studio-video-replication-v2
 description: YJ-331 视频复刻 2.0 增强工作室。用户输入 YJ-331、明确选择视频复刻 2.0，或在总路由完成参考视频分析后选择增强版时使用。先接收并分析原始参考视频，再完成固定时间线加 OpenCV 场景检测、每镜头首中尾帧、真实 ASR 字幕、原始与替换双 Prompt、人物文字锁定、主体与场景替换、分镜改版确认、按实时模型能力分段；生成视频必须等待客户明确授权，成片默认快速交付、深度检查按需进行。依赖缺失时先一次列齐，取得客户同意后自动安装。只说“视频复刻”但没有参考视频时不得进入本 Skill。
 ---
 
