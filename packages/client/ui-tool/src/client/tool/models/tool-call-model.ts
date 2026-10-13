@@ -1,26 +1,30 @@
 /**
  * Pure row-model derivation for tool summary rows: variant classification,
  * one-line summary, expansion-time body input, and flattened result output
- * from the frozen call slice. Input material comes from the call ARGUMENTS;
- * output and error material from the settled result node. A supported terminal
+ * from the frozen call slice. Labels keep the call arguments; navigation,
+ * output, and errors use the settled result. A supported terminal
  * call gets its expanded body from `terminalCardModel` instead.
  */
-// The block union's defining home is runtime (fold-product types); this
-// contract only forwards it (type-definition authority stays with the layer
-// that produces the values).
-import type { ToolCallBlock, ToolResultNode } from '@deepseek-ai/dsh-client-ui-chat/client'
+import type { ToolArgs, ToolCallBlock, ToolResultNode } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { LocaleKeysOf } from '@deepseek-ai/dsh-client-ui-slots'
-import { abbreviateHomePath, relativizeToCwd } from '@deepseek-ai/dsh-util-workspace-path'
+import { abbreviateHomePath, isAbsoluteWorkspacePath, relativizeToCwd } from '@deepseek-ai/dsh-util-workspace-path'
+import { recordedAbsolutePath } from './recorded-path.ts'
 
 export type { ToolCallBlock } from '@deepseek-ai/dsh-client-ui-chat/client'
 
 /** Tool-call row variants selected by the generic atomic renderer. */
 export type ToolRowVariant = 'search' | 'read' | 'bash' | 'write' | 'edit' | 'code' | 'others'
 
-/** Row state semantic; colors self-supplied via StateDot (design gives none). */
-export type ToolRowState = 'running' | 'ok' | 'error' | 'stopped'
+/** Row lifecycle state used by summary styling and accessible status text. */
+export type ToolRowState = 'preparing' | 'running' | 'ok' | 'error' | 'stopped'
 
-type ToolTitleKey = Extract<LocaleKeysOf<'conversation'>, `tool.title.${string}`>
+/** Locale-neutral structured fact consumed only by the user-facing Tool row. */
+export interface AutoReviewDenial {
+  /** Raw persisted reviewer reason; display normalization happens at render time. */
+  reason: string | null
+}
+
+type ToolTitleKey = Extract<LocaleKeysOf<'conversation'>, `tool.title.${string}` | 'ask.rowTitle' | 'todo.rowTitle'>
 
 /** Locale key per generic row variant. */
 export const VARIANT_TITLE_KEYS = {
@@ -76,83 +80,45 @@ const TOOL_TITLE_KEYS: Record<string, ToolTitleKey> = {
   cordis_undefine: 'tool.title.removeCordis',
   pwsh: 'tool.title.pwsh',
   read_image: 'tool.title.readImage',
-}
-
-/** HeightLab：内部/平台工具名 → 用户友好中文（仅展示，不改模型可见名）。 */
-const HEIGHTLAB_TOOL_LABELS: Readonly<Record<string, string>> = {
-  validate_dsh_ui: '界面渲染',
-  subagent: '子任务',
-  subagent_fork: '分支子任务',
-  subagent_image: '图片制作专家',
-  subagent_content: '内容创作专家',
-  subagent_video: '视频制作专家',
-  subagent_research: '研究分析专家',
-  ask_user_question: '询问用户',
-  create_goal: '创建目标',
-  get_goal: '查看目标',
-  list_agents: '智能体列表',
-  interrupt_agent: '中断任务',
-  job_kill: '终止任务',
-  job_list: '任务列表',
-  job_output: '任务输出',
-  'mcp__heightlab-tools__heightlab_image_generate': '图片生成',
-  'mcp__heightlab-tools__heightlab_image_analyze': '图片理解',
-  'mcp__heightlab-tools__video_replication': '视频生成',
-  'mcp__heightlab-tools__heightlab_video_generate': '视频生成',
-  'mcp__heightlab-tools__video_edit': '视频剪辑',
-  'mcp__heightlab-tools__video_storyboard': '分镜故事板',
-  'mcp__heightlab-tools__talking_head_production': '数字人口播',
-  'mcp__heightlab-tools__heightlab_video_analyze': '视频分析',
-  'mcp__heightlab-tools__xiaohongshu_content': '小红书内容',
-  'mcp__heightlab-tools__xiaohongshu_copy': '小红书文案',
-  'mcp__heightlab-tools__xiaohongshu_extract': '小红书提取',
-  'mcp__heightlab-tools__douyin_video_analysis': '抖音视频分析',
-  'mcp__heightlab-tools__dydata_account_analysis': '账号数据分析',
-  'mcp__heightlab-tools__dydata_account_status': '账号状态',
-  'mcp__heightlab-tools__heightlab_live_search': '直播搜索',
-  'mcp__minimax__understand_image': '图片理解',
-}
-
-/** HeightLab：展示层脱敏（仅展示，不改模型可见内容/会话原文）。 */
-const MCP_TOOL_RE = /mcp__[A-Za-z0-9_]+__[A-Za-z0-9_]+/g
-const ABSOLUTE_PATH_RE = /(?:\/Users\/[^\s"')\]]+|\/home\/[^\s"')\]]+|\/private\/[^\s"')\]]+|\/var\/[^\s"')\]]+|\/tmp\/[^\s"')\]]+|[A-Za-z]:\\[^\s"')\]]+|~\/[^\s"')\]]+)/g
-const MODEL_NAME_RE = /(?:deepseek|gpt|claude|minimax|qwen|glm)-[a-z0-9._-]+/gi
-const DSH_HARNESS_RE = /\bDeepSeek Harness\b/gi
-const DSH_WORD_RE = /\b(?:cordis|harness)\b/gi
-const DSH_UI_RE = /\bdsh-ui\b/gi
-const DSH_PACKAGE_RE = /@deepseek-ai\/[a-z0-9-]+/gi
-
-function heightlabSanitizeInternal(text: string): string {
-  return text
-    .replace(MCP_TOOL_RE, full => HEIGHTLAB_TOOL_LABELS[full] ?? '平台工具')
-    .replace(ABSOLUTE_PATH_RE, '本地路径（已隐藏）')
-    .replace(MODEL_NAME_RE, '当前模型')
-    .replace(DSH_UI_RE, '界面')
-    .replace(DSH_PACKAGE_RE, '平台组件')
-    .replace(DSH_HARNESS_RE, 'HeightLab 平台')
-    .replace(DSH_WORD_RE, '平台')
-}
-
-/** HeightLab：错误原文脱敏，替换为友好中文（仅工具错误结果展示层）。 */
-function heightlabSanitizeErrorText(text: string): string {
-  let t = heightlabSanitizeInternal(text)
-  t = t.replace(
-    /Error: tools\.restrict\(\) names unknown global tool "[^"]+"; known global tools:[^"]*/g,
-    '工具配置错误：当前环境缺少所需工具，请稍后重试。',
-  )
-  t = t.replace(
-    /Error: cannot read "[^"]+" as an image:[^\n]*/gi,
-    '图片读取失败：当前模型不支持直接读取该图片，请使用支持图片的模型。',
-  )
-  t = t.replace(/Error: unknown tool "[^"]+"/gi, '调用失败：所需工具当前不可用。')
-  t = t.replace(/\binsufficient[\s_-]+(?:quota|balance|credits?)\b/i, '当前余额不足，请充值后继续使用。')
-  t = t.replace(/rate limit|too many requests|requests? too frequent/i, '请求过于频繁，请稍后重试。')
-  t = t.replace(/context length|maximum context|input exceeds|token limit/i, '内容超出模型可处理范围，请精简后重试。')
-  t = t.replace(/api key|authentication failed|unauthorized|invalid key/i, '服务鉴权失败，请稍后重试或重新登录。')
-  t = t.replace(/upstream|timed out|timeout|network error/i, '上游服务暂时不可用，请稍后重试。')
-  t = t.replace(/video_url is empty|not a douyin\.com URL|invalid URL/i, '链接无效，请检查输入后重试。')
-  t = t.replace(/\bError:/gi, '失败：')
-  return t
+  todo_write: 'todo.rowTitle',
+  ask_user_question: 'ask.rowTitle',
+  create_goal: 'tool.title.createGoal',
+  get_goal: 'tool.title.getGoal',
+  update_goal: 'tool.title.updateGoal',
+  schedule_create: 'tool.title.createSchedule',
+  schedule_list: 'tool.title.listSchedules',
+  schedule_delete: 'tool.title.deleteSchedule',
+  schedule_update: 'tool.title.updateSchedule',
+  cordis_inspect_list: 'tool.title.inspectProviders',
+  cordis_inspect_query: 'tool.title.queryRuntime',
+  cordis_inspect_self: 'tool.title.inspectPlugins',
+  workflow: 'tool.title.workflow',
+  ralph: 'tool.title.ralph',
+  session_event_read: 'tool.title.readEvent',
+  session_event_search: 'tool.title.searchEvents',
+  session_event_trace: 'tool.title.traceEvent',
+  session_search: 'tool.title.searchSessions',
+  session_trace: 'tool.title.traceSession',
+  list_subagent_models: 'tool.title.listModels',
+  subagent: 'tool.title.subagent',
+  list_agents: 'tool.title.listAgents',
+  send_message: 'tool.title.sendMessage',
+  interrupt_agent: 'tool.title.interruptAgent',
+  job_list: 'tool.title.listJobs',
+  job_output: 'tool.title.readJob',
+  job_kill: 'tool.title.killJob',
+  terminal_open: 'tool.title.openTerminal',
+  terminal_read: 'tool.title.readTerminal',
+  terminal_list: 'tool.title.listTerminals',
+  terminal_signal: 'tool.title.signalTerminal',
+  terminal_close: 'tool.title.closeTerminal',
+  lsp: 'tool.title.lsp',
+  spawn_teammate: 'tool.title.spawnTeammate',
+  team_task_create: 'tool.title.createTeamTask',
+  team_task_get: 'tool.title.getTeamTask',
+  team_task_update: 'tool.title.updateTeamTask',
+  team_task_list: 'tool.title.listTeamTasks',
+  wait_agent: 'tool.title.waitAgent',
 }
 
 /**
@@ -164,15 +130,25 @@ export function classifyTool(toolName: string): ToolRowVariant {
   return TOOL_VARIANTS[toolName] ?? 'others'
 }
 
+/**
+ * Select a tool-owned or generic title without reading arguments.
+ * @param toolName - wire tool name.
+ * @returns the localized title key.
+ */
+export function toolTitleKey(toolName: string): ToolTitleKey {
+  return TOOL_TITLE_KEYS[toolName] ?? VARIANT_TITLE_KEYS[classifyTool(toolName)]
+}
+
 /** Everything ToolRow needs, derived once from the frozen slice. */
 export interface ToolRowModel {
   variant: ToolRowVariant
   titleKey: ToolTitleKey
+  /** Generic rows retain the wire tool name; available arguments append their summary. */
   summary: string
   /**
-   * Filesystem path from args (`path` / `file_path`) when the row is a file
-   * tool; absent for URL reads and non-file tools. The chat view resolves
-   * relative values against the session cwd before opening.
+   * Operation-time absolute result path for file rows. Old results without
+   * location metadata retain their argument fallback; running relative paths
+   * stay unavailable until their result identifies the target.
    */
   filePath: string | undefined
   /** Original argument JSON retained for expansion-time body formatting. */
@@ -181,7 +157,18 @@ export interface ToolRowModel {
   output: string | null
   /** First line of the result text on an error row; null for every other state. */
   errorSummary: string | null
+  /** Structured Auto-review denial identity; null for every ordinary result. */
+  autoReviewDenial: AutoReviewDenial | null
   state: ToolRowState
+}
+
+function deriveAutoReviewDenial(block: ToolCallBlock): AutoReviewDenial | null {
+  if (!('kind' in block) || !block.isError) return null
+  const error = block.error
+  if (error?.name !== 'AutoReviewDeniedError' || error.code !== 'AUTO_REVIEW_DENIED') return null
+  // A durable record reaches this renderer without a type check on `reason`, so
+  // a non-string value degrades to the no-reason copy exactly as a missing one.
+  return { reason: typeof error.reason === 'string' ? error.reason : null }
 }
 
 /**
@@ -192,19 +179,13 @@ export interface ToolRowModel {
  * @returns the flattened result text (may be empty).
  */
 export function resultText(node: ToolResultNode): string {
-  const error = node.isError === true
   const parts: string[] = []
   for (const block of node.content) {
-    if (block.type === 'text') {
-      parts.push(error ? heightlabSanitizeErrorText(block.text) : block.text)
-    } else {
-      const text = JSON.stringify(block, null, 2)
-      parts.push(error ? heightlabSanitizeErrorText(text) : text)
-    }
+    if (block.type === 'text') parts.push(block.text)
+    else parts.push(JSON.stringify(block, null, 2))
   }
   if (parts.length === 0 && node.error !== undefined) {
-    const text = `${node.error.name}: ${node.error.code}`
-    parts.push(error ? heightlabSanitizeErrorText(text) : text)
+    parts.push(`${node.error.name}: ${node.error.code}`)
   }
   return parts.join('\n')
 }
@@ -213,7 +194,7 @@ function parseArgs(argsRaw: string): unknown {
   try {
     return JSON.parse(argsRaw)
   } catch {
-    // Non-JSON args (mid-stream truncation): summary/body fall back to the raw string.
+    // Non-JSON args (mid-stream truncation or a rejected call kept verbatim): summary/body fall back to the raw string.
     return undefined
   }
 }
@@ -248,7 +229,7 @@ function deriveSummary(variant: ToolRowVariant, argsRaw: string): string {
   if (typeof parsed !== 'object' || parsed === null) return firstLine(argsRaw)
   const args = parsed as Record<string, unknown>
   if (variant === 'search' && Array.isArray(args.queries)) {
-    const queries = args.queries.filter((query): query is string => typeof query === 'string' && query !== '')
+    const queries = args.queries.filter((query: unknown): query is string => typeof query === 'string' && query !== '')
     if (queries.length > 0) return queries.map(firstLine).join(', ')
   }
   const picked = pickString(args, SUMMARY_KEYS[variant])
@@ -264,6 +245,24 @@ const FILE_PATH_KEYS = ['path', 'file_path'] as const
 
 /** File-tool variants whose summary may be an openable workspace path. */
 const FILE_PATH_VARIANTS: ReadonlySet<ToolRowVariant> = new Set(['read', 'write', 'edit'])
+
+/**
+ * Summary material read the same way at every stage from the argument view: a
+ * complete `file_path` for file tools, otherwise the `description` text so far.
+ * Empty when the view carries neither, so the caller falls back to the raw text.
+ */
+function argumentSummary(
+  variant: ToolRowVariant, args: ToolArgs, cwd?: string, home?: string,
+): { summary: string; filePath: string | undefined } {
+  if (FILE_PATH_VARIANTS.has(variant)) {
+    const path = args.complete('file_path') ? args.text('file_path') : undefined
+    // Decoding text can discover an invalid escape and make complete() false.
+    const filePath = path !== undefined && path !== '' && args.complete('file_path') ? firstLine(path) : undefined
+    return { summary: filePath === undefined ? '' : abbreviateHomePath(relativizeToCwd(filePath, cwd), home), filePath }
+  }
+  const description = args.text('description')
+  return { summary: description === undefined ? '' : firstLine(description), filePath: undefined }
+}
 
 function deriveFilePath(variant: ToolRowVariant, argsRaw: string): string | undefined {
   if (!FILE_PATH_VARIANTS.has(variant)) return undefined
@@ -282,41 +281,44 @@ function deriveFilePath(variant: ToolRowVariant, argsRaw: string): string | unde
 export function formatToolBody(variant: ToolRowVariant, argsRaw: string): string | null {
   if (argsRaw === '') return null
   const parsed = parseArgs(argsRaw)
-  if (parsed === undefined) return heightlabSanitizeInternal(argsRaw)
+  if (parsed === undefined) return argsRaw
   // The code row's expanded body IS the program (monospace via the row's
   // variant styling), not the args JSON envelope around it.
   if (variant === 'code' && typeof parsed === 'object' && parsed !== null) {
     const code = (parsed as Record<string, unknown>).code
     if (typeof code === 'string' && code !== '') return code
   }
-  return heightlabSanitizeInternal(JSON.stringify(parsed, null, 2))
+  return JSON.stringify(parsed, null, 2)
 }
 
 /**
  * Derive the full row model from a frozen call slice.
  * @param toolName - wire tool name (dispatch-supplied; survives windowless results).
- * @param block - RunningToolCall or ToolResultNode off the snapshot caches.
+ * @param block - preparing call, dispatched call, or result from the snapshot.
  * @param cwd - session workspace root; workspace-rooted path summaries display relative to it.
  * @param home - host account home; a leftover POSIX home path displays as `~`.
  * @returns the row model.
  */
 export function toolRowModel(toolName: string, block: ToolCallBlock, cwd?: string, home?: string): ToolRowModel {
   const variant = classifyTool(toolName)
+  const titleKey = toolTitleKey(toolName)
   const done = 'kind' in block
-  const argsRaw = (done ? block.call?.argsRaw : block.argsRaw) ?? ''
-  const state: ToolRowState = !done ? 'running'
+  const argsRaw = done ? block.call?.argsRaw ?? '' : block.phase === 'start' ? block.argsRaw : null
+  const primary = argumentSummary(variant, block.args, cwd, home)
+  const argumentPath = primary.filePath ?? (argsRaw === null ? undefined : deriveFilePath(variant, argsRaw))
+  const recordedPath = done ? recordedAbsolutePath(block.meta, 'path') : undefined
+  const canUseArgumentPath = argumentPath !== undefined
+    && (isAbsoluteWorkspacePath(argumentPath) || done && !block.isError && block.parentCallId === undefined)
+  const filePath = argumentPath === undefined ? undefined
+    : recordedPath ?? (canUseArgumentPath ? argumentPath : undefined)
+  const state: ToolRowState = !done ? block.phase === 'preparing' ? 'preparing' : 'running'
     : block.error?.code === 'interrupted' ? 'stopped'
       : block.isError ? 'error' : 'ok'
-  const base = argsRaw === ''
-    ? block.callId
-    : abbreviateHomePath(relativizeToCwd(deriveSummary(variant, argsRaw), cwd), home)
-  const toolTitleKey = TOOL_TITLE_KEYS[toolName]
-  // Others keeps the static "Tool call" title (figma literal); the real tool
-  // name rides the mutable summary slot unless the tool owns a specific title.
-  // HeightLab：内部工具名映射为中文；未知工具只显示「已调用」，不露原始名/参数。
-  const summary = variant === 'others' && toolName !== '' && toolTitleKey === undefined
-    ? (HEIGHTLAB_TOOL_LABELS[toolName] ?? '已调用')
-    : base
+  // The argument view serves every stage; the raw text is the fallback when it carries nothing useful.
+  const base = primary.summary !== '' || argsRaw === null ? primary.summary
+    : argsRaw === '' ? block.callId
+      : abbreviateHomePath(relativizeToCwd(deriveSummary(variant, argsRaw), cwd), home)
+  const summary = [titleKey === 'tool.title.generic' ? toolName : '', base].filter(Boolean).join(' · ')
   // The empty string is "no text" for both derived result fields: a settled
   // call with blank content has nothing to expand, and a blank first line
   // would erase the collapsed error row's summary slot.
@@ -325,12 +327,13 @@ export function toolRowModel(toolName: string, block: ToolCallBlock, cwd?: strin
   const bodyRaw = argsRaw === '' ? null : argsRaw
   return {
     variant,
-    titleKey: toolTitleKey ?? VARIANT_TITLE_KEYS[variant],
+    titleKey,
     summary,
-    filePath: deriveFilePath(variant, argsRaw),
+    filePath,
     bodyRaw,
     output,
     errorSummary,
+    autoReviewDenial: deriveAutoReviewDenial(block),
     state,
   }
 }

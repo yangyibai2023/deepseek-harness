@@ -14,7 +14,7 @@ import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
 // error, so scope resolution goes through the sessions service (scopeOf
 // method) instead of the standalone helper.
 import type {
-  ISessions, PendingSubmissionAttachment, PendingSubmissionRetirement, SessionFace,
+  ISessions, PendingSubmissionRetirement, SessionFace,
 } from '@deepseek-ai/dsh-api-session-controller/client'
 import type {} from '@deepseek-ai/dsh-client-file-upload/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
@@ -22,9 +22,10 @@ import type { ImageMediaType } from '@deepseek-ai/dsh-attachment'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type {
-  ComposerAttachment, ComposerAudioAttachment, ComposerFileAttachment, ComposerImageAttachment, ComposerVideoAttachment, DraftFileUpload,
+  ComposerAttachment, ComposerFileAttachment, ComposerImageAttachment, DraftFileUpload,
 } from './contract/slots.ts'
-import type { QueueAction, QueueItemId } from './contract/queue.ts'
+import type { QueueAction } from '@deepseek-ai/dsh-api-session-controller/types'
+import type { MessageId } from '@deepseek-ai/dsh-llm/brand'
 import type { ComposerBlocks } from './contract/composer-blocks.ts'
 import type {
   DraftAttachmentId, DraftAttachmentSerializationResult, SessionInputResolver, SubmitAttachment, SubmitOutcome,
@@ -56,7 +57,7 @@ export interface IConversation {
    * @param action - requested queue operation.
    * @returns completion; converged QueueDock races resolve, while other failures reject.
    */
-  updateQueue(itemId: QueueItemId, action: QueueAction): Promise<void>
+  updateQueue(itemId: MessageId, action: QueueAction): Promise<void>
   /**
    * Cancel the scoped session's in-flight turn while preserving its pending Queue.
    * @returns completion; failures reject as in send.
@@ -77,31 +78,6 @@ function browserDraftAttachment(file: File): ComposerImageAttachment {
     previewUrl: URL.createObjectURL(file),
     file,
   }
-}
-
-/** HeightLab：create one browser-only video/audio draft descriptor; only its id enters input state. */
-function browserDraftMediaAttachment(file: File, kind: 'video' | 'audio'): ComposerVideoAttachment | ComposerAudioAttachment {
-  return kind === 'video'
-    ? { kind: 'video', id: randomUUID() as DraftAttachmentId, previewUrl: URL.createObjectURL(file), file }
-    : { kind: 'audio', id: randomUUID() as DraftAttachmentId, file }
-}
-
-/** Video-by-extension fallback for files with a generic/empty MIME type. */
-function isVideoName(name: string): boolean {
-  return /\.(mp4|webm|mov)$/i.test(name)
-}
-
-/** Audio-by-extension fallback for files with a generic/empty MIME type. */
-function isAudioName(name: string): boolean {
-  return /\.(mp3|wav|m4a|aac|ogg|opus|flac)$/i.test(name)
-}
-
-/** HeightLab：draft media kind by MIME with extension fallbacks (images gate upstream). */
-function draftKind(file: File): 'video' | 'audio' | 'file' {
-  const type = file.type
-  if (type.startsWith('video/') || isVideoName(file.name)) return 'video'
-  if (type.startsWith('audio/') || isAudioName(file.name)) return 'audio'
-  return 'file'
 }
 
 /**
@@ -217,7 +193,7 @@ export class ConversationController extends Service implements IConversation {
       this.fileUploadOperations.clear()
       this.fileUploadQueue.length = 0
       for (const attachment of this.draftAttachments.values()) {
-        if (attachment.kind === 'image' || attachment.kind === 'video') revokePreview(attachment.previewUrl)
+        if (attachment.kind === 'image') revokePreview(attachment.previewUrl)
       }
       this.draftAttachments.clear()
       this.fileUploads.set({})
@@ -269,37 +245,22 @@ export class ConversationController extends Service implements IConversation {
       }
       return upload
     }
-    // HeightLab：视频以图片分支回显（预览 URL 在位；chat 层按扩展名 video 化渲染），
-    // 音频无预览、不进回显（气泡只显文本），文件走上游回执回显。
-    const pendingAttachments: PendingSubmissionAttachment[] = attachments.flatMap((attachment): PendingSubmissionAttachment[] => {
-      if (attachment.kind === 'audio') return []
-      if (attachment.kind === 'image' || attachment.kind === 'video') {
-        return [{
-          type: 'image' as const,
-          value: {
-            previewUrl: attachment.previewUrl,
-            ...(attachment.file.name === '' ? {} : { name: attachment.file.name }),
-            ...(attachment.kind === 'image' && attachment.width !== undefined ? { width: attachment.width } : {}),
-            ...(attachment.kind === 'image' && attachment.height !== undefined ? { height: attachment.height } : {}),
-          },
-        }]
+    const pendingAttachments = attachments.map(attachment => attachment.kind === 'image'
+      ? {
+        type: 'image' as const,
+        value: {
+          previewUrl: attachment.previewUrl,
+          ...(attachment.file.name === '' ? {} : { name: attachment.file.name }),
+          ...(attachment.width === undefined ? {} : { width: attachment.width }),
+          ...(attachment.height === undefined ? {} : { height: attachment.height }),
+        },
       }
-      return [{ type: 'file' as const, value: uploadFor(attachment).file }]
-    })
-    const serializeAttachments = (): Promise<Parameters<SessionFace['prompt']>[0]> =>
-      Promise.all(
-        attachments.map(async (attachment) => {
-          // HeightLab 桥（2026-09-16 深夜）：图片**只发原生 image 块**（上游
-          // 同款；任何多模态模型原生直读）。不再附带本地路径标记文本——
-          // 它会在用户气泡里显示成第二条消息。参考图模式的路径取材改由
-          // 生成工具产物路径承担；视频/音频仍走宿主路径标记（专家取素材）。
-          if (attachment.kind === 'image') {
-            return [{ type: 'image' as const, ...await this.encodeImage(attachment.file) }]
-          }
-          if (attachment.kind !== 'file') return [await this.uploadMediaAsText(attachment.file)]
-          return [{ type: 'file' as const, receiptId: uploadFor(attachment).receiptId }]
-        }),
-      ).then(rows => rows.flat())
+      : { type: 'file' as const, value: uploadFor(attachment).file })
+    const serializeAttachments = (): Promise<Parameters<SessionFace['prompt']>[0]> => Promise.all(
+      attachments.map(async attachment => attachment.kind === 'image'
+        ? { type: 'image' as const, ...await this.encodeImage(attachment.file) }
+        : { type: 'file' as const, receiptId: uploadFor(attachment).receiptId }),
+    )
     const snapshot = session.getSnapshot()
     if (snapshot.subagent !== null) {
       const uploaded = await serializeAttachments()
@@ -351,14 +312,6 @@ export class ConversationController extends Service implements IConversation {
         const attachment = browserDraftAttachment(file)
         this.draftAttachments.set(attachment.id, attachment)
         probeDimensions(attachment)
-        return attachment
-      }
-      // HeightLab：视频/音频也是浏览器自持媒体草稿（发送时走宿主桥），
-      // 其余文件维持上游的后台上传文件草稿。
-      const mediaKind = draftKind(file)
-      if (mediaKind !== 'file') {
-        const attachment = browserDraftMediaAttachment(file, mediaKind)
-        this.draftAttachments.set(attachment.id, attachment)
         return attachment
       }
       const attachment: ComposerFileAttachment = {
@@ -500,8 +453,6 @@ export class ConversationController extends Service implements IConversation {
     return {
       attachments: await Promise.all(attachments.map(async (attachment) => {
         if (attachment.kind === 'image') return { type: 'image' as const, ...await this.encodeImage(attachment.file) }
-        // HeightLab：视频/音频草稿不走命令回执管线（无后台回执，mediaKind 草稿
-        // 未 beginFileUpload）——声明接受附件的命令遇到媒体草稿在此自然报错。
         const upload = uploads[attachment.id]
         if (upload === undefined || upload.status !== 'ready') {
           throw new Error('conversation.serializeDraftAttachments: one or more files have not finished uploading')
@@ -541,7 +492,7 @@ export class ConversationController extends Service implements IConversation {
   }
 
   /** Apply one operation to a pending queue occurrence. */
-  async updateQueue(itemId: QueueItemId, action: QueueAction): Promise<void> {
+  async updateQueue(itemId: MessageId, action: QueueAction): Promise<void> {
     const session = this.scopedSession('updateQueue')
     const result = await session.updateQueue(itemId, action)
     if (!result.ok) {
@@ -615,54 +566,9 @@ export class ConversationController extends Service implements IConversation {
         continue
       }
       this.draftAttachments.delete(attachment.id)
-      if (attachment.kind === 'audio') continue
-      if (ref !== undefined && attachment.kind === 'image' && 'mediaType' in ref
+      if (ref !== undefined && 'mediaType' in ref
         && uiConversation?.seedImageUrl(sessionId, ref, attachment.previewUrl) === true) continue
       revokePreview(attachment.previewUrl)
-    }
-  }
-
-  /**
-   * HeightLab bridge: uploaded videos/audios are stored by the Host and
-   * referenced by local path in the message text (experts take them as
-   * source material, e.g. avatar clips). Images additionally send a native
-   * image block (DeepSeek multimodal reads it directly, 2026-09-16; the
-   * MiniMax analysis injection was retired) — the path marker stays so
-   * generation tools can use it as a reference-image path.
-   */
-  private async uploadMediaAsText(file: File): Promise<{ type: 'text'; text: string }> {
-    const isVideo = file.type.startsWith('video/') || isVideoName(file.name)
-    const isAudio = file.type.startsWith('audio/') || isAudioName(file.name)
-    const data = bytesToBase64(new Uint8Array(await file.arrayBuffer()))
-    const failed = (): { type: 'text'; text: string } => ({
-      type: 'text',
-      text: isVideo
-        ? '[用户上传了一个视频（上传失败）]'
-        : isAudio
-          ? '[用户上传了一段音频（上传失败）]'
-          : '[用户上传了一张图片（上传失败，无法分析）]',
-    })
-    try {
-      const uploadPath = isVideo ? '/hl/upload-video' : isAudio ? '/hl/upload-audio' : '/hl/upload-image'
-      const res = await fetch(uploadPath, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ data, mimeType: file.type, name: file.name }),
-      })
-      const result = await res.json()
-      if (result.ok && typeof result.path === 'string') {
-        return {
-          type: 'text',
-          text: isVideo
-            ? `[用户上传了一个视频，本地路径：${result.path}]`
-            : isAudio
-              ? `[用户上传了一段音频，本地路径：${result.path}]`
-              : `[用户上传了一张图片，本地路径：${result.path}]`,
-        }
-      }
-      return failed()
-    } catch {
-      return failed()
     }
   }
 
@@ -688,17 +594,12 @@ function imageMediaType(value: string): ImageMediaType {
   }
 }
 
-/** Whether a browser-declared MIME selects the image draft path (all other files upload verbatim). */
-function bytesToBase64(data: Uint8Array): string {
-  let binary = ''
-  const chunk = 0x8000
-  for (let i = 0; i < data.length; i += chunk) {
-    binary += String.fromCharCode(...data.subarray(i, i + chunk))
-  }
-  return btoa(binary)
-}
-
-function isImageMediaType(value: string): boolean {
+/**
+ * Whether a browser-declared MIME selects the image draft path (all other files upload verbatim).
+ * @param value - the browser's declared MIME type.
+ * @returns whether the file is an accepted raster image.
+ */
+export function isImageMediaType(value: string): boolean {
   return value === 'image/png' || value === 'image/jpeg' || value === 'image/webp' || value === 'image/gif'
 }
 

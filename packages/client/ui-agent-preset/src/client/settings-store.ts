@@ -111,6 +111,10 @@ export async function beginRosterRead<S extends { status: string; error: string 
  * @param presets - the roster the host answered with.
  * @returns one option per selectable preset, in roster order.
  */
+export function requiresCodingTools(preset: AgentPresetOption | undefined): boolean {
+  return preset !== undefined && isBuiltInPreset(preset) && (preset.id === 'ptc' || preset.id === 'minimal')
+}
+
 export function presetOptions(
   presets: readonly { id: string; trust: 'system' | 'user'; name?: string; description?: string; broken?: string }[],
 ): AgentPresetOption[] {

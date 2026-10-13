@@ -1,6 +1,7 @@
 /** Read-only Host plugin inventory registered into Web Settings. */
 
 import type {} from '@deepseek-ai/dsh-client-locale/client'
+import type {} from '@deepseek-ai/dsh-client-modules/client'
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
@@ -8,7 +9,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 // dictionaries the shipped-preset name resolution below reads.
 import type {} from '@deepseek-ai/dsh-client-ui-agent-preset/client'
 // Inline-safe shared fold: shipped ids map to dictionary keys in one home.
-import { presetDisplayText } from '@deepseek-ai/dsh-agent-presets/display'
+import { presetDisplayText } from '@deepseek-ai/dsh-agent-preset-registry/display'
 import { PluginInventorySettingsTab, type PluginInventorySettingsTabInjected } from './PluginInventorySettingsTab.tsx'
 import { en, mcpEn, mcpZh, zh, type MCPInventoryLocaleKey, type PluginInventoryLocaleKey } from './locales.ts'
 
@@ -94,7 +95,7 @@ function isUserInstalled(entry: { entryId: string; moduleName: string }): boolea
 }
 
 /** Services required by the Settings registration and generated Remote face. */
-export const inject = ['slots', 'locale', 'remote', 'remote.pluginInventory']
+export const inject = ['slots', 'locale', 'remote', 'remote.pluginInventory', 'modules']
 
 /** Contribute the lazy inventory tab to the Plugins settings section. */
 export function apply(ctx: ClientContext): void {
@@ -164,10 +165,7 @@ export function apply(ctx: ClientContext): void {
   })
   const mcpInjected = (): PluginInventorySettingsTabInjected => ({
     list: mcpList,
-    presetName,
     // MCP 标签页只显示用户自装条目，全部可管理。
-    canManage: () => true,
-    canDelete: () => true,
     copy: {
       loading: tMCP('loading'),
       error: tMCP('error'),
@@ -176,6 +174,9 @@ export function apply(ctx: ClientContext): void {
       empty: tMCP('empty'),
       emptySearch: tMCP('emptySearch'),
     },
+    resolveText: text => ctx.locale.resolveText(text),
+    hooks: { clientSync: ctx.modules.entries.state },
+    retryClient: () => { void ctx.modules.entries.retry().catch((error: unknown) => { ctx.logger.error(error) }) },
   })
 
   ctx.slots.inject('settings.plugins.tab', () => ctx.slots.register({

@@ -1,14 +1,13 @@
 /** Strict per-session header/body content inserted into the resident conversation layout. */
 
-import { useEffect } from 'react'
 import clsx from 'clsx'
 import type { SessionListState, SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {
   ConversationSessionHeaderSlotProps, ConversationSessionSlotProps,
 } from '../contract/slots.ts'
-import { conversationPhase } from '../contract/snapshot.ts'
 import { resolveActiveView } from '../view-selection.ts'
+import { DefaultConversationViews } from './DefaultConversationViews.tsx'
 import css from './ConversationRoot.module.css'
 
 /** Full props composed from the strict session body contract. */
@@ -54,63 +53,45 @@ function equalBreadcrumbs(left: readonly Breadcrumb[], right: readonly Breadcrum
 /**
  * Renders Session header chrome above the resident conversation scrollport.
  * @param props - Strict Session store, view ledger, navigation, render, and locale shares.
- * @returns the hidden blank-session header or visible title and tabs.
+ * @returns Session navigation controls, with title and tabs after conversation starts.
  */
 export function ConversationSessionHeader({
-  sessionId, useSession, useSessions, useConversation, useConversationViews, useStore,
+  sessionId, hideChrome, useSessions, useConversationViews, useStore,
   renderSlot, open, selectView, t,
 }: ConversationSessionHeaderProps) {
   const tabs = useConversationViews(value => value)
   const selectedId = useStore(s => s.view)
   const active = resolveActiveView(tabs, selectedId)
   const ancestry = useSessions(s => deriveAncestry(s, sessionId), equalBreadcrumbs)
-  // HeightLab V27：会话切换全局广播——右侧栏据此把创作工作台 tab 带到
-  // 当前会话（控制台 tab 按 会话 挂载，切会话需显式迁移/聚焦）。
-  // V29 埋点：广播发出事实落宿主日志（hlReplication.stage=broadcast），
-  // 与 ui-sidebar-right 的消费侧埋点对账定位断点。
-  useEffect(() => {
-    if (sessionId === undefined) return
-    window.dispatchEvent(new CustomEvent('hl:session-switched', { detail: { sessionId } }))
-    try {
-      void fetch('/hl/boot-marker', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ hlReplication: true, stage: 'broadcast', sessionId }),
-      }).catch(() => { /* 非致命 */ })
-    } catch { /* 非致命 */ }
-  }, [sessionId])
-  const session = useSession(s => s)
-  const conversation = useConversation(s => s)
-  const hideChrome = session.blank && conversationPhase(session, conversation) === 'blank'
-
+  const showTabs = !hideChrome && tabs.length > 1
   return (
-    <header
-      className={clsx(css.header, hideChrome && css.headerHidden)}
-      data-tauri-drag-region="deep"
-      data-hl-session-header=""
-      aria-hidden={hideChrome || undefined}
-    >
-      {!hideChrome && (
-        <>
-          <div className={css.titleRow}>
+    <>
+      <div className={css.titleRow}>
+        {!hideChrome && (
+          <>
             <div className={css.titleCluster}>
               <nav className={css.crumbs} aria-label={t('session.hierarchy')}>
                 {ancestry.map((summary, index) => {
                   const last = index === ancestry.length - 1
-                  const title = (
-                    <button
-                      type="button"
-                      className={clsx(
-                        css.crumb,
-                        summary.subagent && css.crumbSubagent,
-                        last && css.crumbCurrent,
-                      )}
-                      disabled={last}
-                      onClick={() => { open(summary.id) }}
-                    >
-                      {summary.displayTitle}
-                    </button>
-                  )
+                  // The current crumb has no navigation, so it is plain text
+                  // rather than a disabled button: on darwin desktop a button
+                  // would subtract itself from the header's drag row (ui-web
+                  // base.css) and leave the title inert for dragging too.
+                  const title = last
+                    ? (
+                      <span className={clsx(css.crumb, summary.subagent && css.crumbSubagent, css.crumbCurrent)}>
+                        {summary.displayTitle}
+                      </span>
+                    )
+                    : (
+                      <button
+                        type="button"
+                        className={clsx(css.crumb, summary.subagent && css.crumbSubagent)}
+                        onClick={() => { open(summary.id) }}
+                      >
+                        {summary.displayTitle}
+                      </button>
+                    )
                   const lineage = last || summary.subagent
                   const lineageOwner = {
                     lineageSessionId: summary.id,
@@ -150,29 +131,31 @@ export function ConversationSessionHeader({
             <div className={css.headerUtilities}>
               {renderSlot('conversation.session.header.utilities', {})}
             </div>
-            <div className={css.headerCorner} data-conversation-header-corner="">
-              {renderSlot('conversation.session.header.corner', {})}
-            </div>
-          </div>
-          {tabs.length > 1 && (
-            <div className={css.tabs} role="tablist">
-              {tabs.map(viewTab => (
-                <button
-                  key={viewTab.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={viewTab.id === active?.id}
-                  className={clsx(css.tab, viewTab.id === active?.id && css.tabActive)}
-                  onClick={() => { selectView(viewTab.id) }}
-                >
-                  {viewTab.label}
-                </button>
-              ))}
-            </div>
-          )}
-        </>
+          </>
+        )}
+        <div className={css.headerCorner} data-conversation-header-corner="">
+          {renderSlot('conversation.session.header.corner', {})}
+        </div>
+      </div>
+      {showTabs && (
+        // data-conversation-tabs: marks the tab strip, which the window-chrome
+        // geometry and the browser coverage lane anchor on.
+        <div className={css.tabs} role="tablist" data-conversation-tabs="">
+          {tabs.map(viewTab => (
+            <button
+              key={viewTab.id}
+              type="button"
+              role="tab"
+              aria-selected={viewTab.id === active?.id}
+              className={clsx(css.tab, viewTab.id === active?.id && css.tabActive)}
+              onClick={() => { selectView(viewTab.id) }}
+            >
+              {viewTab.label}
+            </button>
+          ))}
+        </div>
       )}
-    </header>
+    </>
   )
 }
 
@@ -182,118 +165,6 @@ export function ConversationSessionHeader({
  * @param props - Strict Session input/store, view ledger, and render shares.
  * @returns the active view area, or null while the Session remains blank.
  */
-export function ConversationSession({
-  useSession, useConversation, useConversationViews, useInput, inputActions, useStore, actions,
-  renderSlot, bindDraftMirror, openView,
-}: ConversationSessionProps) {
-  const tabs = useConversationViews(value => value)
-  const selectedId = useStore(s => s.view)
-  const active = resolveActiveView(tabs, selectedId)
-  const session = useSession(s => s)
-  const conversation = useConversation(s => s)
-  const inputState = useInput(s => s)
-  const storedDraft = useStore(s => s.draft)
-  const viewRequest = useStore(s => s.viewRequest ?? null)
-
-  useEffect(() => {
-    // HeightLab：清理历史遗留的孤立 U+FFFC 占位符（早期模板胶囊实现产物），
-    // 避免输入框出现乱码/乱符号。
-    if (inputState.draft === '' && storedDraft !== '') {
-      inputActions.setDraft(storedDraft.replace(/\uFFFC/g, ''))
-    }
-    const unmirror = bindDraftMirror(actions.setDraft)
-    return () => { unmirror() }
-    // Mount-only (deps pinned to inputActions): later store writes come from
-    // the machine mirror, not this seed effect.
-  }, [inputActions])
-
-  // HeightLab：自动化视图（dsh-automation 插件）由侧边栏「自动化」进入/退出，
-  // 页签条已隐藏，这里负责视图切换。
-  useEffect(() => {
-    const onOpen = (): void => { actions.setView('automation') }
-    const onClose = (): void => { actions.setView('chat') }
-    window.addEventListener('hl:open-automation', onOpen)
-    window.addEventListener('hl:close-automation', onClose)
-    return () => {
-      window.removeEventListener('hl:open-automation', onOpen)
-      window.removeEventListener('hl:close-automation', onClose)
-    }
-  }, [actions])
-
-  // HeightLab 2026-09-16：产品要求每次启动都落在**新会话（聊天）页**。
-  // hl_boot 已清掉上次会话选择，但 startInitialSelection 会"复用空白会话"，
-  // 而该会话可能带着上次遗留的 automation 视图 → 启动直接落进自动化页
-  // （用户实测）。仅在本进程首次加载（hl-boot-cleared 存在且未处理过）时，
-  // 把空白会话的 automation 视图重置回 chat；普通刷新不重复执行。
-  useEffect(() => {
-    if (typeof sessionStorage === 'undefined') return
-    if (sessionStorage.getItem('hl-boot-cleared') !== '1') return
-    if (sessionStorage.getItem('hl-boot-view-reset') === '1') return
-    sessionStorage.setItem('hl-boot-view-reset', '1')
-    if (active?.id === 'automation' && session.blank) actions.setView('chat')
-  }, [active?.id, session?.blank, actions])
-
-  // HeightLab：自动化视图与右侧边栏互斥（复用 hub 互斥标记与折叠按钮簇），
-  // 进入时隐藏右侧按钮与面板，退出/切换会话时恢复。
-  useEffect(() => {
-    const isAutomation = active?.id === 'automation'
-    try {
-      document.body.dataset.hlAutomation = isAutomation ? '1' : '0'
-      document.body.dataset.hlHub = isAutomation ? '1' : '0'
-    } catch { /* 非致命 */ }
-    if (!isAutomation) return
-    const labels = ['收起侧边栏', '折叠侧边栏', '收起底部面板', '折叠底部面板']
-    const closePanels = (): void => {
-      // HeightLab 2026-09-14：0.19.1 删除了 toggleCluster 类（旧版用它圈定按钮簇），
-      // 直接以面板宿主 data-dsh-panel-host 为范围——两版都成立的稳定锚点。
-      const host = document.querySelector('[data-dsh-panel-host]')
-      if (host === null) return
-      const buttons = [...host.querySelectorAll<HTMLButtonElement>('button[aria-label]')]
-      for (const label of labels) {
-        const button = buttons.find(candidate => (candidate.getAttribute('aria-label') ?? '').includes(label))
-        if (button) button.click()
-      }
-    }
-    closePanels()
-    const timers = [
-      window.setTimeout(closePanels, 300),
-      window.setTimeout(closePanels, 1000),
-    ]
-    return () => {
-      for (const timer of timers) window.clearTimeout(timer)
-      try {
-        if (document.body.dataset.hlAutomation === '1') {
-          document.body.dataset.hlAutomation = '0'
-          document.body.dataset.hlHub = '0'
-        }
-      } catch { /* 非致命 */ }
-    }
-  }, [active?.id])
-
-  // HeightLab：自动化视图（dsh-automation）在空白新会话（hero）下也必须
-  // 渲染——否则点侧边栏「自动化」没有页面变化（视图被 blank 分支吞掉）。
-  if (session.blank && conversationPhase(session, conversation) === 'blank' && active?.id !== 'automation') return null
-  return (
-    <div className={css.viewArea}>
-      {/* HeightLab：自动化页右上角关闭按钮（与创意灵感同款位置/样式）。 */}
-      {active?.id === 'automation' && (
-        <button
-          type="button"
-          className={css.automationClose}
-          aria-label="关闭自动化"
-          title="关闭自动化"
-          onClick={() => { actions.setView('chat') }}
-        >
-          <svg viewBox="0 0 16 16" width="16" height="16" fill="none" aria-hidden="true">
-            <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
-          </svg>
-        </button>
-      )}
-      {active !== undefined && renderSlot('conversation.view', {
-        viewRequest,
-        openView,
-        completeViewRequest: actions.completeViewRequest,
-      }, { only: active.id })}
-    </div>
-  )
+export function ConversationSession(props: ConversationSessionProps) {
+  return <DefaultConversationViews {...props} />
 }

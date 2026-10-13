@@ -11,8 +11,7 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  /* HeightLab 2026-08-26：顶部 7.5px——品牌行中心 21.5px，与红绿灯中心严格同线（实测灯中心 21.5）。 */
-  padding: 7.5px var(--dsh-sidebar-inline-padding) 6px;
+  padding: 6px var(--dsh-sidebar-inline-padding);
   box-sizing: border-box;
   background: var(--dsw-specific-sidebar-fill);
   color: var(--dsw-alias-label-primary);
@@ -23,14 +22,99 @@
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
 }
 
+/* macOS desktop: the AppFrame column owns the translucent sidebar tint; an
+   opaque fill here would sit on top of it and block the window vibrancy. */
+:global([data-platform='darwin']) .root {
+  background: transparent;
+}
+
 /* Rail geometry (figma rail spec): 36x36 control boxes centered in the 56px
    rail (10px side padding), 12px vertical rhythm, 18px from the rail top to
    the whale's box (24px to the 24-wide whale glyph itself). */
 .root.collapsed {
-  padding: 30px 10px 6px;
-  /* HeightLab 2026-08-22：折叠态图标直接浮在背景上（去底色条），
-     与 0.3.17 观感一致；展开态保留侧边栏填充底色。 */
-  background: transparent;
+  padding: 18px 10px 6px;
+}
+
+/* The brand stays in the sidebar; fixed caption controls survive zero-width collapse. */
+:global([data-windows-titlebar]) .root .logoRow {
+  height: 40px;
+  margin: 0;
+  padding: 0;
+}
+
+:global([data-windows-titlebar]) .toggle {
+  position: fixed;
+  top: calc((var(--dsh-windows-titlebar-height) - 28px) / 2);
+  left: 12px;
+  z-index: 30;
+  -webkit-app-region: no-drag;
+}
+
+:global([data-windows-titlebar]) .root.collapsed .logoRow {
+  height: 0;
+}
+
+:global([data-windows-titlebar]) .root:not(.collapsed) .brand {
+  padding-left: 4px;
+}
+
+:global([data-windows-titlebar]) .brandIdentity {
+  transform: translateY(1px);
+}
+
+:global([data-windows-titlebar]) .brandMark {
+  transform: translateX(1px);
+}
+
+:global([data-windows-titlebar]) .brandName {
+  font-weight: 400;
+}
+
+:global([data-windows-titlebar]) .root.collapsed {
+  padding: 0;
+}
+
+:global([data-windows-titlebar]) .root:not(.collapsed) .newSession {
+  margin-top: 8px;
+  margin-left: 0;
+}
+
+:global([data-windows-titlebar]) .collapsed .panelList,
+:global([data-windows-titlebar]) .collapsed .regionArea,
+:global([data-windows-titlebar]) .collapsed .footArea {
+  display: none;
+}
+
+:global(html[data-windows-titlebar]:has([data-sidebar-collapsed='true'])) {
+  --dsh-windows-menu-start: 84px;
+}
+
+:global([data-windows-titlebar]) .collapsed .newSession {
+  position: fixed;
+  top: calc((var(--dsh-windows-titlebar-height) - 28px) / 2);
+  left: 48px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  z-index: 30;
+  -webkit-app-region: no-drag;
+}
+
+:global([data-windows-titlebar]) .railIn .iconButton,
+:global([data-windows-titlebar]) .railIn .newSession {
+  animation: none;
+}
+
+:global([data-windows-titlebar]) .collapsed .toggle,
+:global([data-windows-titlebar]) .collapsed .newSession {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--dsw-radius-sm);
+  color: var(--dsw-alias-label-secondary);
+}
+
+:global([data-windows-titlebar]) .collapsed .toggle .panelIcon {
+  display: inline;
 }
 
 /* Scrollbars in the column are a pointer affordance: the shell adds this
@@ -89,20 +173,58 @@
   from { opacity: 0; }
 }
 
-/* Logo row — HeightLab 2026-08-26：缩小品牌区并与折叠按钮一起右对齐，
-   行中心与 macOS 红绿灯同一水平线；右缘外挑 2px，与底部账户行
-   「连接手机」按钮右缘同列（accountRow width+8/margin-4/padding-2）。
-   品牌（logo+HEIGHTLAB）在前，折叠/展开按钮紧随其后。 */
+/* macOS hiddenInset titlebar: the strip spans the column's top edge (negative
+   margins cancel the root padding) so it clears the traffic lights at
+   (16, 18). The strip marks itself `data-window-drag` in markup (SidebarRoot), so
+   its own run is the column's draggable geometry and no frame band has to match
+   the strip's height; the toggle inside subtracts via the base.css rule. */
+.topStrip {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  height: 52px;
+  box-sizing: border-box;
+  margin: -6px calc(-1 * var(--dsh-sidebar-inline-padding)) 0;
+  /* The 2px foot centres the 28px toggle at y 25, level with the collapsed
+     seat (ui-layout .leadingSeat, top 11) and the conversation title row, so
+     collapse/expand never shifts it vertically. */
+  padding: 0 12px 2px;
+}
+
+/* Window fullscreen hides the traffic lights (html[data-fullscreen], desktop
+   preload): the toggle takes their spot at the strip's left edge. */
+:global([data-fullscreen]) .topStrip {
+  justify-content: flex-start;
+}
+
+/* The strip's full 52px foot leaves the wordmark too low; the content column
+   tucks 12px back under it, still clear of the toggle (28px control centered
+   in the strip ends at y 40). */
+.topStrip + .logoRow {
+  margin-top: -12px;
+}
+
+/* Logo row (figma pad (4,8,4,8)): expanded keeps the panel toggle at the
+   right edge; the rail gives every control the same base left anchor before
+   the shared entry translation is applied. macOS hiddenInset titlebar: the row
+   is marked `data-window-drag` in markup (SidebarRoot), so ui-web base.css's
+   single darwin rule carries the drag over its own box — below the top strip
+   (40–100px: the strip's 52px foot with the row's -12px tuck). The brand rides
+   that box (SidebarRoot renders the wordmark as a plain span there, so the
+   global interactive no-drag rule never subtracts it); the dedicated New
+   Session button below keeps the pointer and keyboard paths. Safe as a drag
+   source: it precedes the sidebar's overlay slots in document order, so their
+   no-drag still wins. */
 .logoRow {
   flex: none;
   display: flex;
   align-items: center;
-  /* HeightLab 2026-08-26：品牌靠左，可见胶囊与绿灯的间距=灯间距（实测 9.5px：绿灯右缘 72.75 + 9.5 - 胶囊内缩 2.6 - 根 12 ≈ 70）。折叠按钮靠右不动。 */
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 8px;
-  height: 28px;
-  padding: 0 0 0 70px;
-  margin: 0 -2px 8px 0;
+  height: 60px;
+  padding: 8px 0 8px 4px;
+  margin-bottom: 4px;
   box-sizing: border-box;
   overflow: hidden;
 }
@@ -110,9 +232,11 @@
 .collapsed .logoRow {
   height: 36px;
   padding: 0;
-  /* rail 内不右挑，保持 36px 盒子居中于 56px 轨道。 */
-  margin: 0 0 12px;
+  margin-bottom: 12px;
   justify-content: flex-start;
+  /* The settled rail's 36px toggle is wider than this 35px row; the base row's clip would cut
+     the control's right edge, so the rail stops clipping once the slide has settled. */
+  overflow: visible;
 }
 
 /* Brand group (figma I133:7632): the full wordmark rides the text ink
@@ -120,8 +244,7 @@
    emphasis only). A button only in behavior (New Session shortcut): the
    pointer cursor is the sole affordance — no hover chrome on the mark. */
 .brand {
-  /* HeightLab 2026-08-26：品牌不再占满整行，与折叠按钮一起靠左排列。 */
-  flex: none;
+  flex: 1;
   min-width: 0;
   display: inline-flex;
   align-items: center;
@@ -133,15 +256,19 @@
   cursor: pointer;
 }
 
+/* On macOS the brand is a window-drag surface, not a New Session button;
+   a pointer cursor would promise a click that drags the window instead. */
+:global([data-platform='darwin']) .brand {
+  cursor: default;
+}
+
 /* Mark and name are independent slots; the shell owns their shared baseline,
-   spacing, and height so either occupant can vary in width.
-   (HeightLab 2026-08-22：补回官方 rc.2 品牌类——曾被误删导致品牌位置偏。) */
+   spacing, and height so either occupant can vary in width. */
 .brandIdentity {
   display: inline-flex;
   align-items: center;
-  /* HeightLab 2026-08-26：品牌视觉放大 10%（16→18 行高，logo 18→20 在 tsx）。 */
-  gap: 7px;
-  height: 18px;
+  gap: 8px;
+  height: 24px;
   min-width: 0;
 }
 
@@ -152,26 +279,20 @@
   justify-content: center;
 }
 
-/* 暗色主题：黑胶囊反转为白胶囊（展开品牌区 + 折叠 rail 同款）。 */
-:global(body[data-ds-dark-theme]) .brandMark img,
-:global(body[data-ds-dark-theme]) .railMark img {
-  filter: invert(1);
-}
-
 .brandName {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   min-width: 0;
-  height: 18px;
-  font-size: 14.3px;
+  height: 24px;
+  font-size: 18px;
   font-weight: 600;
-  line-height: 18px;
+  line-height: 24px;
   letter-spacing: 0.04em;
 }
 
 .fallbackBrandName {
-  font-size: 14.3px;
+  font-size: 17px;
   letter-spacing: 0px;
   white-space: nowrap;
 }
@@ -194,6 +315,7 @@
 }
 
 .iconButton {
+  position: relative;
   flex: none;
   display: inline-flex;
   align-items: center;
@@ -201,8 +323,7 @@
   width: 28px;
   height: 28px;
   border: none;
-  border-radius: 50%;
-  corner-shape: round;
+  border-radius: var(--dsw-radius-sm);
   padding: 0;
   background: transparent;
   cursor: pointer;
@@ -213,9 +334,18 @@
   background: var(--dsw-alias-interactive-bg-hover);
 }
 
+/* The toggle is flush with .logoRow, which clips its own overflow, so an outward ring loses
+   the pixels that leave the row. Draw this control's ring inside its own box instead. */
+.iconButton.toggle:focus-visible {
+  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: -2px;
+}
+
 .collapsed .iconButton {
   width: 36px;
   height: 36px;
+  /* Rail hovers share the panel rows' and New Session's 12px rounding. */
+  border-radius: var(--dsw-radius-md);
 }
 
 /* Rail logo swap: collapsed, the toggle rests as the whale mark (brand ink,
@@ -239,10 +369,10 @@
   justify-content: center;
 }
 
-/* Rail icons — HeightLab 2026-08-26：与原生“添加工作区”rail 按钮统一为
-   次级色（label-secondary），不再使用主色。 */
+/* Rail icons ride the primary ink (figma rail spec); expanded keeps the
+   secondary icon-button ink. */
 .collapsed .iconButton {
-  color: var(--dsw-alias-label-secondary);
+  color: var(--dsw-alias-label-primary);
 }
 
 .buildVersion {
@@ -261,22 +391,23 @@
   white-space: nowrap;
 }
 
-/* New Session — HeightLab 2026-08-26：去掉边框与底色，改为与
-   创意灵感/自动化（hlNavItem）一致的透明文字行：6/8 padding、6px 圆角、
-   14px/500 主色文字 + 次级色图标；左缘与 hlNav 行对齐（margin-left 4px）。
-   Collapsed it renders as the rail's plain icon control. */
+/* New Session: 38px bar, 12px radius (figma 133:7634 geometry, squared-off
+   corners); collapsed it renders as the rail's plain icon control. */
 .newSession {
+  container-type: inline-size;
+  position: relative;
   flex: none;
   display: flex;
   align-items: center;
-  justify-content: flex-start;
-  gap: 8px;
-  padding: 6px 8px;
-  margin: 0 0 2px 4px;
+  justify-content: center;
+  gap: 0;
+  height: 38px;
+  padding: 8px 12px;
+  margin: 0 2px 12px;
   box-sizing: border-box;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
+  border: 0.5px solid var(--dsw-alias-border-l3);
+  border-radius: var(--dsw-radius-md);
+  background: var(--dsw-alias-button-elevated-fill);
   color: var(--dsw-alias-label-primary);
   font-size: 14px;
   font-weight: 500;
@@ -285,20 +416,31 @@
   overflow: hidden;
 }
 
-/* 图标与原生“添加工作区”同为次级色；文字保持主色。 */
-.newSession > svg {
-  flex: none;
-  color: var(--dsw-alias-label-secondary);
+.newSession:hover {
+  background: var(--dsw-alias-button-floating-hover);
 }
 
-.newSession:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
+/* macOS: the themed elevated fill reads as a foreign slab on the vibrancy
+   sidebar; a white wash sits in the glass like native macOS sidebar
+   controls. Dark keeps the same white ink at lower alpha. */
+:global([data-platform='darwin']) .newSession {
+  background: rgb(255 255 255 / 0.55);
+}
+
+:global([data-platform='darwin']) .newSession:hover {
+  background: rgb(255 255 255 / 0.3);
+}
+
+:global([data-platform='darwin']) :global([data-ds-dark-theme]) .newSession {
+  background: rgb(255 255 255 / 0.15);
+}
+
+:global([data-platform='darwin']) :global([data-ds-dark-theme]) .newSession:hover {
+  background: rgb(255 255 255 / 0.2);
 }
 
 .collapsed .newSession {
   align-self: flex-start;
-  /* HeightLab 2026-08-26：rail 内图标水平居中（覆盖宽态 flex-start，修复贴左偏 9px）。 */
-  justify-content: center;
   width: 36px;
   height: 36px;
   padding: 0;
@@ -306,8 +448,6 @@
   gap: 0;
   border-color: transparent;
   background: transparent;
-  /* HeightLab 2026-08-26：rail 内图标统一次级色（同添加工作区）。 */
-  color: var(--dsw-alias-label-secondary);
 }
 
 .collapsed .newSession:hover {
@@ -324,6 +464,21 @@
   max-width: 0;
 }
 
+.newSessionLabelMask { flex: 1; min-width: 0; }
+.newSession:is(:hover, :focus-visible) .newSessionLabelMask:has(+ .newSessionShortcut) { overflow: hidden; mask-image: linear-gradient(to right, black calc(100% - 16px), transparent); }
+.newSessionContent { display: flex; width: 100cqw; align-items: center; justify-content: center; gap: 6px; }
+.newSessionContent > svg { flex: none; }
+
+.newSessionShortcut {
+  opacity: 0;
+  display: inline-flex;
+  flex: none;
+  pointer-events: none;
+  font-weight: 400;
+}
+
+.newSession:is(:hover, :focus-visible) .newSessionShortcut { opacity: 1; }
+
 .panelList {
   flex: none;
   display: flex;
@@ -332,18 +487,20 @@
   margin-bottom: 8px;
 }
 
+/* Panel entries share the New Session bar's 12px radius and 2px inset, the
+   session rows' hover/selected surface, and the primary ink. */
 .panelRow {
   display: flex;
   align-items: center;
   gap: 8px;
-  width: 100%;
+  margin: 0 2px;
   min-height: 36px;
   padding: 7px 8px;
   box-sizing: border-box;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-md);
   background: transparent;
-  color: var(--dsw-alias-label-secondary);
+  color: var(--dsw-alias-label-primary);
   font: inherit;
   line-height: 22px;
   text-align: left;
@@ -355,13 +512,12 @@
 }
 
 .panelRow.panelActive {
-  background: var(--dsw-alias-interactive-bg-active);
+  background: var(--dsw-alias-interactive-bg-hover);
   color: var(--dsw-alias-label-primary);
-  font-weight: 500;
 }
 
 .panelRow:focus-visible {
-  outline: 2px solid var(--dsw-alias-label-primary);
+  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
   outline-offset: -2px;
 }
 
@@ -388,6 +544,7 @@
   width: 36px;
   height: 36px;
   justify-content: center;
+  margin: 0;
   padding: 0;
   color: var(--dsw-alias-label-primary);
 }
@@ -404,92 +561,6 @@
   margin-right: calc(-1 * var(--dsh-sidebar-inline-padding));
   padding-left: 4px;
   overflow: hidden;
-}
-
-/* HeightLab 自定义导航（创意灵感 / 资料库 / 自动化）。
-   与侧边栏原生 New Session / iconButton 同款样式：
-   rc.2 主题 token 控制文字色、悬停底、圆角；收起时只留图标。 */
-.hlNav {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  /* HeightLab 2026-08-26：去顶 padding，与上方“新会话”行连成统一列表。 */
-  padding: 0 4px 8px;
-  border-bottom: 1px solid var(--dsw-alias-border-l1);
-  margin-bottom: 8px;
-}
-
-.hlNavItem {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  min-width: 0;
-  padding: 6px 8px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--dsw-alias-label-primary);
-  /* HeightLab 2026-08-22：与下方工作区文件夹名一致（14px）。 */
-  font-size: 14px;
-  line-height: 22px;
-  font-weight: 500;
-  text-align: left;
-  cursor: pointer;
-}
-
-.hlNavItem:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
-}
-
-.hlNavItem:focus-visible {
-  box-shadow: 0 0 0 2px var(--dsw-alias-border-l3);
-}
-
-.hlNavIcon {
-  flex: none;
-  width: 16px;
-  height: 16px;
-  color: var(--dsw-alias-label-secondary);
-}
-
-.hlNavLabel {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* ===== 折叠态：对齐原生折叠按钮（搜索/新建工作区 36px 圆形图标）=====
-   折叠(rail)时，创意灵感/资料库/自动化 变成竖向 36px 圆形图标按钮，
-   颜色(黑色 label-primary)/大小(36)/悬停 与原生按钮一致，竖排在一列。 */
-.collapsed .hlNav {
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 0;
-  margin: 0 0 8px;
-  border-bottom: 1px solid var(--dsw-alias-border-l1);
-}
-
-.collapsed .hlNavItem {
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  min-width: 0;
-  padding: 0;
-  border-radius: 50%;
-  /* HeightLab 2026-08-26：rail 内统一次级色（同添加工作区）。 */
-  color: var(--dsw-alias-label-secondary);
-}
-
-.collapsed .hlNavIcon {
-  /* HeightLab 2026-08-26：rail 图标统一 18px（figma rail spec）。 */
-  width: 18px;
-  height: 18px;
-  color: var(--dsw-alias-label-secondary);
 }
 
 .collapsed .regionArea {
@@ -539,121 +610,4 @@
     transition: none;
     animation: none;
   }
-}
-
-/* ==== HeightLab 0.1.5 迁移补齐（稳定线有、迁移时漏搬）==== */
-
-
-/* HeightLab 2026-08-28（企业版 M3）：个人|企业 分段切换。
-   与新建任务行同左缘（margin-left 4px）；样式全部走主题 token，
-   亮/暗主题随 --dsw-alias-* 自适应。仅宽态渲染，rail 态随宽态内容卸载。 */
-.hlModeRow {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  margin: 0 0 6px 4px;
-  padding: 2px;
-  box-sizing: border-box;
-  border: 1px solid var(--dsw-alias-border-l1);
-  border-radius: 8px;
-  background: transparent;
-}
-
-
-.hlModeSeg {
-  flex: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 0;
-  padding: 3px 10px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 20px;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-
-.hlModeSegActive,
-.hlModeSegActive:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
-  color: var(--dsw-alias-label-primary);
-}
-
-
-/* 企业邀请码加入面板：内嵌于切换项下方，不遮挡页面其他内容。 */
-.hlJoinPanel {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin: 0 0 8px 4px;
-  padding: 10px;
-  box-sizing: border-box;
-  border: 1px solid var(--dsw-alias-border-l1);
-  border-radius: 8px;
-  background: transparent;
-}
-
-
-.hlJoinLabel {
-  color: var(--dsw-alias-label-secondary);
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 16px;
-}
-
-
-.hlJoinInput {
-  width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
-  padding: 5px 8px;
-  border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--dsw-alias-label-primary);
-  font-size: 13px;
-  line-height: 18px;
-}
-
-
-.hlJoinError {
-  color: var(--dsw-alias-danger, #d93d3d);
-  font-size: 12px;
-  line-height: 16px;
-}
-
-
-.hlJoinActions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 6px;
-}
-
-
-.hlJoinCancel,
-.hlJoinSubmit {
-  padding: 3px 10px;
-  border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 18px;
-  cursor: pointer;
-}
-
-/* HeightLab 2026-09-19：折叠/展开态图标颜色统一——DSH 原生的工作区/搜索等
-   图标用 label-primary（黑），与自建 hlNav 的 label-secondary（浅灰）在窄栏
-   深浅不一。统一为浅灰（悬停变深由各组件自身 hover 负责）；只作用于
-   regionArea（工作区浏览区）内的原生图标，隐藏不删除、可随时回滚。 */
-.regionArea svg {
-  color: var(--dsw-alias-label-secondary);
 }

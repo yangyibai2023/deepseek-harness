@@ -1,21 +1,11 @@
-/**
- * Plain-text reference decoration (the plain-text-reference decision;
- * see .agents/notes/archived/architecture/2026-07-25-web-input-machine-and-slash-pipeline.md):
- * a `/name` or `@name` token whose name is on the trigger's lexicon, and
- * syntax-recognizable `@dir/` folder tokens, render in the chip family
- * colors. Color only, no icon: a token still carrying its trigger character
- * is editable text, not a settled chip — the domain icon marks exactly the
- * settled state. Pure derivation as before — the entity transform converts
- * matching text into TextRefNode and back as edits move it in and out of
- * match shape; no occurrence identity exists.
- */
+/** Editable reference tokens share chip hover styling while retaining ordinary text semantics. */
+import clsx from 'clsx'
 import type { EditorConfig, LexicalEditor, SerializedTextNode } from 'lexical'
 import { TextNode } from 'lexical'
 import { registerLexicalTextEntity } from '@lexical/text'
 import { mergeRegister } from '@lexical/utils'
-import { $getRoot } from 'lexical'
-import { scanTemplateRefs, scanTextRefs } from '../decorations.ts'
-import { getTemplateNames } from '../../skeleton/HeightLabTemplates.ts'
+import { $getRoot, HISTORY_MERGE_TAG } from 'lexical'
+import { scanTextRefs } from '../decorations.ts'
 import css from './composer-editor.module.css'
 
 /** JSON form of one text-ref node. */
@@ -62,12 +52,8 @@ export class TextRefNode extends TextNode {
   /** Style the span the base TextNode mounts. */
   override createDOM(config: EditorConfig): HTMLElement {
     const el = super.createDOM(config)
-    el.classList.add(css.textRef ?? 'textRef')
-    // HeightLab：模板名范围渲染为模板胶囊（描边样式），普通引用维持词汇表着色。
-    if (getTemplateNames().includes(this.getTextContent())) {
-      el.classList.add(css.templateRef ?? 'templateRef')
-      el.setAttribute('data-composer-template-ref', '')
-    }
+    el.className = clsx(el.className, css.reference, css.textRef, this.getTextContent().startsWith('/') && css.openable)
+    el.setAttribute('spellcheck', 'false')
     el.setAttribute('data-composer-text-ref', '')
     return el
   }
@@ -101,13 +87,8 @@ export function registerTextRefDecoration(
 ): () => void {
   const getMatch = (text: string): { start: number; end: number } | null => {
     const claim = activeToken()
-    // HeightLab：模板名（纯文字）与 /、@ 词汇表引用同池渲染；模板优先于跨区间重叠。
-    const ranges = [
-      ...scanTextRefs(text, lexiconOf()),
-      ...scanTemplateRefs(text),
-    ].sort((left, right) => left.start - right.start)
-    for (const range of ranges) {
-      if (claim !== null && range.start === 0 && text.slice(range.start, range.end) === claim) continue
+    for (const range of scanTextRefs(text, lexiconOf())) {
+      if (claim !== null && range.start === 0 && text.slice(range.start, range.end) === claim.trimEnd()) continue
       return { start: range.start, end: range.end }
     }
     return null
@@ -131,5 +112,5 @@ export function registerTextRefDecoration(
 export function rescanTextRefs(editor: LexicalEditor): void {
   editor.update(() => {
     for (const node of $getRoot().getAllTextNodes()) node.markDirty()
-  })
+  }, { tag: HISTORY_MERGE_TAG })
 }

@@ -2,7 +2,7 @@ import { Fragment, memo, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { PendingSubmission } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { MessageImageSource } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import { fileExtension, FileTypeIcon, fileSizeText, projectUserText, StateDot } from '@deepseek-ai/dsh-client-ui-primitives'
+import { fileExtension, FileTypeIcon, fileSizeText, JsonBlock, projectUserText, StateDot, TextShimmer } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ChatNodeOwnerProps, ChatNodeViewProps, ChatViewSlotProps } from '../contract/slots.ts'
 import type { ModelRetryNode, TurnErrorNode, UserMessageNode } from '../contract/snapshot.ts'
 import { CompactionItem } from './CompactionItem.tsx'
@@ -82,12 +82,10 @@ function failureMessage(
   code: unknown,
   t: ChatViewSlotProps['t'],
 ): string {
-  // HeightLab 2026-10-13：QUOTA/MODEL_UNAVAILABLE 由分类层保证，这里只出
-  // 用户语言；原文（含网关内部术语）不透传。
-  if (code === 'AUTH') return t('message.failure.auth')
-  if (code === 'QUOTA') return t('message.failure.quota')
-  if (code === 'MODEL_UNAVAILABLE') return t('message.failure.modelUnavailable')
-  return message
+  if (code === 'ACCOUNT_SIGNED_OUT') return t('message.failure.accountSignedOut')
+  if (code === 'ACCOUNT_SIGN_IN_REQUIRED') return t('message.failure.accountSignInRequired')
+  if (code === 'QUOTA' || code === 'ACCOUNT_QUOTA') return t('message.failure.quota')
+  return code === 'AUTH' ? t('message.failure.auth') : message
 }
 
 function ModelRetryItem({ node, active, t }: {
@@ -139,7 +137,9 @@ function ModelRetryItem({ node, active, t }: {
     <details className={css.retryRow} data-active={active || undefined}>
       <summary className={css.retrySummary}>
         <span className={css.retryText} role="status">
-          {t('message.retry.status', { label, retry: node.retry, maximum, seconds })}
+          <TextShimmer active={active}>
+            {t('message.retry.status', { label, retry: node.retry, maximum, seconds })}
+          </TextShimmer>
         </span>
       </summary>
       <div className={css.retryDetails}>
@@ -173,7 +173,7 @@ function TurnErrorItem({ node, t }: {
     <div className={css.turnErrorRow} role="status">
       <StateDot state="error" className={css.turnErrorDot} />
       <div className={css.turnErrorCopy}>
-        <span className={css.turnErrorTitle}>{t('message.turnError')}</span>
+        <span className={css.turnErrorTitle}>{node.code === 'ACCOUNT_SIGNED_OUT' ? t('message.accountStopped') : t('message.turnError')}</span>
         <span className={css.turnErrorMessage}>{heightlabFriendlyErrorText(failureMessage(node.message, node.code, t))}</span>
         {isQuota && (
           <button
@@ -258,7 +258,7 @@ function projectUserContent(text: string, sessionLabels: readonly string[] = [],
 /** Right-aligned bubble shared by user and steering rows. */
 function UserStyleBubble({
   content, renderMessageImages, actions, pending = false, echo = false, referenceLabels = [], skillNames = [],
-  previewAttachments, t,
+  previewAttachments, references, t,
 }: {
   content: readonly unknown[]
   renderMessageImages: ChatNodeOwnerProps['renderMessageImages']
@@ -274,6 +274,7 @@ function UserStyleBubble({
   skillNames?: readonly string[]
   /** Local submission-echo attachments replacing the content-derived attachment sequence. */
   previewAttachments?: readonly PresentedAttachment[]
+  references?: Pick<ChatNodeOwnerProps, 'openFile' | 'openSkill'>
   t: ChatViewSlotProps['t']
 }): ReactNode {
   const { text, attachments: contentAttachments, rest } = contentParts(content)
@@ -315,9 +316,9 @@ function UserStyleBubble({
               ))}
           </div>
         )}
-        {showBubble && <div className={css.bubble} data-genui-injected={injected || undefined}>
-          {projectUserContent(displayText, referenceLabels, skillNames)}
-          {rest.length > 0 && <span className={css.unknownBlock}>{HEIGHTLAB_UNKNOWN_BLOCK_TEXT}</span>}
+        {showBubble && <div className={css.bubble}>
+          {projectUserText(text, referenceLabels, skillNames, 'skill', references)}
+          {rest.map((block, i) => <JsonBlock key={i} label={t('message.extraBlock')} payload={block} truncatedLabel={truncated} />)}
         </div>}
         {referenceLabels.length > 0 && (
           <div className={css.referenceSummary}>
@@ -415,12 +416,13 @@ export function PendingSubmissionBubble({ submission, renderMessageImages, t }: 
 
 /** User and admitted-steering keyed Chat renderer. */
 export const UserMessageNodeView = memo(function UserMessageNodeView({
-  node, renderMessageImages, t,
+  node, renderMessageImages, openFile, openSkill, t,
 }: ChatNodeViewProps<'user' | 'steering'>) {
   const data = node.data
   return (
     <UserStyleBubble
       content={data.content}
+      references={{ openFile, openSkill }}
       renderMessageImages={renderMessageImages}
       {...data.referenceLabels === undefined ? {} : { referenceLabels: data.referenceLabels }}
       {...data.skillNames === undefined ? {} : { skillNames: data.skillNames }}
@@ -445,7 +447,7 @@ export const ContextMessageNodeView = memo(function ContextMessageNodeView({ nod
     <ContextInjectionRow
       content={data.content}
       source={data.source}
-      provenance={data.provenance}
+      producer={data.producer}
       form={data.form}
       t={t}
     />

@@ -66,12 +66,13 @@ function header(
   return typeof value === 'string' ? value : undefined
 }
 
-/** Canonical request authority used as the cookie name and signed audience. */
-function requestAuthority(headers: ConnectionTrustRequest['headers']): string | undefined {
+/** Protocol-scoped cookie audience; HTTP retains its existing authority-only spelling. */
+function requestAudience(headers: ConnectionTrustRequest['headers'], secure: boolean): string | undefined {
   const host = header(headers, 'host')
   if (host === undefined) return undefined
   try {
-    return new URL(`http://${host}`).host
+    const url = new URL(`${secure ? 'https:' : 'http:'}//${host}`)
+    return secure ? url.origin : url.host
   } catch {
     return undefined
   }
@@ -118,8 +119,15 @@ function cookieValue(headerValue: string, name: string): string | undefined {
 }
 
 /** Serialize the fixed browser-session attributes; generated names and values are cookie-safe base64url. */
-function sessionCookie(name: string, value: string, expiresAt: number, maxAgeSeconds: number): string {
-  return `${name}=${value}; Max-Age=${String(maxAgeSeconds)}; Path=/; Expires=${new Date(expiresAt).toUTCString()}; HttpOnly; SameSite=Strict`
+function sessionCookie(
+  name: string,
+  value: string,
+  expiresAt: number,
+  maxAgeSeconds: number,
+  secure: boolean,
+): string {
+  const attributes = `${name}=${value}; Max-Age=${String(maxAgeSeconds)}; Path=/; Expires=${new Date(expiresAt).toUTCString()}; HttpOnly; SameSite=Strict`
+  return secure ? `${attributes}; Secure` : attributes
 }
 
 function signature(secret: Buffer, body: string): Buffer {
@@ -216,39 +224,39 @@ export class BrowserAuth {
   }
 
   /**
-   * Add this process's launch token to the ordinary application root URL.
-   * @param baseUrl - canonical browser origin without credentials.
-   * @returns root URL carrying the process token as its sole authentication input.
+   * Add this process's launch token to the caller's application URL.
+   * @param baseUrl - clean browser URL whose authority and mount are preserved.
+   * @returns the same URL carrying the process token as its sole authentication input.
    */
   authenticatedUrl(baseUrl: string): string {
     const url = new URL(baseUrl)
-    url.pathname = '/'
-    url.search = ''
-    url.hash = ''
     url.searchParams.set(TOKEN_QUERY, this.launchToken)
     return url.href
   }
 
   /**
    * Authenticate an index request. A valid root query token mints the cookie
-   * and redirects to clean `/`; a valid cookie lets the caller serve the
-   * index; every other request receives the same minimal 401 response.
+   * and redirects to the directory-relative clean `./`; a valid cookie lets
+   * the caller serve the index; every other request receives the same minimal
+   * 401 response.
    * @param req - incoming root or configured-index request.
    * @param res - response owned when this method returns false.
+   * @param secure - whether the listener receiving this request serves TLS; the
+   * minted cookie carries `Secure` when it does. Only that listener's own
+   * protocol decides, never a `publicUrl` announcement or a forwarded header:
+   * those describe a hop this process does not terminate.
    * @returns true only when the caller may serve index.html.
    */
-  authorizeIndex(req: ConnectionIndexRequest, res: ConnectionIndexResponse): boolean {
-    /* HeightLab desktop（2026-09-16）：壳（Tauri）拉起的本地宿主对 127.0.0.1
-       回环豁免令牌/cookie 门禁。0.3.30 及之前无此层且长期稳定；0.1.5 引入后
-       与 WKWebView 303 Set-Cookie 异步持久化竞态叠加，冷启动必然闪现
-       "dsh web authentication required" 数秒（预热/重载均治标不治本）。
-       该环境变量仅由 HeightLab 桌面壳注入，web 部署不受影响。 */
+  authorizeIndex(req: ConnectionIndexRequest, res: ConnectionIndexResponse, secure = false): boolean {
+    /* HeightLab desktop（2026-09-16）：壳拉起的本地宿主对 127.0.0.1 回环豁免
+       令牌/cookie 门禁——冷启动 303 Set-Cookie 竞态的根治。环境变量仅由
+       HeightLab 桌面壳注入，web 部署不受影响。2026-10-14 随 0.2.1 升级重放。 */
     if (process.env.HEIGHTLAB_ALLOW_LOOPBACK === '1') return true
     /* v8 ignore next -- node:http always supplies url on server requests. */
     const url = new URL(req.url ?? '/', 'http://dsh.invalid')
     const tokens = url.searchParams.getAll(TOKEN_QUERY)
     if (tokens.length > 0) {
-      const authority = requestAuthority(req.headers)
+      const authority = requestAudience(req.headers, secure)
       if (req.method === 'GET' && url.pathname === '/' && tokens.length === 1
         && authority !== undefined && tokenMatches(tokens.join(''), this.launchToken)) {
         const issuedAt = Date.now()
@@ -261,19 +269,19 @@ export class BrowserAuth {
         }, this.secret)
         res.writeHead(303, {
           'cache-control': 'no-store',
-          'location': '/',
+          'location': './',
           'referrer-policy': 'no-referrer',
           'set-cookie': sessionCookie(
-            cookieName(authority), value, expiresAt, Math.floor(this.maxAgeMilliseconds / 1000),
+            cookieName(authority), value, expiresAt, Math.floor(this.maxAgeMilliseconds / 1000), secure,
           ),
         })
         res.end()
         return false
       }
-      if (req.method === 'GET' && url.pathname === '/' && this.isAuthenticated(req)) {
+      if (req.method === 'GET' && url.pathname === '/' && this.isAuthenticated(req, secure)) {
         res.writeHead(303, {
           'cache-control': 'no-store',
-          'location': '/',
+          'location': './',
           'referrer-policy': 'no-referrer',
         })
         res.end()
@@ -282,7 +290,7 @@ export class BrowserAuth {
       this.writeUnauthorized(req, res)
       return false
     }
-    if (this.isAuthenticated(req)) return true
+    if (this.isAuthenticated(req, secure)) return true
     this.writeUnauthorized(req, res)
     return false
   }
@@ -290,10 +298,11 @@ export class BrowserAuth {
   /**
    * Verify the authority-bound browser cookie on a Host request.
    * @param request - request headers carrying Host and Cookie.
+   * @param secure - whether the receiving listener uses TLS, including its default port.
    * @returns true only for an unexpired cookie signed by this activation's loaded secret.
    */
-  isAuthenticated(request: ConnectionTrustRequest): boolean {
-    const authority = requestAuthority(request.headers)
+  isAuthenticated(request: ConnectionTrustRequest, secure = false): boolean {
+    const authority = requestAudience(request.headers, secure)
     const rawCookie = header(request.headers, 'cookie')
     if (authority === undefined || rawCookie === undefined) return false
     const value = cookieValue(rawCookie, cookieName(authority))

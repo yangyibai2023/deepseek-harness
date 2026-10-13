@@ -19,8 +19,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
-  IconChecklistOutline14, IconChevronDownOutline14, IconGlobeOutline14,
-  IconListPenOutline16, IconSparkle16, Menu,
+  IconChecklistOutlineRegular, IconChevronDownOutlineRegular, IconGlobeOutlineRegular,
+  IconListPenOutlineRegular, IconSparkleRegular, Menu,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives'
 import css from './ContentToolbar.module.css'
@@ -369,15 +369,15 @@ export function ContentToolbar() {
       <span className={css.triggerIcon}>{icon}</span>
       <span className={css.triggerText}>{label}</span>
       <span className={`${css.chevron} ${openState ? css.chevronOpen : ''}`}>
-        <IconChevronDownOutline14 />
+        <IconChevronDownOutlineRegular />
       </span>
     </button>
   )
 
-  const platformTrigger = trigger('平台', openMenu === 'platform', () => setOpenMenu(v => v === 'platform' ? null : 'platform'), <IconGlobeOutline14 />, '发布/使用平台')
-  const typeTrigger = trigger('形式', openMenu === 'type', () => setOpenMenu(v => v === 'type' ? null : 'type'), <IconListPenOutline16 />, '内容类型')
-  const styleTrigger = trigger('风格', openMenu === 'style', () => setOpenMenu(v => v === 'style' ? null : 'style'), <IconSparkle16 />, '写作风格')
-  const requirementsTrigger = trigger('要求', openMenu === 'requirements', () => setOpenMenu(v => v === 'requirements' ? null : 'requirements'), <IconChecklistOutline14 />, '附加要求')
+  const platformTrigger = trigger('平台', openMenu === 'platform', () => setOpenMenu(v => v === 'platform' ? null : 'platform'), <IconGlobeOutlineRegular />, '发布/使用平台')
+  const typeTrigger = trigger('形式', openMenu === 'type', () => setOpenMenu(v => v === 'type' ? null : 'type'), <IconListPenOutlineRegular />, '内容类型')
+  const styleTrigger = trigger('风格', openMenu === 'style', () => setOpenMenu(v => v === 'style' ? null : 'style'), <IconSparkleRegular />, '写作风格')
+  const requirementsTrigger = trigger('要求', openMenu === 'requirements', () => setOpenMenu(v => v === 'requirements' ? null : 'requirements'), <IconChecklistOutlineRegular />, '附加要求')
 
   return (
     <>
