@@ -6,5 +6,5 @@
  *
  * @module @deepseek-ai/dsh-session-stats/client
  */
-export type * from './types.ts';
+export type * from './types.ts'
 //# sourceMappingURL=client.d.ts.map
