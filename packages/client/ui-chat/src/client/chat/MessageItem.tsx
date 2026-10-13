@@ -82,7 +82,12 @@ function failureMessage(
   code: unknown,
   t: ChatViewSlotProps['t'],
 ): string {
-  return code === 'AUTH' ? t('message.failure.auth') : message
+  // HeightLab 2026-10-13：QUOTA/MODEL_UNAVAILABLE 由分类层保证，这里只出
+  // 用户语言；原文（含网关内部术语）不透传。
+  if (code === 'AUTH') return t('message.failure.auth')
+  if (code === 'QUOTA') return t('message.failure.quota')
+  if (code === 'MODEL_UNAVAILABLE') return t('message.failure.modelUnavailable')
+  return message
 }
 
 function ModelRetryItem({ node, active, t }: {
@@ -156,12 +161,33 @@ function TurnErrorItem({ node, t }: {
   node: TurnErrorNode
   t: ChatViewSlotProps['t']
 }) {
+  // HeightLab 2026-10-13：额度/鉴权失败即时通知输入框余额提示条刷新，
+  // 并为 QUOTA 提供「充值」直达入口（打开账户设置的充值区）。
+  useEffect(() => {
+    if (node.code === 'QUOTA' || node.code === 'AUTH') {
+      window.dispatchEvent(new CustomEvent('hl:turn-failed', { detail: { code: node.code } }))
+    }
+  }, [node.code])
+  const isQuota = node.code === 'QUOTA'
   return (
     <div className={css.turnErrorRow} role="status">
       <StateDot state="error" className={css.turnErrorDot} />
       <div className={css.turnErrorCopy}>
         <span className={css.turnErrorTitle}>{t('message.turnError')}</span>
         <span className={css.turnErrorMessage}>{heightlabFriendlyErrorText(failureMessage(node.message, node.code, t))}</span>
+        {isQuota && (
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent('hl:open-settings-section', { detail: { section: 'heightlab-account' } }))}
+            style={{
+              marginTop: 6, display: 'inline-block', padding: '5px 14px',
+              borderRadius: 6, border: '1px solid #d9d9d9', background: '#fff',
+              color: '#1a1a1a', fontSize: 12, cursor: 'pointer',
+            }}
+          >
+            {t('message.failure.recharge')}
+          </button>
+        )}
       </div>
     </div>
   )

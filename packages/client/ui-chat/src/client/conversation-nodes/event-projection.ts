@@ -154,7 +154,11 @@ export function displayFailure(failure: unknown): DisplayFailure {
   const code = typeof record.code === 'string' ? record.code : undefined
   // Provider AUTH messages may echo a masked or partially preserved credential.
   // Keep the raw diagnostic in the Session log, but never retain it in UI state.
-  if (code === 'AUTH') return { code, message: '' }
+  // HeightLab：QUOTA/MODEL_UNAVAILABLE 同理——原文可能是网关英文或内部术语，
+  // 一律由 locale 按码出用户文案（余额提示条也依赖该码刷新）。
+  if (code === 'AUTH' || code === 'QUOTA' || code === 'MODEL_UNAVAILABLE') {
+    return { code, message: '' }
+  }
   return {
     ...(code === undefined ? {} : { code }),
     message: typeof record.message === 'string' ? record.message : JSON.stringify(failure),

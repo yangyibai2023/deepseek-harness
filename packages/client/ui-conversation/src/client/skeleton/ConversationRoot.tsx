@@ -12,6 +12,7 @@ import { HeroShell, WorkspaceChip, workspaceLabel } from './EmptyHero.tsx'
 // 创意灵感/资料库覆盖层页。模板坞组件（HeightLabTemplateDock）已由
 // VideoGrid 取代，文件保留——EmptyHero 仍引用其 REPLICATION_GROUPS。
 import { HeightLabVideoGrid } from './HeightLabVideoGrid.tsx'
+import { QuotaNotice } from './QuotaNotice.tsx'
 import { HeightLabHubPage, type HubPage } from './HeightLabHubPage.tsx'
 import css from './ConversationRoot.module.css'
 
@@ -489,6 +490,7 @@ export function ConversationRoot({
         </div>
       ))}
       {zone !== undefined && renderSlot('conversation.input.dock', zone)}
+      <QuotaNotice />
       {inputBar}
       {/* HeightLab V32：首页视频模板网格（仅普通 hero；复刻态不渲染）。 */}
       {hero && !replicationMode && <HeightLabVideoGrid />}

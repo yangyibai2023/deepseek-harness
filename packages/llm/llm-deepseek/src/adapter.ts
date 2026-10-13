@@ -337,10 +337,13 @@ function requestId(headers: Headers): ReturnType<typeof ProviderRequestId> | und
  * @returns the normalized harness error code.
  */
 export function httpErrorCode(status: number, error?: WireError['error']): string {
-  if (status === 401 || status === 403) return 'AUTH'
-  if (status === 413) return 'INVALID_REQUEST'
+  // HeightLab 2026-10-13：余额/渠道判定先于状态码——网关的余额拒绝走 403
+  // （body 带中文「余额不足」），按状态码先行会误判成 AUTH（密钥无效）。
   const detail = [error?.code, error?.type, error?.message].filter(Boolean).join(' ')
   if (isQuotaExceededError(detail)) return QUOTA_EXCEEDED_CODE
+  if (/可用渠道不存在|get_channel_failed|no available channel/i.test(detail)) return 'MODEL_UNAVAILABLE'
+  if (status === 401 || status === 403) return 'AUTH'
+  if (status === 413) return 'INVALID_REQUEST'
   if (status === 429) return 'RATE_LIMIT'
   if (status === 400) {
     if (isContextWindowExceededError(detail)) return CONTEXT_WINDOW_EXCEEDED_CODE

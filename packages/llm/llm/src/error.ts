@@ -92,7 +92,14 @@ export function isContextWindowExceededError(detail: string): boolean {
  * @returns true only for terminal quota, balance, credit, budget, or usage-limit wording.
  */
 export function isQuotaExceededError(detail: string): boolean {
+  // HeightLab 2026-10-13：网关（New API）的中文余额拒绝必须先于 401/403 文本
+  // 判定命中 QUOTA，否则桌面上把「余额不足」误显示为「API 密钥无效」
+  // （用户实测：影子账户余额归零后所有对话报密钥无效）。
+  if (/(?:余额|额度)(?:不足|已?用完|已?耗尽)/.test(detail)) {
+    return true
+  }
   return /\binsufficient[\s_-]+(?:quota|balance|credits?)\b/i.test(detail)
+    || /\binsufficient[\s_-]+user[\s_-]+quota\b/i.test(detail)
     || /\b(?:quota|usage[\s_-]+limit)[\s_-]+(?:exceeded|exhausted|reached)\b/i.test(detail)
     || /\bexceed(?:ed|s)?[\s_-]+(?:(?:your|the)[\s_-]+)?(?:current[\s_-]+)?quota\b/i.test(detail)
     || /\b(?:balance|credits?)[\s_-]+(?:exhausted|depleted)\b/i.test(detail)
