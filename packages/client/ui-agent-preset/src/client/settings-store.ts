@@ -2,18 +2,19 @@
  * Agent-preset roster store shared by the display surfaces.
  *
  * Options come from one `agentPresets.list` call. Writes target the settings
- * namespace's `default` field, which is what the host resolves at creation;
- * the management section is the surface that writes it.
+ * namespace fields the host resolves at creation; the management section is
+ * the surface that writes them.
  */
 
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 // Type-only: pulls the ctx.remote merge into this program.
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
-import type { AgentPresetRoster } from '@deepseek-ai/dsh-agent-presets/types'
+import type { AgentPresetRoster } from '@deepseek-ai/dsh-agent-preset-registry/types'
+import { isBuiltInPreset } from './locales.ts'
 
 /** The agent-preset settings namespace on the host wire. */
-export const AGENT_PRESET_SETTINGS_NS = 'agent-presets'
+export const AGENT_PRESET_SETTINGS_NS = 'agent-preset-registry'
 
 /**
  * Persist one preset as the default for sessions created later.
@@ -23,17 +24,15 @@ export const AGENT_PRESET_SETTINGS_NS = 'agent-presets'
  * the host resolves at session creation.
  * @param ctx - the browser plugin context carrying the Remote namespaces.
  * @param id - the preset to make default.
+ * @param expectedRevision - optional fence for an automatic correction based on a previous settings read.
  * @returns the failure message, or undefined once the write landed.
  */
 export async function writeDefaultPreset(
   ctx: ClientContext,
   id: string,
+  expectedRevision?: number,
 ): Promise<string | undefined> {
-  const response = await ctx.remote.settings.update(
-    AGENT_PRESET_SETTINGS_NS,
-    { default: id },
-    undefined,
-  )
+  const response = await ctx.remote.settings.update(AGENT_PRESET_SETTINGS_NS, { selectedDefault: id }, expectedRevision)
   return response.ok ? undefined : response.error.message
 }
 
@@ -41,12 +40,18 @@ export async function writeDefaultPreset(
 export interface AgentPresetOption {
   /** Preset id, written to Settings and the label's fallback. */
   id: string
-  /** Whether the preset ships with the deployment or was authored locally. */
-  trust: 'system' | 'user'
   /** Display name the preset published, absent when it published none. */
   name?: string
   /** One sentence on what the preset is for. */
   description?: string
+}
+
+/** Whether a shipped preset requires the Coding Tools preference.
+ * @param preset Roster entry; named custom overrides keep their own behavior.
+ * @returns True only for the built-in PTC and Minimal presets.
+ */
+export function requiresCodingTools(preset: AgentPresetOption | undefined): boolean {
+  return preset !== undefined && isBuiltInPreset(preset) && (preset.id === 'ptc' || preset.id === 'minimal')
 }
 
 /** One roster entry exactly as the host reports it. */
@@ -55,7 +60,7 @@ export type RosterPreset = AgentPresetRoster['presets'][number]
 /** The roster, or the message to show in its place. */
 export type RosterRead = { ok: true; value: AgentPresetRoster } | { ok: false; error: string }
 
-const EMPTY_ROSTER: AgentPresetRoster = { presets: [], authorable: false }
+const EMPTY_ROSTER: AgentPresetRoster = { presets: [] }
 
 /**
  * Read the roster, turning a refusal into the message every surface shows.
@@ -111,39 +116,14 @@ export async function beginRosterRead<S extends { status: string; error: string 
  * @param presets - the roster the host answered with.
  * @returns one option per selectable preset, in roster order.
  */
-export function requiresCodingTools(preset: AgentPresetOption | undefined): boolean {
-  return preset !== undefined && isBuiltInPreset(preset) && (preset.id === 'ptc' || preset.id === 'minimal')
-}
-
 export function presetOptions(
-  presets: readonly { id: string; trust: 'system' | 'user'; name?: string; description?: string; broken?: string }[],
+  presets: readonly { id: string; name?: string; description?: string; broken?: string }[],
 ): AgentPresetOption[] {
-  // HeightLab：下拉只保留 standard=Colin、minimal=系统操作专家、
-  // general-assistant=通用 AI 助手，以及用户自定义预设（trust==='user'，
-  // 含 Colin 派发的 4 个领域专家）。0.3.30 稳定线同款白名单。
-  // 历史：2026-09-16 曾按用户拍板放开「显示全部专家」，同日晚用户最终
-  // 实测推翻（PTC/创造模式等混入，与稳定版不一致）→ 回归本白名单。
-  // 排序：Colin 最前，自定义专家居中，系统操作专家其次，通用助手最下面。
-  // automation-worker 是无人值守自动化专用预设，不进入智能体选择列表。
-  // 我们预装的专家预设经 config roots 出现时可能带 trust:'system'（见
-  // cordis.patch.yml agent-presets roots），ID 显式放行，不依赖 trust 语义。
-  const HEIGHTLAB_PRESET_IDS: ReadonlySet<string> = new Set([
-    'standard', 'minimal', 'general-assistant',
-    'content-creator', 'image-generator', 'research-analyst', 'video-producer',
-  ])
-  const rank = (id: string): number => id === 'standard' ? 0 : id === 'minimal' ? 2 : id === 'general-assistant' ? 3 : 1
-  return presets
-    .filter(preset => preset.broken === undefined)
-    .filter(preset => preset.trust === 'user'
-      || HEIGHTLAB_PRESET_IDS.has(preset.id))
-    .filter(preset => preset.id !== 'automation-worker')
-    .sort((left, right) => rank(left.id) - rank(right.id))
-    .map(preset => ({
-      id: preset.id,
-      trust: preset.trust,
-      ...preset.name === undefined ? {} : { name: preset.name },
-      ...preset.description === undefined ? {} : { description: preset.description },
-    }))
+  return presets.filter(preset => preset.broken === undefined).map(preset => ({
+    id: preset.id,
+    ...preset.name === undefined ? {} : { name: preset.name },
+    ...preset.description === undefined ? {} : { description: preset.description },
+  }))
 }
 
 /** Agent-preset roster snapshot for the display surfaces. */

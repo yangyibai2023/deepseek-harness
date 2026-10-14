@@ -16,8 +16,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
-  IconChevronDownOutline14, IconEditOutline16, IconSettingsOutline16,
-  IconUserOutline16, Menu,
+  IconChevronDownOutlineRegular, IconEditOutlineRegular, IconSettingsOutlineRegular,
+  IconUserOutlineRegular, Menu,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives'
 import css from './VideoToolbar.module.css'
@@ -740,7 +740,7 @@ export function VideoToolbar() {
       {icon !== undefined && <span className={css.triggerIcon}>{icon}</span>}
       <span className={css.triggerText}>{label}</span>
       <span className={`${css.chevron} ${openState ? css.chevronOpen : ''}`}>
-        <IconChevronDownOutline14 />
+        <IconChevronDownOutlineRegular />
       </span>
     </button>
   )
@@ -768,10 +768,10 @@ export function VideoToolbar() {
     </div>
   )
 
-  const avatarTrigger = trigger('形象与声音', openMenu === 'avatar', () => setOpenMenu(v => v === 'avatar' ? null : 'avatar'), <IconUserOutline16 />)
-  const genTrigger = trigger('模型参数', openMenu === 'gen', () => setOpenMenu(v => v === 'gen' ? null : 'gen'), <IconSettingsOutline16 />)
-  const packTrigger = trigger('字幕包装', openMenu === 'pack', () => setOpenMenu(v => v === 'pack' ? null : 'pack'), <IconEditOutline16 />)
-  const assetTrigger = trigger('人物资产', openMenu === 'asset', () => setOpenMenu(v => v === 'asset' ? null : 'asset'), <IconUserOutline16 />)
+  const avatarTrigger = trigger('形象与声音', openMenu === 'avatar', () => setOpenMenu(v => v === 'avatar' ? null : 'avatar'), <IconUserOutlineRegular />)
+  const genTrigger = trigger('模型参数', openMenu === 'gen', () => setOpenMenu(v => v === 'gen' ? null : 'gen'), <IconSettingsOutlineRegular />)
+  const packTrigger = trigger('字幕包装', openMenu === 'pack', () => setOpenMenu(v => v === 'pack' ? null : 'pack'), <IconEditOutlineRegular />)
+  const assetTrigger = trigger('人物资产', openMenu === 'asset', () => setOpenMenu(v => v === 'asset' ? null : 'asset'), <IconUserOutlineRegular />)
   const segmentedFull = segmentedControl(false)
   const segmentedCompact = segmentedControl(true)
 

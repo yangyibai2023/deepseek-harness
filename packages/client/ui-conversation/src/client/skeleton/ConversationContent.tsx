@@ -4,6 +4,9 @@ import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
 import { workspaceDisplayTitle } from '@deepseek-ai/dsh-api-workspace-controller/default-workspace'
 import type { ConversationContentProps, ConversationViewsProps, InputZone } from '../contract/slots.ts'
 import { HeroShell, WorkspaceChip, workspaceLabel } from './EmptyHero.tsx'
+// HeightLab：首页视频模板网格（V32：hero 输入卡下方、栈内滚动）与余额提示条。
+import { HeightLabVideoGrid } from './HeightLabVideoGrid.tsx'
+import { QuotaNotice } from './QuotaNotice.tsx'
 import css from './ConversationRoot.module.css'
 
 function ConversationSessionView({ renderSlot }: ConversationViewsProps) {
@@ -41,6 +44,53 @@ export function ConversationContent(props: ConversationContentProps) {
   const [pickerOpen, setPickerOpen] = useState(false)
   const [pendingWorkspaceId, setPendingWorkspaceId] = useState<WorkspaceId | undefined>()
   const pickerAnchor = useRef<HTMLButtonElement>(null)
+
+  // HeightLab V26c：App 每次启动（进程加载本模块）时清除复刻模式标记——
+  // 模式是「入口点击的一次性意图」，不得跨启动残留（用户实测：重启直接
+  // 进入复刻模式）。sessionStorage 进程内只清一次，同进程内「视频创作→
+  // 爆款复刻」设置的模式不受影响。
+  try {
+    if (sessionStorage.getItem('hl-boot-mode-cleared') === null) {
+      localStorage.removeItem('hl-console-mode')
+      sessionStorage.setItem('hl-boot-mode-cleared', '1')
+    }
+  } catch { /* 隐私模式等存储不可用时跳过 */ }
+  // HeightLab V24b：视频复刻模式（侧边栏「视频创作」→「爆款复刻」进入）——
+  // 空状态布局切换：hero 引导贴顶、输入卡贴底（.composerHeroReplication）。
+  const [replicationMode, setReplicationMode] = useState(
+    () => localStorage.getItem('hl-console-mode') === 'replication',
+  )
+  useEffect(() => {
+    const sync = (): void => {
+      const next = localStorage.getItem('hl-console-mode') === 'replication'
+      setReplicationMode(next)
+      // V26c 用户实测：进入二级页面（本视图挂载）时工作台才可能可靠打开
+      //（此刻会话 surface 必已就绪）——挂载即打开，替代此前不可靠的
+      // 「先广播后挂载」时序。
+      if (next) {
+        window.setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('hl:open-console'))
+        }, 120)
+      }
+    }
+    window.addEventListener('hl:mode-change', sync)
+    window.addEventListener('storage', sync)
+    return () => {
+      window.removeEventListener('hl:mode-change', sync)
+      window.removeEventListener('storage', sync)
+    }
+  }, [])
+
+  // HeightLab V32：hero 滚动流——composerStack 成为滚动容器，scrollTop
+  // 0→111px（品牌区+工作区行的总高）映射为 --hl-collapse 0→1，驱动品牌
+  // 包装层收缩淡出（对标 MiniMax 轻滑动态）；输入卡 sticky 停靠由纯 CSS
+  // 完成（见 module.css V32 块）。初始态几何与 V29 完全一致。
+  const stackRef = useRef<HTMLDivElement | null>(null)
+  const onStackScroll = useCallback((event: React.UIEvent<HTMLDivElement>): void => {
+    const el = event.currentTarget
+    const collapse = Math.min(1, Math.max(0, el.scrollTop / 111))
+    el.style.setProperty('--hl-collapse', collapse.toFixed(4))
+  }, [])
 
   // Publishes the two live measurements floating View chrome reads off the
   // scroll body: the seat's height as --dsh-composer-height, so controls clear
@@ -161,13 +211,42 @@ export function ConversationContent(props: ConversationContentProps) {
   })
 
   const composerBar = (
-    <div className={clsx(css.composerStack, hero && css.composerHero)}>
-      {hero && <HeroShell t={t} renderSlot={renderSlot} />}
-      {hero && heroWorkspaceRow}
+    <div
+      ref={stackRef}
+      className={clsx(css.composerStack, hero && (replicationMode ? css.composerHeroReplication : css.composerHero))}
+      onScroll={hero && !replicationMode ? onStackScroll : undefined}
+    >
+      {hero && (replicationMode ? (
+        <>
+          <HeroShell t={t} renderSlot={renderSlot} />
+          {heroWorkspaceRow}
+        </>
+      ) : (
+        // V32：品牌收缩包装层——收缩淡出只作用于普通 hero；复刻态布局
+        // （贴顶引导）不参与，保持原结构。
+        <div className={css.heroBrandWrap}>
+          <HeroShell t={t} renderSlot={renderSlot} />
+          {heroWorkspaceRow}
+        </div>
+      ))}
       {zone !== undefined && renderSlot('conversation.input.dock', zone)}
+      <QuotaNotice />
       {inputBar}
+      {/* HeightLab V32：首页视频模板网格（仅普通 hero；复刻态不渲染）。 */}
+      {hero && !replicationMode && <HeightLabVideoGrid />}
     </div>
   )
+
+  // HeightLab V32：离开 hero 再回来时（新会话/返回首页），栈内滚动位置与
+  // 收缩变量必须归零——溢出被收回时 scrollTop 静默清零、不触发 scroll
+  // 事件，残留的 --hl-collapse=1 会让品牌区在初始态就被隐藏。
+  useEffect(() => {
+    if (phase !== 'hero') return
+    const el = stackRef.current
+    if (el === null) return
+    el.scrollTop = 0
+    el.style.removeProperty('--hl-collapse')
+  }, [phase])
 
   const composer = renderSlotChain(
     'conversation.composer',
@@ -193,6 +272,7 @@ export function ConversationContent(props: ConversationContentProps) {
       data-conversation-session={sessionId}
       data-conversation-region="chat"
       data-content-phase={phase}
+      data-hl-conversation-body=""
     >
       <div className={css.scrollBody} data-conversation-scroll="">
         {sessionId === undefined ? null : <Views />}

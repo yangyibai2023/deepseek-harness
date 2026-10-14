@@ -17,8 +17,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
-  IconChevronDownOutline14, IconListPenOutline16, IconPaperclipOutline16,
-  IconSettingsOutline16, IconSparkle16, Menu,
+  IconChevronDownOutlineRegular, IconListPenOutlineRegular, IconPaperclipOutlineRegular,
+  IconSettingsOutlineRegular, IconSparkleRegular, Menu,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives'
 import css from './ImageToolbar.module.css'
@@ -370,15 +370,15 @@ export function ImageToolbar() {
       <span className={css.triggerIcon}>{icon}</span>
       <span className={css.triggerText}>{label}</span>
       <span className={`${css.chevron} ${openState ? css.chevronOpen : ''}`}>
-        <IconChevronDownOutline14 />
+        <IconChevronDownOutlineRegular />
       </span>
     </button>
   )
 
-  const paramsTrigger = trigger('参数', openMenu === 'params', () => setOpenMenu(v => v === 'params' ? null : 'params'), <IconSettingsOutline16 />, '图像参数')
-  const styleTrigger = trigger('风格', openMenu === 'style', () => setOpenMenu(v => v === 'style' ? null : 'style'), <IconSparkle16 />, '风格')
-  const templateTrigger = trigger('用途', openMenu === 'template', () => setOpenMenu(v => v === 'template' ? null : 'template'), <IconListPenOutline16 />, '用途模板')
-  const referenceTrigger = trigger('参考', openMenu === 'reference', () => setOpenMenu(v => v === 'reference' ? null : 'reference'), <IconPaperclipOutline16 />, '参考图模式')
+  const paramsTrigger = trigger('参数', openMenu === 'params', () => setOpenMenu(v => v === 'params' ? null : 'params'), <IconSettingsOutlineRegular />, '图像参数')
+  const styleTrigger = trigger('风格', openMenu === 'style', () => setOpenMenu(v => v === 'style' ? null : 'style'), <IconSparkleRegular />, '风格')
+  const templateTrigger = trigger('用途', openMenu === 'template', () => setOpenMenu(v => v === 'template' ? null : 'template'), <IconListPenOutlineRegular />, '用途模板')
+  const referenceTrigger = trigger('参考', openMenu === 'reference', () => setOpenMenu(v => v === 'reference' ? null : 'reference'), <IconPaperclipOutlineRegular />, '参考图模式')
 
   return (
     <>

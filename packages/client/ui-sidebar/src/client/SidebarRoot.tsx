@@ -19,7 +19,7 @@
 import { useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import {
-  IconNewChatOutline16, IconSparkle16, Tooltip,
+  IconNewChatOutlineRegular, IconSparkleRegular, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
   // HeightLab V31：创意灵感一级入口暂时隐藏（首页输入框下方的视频模板网格
@@ -265,7 +265,7 @@ export function SidebarRoot({
           }}
         >
           {/* HeightLab 2026-08-26：展开态 16px，与 hlNav/添加工作区一致。 */}
-          <IconNewChatOutline16 size={wide ? 16 : 18} />
+          <IconNewChatOutlineRegular size={wide ? 16 : 18} />
           {wide && <span className={clsx(css.newSessionLabel, css.wide)}>{t('session.new')}</span>}
         </button>
       </Tooltip>
@@ -282,7 +282,7 @@ export function SidebarRoot({
             window.dispatchEvent(new CustomEvent('hl:open-hub', { detail: { page: 'video-studio' } }))
           }}
         >
-          <IconSparkle16 size={wide ? 16 : 18} />
+          <IconSparkleRegular size={wide ? 16 : 18} />
           {wide && <span className={clsx(css.newSessionLabel, css.wide)}>视频创作</span>}
         </button>
       </Tooltip>
@@ -297,7 +297,7 @@ export function SidebarRoot({
             window.dispatchEvent(new CustomEvent('hl:open-hub', { detail: { page: 'skill-hub' } }))
           }}
         >
-          <IconSparkle16 size={wide ? 16 : 18} />
+          <IconSparkleRegular size={wide ? 16 : 18} />
           {wide && <span className={clsx(css.newSessionLabel, css.wide)}>技能</span>}
         </button>
       </Tooltip>

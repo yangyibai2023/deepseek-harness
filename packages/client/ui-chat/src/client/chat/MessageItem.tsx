@@ -2,7 +2,7 @@ import { Fragment, memo, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { PendingSubmission } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { MessageImageSource } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import { fileExtension, FileTypeIcon, fileSizeText, JsonBlock, projectUserText, StateDot, TextShimmer } from '@deepseek-ai/dsh-client-ui-primitives'
+import { fileExtension, FileTypeIcon, fileSizeText, JsonBlock, projectUserText, StateDot, TextShimmer, type UserTextReferences } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ChatNodeOwnerProps, ChatNodeViewProps, ChatViewSlotProps } from '../contract/slots.ts'
 import type { ModelRetryNode, TurnErrorNode, UserMessageNode } from '../contract/snapshot.ts'
 import { CompactionItem } from './CompactionItem.tsx'
@@ -211,14 +211,14 @@ function TurnMaxTokensItem({ t }: {
 /** HeightLab：用户文本中的上传媒体标记替换为内联 <img>/<video>
  * （宿主 loopback 路由伺服）；sessionLabels/skillNames 必须透传，
  * 否则 @会话 提及与技能芯片不再渲染。 */
-function projectUserContent(text: string, sessionLabels: readonly string[] = [], skillNames: readonly string[] = []): ReactNode {
+function projectUserContent(text: string, sessionLabels: readonly string[] = [], skillNames: readonly string[] = [], mode?: 'skill' | 'command', references?: UserTextReferences): ReactNode {
   const parts: ReactNode[] = []
   let cursor = 0
   let m: RegExpExecArray | null
   UPLOADED_MEDIA_MARKER.lastIndex = 0
   while ((m = UPLOADED_MEDIA_MARKER.exec(text)) !== null) {
     const prefix = text.slice(cursor, m.index)
-    if (prefix) parts.push(<span key={`text-${cursor}`}>{projectUserText(prefix, sessionLabels, skillNames)}</span>)
+    if (prefix) parts.push(<span key={`text-${cursor}`}>{projectUserText(prefix, sessionLabels, skillNames, mode, references)}</span>)
     const isVideo = m[1] === '一个视频'
     const isAudio = m[1] === '一段音频'
     const { userId, name } = mediaSegmentsFromPath(m[2] ?? '')
@@ -250,8 +250,8 @@ function projectUserContent(text: string, sessionLabels: readonly string[] = [],
     )
     cursor = m.index + m[0].length
   }
-  if (parts.length === 0) return projectUserText(text, sessionLabels, skillNames)
-  if (cursor < text.length) parts.push(<span key={`text-${cursor}`}>{projectUserText(text.slice(cursor), sessionLabels, skillNames)}</span>)
+  if (parts.length === 0) return projectUserText(text, sessionLabels, skillNames, mode, references)
+  if (cursor < text.length) parts.push(<span key={`text-${cursor}`}>{projectUserText(text.slice(cursor), sessionLabels, skillNames, mode, references)}</span>)
   return <>{parts}</>
 }
 
@@ -316,9 +316,9 @@ function UserStyleBubble({
               ))}
           </div>
         )}
-        {showBubble && <div className={css.bubble}>
-          {projectUserText(text, referenceLabels, skillNames, 'skill', references)}
-          {rest.map((block, i) => <JsonBlock key={i} label={t('message.extraBlock')} payload={block} truncatedLabel={truncated} />)}
+        {showBubble && <div className={css.bubble} data-genui-injected={injected || undefined}>
+          {projectUserContent(displayText, referenceLabels, skillNames, 'skill', references)}
+          {rest.map((block, i) => <JsonBlock key={i} label={t('message.extraBlock')} payload={block} truncatedLabel={total => t('json.truncated', { total })} />)}
         </div>}
         {referenceLabels.length > 0 && (
           <div className={css.referenceSummary}>

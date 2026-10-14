@@ -249,21 +249,18 @@ export function apply(ctx: Context): void {
         window.dispatchEvent(new CustomEvent('hl:close-hub'))
         window.dispatchEvent(new CustomEvent('hl:close-automation'))
       }
-      // workspaceId 可选（继承当前/最近工作区），openWorkspace 需非空——
-      // 解析逻辑与 navigation.startSession 一致（current → recent → clear）。
+      // workspaceId 可选（继承最近工作区），openWorkspace 需非空——
+      // 解析逻辑与 navigation.startSession 一致（显式 → 最近 → clear）。
+      // （2026-10-14 0.2.1 适配：SessionListState 不再有 current；
+      // recentWorkspace 为 navigation 内部函数未导出，此处以「含已有会话的
+      // 第一个工作区」近似，复刻入口恒有 HeightLab 工作区，实际不受影响。）
       const snap = workspaces.list.getSnapshot()
       const sessionsSnap = sessions.list.getSnapshot()
-      const current = sessionsSnap.current
-      const currentWorkspaceId = current === undefined
-        ? undefined
-        : snap.items.find(item => item.sessionIds.includes(current))?.workspaceId
-      // 继承顺序与 navigation.startSession 一致：显式 → 当前会话工作区 → 最近工作区。
-      // （recentWorkspace 为 navigation 内部函数未导出；此处以「含已有会话的
-      // 第一个工作区」近似，复刻入口恒有 HeightLab 工作区，实际不受影响。）
       const recent = snap.items.find(item => item.sessionIds.some(id => sessionsSnap.byId[id] !== undefined))?.workspaceId
-      const resolved = workspaceId ?? currentWorkspaceId ?? recent
+      const resolved = workspaceId ?? recent
       if (resolved === undefined) {
-        sessions.clear()
+        // 与 navigation.startSession 的 target===undefined 分支同语义：清空主区回新会话页。
+        uiWorkspace.startSession(undefined, undefined)
         return
       }
       void uiWorkspace.openWorkspace(resolved, (sessionId) => {

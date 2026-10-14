@@ -3,15 +3,15 @@
 
 import type { ReactNode, RefObject } from 'react'
 import {
-  IconChevronDownOutline14,
+  IconChevronDownOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import { IconFolderCloseStroke16, IconFolderOpenStroke16 } from './folder-icons.tsx'
 import { workspaceTitleOf } from '@deepseek-ai/dsh-util-workspace-path'
-import type { ConversationSlotProps } from '../contract/slots.ts'
+import type { ConversationContentProps } from '../contract/slots.ts'
 import css from './HeroShell.module.css'
 
 /** The owner's locale seat type, passed to hero chrome as a plain prop. */
-type HeroTranslate = ConversationSlotProps['t']
+type HeroTranslate = ConversationContentProps['t']
 
 /**
  * Basename label for the workspace chip (the shared derivation);
@@ -56,7 +56,7 @@ export function WorkspaceChip({ buttonRef, label, menuOpen = false, onClick, t }
         ? <IconFolderCloseStroke16 className={css.folder} size={16} />
         : <IconFolderOpenStroke16 className={css.folder} size={16} />}
       <span className={css.workspaceLabel}>{label ?? t('hero.chooseWorkspace')}</span>
-      <IconChevronDownOutline14 className={css.chevron} size={12} />
+      <IconChevronDownOutlineRegular className={css.chevron} size={12} />
     </button>
   )
 }
@@ -113,7 +113,7 @@ export interface HeroShellProps {
   /** The owner's locale seat, passed down as a plain prop. */
   t: HeroTranslate
   /** Authorized renderer for the hero brand-mark slot. */
-  renderSlot: ConversationSlotProps['renderSlot']
+  renderSlot: ConversationContentProps['renderSlot']
   /** Overlay content after the stack (modals). */
   children?: ReactNode
 }

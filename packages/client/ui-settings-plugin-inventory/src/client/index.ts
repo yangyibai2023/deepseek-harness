@@ -10,6 +10,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-agent-preset/client'
 // Inline-safe shared fold: shipped ids map to dictionary keys in one home.
 import { presetDisplayText } from '@deepseek-ai/dsh-agent-preset-registry/display'
+import type { AgentPresetPluginGroup } from '@deepseek-ai/dsh-host-plugin-inventory/types'
 import { PluginInventorySettingsTab, type PluginInventorySettingsTabInjected } from './PluginInventorySettingsTab.tsx'
 import { en, mcpEn, mcpZh, zh, type MCPInventoryLocaleKey, type PluginInventoryLocaleKey } from './locales.ts'
 
@@ -121,10 +122,12 @@ export function apply(ctx: ClientContext): void {
     'content-creator', 'image-generator', 'research-analyst',
     'video-producer', 'general-assistant', 'automation-worker',
   ])
-  const keepUserPresetGroups = <T extends { readonly trust: string; readonly id: string }>(
-    groups: readonly T[] | undefined,
-  ): readonly T[] | undefined =>
-    groups?.filter(group => group.trust === 'user' && !SHIPPED_PRESET_IDS.has(group.id))
+  // 2026-10-14 0.2.1 适配：wire 的组类型不再携带 trust；「预装一律隐藏」
+  // 以预装 id 集合判定——用户自建预设的 id 不在集合内，天然保留。
+  const keepUserPresetGroups = (
+    groups: readonly AgentPresetPluginGroup[] | undefined,
+  ): readonly AgentPresetPluginGroup[] | undefined =>
+    groups?.filter(group => !SHIPPED_PRESET_IDS.has(group.id))
   const list: PluginInventorySettingsTabInjected['list'] = async () => {
     const result = await ctx.remote.pluginInventory.list()
     if (!result.ok) {
@@ -159,21 +162,13 @@ export function apply(ctx: ClientContext): void {
   const injected = (): PluginInventorySettingsTabInjected => ({
     list,
     presetName,
-    // 插件列表标签页：显示的条目已过滤为“用户自装”，全部可管理。
-    canManage: () => true,
-    canDelete: () => true,
+    resolveText: text => ctx.locale.resolveText(text),
+    hooks: { clientSync: ctx.modules.entries.state },
+    retryClient: () => { void ctx.modules.entries.retry().catch((error: unknown) => { ctx.logger.error(error) }) },
   })
   const mcpInjected = (): PluginInventorySettingsTabInjected => ({
     list: mcpList,
-    // MCP 标签页只显示用户自装条目，全部可管理。
-    copy: {
-      loading: tMCP('loading'),
-      error: tMCP('error'),
-      retry: tMCP('retry'),
-      search: tMCP('search'),
-      empty: tMCP('empty'),
-      emptySearch: tMCP('emptySearch'),
-    },
+    presetName,
     resolveText: text => ctx.locale.resolveText(text),
     hooks: { clientSync: ctx.modules.entries.state },
     retryClient: () => { void ctx.modules.entries.retry().catch((error: unknown) => { ctx.logger.error(error) }) },

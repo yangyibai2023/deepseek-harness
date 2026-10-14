@@ -269,6 +269,7 @@ function mount(
       const bar = owner as ComposerBarOwnerProps
       return (
         <InputBar
+          command={undefined}
           sessionId={SID}
           SessionProvider={({ children }) => children}
           useResource={useResource}

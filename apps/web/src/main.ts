@@ -34,7 +34,7 @@ try {
       gate.resolve()
     }).catch((error: unknown) => { gate.reject(error) })
   }
-  void entry.run(desktop === undefined ? undefined : reportFailure)
+  void entry.run()
 } catch (reason) {
   reportFailure(reason)
 }

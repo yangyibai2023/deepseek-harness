@@ -20,6 +20,9 @@
  * guide registers through those stages unmodified, exactly as a type shipped
  * from another package does — `ui-sidebar-documentpreview` is the live proof.
  */
+import type {} from '@deepseek-ai/dsh-client-shortcuts/client'
+import { observeSidebarFocus } from './focus.ts'
+import { registerSidebarShortcuts } from './shortcuts.ts'
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-resources/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
@@ -33,12 +36,15 @@ import { GuideBody, type GuideInjected } from './tabs/guide/GuideBody.tsx'
 import { GuideTitle } from './tabs/guide/GuideTitle.tsx'
 import { ExpandButton } from './shell/ExpandButton.tsx'
 import { RightbarSeat, type SidebarRightInjected } from './shell/SidebarRight.tsx'
-import { RightbarRoot } from './shell/RightbarRoot.tsx'
+import { closeWithPaneFocus, openWithPaneFocus } from './shell/close-focus.ts'
+import { RightbarRoot, type RightbarRootInjected } from './shell/RightbarRoot.tsx'
+import { SidebarSessionViews } from './session-views.ts'
 import { createSidebarRightController, type SidebarRightController } from './service.ts'
 import { SidebarRightTabRegistry } from './tab-registry.ts'
 import { createSidebarRightStore } from './stores.ts'
 import { en, zh } from './locales.ts'
 import { GUIDE_ID, guideDefinition } from './tabs/guide/definition.ts'
+// HeightLab：创作控制台（营销模式）页面型 tab——按需出现，不注册 guide 入口。
 import { CONSOLE_ID, CONSOLE_KIND, consoleDefinition } from './tabs/console/definition.ts'
 import { ConsoleBody } from './tabs/console/ConsoleBody.tsx'
 import { ConsoleTitle } from './tabs/console/ConsoleTitle.tsx'
@@ -46,13 +52,14 @@ import { guideTabInfoFactory, tabInfoFactory } from './tab-info.ts'
 import type { TabId } from '@deepseek-ai/dsh-client-ui-dockkit'
 import { defaultSeed } from './contract/seed.ts'
 
+export type { SidebarRightTarget } from './focus.ts'
 export type { RightbarSeatProps, SidebarRightInjected, SidebarRightPresentation } from './shell/SidebarRight.tsx'
 export type { GuideBodyProps, GuideInjected } from './tabs/guide/GuideBody.tsx'
 export type { ExpandButtonProps } from './shell/ExpandButton.tsx'
 export type { SidebarRightState, SurfaceState } from './stores.ts'
 export type {
-  ISidebarRight, SidebarRightBinding, SidebarRightOpenResourceOptions, SidebarRightOpenTabOptions,
-  SidebarRightPlacement, SurfaceActions,
+  ISidebarRight, SidebarRightOpenResourceOptions, SidebarRightOpenTabOptions,
+  SidebarRightPlacement, SidebarRightCloseHandler, SurfaceActions,
 } from './service.ts'
 export type {
   SidebarRightGuideBox, SidebarRightGuideEntry, SidebarRightTabClaim, SidebarRightTabDefinition,
@@ -60,7 +67,7 @@ export type {
 } from './tab-registry.ts'
 export type {
   SidebarRightTabInfo, SidebarRightTabInjected, UseSidebarRightTabInfo, SidebarRightTabActions,
-  SidebarRightTabMenuOwnerProps, SidebarRightTabNavigation, SidebarRightTabPlacement,
+  SidebarRightTabMenuOwnerProps, SidebarRightTabNavigation, SidebarRightTabPlacement, SidebarRightGuideEntryOwnerProps,
 } from './contract/slots.ts'
 export type {
   SidebarRightNavigationParams, SidebarRightResourceParams, SidebarRightResourceParamsMap,
@@ -68,15 +75,16 @@ export type {
 } from './contract/params.ts'
 // The layout ids and rectangle the navigation face takes, so a caller needs no import from the kit.
 export type { FloatRect, PaneId, TabId, TabRecord } from '@deepseek-ai/dsh-client-ui-dockkit'
-export type { PinResource, SidebarRightNavigator, TabOccurrence } from './tab-domain.ts'
+export type { PinResource, SidebarRightNavigator, TabOccurrence, SidebarRightOccurrenceId } from './tab-domain.ts'
 export type { SidebarRightKey } from './locales.ts'
 export type { OpenContentIntent } from './stores.ts'
+export type { SidebarRightOpenTab } from './tab-inventory.ts'
 
 /** This package's copy namespace. */
 const NS = 'sidebarRight'
 
 /** Required browser services: the slot registry, the frame's panel actions, copy, and the resource model. */
-export const inject = ['slots', 'layout', 'locale', 'resources']
+export const inject = ['slots', 'layout', 'locale', 'resources', 'sessions', 'uiSession', 'shortcuts']
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -104,10 +112,45 @@ export function apply(ctx: ClientContext): void {
   // its own apply top level for the same reason.
   const t = ctx.locale.bind(NS)
   const tabs = new SidebarRightTabRegistry(ctx)
-  const { controller, adopt } = createSidebarRightController(
+  const views = new SidebarSessionViews(ctx.sessions)
+  ctx.effect(() => {
+    const current = ctx.uiSession.adapter.current
+    const sync = (): void => { views.select(current.getSnapshot().key as SessionId | undefined) }
+    const unsubscribe = current.subscribe(sync)
+    sync()
+    return () => { unsubscribe(); views.dispose() }
+  }, 'ui-sidebar-right: retained Session views')
+  const layout: ILayout = ctx.layout
+  // The automatic fullscreen rule as the seats last rendered it: the frame
+  // hands them its width as owner props, and every seat reports the same rule.
+  let autoFullscreen = false
+  const { controller, adopt, forget, show, measure } = createSidebarRightController(
     tabs,
     (address, signal) => { ctx.resources.pin(address, signal) },
+    {
+      autoFullscreen: () => autoFullscreen,
+      openWithFocus: (sessionId, open) => { openWithPaneFocus(document, sessionId, open) },
+      closeWithFocus: (sessionId, paneId, close) => { closeWithPaneFocus(document, sessionId, paneId, close) },
+    },
   )
+  // The Session on screen: the selected one while the Conversation fills the
+  // main column. Both sources notify before React renders their change, so the
+  // service names the arriving Session before any component of that commit
+  // reads it, and its seat mints the Session's store in the same render.
+  ctx.effect(() => {
+    const sync = (): void => {
+      const selected = views.source.getSnapshot().find(view => view.selected)
+      show(layout.panelInfo.getSnapshot().activePanelId === null ? selected?.sessionId : undefined)
+    }
+    const unsubscribeViews = views.source.subscribe(sync)
+    const unsubscribePanel = layout.panelInfo.subscribe(sync)
+    sync()
+    return () => {
+      unsubscribeViews()
+      unsubscribePanel()
+      show(undefined)
+    }
+  }, 'ui-sidebar-right: on-screen Session')
   const disposeRegistry = ctx.reflect.provide('sidebarRightTabs', tabs)
   const disposeService = ctx.reflect.provide('sidebarRight', controller)
   // Registered first, so it tears down last: the faces outlive every seat and
@@ -121,96 +164,12 @@ export function apply(ctx: ClientContext): void {
   }, 'ui-sidebar-right: service faces')
 
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-sidebar-right: dictionaries')
+  ctx.effect(() => registerSidebarShortcuts(ctx.shortcuts, controller, t, () => {
+    void ctx.shortcuts.closeWindow().catch((error: unknown) => { console.error('Window close failed', error) })
+  }), 'ui-sidebar-right: shortcuts')
+  if (typeof document !== 'undefined') ctx.effect(() => observeSidebarFocus(document), 'ui-sidebar-right: focus')
 
   ctx.effect(() => {
-    const handle = createSidebarRightStore(() => defaultSeed(tabs))
-    // The runtime mints one instance of this handle per session (the scope key
-    // is the session id) and caches it per key. Each is adopted as it is minted,
-    // so a tab's own action reaches its session's store while another session
-    // is on screen, and that store's commits sync the Tab domain themselves.
-    const adoptions: Array<() => void> = []
-    const store: typeof handle = {
-      ...handle,
-      create: (scopeKey) => {
-        const instance = handle.create(scopeKey)
-        if (scopeKey !== undefined) {
-          // HeightLab V24b 二修（V28 复核升级）：复刻模式下新会话 surface 就绪
-          // （store 采用）即自动打开创作工作台——挂在「store 采用」这个精确
-          // 时机上，且走幂等重试（V26c 教训：openTab 在 surface 未挂载时抛错
-          // 被吞，单发延迟不可靠）。seed 已带首 tab，本开启是双保险——但
-          // 双保险自己必须可靠（宪法铁律 17）。
-          if (localStorage.getItem('hl-console-mode') === 'replication') {
-            openConsoleRetrying(false)
-          }
-          // HeightLab V29 + V48 启动门禁：切入会话的复刻带回挂在本时机；
-          // 但启动 3 秒内的 store-create 属被动恢复，不弹工作台。
-          if (!inBootWindow('store-create')) ensureReplicationConsole(String(scopeKey), 'store-create')
-          adoptions.push(adopt(scopeKey as SessionId, instance))
-        }
-        return instance
-      },
-    }
-    const layout: ILayout = ctx.layout
-    const injected: Omit<SidebarRightInjected, 'keyedHooks' | 'occurrence'> = {
-      syncPresentation({ shown, track, fullscreen }) {
-        if (shown) layout.openRightbar(track, fullscreen)
-        else layout.closeRightbar()
-      },
-      bindService: binding => controller.bind(binding),
-      openTab: (kind, options) => { controller.openTab(kind, options) },
-      hooks: { tabTypes: { subscribe: listener => tabs.subscribe(listener), getSnapshot: () => tabs.entries() } },
-    }
-
-    const disposeTypes = [tabs.register(guideDefinition(t))]
-    const disposeSeat = ctx.slots.inject('rightbar', function* () {
-      yield ctx.slots.register({
-        name: 'rightbar',
-        children: { 'rightbar.session': { kind: 'single', scope: 'session' } },
-      }, RightbarRoot)
-      yield ctx.slots.register({
-        name: 'rightbar.session',
-        locale: NS,
-        children: {
-          'sidebar.right.pane.tab': { kind: 'keyed', scope: 'session', inject: { hooks: { tabInfo: tabInfoFactory } } },
-          'sidebar.right.pane.tab.title': { kind: 'keyed', scope: 'session', inject: { hooks: { tabInfo: tabInfoFactory } } },
-          'sidebar.right.tab.menu.item': { kind: 'list', scope: 'session' },
-        },
-        store,
-        inject: (sessionId): SidebarRightInjected => ({
-          ...injected,
-          keyedHooks: { tabNavigation: key => controller.tabDomain.occurrence(sessionId, { id: key as TabId }).navigation },
-          occurrence: tab => controller.tabDomain.occurrence(sessionId, tab),
-        }),
-      }, RightbarSeat)
-    })
-    // The expand button shares the panel's store: it only needs to know whether
-    // the panel is expanded, and to ask for it to be. The header's corner seat
-    // is its own place, past the utilities, so showing and hiding it moves
-    // nothing else in the row.
-    const disposeExpand = ctx.slots.inject('conversation.session.header.corner', () => ctx.slots.register({
-      name: 'conversation.session.header.corner',
-      locale: NS,
-      store,
-    }, ExpandButton))
-    // Stage two for the guide: it declares the chain child it hosts and reads
-    // the registry's entry boxes, which an ordinary type has no reason to do.
-    const guideInjected: GuideInjected = {
-      hooks: { guideEntries: { subscribe: listener => tabs.subscribe(listener), getSnapshot: () => tabs.guide() } },
-    }
-    const disposeGuide = ctx.slots.inject('sidebar.right.pane.tab', () => ctx.slots.register({
-      name: 'sidebar.right.pane.tab',
-      key: GUIDE_ID,
-      children: {
-        'sidebar.right.tab.guide': {
-          kind: 'chain', scope: 'session', inject: { hooks: { tabInfo: guideTabInfoFactory } },
-        },
-      },
-      inject: () => guideInjected,
-    }, GuideBody))
-    const disposeGuideTitle = ctx.slots.inject('sidebar.right.pane.tab.title', () => ctx.slots.register(
-      { name: 'sidebar.right.pane.tab.title', key: GUIDE_ID },
-      GuideTitle,
-    ))
     // HeightLab 创作控制台（营销模式）：按需出现的页面型 tab。
     // 不注册 guide 入口——仅做同款/聊天意图 dispatch hl:open-console 时打开。
     const disposeConsoleTypes = [tabs.register(consoleDefinition())]
@@ -264,11 +223,6 @@ export function apply(ctx: ClientContext): void {
       }
       tryOpen()
     }
-    const onOpenConsole = (): void => { openConsoleRetrying(false) }
-    // HeightLab V40：模板工作台——首页模板卡点击（hl:open-template-console）
-    // 打开创作控制台 tab；ConsoleBody 按 detail.skill 的 schema 渲染模板面板。
-    const onOpenTemplateConsole = (): void => { openConsoleRetrying(true) }
-    window.addEventListener('hl:open-template-console', onOpenTemplateConsole)
     // HeightLab V29 诊断埋点：复刻带回链路各分叉 POST /hl/boot-marker，
     // 宿主日志（~/.heightlab/logs/dsh-host.log）grep hlReplication 即可
     // 定位断点；链路确认稳定后整体撤除。
@@ -294,7 +248,7 @@ export function apply(ctx: ClientContext): void {
       diag('probe-start', { sid, source })
       void fetch(`/hl/console-state?session=${encodeURIComponent(sid)}`)
         .then(res => res.json() as Promise<{ workflow?: unknown; draft?: unknown }>)
-        .then(state => {
+        .then((state) => {
           if ((state?.workflow ?? null) === null && (state?.draft ?? null) === null) {
             diag('probe-miss', { sid, source })
             return
@@ -311,20 +265,22 @@ export function apply(ctx: ClientContext): void {
         })
         .catch(() => { diag('probe-error', { sid, source }) })
     }
-    // HeightLab V24b：用户拍板——回到主页/普通会话时右侧创作工作台自动关闭。
-    // 触发：hl:close-console（显式）或 hl:mode-change 清除模式（「新建任务」
-    // 等普通入口广播）。关闭 = 在所有已挂载会话里移除控制台 tab。
+    // HeightLab V24b：回到主页/普通会话时创作工作台自动关闭。触发：
+    // hl:close-console（显式）或 hl:mode-change 清除模式。2026-10-14 0.2.1
+    // 适配：closeKind 已不存在，按 mounted 会话经 closeIn 关控制台 tab。
     // V31g：控制台关闭且无其他活动 tab 时，同时收起右栏栏体——空栏残留
     // 会把主页模板区挤压变形且无法自行恢复（用户实测）。
     const onCloseConsole = (): void => {
-      controller.closeKind(CONSOLE_KIND)
+      const sid = controller.mounted.getSnapshot()
+      if (sid !== undefined) {
+        try { controller.closeIn(sid, CONSOLE_ID as TabId) } catch { /* 无 tab 时静默 */ }
+      }
       try {
         if (controller.active() === undefined && controller.isExpanded()) controller.toggleExpanded()
       } catch { /* 右栏未挂载时静默 */ }
     }
-    // HeightLab V26e：视频创作入口「爆款复刻」（hl:start-replication）——
-    // 新会话 seed 已天生带控制台首 tab（contract/seed.ts）；这里只负责
-    // 右栏若处于收起状态则自动展开，确保用户进入二级页面即见工作台。
+    // HeightLab V26e：hl:start-replication——新会话 seed 已天生带控制台首
+    // tab（contract/seed.ts）；这里只负责右栏若收起则自动展开。
     const onStartReplication = (): void => {
       window.setTimeout(() => {
         try {
@@ -332,50 +288,163 @@ export function apply(ctx: ClientContext): void {
         } catch { /* 会话尚未挂载时静默；seed 已带 tab，展开态随会话恢复 */ }
       }, 600)
     }
-    // HeightLab V29：会话切换事件（同进程内切回已建 store 会话的快速路径；
-    // 首次切入由 store-create 时机兜底，见 create 段）。顺带补回缺失的
-    // hl:open-console 注册（V26c「挂载即开」的消费者，此前只有 cleanup 里的
-    // remove——死代码佐证）。
+    // HeightLab V29：会话切换事件。V31g：切到「非复刻会话」时同步清理复刻
+    // 上下文（0.2.1 适配：按切入会话 closeIn）。
     const onSessionSwitched = (event: Event): void => {
       const sid = (event as CustomEvent<{ sessionId?: unknown }>).detail?.sessionId
       if (typeof sid !== 'string' || sid === '') return
       diag('session-switched', { sid })
-      // V31g：切到「非复刻会话」时同步清理复刻上下文——旧控制台 tab 会残留
-      // 挂到新上下文（挤压输入框）、hl-console-mode 残留会压制模板面板
-      //（用户实测：复刻→回主页后右栏不收、模板区被挤）。切到复刻会话则由
-      // ensureReplicationConsole 带回工作台。
       let rep: unknown[] = []
       try { rep = JSON.parse(localStorage.getItem('hl-replication-sessions') ?? '[]') as unknown[] } catch { /* 忽略 */ }
       if (!(Array.isArray(rep) && rep.includes(sid))) {
-        controller.closeKind(CONSOLE_KIND)
+        try { controller.closeIn(sid as SessionId, CONSOLE_ID as TabId) } catch { /* 无 tab 时静默 */ }
         try { localStorage.removeItem('hl-console-mode') } catch { /* 忽略 */ }
         window.dispatchEvent(new CustomEvent('hl:mode-change', { detail: { mode: '' } }))
       }
       if (!inBootWindow('session-switched')) ensureReplicationConsole(sid, 'session-switched')
     }
-    window.addEventListener('hl:open-console', onOpenConsole)
-    window.addEventListener('hl:session-switched', onSessionSwitched)
+
+    const handle = createSidebarRightStore(() => defaultSeed(tabs))
+    // Each Session Context generation owns one Store. Background tab actions
+    // use the latest adoption for that Session.
+    const adoptions = new Map<SessionId, () => void>()
+    const store: typeof handle = {
+      ...handle,
+      create: (scopeKey) => {
+        const instance = handle.create(scopeKey)
+        if (scopeKey !== undefined) {
+          // HeightLab V24b 二修（V28 复核升级）：复刻模式下新会话 surface 就绪
+          // （store 采用）即自动打开创作工作台——挂在「store 采用」这个精确
+          // 时机上，且走幂等重试（V26c 教训：openTab 在 surface 未挂载时抛错
+          // 被吞，单发延迟不可靠）。seed 已带首 tab，本开启是双保险——但
+          // 双保险自己必须可靠（宪法铁律 17）。
+          if (localStorage.getItem('hl-console-mode') === 'replication') {
+            openConsoleRetrying(false)
+          }
+          // HeightLab V29 + V48 启动门禁：切入会话的复刻带回挂在本时机；
+          // 但启动 3 秒内的 store-create 属被动恢复，不弹工作台。
+          if (!inBootWindow('store-create')) ensureReplicationConsole(String(scopeKey), 'store-create')
+          const sessionId = scopeKey as SessionId
+          adoptions.get(sessionId)?.()
+          adoptions.set(sessionId, adopt(sessionId, instance))
+        }
+        return { ...instance, clearPersisted() {
+          instance.clearPersisted()
+          if (scopeKey !== undefined) forget(scopeKey as SessionId)
+        } }
+      },
+    }
+    const onOpenConsole = (): void => { openConsoleRetrying(false) }
+    // HeightLab V40：模板工作台——首页模板卡点击（hl:open-template-console）
+    // 打开创作控制台 tab；ConsoleBody 按 detail.skill 的 schema 渲染模板面板。
+    const onOpenTemplateConsole = (): void => { openConsoleRetrying(true) }
     const onModeCleared = (event: Event): void => {
       if ((event as CustomEvent<{ mode?: unknown }>).detail?.mode === '') onCloseConsole()
     }
+    window.addEventListener('hl:open-console', onOpenConsole)
+    window.addEventListener('hl:open-template-console', onOpenTemplateConsole)
     window.addEventListener('hl:close-console', onCloseConsole)
     window.addEventListener('hl:mode-change', onModeCleared)
     window.addEventListener('hl:start-replication', onStartReplication)
+    window.addEventListener('hl:session-switched', onSessionSwitched)
+    const injected: Omit<SidebarRightInjected, 'keyedHooks' | 'occurrence' | 'closeTab' | 'measureRoom'> = {
+      syncPresentation({ shown, track, fullscreen }) {
+        if (shown) layout.openRightbar(track, fullscreen)
+        else layout.closeRightbar()
+      },
+      reportAutoFullscreen: (value) => { autoFullscreen = value },
+      splitPane: (paneId) => { controller.split(paneId) },
+      toggleFullscreen: () => { const target = controller.commandTarget(); if (target !== undefined) controller.toggleFullscreen(target) },
+      openTab: (kind, options) => { controller.openTab(kind, options) },
+      hooks: {
+        shortcuts: ctx.shortcuts.catalog,
+        tabTypes: { subscribe: listener => tabs.subscribe(listener), getSnapshot: () => tabs.entries() },
+      },
+    }
+
+    const disposeTypes = [tabs.register(guideDefinition(t))]
+    const disposeSeat = ctx.slots.inject('rightbar', function* () {
+      yield ctx.slots.register({
+        name: 'rightbar',
+        children: { 'rightbar.session': { kind: 'single', scope: 'session' } },
+        inject: (): RightbarRootInjected => ({
+          hooks: { views: views.source },
+          mountView: reference => views.mount(reference),
+        }),
+      }, RightbarRoot)
+      yield ctx.slots.register({
+        name: 'rightbar.session',
+        locale: NS,
+        children: {
+          'sidebar.right.pane.tab': { kind: 'keyed', scope: 'session', inject: { hooks: { tabInfo: tabInfoFactory } } },
+          'sidebar.right.pane.tab.title': { kind: 'keyed', scope: 'session', inject: { hooks: { tabInfo: tabInfoFactory } } },
+          'sidebar.right.tab.menu.item': { kind: 'list', scope: 'session' },
+        },
+        store,
+        inject: (sessionId): SidebarRightInjected => ({
+          ...injected,
+          measureRoom: (canSplitPane) => { measure(sessionId, canSplitPane) },
+          closeTab: (tabId) => {
+            try { controller.closeIn(sessionId, tabId) }
+            catch (error) { console.error('Sidebar tab close failed:', error) }
+          },
+          keyedHooks: { tabNavigation: key => controller.tabDomain.occurrence(sessionId, { id: key as TabId }).navigation },
+          occurrence: tab => controller.tabDomain.occurrence(sessionId, tab),
+        }),
+      }, RightbarSeat)
+    })
+    // The expand button shares the panel's store: it only needs to know whether
+    // the panel is expanded, and to ask for it to be. The header's corner seat
+    // is its own place, past the utilities, so showing and hiding it moves
+    // nothing else in the row.
+    const disposeExpand = ctx.slots.inject('conversation.session.header.corner', () => ctx.slots.register({
+      name: 'conversation.session.header.corner',
+      locale: NS,
+      store,
+      inject: () => ({ hooks: { shortcuts: ctx.shortcuts.catalog } }),
+    }, ExpandButton))
+    // Stage two for the guide: it declares the chain child it hosts and reads
+    // the registry's entry boxes, which an ordinary type has no reason to do.
+    const guideInjected: GuideInjected = {
+      hooks: {
+        shortcuts: ctx.shortcuts.catalog,
+        guideEntries: { subscribe: listener => tabs.subscribe(listener), getSnapshot: () => tabs.guide() },
+      },
+    }
+    const disposeGuide = ctx.slots.inject('sidebar.right.pane.tab', () => ctx.slots.register({
+      name: 'sidebar.right.pane.tab',
+      key: GUIDE_ID,
+      children: {
+        'sidebar.right.tab.guide.entry': {
+          kind: 'keyed', scope: 'session', inject: { hooks: { tabInfo: guideTabInfoFactory } },
+        },
+        'sidebar.right.tab.guide': {
+          kind: 'chain', scope: 'session', inject: { hooks: { tabInfo: guideTabInfoFactory } },
+        },
+      },
+      inject: () => guideInjected,
+    }, GuideBody))
+    const disposeGuideTitle = ctx.slots.inject('sidebar.right.pane.tab.title', () => ctx.slots.register(
+      { name: 'sidebar.right.pane.tab.title', key: GUIDE_ID },
+      GuideTitle,
+    ))
     return () => {
-      window.removeEventListener('hl:open-console', onOpenConsole)
-      window.removeEventListener('hl:close-console', onCloseConsole)
-      window.removeEventListener('hl:mode-change', onModeCleared)
-      window.removeEventListener('hl:start-replication', onStartReplication)
-    window.removeEventListener('hl:session-switched', onSessionSwitched)
-      disposeConsoleTitle()
-      disposeConsoleBody()
-      for (const dispose of disposeConsoleTypes) dispose()
       disposeGuideTitle()
       disposeGuide()
       disposeExpand()
       disposeSeat()
+      window.removeEventListener('hl:open-console', onOpenConsole)
+      window.removeEventListener('hl:close-console', onCloseConsole)
+      window.removeEventListener('hl:mode-change', onModeCleared)
+      window.removeEventListener('hl:start-replication', onStartReplication)
+      window.removeEventListener('hl:session-switched', onSessionSwitched)
+      window.removeEventListener('hl:open-template-console', onOpenTemplateConsole)
+      disposeConsoleTitle()
+      disposeConsoleBody()
+      for (const dispose of disposeConsoleTypes) dispose()
       for (const dispose of disposeTypes.reverse()) dispose()
-      for (const release of adoptions) release()
+      for (const release of adoptions.values()) release()
+      adoptions.clear()
     }
   }, 'ui-sidebar-right: seats and shipped tab type')
 }
