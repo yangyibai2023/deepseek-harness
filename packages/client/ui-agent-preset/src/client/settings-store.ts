@@ -119,11 +119,25 @@ export async function beginRosterRead<S extends { status: string; error: string 
 export function presetOptions(
   presets: readonly { id: string; name?: string; description?: string; broken?: string }[],
 ): AgentPresetOption[] {
-  return presets.filter(preset => preset.broken === undefined).map(preset => ({
-    id: preset.id,
-    ...preset.name === undefined ? {} : { name: preset.name },
-    ...preset.description === undefined ? {} : { description: preset.description },
-  }))
+  // HeightLab 白名单（2026-09-16 用户拍板，2026-10-14 回植）：下拉只出
+  // Colin(standard)+4 专家+极简+通用助手，automation-worker 不进下拉；
+  // 用户自建（host 侧 trust=user）不受白名单限制。0.2.1 的 roster 行
+  // 不携带 trust，白名单外的自建行改由名单外 id + 有自命名者进入。
+  const HEIGHTLAB_PRESET_IDS: ReadonlySet<string> = new Set([
+    'standard', 'minimal', 'general-assistant',
+    'content-creator', 'image-generator', 'research-analyst', 'video-producer',
+  ])
+  const rank = (id: string): number => id === 'standard' ? 0 : id === 'minimal' ? 2 : id === 'general-assistant' ? 3 : 1
+  return presets
+    .filter(preset => preset.broken === undefined)
+    .filter(preset => HEIGHTLAB_PRESET_IDS.has(preset.id) || preset.name !== undefined)
+    .filter(preset => preset.id !== 'automation-worker')
+    .sort((left, right) => rank(left.id) - rank(right.id))
+    .map(preset => ({
+      id: preset.id,
+      ...preset.name === undefined ? {} : { name: preset.name },
+      ...preset.description === undefined ? {} : { description: preset.description },
+    }))
 }
 
 /** Agent-preset roster snapshot for the display surfaces. */
