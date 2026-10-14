@@ -17,6 +17,7 @@
  */
 import type {} from '@deepseek-ai/dsh-client-product-analytics/client'
 import type { Context } from '@deepseek-ai/cordis'
+import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
 import type { RemoteHostFacts } from '@deepseek-ai/dsh-api-remotes/client'
 import type { ISessions, SessionForkError } from '@deepseek-ai/dsh-api-session-controller/client'
 import type {
@@ -120,6 +121,122 @@ export function apply(ctx: Context): void {
   )
   ctx.slots.provideRoot({ hooks: { workspaces: workspaces.list } })
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-workspace: dictionaries')
+
+  // ── HeightLab 回植（2026-10-14，自 da30b40951；0.2.1 合并曾丢弃）──────
+  // HeightLab V26e-b：视频创作一级页「爆款复刻」（hl:start-replication）——
+  // 新建会话并在导航打开前设置复刻模式标记 + 广播会话就绪（右栏展开消费）。
+  ctx.effect(() => {
+    if (typeof window === 'undefined') return () => {}
+    const onStart = (event: Event): void => {
+      const detail = (event as CustomEvent<{ workspaceId?: unknown }>).detail
+      const detailWorkspaceId = typeof detail?.workspaceId === 'string' ? detail.workspaceId : undefined
+      // 0.2.1 适配：SessionListState 不再有 current——取「含已有会话的第一个
+      // 工作区」近似旧「当前会话工作区」，复刻入口恒有 HeightLab 工作区。
+      const sessionList = sessions.list.getSnapshot()
+      const fallbackWorkspaceId = workspaces.list.getSnapshot().items
+        .find(item => item.sessionIds.some(id => sessionList.byId[id] !== undefined))?.workspaceId
+      // 事件里来的 workspaceId 已满足 WorkspaceId 品牌约束（同构字符串），断言收窄。
+      const target = (detailWorkspaceId ?? fallbackWorkspaceId) as WorkspaceId | undefined
+      if (target === undefined) return
+      void uiWorkspace.openWorkspace(target, (sessionId) => {
+        try {
+          localStorage.setItem('hl-console-mode', 'replication')
+        } catch { /* 非致命 */ }
+        // HeightLab V29：恢复旧监听的完整职责——EmptyHero/ConversationContent/
+        // TemplateDock 三处复刻判定都靠 hl:mode-change 事件刷新（左侧引导
+        // 选项区+输入框贴底）。
+        window.dispatchEvent(new CustomEvent('hl:mode-change', { detail: { mode: 'replication' } }))
+        window.dispatchEvent(new CustomEvent('hl:replication-session-open', { detail: { sessionId } }))
+      }).catch((reason: unknown) => {
+        console.warn('replication session failed:', reason)
+      })
+    }
+    window.addEventListener('hl:start-replication', onStart)
+    return () => { window.removeEventListener('hl:start-replication', onStart) }
+  }, 'ui-workspace: replication entry')
+
+  // HeightLab 定制：全新环境自动完成首次初始化——没有工作区时自动创建
+  // 「~/HeightLab」工作区；没有会话时自动开始一个新会话。直接进入产品
+  // 输入框状态，而不是 DSH 原生“选择工作区”空状态。0.2.1 适配：
+  // SessionListState 无 current，以「列表为空」判定未初始化（轮询内幂等）。
+  ctx.effect(() => {
+    let attempts = 0
+    let timer = 0
+    const debug = (payload: Record<string, unknown>): void => {
+      try {
+        void fetch('/hl/boot-marker', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ hlAutoStart: true, ...payload }),
+        }).catch(() => { /* 非致命 */ })
+      } catch {
+        // 非致命
+      }
+    }
+    const hasSession = (): boolean => sessions.list.getSnapshot().ids.length > 0
+    const tryAutoStart = async (): Promise<void> => {
+      if (attempts >= 15) return
+      // 未登录（登录门 out/未判定）绝不自动开会话——否则登录页背后会
+      // 反复建会话（hlAutoStart enter 循环）。登录成功后轮询接管。
+      if (document.body.dataset.hlAuth !== 'in') return
+      attempts += 1
+      try {
+        let workspaceList = workspaces.list.getSnapshot()
+        debug({ at: 'enter', attempts, wsCount: workspaceList.items.length })
+        if (hasSession()) return
+        let workspaceId = workspaceList.items[0]?.workspaceId
+        if (workspaceId === undefined && workspaceList.items.length === 0) {
+          // 兜底：初始化脚本没种成功时，客户端自己建默认工作区。
+          const listingResult = await ctx.remote.directoryPicker.list(undefined, new AbortController().signal)
+          if (!listingResult.ok) throw new Error(listingResult.error.message)
+          const listing = listingResult.value
+          let dir = ''
+          try {
+            const created2 = await ctx.remote.directoryPicker.createDirectory(listing.home, 'HeightLab')
+            if (!created2.ok) throw new Error(created2.error.message)
+            dir = created2.value
+          } catch {
+            dir = `${listing.home.replace(/\/+$/, '')}/HeightLab`
+          }
+          const created = await workspaces.create({ path: dir })
+          workspaceId = created.workspaceId
+          try {
+            await workspaces.rename(workspaceId, '我的工作区')
+          } catch {
+            // 重命名失败不阻塞。
+          }
+          workspaceList = workspaces.list.getSnapshot()
+        }
+        workspaceId = workspaceId ?? workspaceList.items[0]?.workspaceId
+        if (workspaceId !== undefined && !hasSession()) {
+          debug({ at: 'startSession', workspaceId })
+          try {
+            const sessionId = await uiWorkspace.connectWorkspace(workspaceId)
+            debug({ at: 'connected', sessionId })
+            uiWorkspace.openSession(sessionId)
+            debug({ at: 'opened' })
+          } catch (error) {
+            debug({ at: 'connectError', message: error instanceof Error ? error.message : String(error) })
+          }
+        }
+      } catch (error) {
+        debug({ at: 'error', message: error instanceof Error ? error.message : String(error) })
+      }
+    }
+    const run = (): void => {
+      void tryAutoStart().then(() => {
+        if (hasSession() || attempts >= 15) {
+          window.clearInterval(timer)
+        }
+      })
+    }
+    if (typeof window === 'undefined') return () => {}
+    run()
+    timer = window.setInterval(run, 2000)
+    return () => {
+      window.clearInterval(timer)
+    }
+  }, 'ui-workspace: auto-start first session')
   const shortcutControls = createWorkspaceShortcutControls()
 
   const searchSessions: WorkspaceBrowserInjected['searchSessions'] = async (query, signal) => {
