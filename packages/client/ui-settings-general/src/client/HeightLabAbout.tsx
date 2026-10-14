@@ -8,6 +8,7 @@ import { useEffect, useState, useSyncExternalStore } from 'react'
 import {
   checkForUpdate, getUpdateState, installUpdate, subscribeUpdateState,
 } from './heightlab-update-store.ts'
+import { HeightLabFeedback } from './HeightLabFeedback.tsx'
 
 interface AppInfo {
   name?: string
@@ -70,7 +71,7 @@ export function HeightLabAbout() {
 
   useEffect(() => {
     fetch('/hl/app-info')
-      .then((r) => r.json())
+      .then(r => r.json())
       .then((data) => { if (data?.ok) setInfo(data) })
       .catch(() => { /* 保持默认 */ })
   }, [])
@@ -128,6 +129,9 @@ export function HeightLabAbout() {
       {updateState.info?.body !== undefined && updateState.info.body !== '' && (
         <div style={{ fontSize: 12, opacity: 0.7, whiteSpace: 'pre-line' }}>{updateState.info.body}</div>
       )}
+
+      {/* HeightLab P1：问题反馈（匿名可提交，云端反馈队列） */}
+      <HeightLabFeedback />
     </div>
   )
 }
