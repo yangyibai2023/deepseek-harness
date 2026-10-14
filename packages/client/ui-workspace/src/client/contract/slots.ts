@@ -240,6 +240,13 @@ export type WorkspaceBrowserInjected = {
    * Without an explicit Workspace, inherit the current Session Workspace,
    * then the recent Workspace, or clear into the New Session view.
    */
+  /**
+   * HeightLab V26e（2026-09-20）：视频创作入口「爆款复刻」——新建会话并在其
+   * 导航打开前设置复刻模式标记（右侧栏 seed 于 tab 创建时同步读取）+ 广播
+   * 会话就绪（右栏展开消费）。零时序竞态：tab 与会话同生。
+   * （2026-10-14 自 6a0f99b913 回植：0.2.1 合并曾丢弃该成员。）
+   */
+  startReplicationSession: (workspaceId?: WorkspaceId) => void
   startSession: (workspaceId?: WorkspaceId, options?: StartSessionOptions) => void
   /** Open a real Session. */
   open: (sessionId: SessionId) => void
