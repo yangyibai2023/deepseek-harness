@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode, SyntheticEvent } from 'react'
 import { createPortal } from 'react-dom'
 import clsx from 'clsx'
-import { IconCheckOutlineRegular } from './icons/index.tsx'
+import { IconCheckOutlineRegular, IconChevronRightOutlineRegular } from './icons/index.tsx'
 import { overlayTopMargin } from './overlay-top-margin.ts'
 import { usePointerGrace } from './pointer-grace.ts'
 import { isBehindModal } from './useModalLayer.ts'
@@ -16,6 +16,8 @@ import css from './Menu.module.css'
 export interface MenuItem {
   id: string
   label: ReactNode
+  /** Current value shown after the label (model-selector style cell). */
+  value?: ReactNode
   disabled?: boolean
   /** Effective binding supplied by the command owner; omitted for unbound actions. */
   shortcut?: { keys: readonly string[]; aria?: string | undefined }
@@ -472,6 +474,9 @@ export function Menu({ open, anchor, items = [], children, selectedId, selectedI
         >
           {entry.icon !== undefined && <span className={css.itemIcon}>{entry.icon}</span>}
           <span className={css.itemLabel}>{entry.label}</span>
+          {/* HeightLab：一级项当前值尾注（模型选择框「文本模型 deepseek-flash」同款）。 */}
+          {entry.value !== undefined && <span className={css.itemValue}>{entry.value}</span>}
+          {hasSub && <IconChevronRightOutlineRegular className={css.subChevron} />}
           {entry.shortcut !== undefined && <span aria-hidden="true" className={css.shortcut}><ShortcutKeys keys={entry.shortcut.keys} className={css.shortcutKeys} /></span>}
           {/* Selection marker is a trailing check (figma .Menu_cell) unless the fill mode carries it. */}
           {selected && selection === 'check' && <IconCheckOutlineRegular className={css.check} />}

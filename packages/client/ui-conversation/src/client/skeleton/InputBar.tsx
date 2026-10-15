@@ -17,7 +17,7 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import type { ChangeEvent, KeyboardEvent, MouseEvent } from 'react'
 import clsx from 'clsx'
 import {
-  IconPlusOutlineMedium, IconWarningOutlineRegular, Toast, Tooltip,
+  IconPlusOutlineMedium, IconPaperclipOutlineRegular, IconWarningOutlineRegular, Toast, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 // Type-only: the `plan` projection key merge (the TodoDock posture — the
 // composer reads a host-computed value; the domain owns the key).
@@ -452,6 +452,19 @@ export const InputBar = memo(function InputBar({
                 <IconPlusOutlineMedium size={14} />
               </button>
             </Tooltip>
+            {/* HeightLab：附件纸夹按钮（0.4.1 布局；上游 0.2.1 收进了命令菜单）。 */}
+            <Tooltip label={t('file.attach')} side="top" delayMs={500}>
+              <button
+                type="button"
+                className={css.add}
+                aria-label={t('file.attach')}
+                disabled={subagent !== null || locked || machineBusy || addFiles === undefined}
+                onMouseDown={keepFocus}
+                onClick={() => { fileInputRef.current?.click() }}
+              >
+                <IconPaperclipOutlineRegular size={14} />
+              </button>
+            </Tooltip>
             <input
               ref={fileInputRef}
               type="file"
@@ -473,6 +486,8 @@ export const InputBar = memo(function InputBar({
               {input === undefined || sessionId === undefined
                 ? null
                 : renderSlot('conversation.input.right', {})}
+              {/* HeightLab：智能体选择框（Colin / 专家）放在模型选择左侧（0.4.1 布局）。 */}
+              {sessionId === undefined ? null : renderSlot('conversation.input.agentPreset', {})}
               {sessionId === undefined ? null : renderSlot('conversation.input.model', { locked: modelSeatLocked })}
             </div>
             {input === undefined || sessionId === undefined ? null : <div className={activity ? css.activityExpanded : css.activity}>

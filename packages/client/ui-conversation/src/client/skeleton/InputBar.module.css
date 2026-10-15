@@ -373,25 +373,25 @@
   display: grid;
   place-items: center;
   flex: none;
-  width: 34px;
-  height: 34px;
+  /* HeightLab 2026-08-26：在原生 34px 基础上整体缩小 20%（圆底与箭头
+     等比，grid 居中保证箭头不偏）。 */
+  width: 27.2px;
+  height: 27.2px;
   border: none;
   border-radius: 999px;
   corner-shape: round;
-  background: var(--dsw-alias-button-info-fill);
-  /* Static white, not the foreground token: the arrow stays white on the blue
+  /* HeightLab 2026-08-22：发送按钮改黑色主题（与侧边栏主按钮/0.3.17 一致），
+     不用上游的蓝色 info fill。 */
+  background: var(--dsw-alias-label-primary);
+  /* Static white, not the foreground token: the arrow stays white on the dark
      fill in both themes (design 34:10465). */
   color: #fff;
   cursor: pointer;
   transition: background-color 100ms ease;
-  /* Opts out of the row's 2px downward shift (.row top pad): the send circle
-     keeps its original seat while the smaller chips sit lower. Transform, not
-     margin, so flex centering math is untouched. */
-  transform: translateY(-2px);
 }
 
 .primary:hover:not(:disabled) {
-  background: var(--dsw-alias-button-info-hover);
+  background: rgba(0, 0, 0, 0.82);
 }
 
 .primary:disabled {

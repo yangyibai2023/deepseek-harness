@@ -10,7 +10,7 @@
  * sessions-derived empty-Hero fact is active. Visible dialog chrome belongs
  * to the step, so a mounted-but-deciding step paints nothing here.
  */
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import clsx from 'clsx'
 import {
@@ -126,7 +126,27 @@ export function SettingsRoot(props: SettingsRootComponentProps) {
   // The ledger tick keeps the nav rows fresh: registrants re-register with
   // freshly localized text on locale change, and the trigger/header/close
   // seats re-render through their own outlets' subscriptions.
-  const rows = useSections(s => s)
+  const allRows = useSections(s => s)
+  // HeightLab：隐藏 dsh-better-sidebar 插件注册的「侧边卡片（Side card）」分区。
+  const rows = useMemo(
+    () => allRows.filter(row => row.id !== 'better-sidebar'),
+    [allRows],
+  )
+
+  // HeightLab：支持外部（账户菜单 / hl://settings/<section> 链接）直接打开
+  // 设置面板并定位到对应分区。
+  useEffect(() => {
+    const onOpenSection = (event: Event): void => {
+      const detail = (event as CustomEvent<{ section?: unknown }>).detail
+      const section = typeof detail?.section === 'string' ? detail.section : ''
+      if (section !== '' && allRows.some(row => row.id === section)) {
+        actions.select(section)
+        actions.open()
+      }
+    }
+    window.addEventListener('hl:open-settings-section', onOpenSection)
+    return () => window.removeEventListener('hl:open-settings-section', onOpenSection)
+  }, [allRows, actions])
   const desktopUpdate = useDesktopUpdate(state => state)
   const connectionState = useConnectionState(state => state)
   const previousConnectionState = useRef(connectionState)

@@ -38,6 +38,7 @@ import { CreatePluginMenuItem } from './CreatePluginMenuItem.tsx'
 import type { AgentPresetLabelInjected } from './AgentPresetLabel.tsx'
 import { AgentPresetSeat } from './AgentPresetSeat.tsx'
 import type { AgentPresetSeatInjected } from './AgentPresetSeat.tsx'
+import { CreatorModeChip } from './CreatorModeChip.tsx'
 import { AgentPresetSection } from './AgentPresetSection.tsx'
 import type { AgentPresetSectionInjected } from './AgentPresetSection.tsx'
 import { AgentPresetSeatController, type AgentPresetStage } from './seat-store.ts'
@@ -207,8 +208,16 @@ export function apply(ctx: ClientContext): void {
 
     scope.effect(() => {
       creatorDraft = startCreatorDraft
-      const chip = scope.slots.register({
+      // HeightLab：hero 座位由 CreatorModeChip（创造 Agent 开关）占据；
+      // AgentPresetSeat 本体注册在 conversation.input.agentPreset（输入栏内
+      // COLIN 胶囊，0.4.1 布局：新会话 hero 与会话中输入栏同源 seat）。
+      const heroCreatorChip = scope.slots.register({
         name: 'conversation.hero.agentPreset',
+        locale: 'settings.agentPreset',
+        inject: seatInjected,
+      }, CreatorModeChip)
+      const composerSeat = scope.slots.register({
+        name: 'conversation.input.agentPreset',
         locale: 'settings.agentPreset',
         inject: seatInjected,
       }, AgentPresetSeat)
@@ -222,7 +231,8 @@ export function apply(ctx: ClientContext): void {
       }, AgentPresetLabel)
       return () => {
         creatorDraft = undefined
-        chip()
+        heroCreatorChip()
+        composerSeat()
         label()
       }
     }, 'ui-agent-preset: new-session chip and header label')

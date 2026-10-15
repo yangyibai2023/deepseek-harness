@@ -27,6 +27,7 @@ import type {
 import type { ShortcutCommandId } from '@deepseek-ai/dsh-client-shortcuts/client'
 import { createSettingsShellStore } from './shell-store.ts'
 import { SettingsRoot } from './SettingsRoot.tsx'
+import { HeightLabAccountFoot } from './HeightLabAccountFoot.tsx'
 import { DesktopUpdateBadge } from './DesktopUpdateIndicator.tsx'
 import type { DesktopUpdateBridge } from '../types.ts'
 import { DesktopUpdateSource } from './desktop-update-source.ts'
@@ -215,6 +216,10 @@ export function apply(ctx: ClientContext): void {
 
   ctx.slots.inject('settings.trigger', () =>
     ctx.slots.register({ name: 'settings.trigger', locale: NS }, TriggerContent))
+  // HeightLab：侧栏底部账户行占据 launcher 座位——账户头像+通知/手机，
+  // 「设置齿轮不再单独占位」（0.3.x 产品形态）；未占位时 shell 才回退齿轮。
+  ctx.slots.inject('settings.launcher', () =>
+    ctx.slots.register({ name: 'settings.launcher', locale: NS }, HeightLabAccountFoot))
   ctx.slots.inject('settings.header', () =>
     ctx.slots.register({ name: 'settings.header', locale: NS }, HeaderContent))
   if (documentInjected !== undefined) {

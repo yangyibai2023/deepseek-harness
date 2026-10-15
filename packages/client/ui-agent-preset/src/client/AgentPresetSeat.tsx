@@ -113,7 +113,25 @@ export function AgentPresetSeat({
 
   const chosen = state.options.find(option => option.id === state.current)
   const chosenText = chosen === undefined ? undefined : presetDisplayText(chosen, t)
-  const label = chosenText?.name ?? state.current
+  // HeightLab（2026-09-19 用户拍板）：输入框按钮文字用短标签（小写观感，
+  // 与模型字号一致）——「Colin 指挥官」→「Colin」，专家显示两字缩写；
+  // 名称本身不变——弹出菜单与设置页仍显示全名。0.2.1 基座回植。
+  const HEIGHTLAB_AGENT_SHORT: ReadonlyArray<readonly [string, string]> = [
+    ['视频制作专家', '视频'],
+    ['内容创作专家', '文案'],
+    ['图片生成专家', '图片'],
+    ['研究分析专家', '研究'],
+    ['通用 AI 助手', '通用'],
+    ['系统操作专家', '系统'],
+    ['自动化执行助手', '自动化'],
+  ]
+  const agentShortLabel = (name: string): string => {
+    const hit = HEIGHTLAB_AGENT_SHORT.find(([full]) => name === full)
+    if (hit !== undefined) return hit[1]
+    if (name.startsWith('Colin')) return 'Colin'
+    return Array.from(name).slice(0, 2).join('')
+  }
+  const label = agentShortLabel(chosenText?.name ?? state.current)
   const ready = state.options.length > 0 && state.current !== ''
 
   // The introduce cue: the pick was staged from another screen (the settings
