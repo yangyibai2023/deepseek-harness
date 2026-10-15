@@ -163,7 +163,8 @@ export function apply(ctx: Context): void {
       }),
     }, LinkOpeningRow))
   })
-  const transcriptView = new TranscriptViewPolicy(chatSettings, 'dshDesktop' in globalThis ? 'standard' : DEFAULT_TRANSCRIPT_VIEW_MODE)
+  // HeightLab：桌面端未设置时的默认档也走 compact（简洁；用户可在设置→一般里自选四档）
+  const transcriptView = new TranscriptViewPolicy(chatSettings, DEFAULT_TRANSCRIPT_VIEW_MODE)
   const presentation = derivePresentationPolicy(transcriptView.mode, transcriptView.collapseTiming)
   const performancePolicy = new PerformanceUsagePolicy(chatSettings)
   ctx.effect(() => () => { transcriptView.dispose(); performancePolicy.dispose() })

@@ -29,7 +29,10 @@ const TRANSCRIPT_VIEW_SETTING_VALUES = [
 ] as const
 
 /** Default work details for non-Desktop Web clients. */
-export const DEFAULT_TRANSCRIPT_VIEW_MODE: TranscriptViewMode = 'detailed'
+// HeightLab：默认展示档位改 compact——思考行完成后收起、步骤分组折叠、
+// 已完成轮次折叠（用户要求"简洁高级"，不要大量展示思考过程）。
+// 用户仍可在设置里切回 detailed 查看全过程。
+export const DEFAULT_TRANSCRIPT_VIEW_MODE: TranscriptViewMode = 'compact'
 
 /** Performance and usage detail levels accepted by user settings. */
 export const PERFORMANCE_USAGE_MODES = ['compact', 'detailed'] as const
