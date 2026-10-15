@@ -63,7 +63,13 @@ function progressLabel(todos: readonly TodoItem[], t: TodoPanelProps['t']): stri
 }
 
 export function TodoPanel({ todos, t }: TodoPanelProps) {
-  const [collapsed, setCollapsed] = useState(true)
+  // HeightLab：有进行中项时自动展开（实时进度可见），全部完成或无活动时收起
+  const active = todos.some(item => item.status === 'in_progress')
+  const done = todos.filter(item => item.status === 'completed').length
+  const percent = todos.length > 0 ? Math.round((done / todos.length) * 100) : 0
+  const [userToggled, setUserToggled] = useState<boolean | null>(null)
+  const collapsed = userToggled ?? !active
+
   if (todos.length === 0) return null
 
   return (
@@ -73,7 +79,7 @@ export function TodoPanel({ todos, t }: TodoPanelProps) {
           type="button"
           className={css.header}
           aria-expanded={!collapsed}
-          onClick={() => { setCollapsed(v => !v) }}
+          onClick={() => { setUserToggled(!collapsed) }}
         >
           <span className={css.lead} aria-hidden><IconChecklistOutlineRegular /></span>
           <span className={css.title}>{t('todo.title')}</span>
@@ -82,6 +88,20 @@ export function TodoPanel({ todos, t }: TodoPanelProps) {
             {collapsed ? <IconChevronUpOutlineRegular /> : <IconChevronDownOutlineRegular />}
           </span>
         </button>
+        {/* HeightLab：总进度条（完成占比） */}
+        <div
+          style={{
+            height: 3, borderRadius: 2, overflow: 'hidden',
+            background: 'var(--dsw-alias-fill-secondary, rgba(127,127,127,0.2))',
+          }}
+          aria-hidden
+        >
+          <div style={{
+            width: `${percent}%`, height: '100%',
+            background: active ? 'var(--dsw-alias-button-primary-fill, #2eaadc)' : '#27ae60',
+            transition: 'width 300ms ease',
+          }} />
+        </div>
         {!collapsed && (
           <ul className={css.list}>
             {todos.map(item => (
@@ -89,7 +109,10 @@ export function TodoPanel({ todos, t }: TodoPanelProps) {
                 <span className={css.glyph} role="img" aria-label={statusLabel(item.status, t)}>
                   <StateDot state={statusDotState(item.status)} />
                 </span>
-                <span className={css.content}>{item.content}</span>
+                <span className={css.content} style={item.status === 'in_progress' ? {
+                  color: 'var(--dsw-alias-label-primary-foreground, inherit)',
+                  fontWeight: 600,
+                } : undefined}>{item.content}</span>
               </li>
             ))}
           </ul>
@@ -103,9 +126,38 @@ export function TodoPanel({ todos, t }: TodoPanelProps) {
 export type TodoDockProps = PropsRuntime<'conversation.input.dock'> & PropsLocale<'conversation'>
 
 /** Renders the current todo projection, or nothing when it is absent. */
-export function TodoDock({ useProjection, t }: TodoDockProps) {
-  const todos = useProjection('todos')
-  return <TodoPanel todos={todos ?? []} t={t} />
+export function TodoDock({ useProjection, t, inputActions, useInput }: TodoDockProps) {
+  const todos = useProjection('todos') ?? []
+  const phase = useInput(state => state.phase)
+  // HeightLab：任务未全部完成且输入空闲 → 提供"继续执行"一键续跑
+  //（premature-end 场景：轮次提前结束但清单未完成，用户无需手打"继续"）。
+  const hasOpen = todos.some(item => item.status !== 'completed')
+  const idle = phase === 'plain'
+  const showContinue = hasOpen && idle
+  const continueRun = (): void => {
+    if (!inputActions) return
+    inputActions.setDraft('继续')
+    inputActions.submit()
+  }
+  return (
+    <>
+      <TodoPanel todos={todos} t={t} />
+      {showContinue && (
+        <button
+          type="button"
+          onClick={continueRun}
+          style={{
+            width: '100%', padding: '7px 12px', marginTop: 6, borderRadius: 10,
+            border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
+            background: 'var(--dsw-alias-button-primary-fill, #2eaadc)',
+            color: 'var(--dsw-alias-label-primary-foreground, #fff)',
+          }}
+        >
+          继续执行未完成任务
+        </button>
+      )}
+    </>
+  )
 }
 
 /** Registers the projected todo dock. */
