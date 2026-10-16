@@ -26,7 +26,8 @@ import {
   // 已承接其职责，对标 MiniMax Design）。回滚：取消下面数组里 inspiration
   // 行与第 25 行 import 中的 IconInspirationStroke16 注释即可。
   // IconInspirationStroke16,
-  IconLibraryStroke16, IconAutomationStroke16, IconPanelLeftStroke16,
+  IconLibraryStroke16, IconPanelLeftStroke16,
+  // IconAutomationStroke16,  // HeightLab 2026-10-16：自建「自动化」入口取消（原生自动化任务承接），随条目一并停用
 } from './sidebar-icons.tsx'
 import { HlModeSwitcher } from './hl-mode.tsx'
 import type { InjectFace, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
@@ -302,7 +303,7 @@ export function SidebarRoot({
         </button>
       </Tooltip>
 
-      {/* HeightLab：自定义导航（创意灵感 / 资料库 / 自动化）。
+      {/* HeightLab：自定义导航（创意灵感 / 资料库）。
           rc.2 原生 SVG 描边图标 + 主题 token（css.hlNav*），与原生风格统一。 */}
       <div className={css.hlNav}>
         {[
@@ -310,7 +311,10 @@ export function SidebarRoot({
           // 取消注释即恢复。
           // { key: 'inspiration', label: '创意灵感', Icon: IconInspirationStroke16, dispatch: 'hl:open-hub', detail: { page: 'inspiration' } },
           { key: 'library', label: '资产中心', Icon: IconLibraryStroke16, dispatch: 'hl:open-hub', detail: { page: 'library' } },
-          { key: 'automation', label: '自动化', Icon: IconAutomationStroke16, dispatch: 'hl:open-automation', detail: {} },
+          // HeightLab（2026-10-16 用户拍板）：自建「自动化」入口取消——0.2.1 起
+          // DSH 原生「自动化任务」(ui-schedule 经 sidebar.panellist) 承接，
+          // 原生入口自然顶到本位置；hl:open-automation hub 页代码保留不删。
+          // { key: 'automation', label: '自动化', Icon: IconAutomationStroke16, dispatch: 'hl:open-automation', detail: {} },
         ].map(item => (
           <button
             key={item.key}
