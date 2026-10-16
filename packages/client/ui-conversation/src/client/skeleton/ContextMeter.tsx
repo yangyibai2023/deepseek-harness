@@ -100,6 +100,18 @@ function cacheHitPercent(usage: {
   return '99.999'
 }
 
+/** HeightLab：宿主 sessionStats 投影的形状（键类型未并入本包）。 */
+interface SessionStatsLike {
+  turns: number
+  steps: number
+  llmMs: number
+  toolMs: number
+  ttftMs: number
+  ttftSteps: number
+  decodeMs: number
+  decodeTokens: number
+}
+
 export interface ContextMeterProps {
   useProjection: UseProjection
   /** The owning bar's locale seat, passed down as a plain prop. */
@@ -109,6 +121,11 @@ export interface ContextMeterProps {
 export function ContextMeter({ useProjection, t }: ContextMeterProps) {
   const pressure = useProjection('contextPressure')
   const breakdown = useProjection('contextBreakdown')
+  // HeightLab（0.4.1 定制回植，2026-10-17）：全部 hooks 必须在任何条件 return
+  // 之前调用（React hooks 规则）——stats/usage 提前到这里。
+  // oxlint-disable-next-line typescript/no-confusing-void-expression -- 非本包投影键的受控断言（0.4.1 既有写法）
+  const stats = useProjection('sessionStats' as never) as SessionStatsLike | undefined
+  const usage = useProjection('tokenUsage')
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLSpanElement | null>(null)
   const panelRef = useRef<HTMLDivElement | null>(null)
@@ -146,19 +163,6 @@ export function ContextMeter({ useProjection, t }: ContextMeterProps) {
   // （0.3.17 起的产品设定），唯一显示通道就是这里。sessionStats 投影的键类型
   // 未并入本包（ui-conversation 未依赖 dsh-session-stats），受控断言取数；
   // 缺数据时统计区整体不渲染。
-  interface SessionStatsLike {
-    turns: number
-    steps: number
-    llmMs: number
-    toolMs: number
-    ttftMs: number
-    ttftSteps: number
-    decodeMs: number
-    decodeTokens: number
-  }
-  // oxlint-disable-next-line typescript/no-confusing-void-expression -- 非本包投影键的受控断言（0.4.1 既有写法）
-  const stats = useProjection('sessionStats' as never) as SessionStatsLike | undefined
-  const usage = useProjection('tokenUsage')
   const groups: string[] = []
   if (stats !== undefined && stats.steps > 0) {
     groups.push(t('stats.counts', { turns: stats.turns, steps: stats.steps }))
