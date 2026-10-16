@@ -283,6 +283,9 @@ export function SidebarRoot({
           type="button"
           className={css.newSession}
           onClick={() => {
+            // HeightLab 2026-10-16：先记 pending，供 ConversationRoot 挂载后消费；
+            // 直接 selectPanel(null) 会替换会话区导致事件丢失（实测回主页）。
+            ;(window as unknown as { __hlPendingHub?: string | null }).__hlPendingHub = 'video-studio'
             selectPanel(null)
             window.dispatchEvent(new CustomEvent('hl:open-hub', { detail: { page: 'video-studio' } }))
           }}
@@ -299,6 +302,9 @@ export function SidebarRoot({
           type="button"
           className={css.newSession}
           onClick={() => {
+            // HeightLab 2026-10-16：先记 pending，供 ConversationRoot 挂载后消费；
+            // 直接 selectPanel(null) 会替换会话区导致事件丢失（实测回主页）。
+            ;(window as unknown as { __hlPendingHub?: string | null }).__hlPendingHub = 'skill-hub'
             selectPanel(null)
             window.dispatchEvent(new CustomEvent('hl:open-hub', { detail: { page: 'skill-hub' } }))
           }}
@@ -326,7 +332,11 @@ export function SidebarRoot({
             type="button"
             className={css.hlNavItem}
             onClick={() => {
-              // HeightLab 2026-10-16：同上，先回会话区再派发（原生面板激活时）。
+              // HeightLab 2026-10-16：hub 页先记 pending，供 ConversationRoot
+              // 挂载后消费（selectPanel 替换会话区会丢 hl: 事件）。
+              if (item.dispatch === 'hl:open-hub' && typeof item.detail.page === 'string') {
+                ;(window as unknown as { __hlPendingHub?: string | null }).__hlPendingHub = item.detail.page
+              }
               selectPanel(null)
               window.dispatchEvent(new CustomEvent(item.dispatch, { detail: item.detail }))
             }}

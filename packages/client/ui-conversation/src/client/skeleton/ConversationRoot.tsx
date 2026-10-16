@@ -70,6 +70,15 @@ export function ConversationRoot(props: ConversationRootProps) {
         setHub(detail.page)
       }
     }
+    // HeightLab 2026-10-16：原生面板激活时，SidebarRoot 先 selectPanel(null)
+    // 再派发 hl:open-hub——本组件此刻尚未挂载，事件会丢。SidebarRoot 同时把
+    // 目标页写入 __hlPendingHub，挂载后立即消费，保证落到 hub 页而非主页。
+    const pending = (window as unknown as { __hlPendingHub?: HubPage | null }).__hlPendingHub
+    if (pending) {
+      ;(window as unknown as { __hlPendingHub?: HubPage | null }).__hlPendingHub = null
+      try { document.body.dataset.hlHub = '1' } catch { /* 非致命 */ }
+      setHub(pending)
+    }
     const onClose = (): void => {
       window.dispatchEvent(new CustomEvent('hl:close-knowledge'))
       try { document.body.dataset.hlHub = '0' } catch { /* 非致命 */ }

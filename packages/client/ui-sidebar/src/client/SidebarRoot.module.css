@@ -335,6 +335,8 @@
   margin-bottom: 8px;
 }
 
+/* HeightLab（2026-10-16 用户拍板）：功能区统一主黑——原生插件/自动化
+   任务行与我们自建行同色；选中态沿用 panelActive 的主黑+500。 */
 .panelRow {
   display: flex;
   align-items: center;
@@ -346,7 +348,7 @@
   border: none;
   border-radius: 8px;
   background: transparent;
-  color: var(--dsw-alias-label-secondary);
+  color: var(--dsw-alias-label-primary);
   font: inherit;
   line-height: 22px;
   text-align: left;
