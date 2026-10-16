@@ -320,16 +320,20 @@ export function apply(ctx: Context): void {
     }),
   }, QuotaNoticeHost))
 
-  // One dock entry per pill, so a plugin replaces or adds a single pill by id.
-  const statPillInject = () => ({ hooks: { performanceUsage } })
-  ctx.slots.inject('conversation.composer.dock', function* () {
-    yield ctx.slots.register({
-      name: 'conversation.composer.dock', id: 'activity', order: 0, locale: NS, inject: statPillInject,
-    }, ActivityPill)
-    yield ctx.slots.register({
-      name: 'conversation.composer.dock', id: 'usage', order: 1, locale: NS, inject: statPillInject,
-    }, UsagePill)
-  })
+  // HeightLab（2026-09-16 定制总清单迁移恢复项，2026-10-16 回植）：StatsPills
+  // 不挂载——全部指标由输入框行内的 ContextMeter 圆环收编，输入框下方不再
+  // 出现外置统计条（0.4.1 观感）。需要恢复时取消本段注释。
+  // const statPillInject = () => ({ hooks: { performanceUsage } })
+  // ctx.slots.inject('conversation.composer.dock', function* () {
+  //   yield ctx.slots.register({
+  //     name: 'conversation.composer.dock', id: 'activity', order: 0, locale: NS, inject: statPillInject,
+  //   }, ActivityPill)
+  //   yield ctx.slots.register({
+  //     name: 'conversation.composer.dock', id: 'usage', order: 1, locale: NS, inject: statPillInject,
+  //   }, UsagePill)
+  // })
+  void ActivityPill
+  void UsagePill
 
   ctx.slots.inject('conversation.approval.detail', () =>
     ctx.slots.register({ name: 'conversation.approval.detail' }, ApprovalCommand))

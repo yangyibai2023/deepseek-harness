@@ -489,6 +489,9 @@ export const InputBar = memo(function InputBar({
               {/* HeightLab：智能体选择框（Colin / 专家）放在模型选择左侧（0.4.1 布局）。 */}
               {sessionId === undefined ? null : renderSlot('conversation.input.agentPreset', {})}
               {sessionId === undefined ? null : renderSlot('conversation.input.model', { locked: modelSeatLocked })}
+              {/* HeightLab（2026-10-16 回植）：ContextMeter 圆环收编全部指标，
+                  位于输入框行内（0.4.1 布局）；0.2.1 把它挪到了行外 dock。 */}
+              {activity ? null : <ContextMeter useProjection={useProjection} t={t} />}
             </div>
             {input === undefined || sessionId === undefined ? null : <div className={activity ? css.activityExpanded : css.activity}>
               {renderSlot('conversation.input.activity', { locked, onActiveChange: setActivity })}
@@ -536,7 +539,6 @@ export const InputBar = memo(function InputBar({
         {variant === 'composer' && input !== undefined && sessionId !== undefined
           ? renderSlot('conversation.composer.dock', {})
           : null}
-        {activity ? null : <ContextMeter useProjection={useProjection} t={t} />}
       </div>
     </div>
   )

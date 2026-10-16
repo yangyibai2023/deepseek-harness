@@ -93,6 +93,12 @@ export class ClientEntries {
     const manifest = parseBootManifest(graph)
     if (entryTargets(manifest) !== entryTargets(this.desired)) this.generation++
     this.desired = manifest
+    // HeightLab（2026-10-16）：client-hmr 的 SSE 事件帧可能先于 bootClient 的
+    // start() 到达——此时 loader 未就绪，reconcile 抛错并被永久记入
+    // state.failures，设置插件页常驻「Some plugins could not sync」错误横幅
+    // （用户实测）。只记录 desired 不报错：start 会应用 boot 清单，之后的
+    // graph 推送照常 reconcile。
+    if (this.loader === undefined) return Promise.resolve()
     const generation = this.generation
     return this.enqueue(() => this.reconcile(generation))
   }

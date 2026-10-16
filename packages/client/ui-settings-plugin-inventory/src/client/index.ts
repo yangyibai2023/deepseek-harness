@@ -121,6 +121,12 @@ export function apply(ctx: ClientContext): void {
   const SHIPPED_PRESET_IDS: ReadonlySet<string> = new Set([
     'content-creator', 'image-generator', 'research-analyst',
     'video-producer', 'general-assistant', 'automation-worker',
+    // 2026-10-16 补：上游 shipped 预设（standard=Colin Commander /
+    // minimal / ptc）的组合行同样属「预装一律隐藏」——此前漏 standard，
+    // Colin Commander 默认组合的 28 个内部工具行全部漏出（用户实测）。
+    'standard', 'minimal', 'ptc',
+    // 创造模式预设（Creator mode，colin 自定义链）组合行同属预装隐藏。
+    'cordis',
   ])
   // 2026-10-14 0.2.1 适配：wire 的组类型不再携带 trust；「预装一律隐藏」
   // 以预装 id 集合判定——用户自建预设的 id 不在集合内，天然保留。
