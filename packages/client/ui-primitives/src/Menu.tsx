@@ -235,6 +235,24 @@ export function Menu({ open, anchor, items = [], children, selectedId, selectedI
   const openRef = useRef(open)
   openRef.current = open
   const [openSubmenuId, setOpenSubmenuId] = useState<string | null>(null)
+  // HeightLab：子菜单关闭宽限（350ms）——子菜单卡片与行之间有 10px 定位间隙，
+  // 鼠标跨间隙的瞬间 mouseleave 会立刻关卡（用户实测「还没划过去就消失」）。
+  // 宽限期内重新进入行/卡片即取消关闭；点击空白或 Escape 走原有 onClose。
+  const submenuCloseTimer = useRef<number | undefined>(undefined)
+  const closeSubmenuSoon = (): void => {
+    if (submenuCloseTimer.current !== undefined) window.clearTimeout(submenuCloseTimer.current)
+    submenuCloseTimer.current = window.setTimeout(() => {
+      submenuCloseTimer.current = undefined
+      setOpenSubmenuId(null)
+    }, 350)
+  }
+  const openSubmenuNow = (id: string): void => {
+    if (submenuCloseTimer.current !== undefined) {
+      window.clearTimeout(submenuCloseTimer.current)
+      submenuCloseTimer.current = undefined
+    }
+    setOpenSubmenuId(id)
+  }
   const [fixedPos, setFixedPos] = useState<CSSProperties | null>(null)
   const { arm: armClose, cancel: cancelClose } = usePointerGrace(onClose)
 
@@ -320,6 +338,10 @@ export function Menu({ open, anchor, items = [], children, selectedId, selectedI
 
   useEffect(() => {
     if (!open) {
+      if (submenuCloseTimer.current !== undefined) {
+        window.clearTimeout(submenuCloseTimer.current)
+        submenuCloseTimer.current = undefined
+      }
       setOpenSubmenuId(null)
       walkIndex.current = null
       return
@@ -452,8 +474,8 @@ export function Menu({ open, anchor, items = [], children, selectedId, selectedI
       <div
         key={entry.id}
         className={css.itemWrap}
-        onMouseEnter={hasSub ? () => { setOpenSubmenuId(entry.id) } : undefined}
-        onMouseLeave={() => { setOpenSubmenuId(null) }}
+        onMouseEnter={hasSub ? () => { openSubmenuNow(entry.id) } : closeSubmenuSoon}
+        onMouseLeave={hasSub ? closeSubmenuSoon : undefined}
       >
         <button
           type="button"
