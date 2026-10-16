@@ -162,7 +162,7 @@ export function SidebarRoot({
   useEffect(() => {
     const onCloseHub = (): void => { setActiveHub(null) }
     window.addEventListener('hl:close-hub', onCloseHub)
-    return () => window.removeEventListener('hl:close-hub', onCloseHub)
+    return () => { window.removeEventListener('hl:close-hub', onCloseHub) }
   }, [])
 
   useEffect(() => {

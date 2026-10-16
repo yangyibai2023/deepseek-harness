@@ -146,6 +146,7 @@ export function AgentPresetSection({
                   （模式说明 / 如何使用 / 查看）整体隐藏——商业封装版不给用户
                   暴露预设内部构成；代码保留（改为 false 短路即恢复）。
                   被 hidePresetCardTools 覆盖的变量：help/setGuide/view/viewTrigger。 */}
+              {/* oxlint-disable typescript/no-unnecessary-condition -- HIDE_PRESET_CARD_TOOLS 是有意的功能开关（常 true），保留可一键回切。 */}
               {HIDE_PRESET_CARD_TOOLS ? null : (
                 <div className={css.cardFoot}>
                   {help === undefined ? null : <div className={css.cardHelp}>

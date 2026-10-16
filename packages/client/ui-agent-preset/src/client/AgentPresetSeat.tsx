@@ -220,6 +220,7 @@ export function AgentPresetSeat({
             {/* HeightLab 2026-09-19（0.4.1 定制回植，2026-10-17）：隐藏智能体
                 Logo——用户拍板：模型等其他选项均无 Logo，保持一致；选中后输入框
                 内只显示名字。恢复 = 将 HIDE_SEAT_ICON 改为 false。 */}
+            {/* oxlint-disable typescript/no-unnecessary-condition -- HIDE_SEAT_ICON 是有意的功能开关（常 true），保留可一键回切。 */}
             {HIDE_SEAT_ICON ? null : (
               <IconAgentPresetOutlineRegular className={introducing ? `${css.seatIcon} ${css.introIcon}` : css.seatIcon} />
             )}
