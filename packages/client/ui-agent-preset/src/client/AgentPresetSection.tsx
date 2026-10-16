@@ -12,6 +12,10 @@ import { requiresCodingTools } from './settings-store.ts'
 import { PresetGuideDialog, presetGuide, trapPresetReaderTab, type PresetGuidePage } from './PresetGuideDialog.tsx'
 import css from './AgentPresetSection.module.css'
 
+/** HeightLab（2026-10-17 用户拍板）：Agent 管理卡片底部三控件隐藏开关——
+   商业封装版不展示「模式说明 / 如何使用 / 查看」；恢复 = 改为 false。 */
+const HIDE_PRESET_CARD_TOOLS = true
+
 /** Settings actions and their shared controller state. */
 export interface AgentPresetSectionInjected {
   hooks: {
@@ -138,21 +142,24 @@ export function AgentPresetSection({
                 <CardDescription text={display.description ?? t('noDescription')} />
                 {row.broken === undefined ? null : <span className={css.cardBrokenReason} role="alert">{row.broken}</span>}
               </button>
-              <div className={css.cardFoot}>
-                {help === undefined ? null : <div className={css.cardHelp}>
-                  <Button variant="ghost" className={css.helpButton} aria-label={`${t('modeExplanation')}: ${display.name}`}
-                    onClick={() => { setGuide({ content: help, page: 'explanation' }) }}>{t('modeExplanation')}</Button>
-                  <Button variant="ghost" className={css.helpButton} aria-label={`${t('howToUse')}: ${display.name}`}
-                    onClick={() => { setGuide({ content: help, page: 'usage' }) }}>{t('howToUse')}</Button>
-                </div>}
-                {/* Reading the declaration is the one thing this page offers
-                  beyond choosing: a broken preset's YAML is also where its
-                  diagnostic points, so the viewer stays available for it. */}
-                <button type="button" className={css.iconButton} data-tip={t('view')} aria-label={`${t('view')}: ${display.name}`}
-                  onClick={(event) => { viewTrigger.current = event.currentTarget; void view(row.id) }}>
-                  <IconBrowseOutlineRegular />
-                </button>
-              </div>
+              {/* HeightLab 2026-10-17（0.4.1 定制回植）：卡片底部三控件
+                  （模式说明 / 如何使用 / 查看）整体隐藏——商业封装版不给用户
+                  暴露预设内部构成；代码保留（改为 false 短路即恢复）。
+                  被 hidePresetCardTools 覆盖的变量：help/setGuide/view/viewTrigger。 */}
+              {HIDE_PRESET_CARD_TOOLS ? null : (
+                <div className={css.cardFoot}>
+                  {help === undefined ? null : <div className={css.cardHelp}>
+                    <Button variant="ghost" className={css.helpButton} aria-label={`${t('modeExplanation')}: ${display.name}`}
+                      onClick={() => { setGuide({ content: help, page: 'explanation' }) }}>{t('modeExplanation')}</Button>
+                    <Button variant="ghost" className={css.helpButton} aria-label={`${t('howToUse')}: ${display.name}`}
+                      onClick={() => { setGuide({ content: help, page: 'usage' }) }}>{t('howToUse')}</Button>
+                  </div>}
+                  <button type="button" className={css.iconButton} data-tip={t('view')} aria-label={`${t('view')}: ${display.name}`}
+                    onClick={(event) => { viewTrigger.current = event.currentTarget; void view(row.id) }}>
+                    <IconBrowseOutlineRegular />
+                  </button>
+                </div>
+              )}
             </li>
           })}
         </ul>}

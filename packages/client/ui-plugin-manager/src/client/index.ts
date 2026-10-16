@@ -103,17 +103,33 @@ export function apply(ctx: ClientContext): void {
   // HeightLab（2026-10-17）：dsh-market 的 render 接口（ctx.provide('market')），
   // 用于插件·技能页的「市场」标签内嵌。无市场插件时 marketRender 为空，
   // 标签显示说明文案。
-  const marketRenderInjected = (): { marketRender?: (props?: Record<string, unknown>) => React.ReactNode } => {
+  type MarketControl = {
+    render?: (props?: Record<string, unknown>) => React.ReactNode
+    setSettingsVisible?: (visible: boolean) => void
+  }
+  const marketControl = (): MarketControl | undefined => {
     try {
-      const market = (ctx as unknown as { get?: (name: string) => unknown }).get?.('market') as
-        | { render?: (props?: Record<string, unknown>) => React.ReactNode }
-        | undefined
-      if (market?.render === undefined) return {}
-      const render = market.render.bind(market)
-      return { marketRender: (props?: Record<string, unknown>) => render(props) }
+      return (ctx as unknown as { get?: (name: string) => unknown }).get?.('market') as MarketControl | undefined
     } catch {
-      return {}
+      return undefined
     }
+  }
+  // HeightLab（2026-10-17 用户拍板）：市场已并入插件·技能页的「市场」标签，
+  // 设置菜单里的独立「插件市场」入口隐藏（市场自带 sectionGate 开关）。
+  // 需要恢复设置入口时删除下面这行 setSettingsVisible(false)。
+  const hideMarketSettingsEntry = (): void => {
+    try {
+      marketControl()?.setSettingsVisible?.(false)
+    } catch { /* 无市场插件时忽略 */ }
+  }
+  hideMarketSettingsEntry()
+  const marketRenderInjected = (): { marketRender?: (props?: Record<string, unknown>) => React.ReactNode } => {
+    const market = marketControl()
+    if (market?.render === undefined) return {}
+    // 每次渲染重申隐藏（市场的 sectionGate 可能在 HMR/重启后复原）。
+    hideMarketSettingsEntry()
+    const render = market.render.bind(market)
+    return { marketRender: (props?: Record<string, unknown>) => render(props) }
   }
   ctx.slots.inject('shell.overlay', () => ctx.slots.register({
     name: 'shell.overlay', id: 'plugin-manager.refresh-toast', locale: NS,

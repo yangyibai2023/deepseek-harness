@@ -50,7 +50,19 @@ const BUILT_IN_PRESET_KEYS: Readonly<Partial<Record<string, PresetLocaleKeys>>> 
  * @param preset - roster row.
  * @returns true for a shipped preset id without a published name.
  */
+/**
+ * HeightLab：随包分发的专家预设 id。这些预设的声明自带 name（不能靠
+ * `name === undefined` 判定），但在产品语义里同属「系统内置」——它们由
+ * HeightLab 平台统一维护，用户不应在「自定义」分组里看到它们。
+ */
+const HEIGHTLAB_SYSTEM_PRESET_IDS: ReadonlySet<string> = new Set([
+  'video-producer', 'content-creator', 'image-generator',
+  'research-analyst', 'general-assistant', 'automation-worker',
+])
+
 export function isBuiltInPreset(preset: PresetDisplaySource): boolean {
+  // HeightLab（2026-10-17 用户拍板）：随包的专家预设归入「系统内置」分组。
+  if (HEIGHTLAB_SYSTEM_PRESET_IDS.has(preset.id)) return true
   return preset.name === undefined && BUILT_IN_PRESET_KEYS[preset.id] !== undefined
 }
 
