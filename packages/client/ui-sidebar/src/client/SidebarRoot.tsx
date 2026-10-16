@@ -262,6 +262,9 @@ export function SidebarRoot({
           // HeightLab 2026-09-19：普通创作入口清除控制台模式标记。
             window.localStorage.removeItem('hl-console-mode')
             window.dispatchEvent(new CustomEvent('hl:mode-change', { detail: { mode: '' } }))
+            // HeightLab 2026-10-16：原生面板（插件/自动化任务）激活时先回会话区，
+            // 否则面板盖住会话、hl: 监听者已卸载，入口点击无响应（用户实测）。
+            selectPanel(null)
             startSession()
           }}
         >
@@ -280,6 +283,7 @@ export function SidebarRoot({
           type="button"
           className={css.newSession}
           onClick={() => {
+            selectPanel(null)
             window.dispatchEvent(new CustomEvent('hl:open-hub', { detail: { page: 'video-studio' } }))
           }}
         >
@@ -295,6 +299,7 @@ export function SidebarRoot({
           type="button"
           className={css.newSession}
           onClick={() => {
+            selectPanel(null)
             window.dispatchEvent(new CustomEvent('hl:open-hub', { detail: { page: 'skill-hub' } }))
           }}
         >
@@ -320,7 +325,11 @@ export function SidebarRoot({
             key={item.key}
             type="button"
             className={css.hlNavItem}
-            onClick={() => window.dispatchEvent(new CustomEvent(item.dispatch, { detail: item.detail }))}
+            onClick={() => {
+              // HeightLab 2026-10-16：同上，先回会话区再派发（原生面板激活时）。
+              selectPanel(null)
+              window.dispatchEvent(new CustomEvent(item.dispatch, { detail: item.detail }))
+            }}
             title={item.label}
           >
             {/* rail 内统一 18px（figma rail spec）。 */}

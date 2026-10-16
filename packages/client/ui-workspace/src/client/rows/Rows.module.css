@@ -1,5 +1,17 @@
-.projectRow,
+/* HeightLab（2026-10-16 用户拍板）：会话条目次级灰（功能区回黑色，
+   形成「功能区深、记录区浅」的层次）；项目/文件夹行保持主黑。 */
 .sessionRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: var(--dsw-radius-md);
+  padding: 0 8px;
+  padding-inline-start: calc(8px + var(--dsh-workspace-indent, 0px));
+  cursor: pointer;
+  user-select: none;
+  color: var(--dsw-alias-label-secondary);
+}
+.projectRow {
   display: flex;
   align-items: center;
   gap: 6px;

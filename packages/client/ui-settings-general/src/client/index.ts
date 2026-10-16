@@ -225,7 +225,11 @@ export function apply(ctx: ClientContext): void {
     ctx.slots.register({ name: 'settings.launcher', locale: NS }, HeightLabAccountFoot))
   ctx.slots.inject('settings.header', () =>
     ctx.slots.register({ name: 'settings.header', locale: NS }, HeaderContent))
-  if (documentInjected !== undefined) {
+  // HeightLab：隐藏设置右上角「打开配置文件」入口（功能保留，
+  // 恢复 = 把 HIDE_SETTINGS_DOCUMENT_ACTION 改为 false）——商业封装版不给
+  // 用户暴露配置文件（2026-08-16 收口先例，2026-10-16 回植）。
+  const HIDE_SETTINGS_DOCUMENT_ACTION = true
+  if (documentInjected !== undefined && !HIDE_SETTINGS_DOCUMENT_ACTION) {
     ctx.slots.inject('settings.action', () => ctx.slots.register({
       name: 'settings.action',
       id: 'open-document',

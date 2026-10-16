@@ -37,6 +37,10 @@ import { ProviderEditor, type ProviderEditorProps } from './ProviderEditor.tsx'
 import type { en } from './locales.ts'
 import styles from './ModelsSection.module.css'
 
+/** HeightLab：官方默认提供商（走 New API 托管渠道），展示为「HEIGHTLAB 官方」，不可修改/删除。 */
+const HEIGHTLAB_OFFICIAL_PROVIDER = 'deepseek-official'
+const HEIGHTLAB_OFFICIAL_NAME = 'HEIGHTLAB 官方'
+
 /** Injected dependencies of {@link ModelsSection} (slot `inject`). */
 export interface ModelsSectionInjected {
   /** The page store (loaded on mount, refreshed on pushed invalidations). */
@@ -167,6 +171,9 @@ export async function removeProviderProfile(
  * @returns whether to render the setup card.
  */
 export function needsSetup(row: ProviderRow, anyUsable: boolean): boolean {
+  // HeightLab：官方默认提供商（HEIGHTLAB 官方）走 New API 托管渠道，
+  // 密钥由宿主按用户注入，永远不需要用户在设置页填写，直接锁定展示。
+  if (row.entry.provider === HEIGHTLAB_OFFICIAL_PROVIDER) return false
   if (anyUsable || row.entry.provider === 'deepseek-account') return false
   if (row.entry.settingsPath.length > 0) return false
   return row.credential?.configured !== true
@@ -447,11 +454,16 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
             <li key={row.entry.provider} className={styles['rowCard']}>
               <div className={styles['rowHead']}>
                 <span className={styles['rowIdentity']}>
-                  <span className={styles['rowName']}>{row.entry.displayName}</span>
+                  <span className={styles['rowName']}>
+                    {row.entry.provider === HEIGHTLAB_OFFICIAL_PROVIDER ? HEIGHTLAB_OFFICIAL_NAME : row.entry.displayName}
+                  </span>
+                  {row.entry.provider === HEIGHTLAB_OFFICIAL_PROVIDER
+                    ? <span className={styles['rowTag']}>默认</span>
+                    : null}
                   {/* Only the adapter can tell a hand-declared route from a
                       shipped one it also has a stored profile for, so the tag
                       follows its answer and stays off when it gives none. */}
-                  {row.entry.declared === true
+                  {row.entry.provider !== HEIGHTLAB_OFFICIAL_PROVIDER && row.entry.declared === true
                     ? <span className={styles['rowTag']}>{t('customTag')}</span>
                     : null}
                   {credentialConfigured
@@ -475,41 +487,48 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
                       : null}
                 </span>
                 <span className={styles['rowActions']}>
-                  <button
-                    type="button"
-                    className={styles['secondaryButton']}
-                    aria-label={providerCopy(t('editProvider'), target)}
-                    disabled={!open && state.status !== 'ready'}
-                    onClick={() => {
-                      if (!open && controller.store.getSnapshot().status !== 'ready') return
-                      setSavedTarget(undefined)
-                      // One card at a time: the add card closes with whatever
-                      // it held, since closing either card would otherwise
-                      // discard the other's draft.
-                      setAddOpen(false)
-                      setEditing(open ? undefined : target)
-                    }}
-                  >
-                    {t('edit')}
-                  </button>
-                  {row.removable
-                    ? (
-                      <button
-                        type="button"
-                        className={styles['dangerButton']}
-                        aria-label={providerCopy(t('removeProvider'), target)}
-                        disabled={!state.writable || state.status !== 'ready'}
-                        onClick={() => {
-                          if (controller.store.getSnapshot().status !== 'ready') return
-                          setSavedTarget(undefined)
-                          setDeleteFailure(undefined)
-                          setDeleteTarget(target)
-                        }}
-                      >
-                        {t('remove')}
-                      </button>
-                    )
-                    : null}
+                  {/* HeightLab：官方默认提供商不可修改/删除——「默认开启」锁定展示。 */}
+                  {row.entry.provider === HEIGHTLAB_OFFICIAL_PROVIDER
+                    ? <span className={styles['rowLocked']}>默认开启</span>
+                    : (
+                      <>
+                        <button
+                          type="button"
+                          className={styles['secondaryButton']}
+                          aria-label={providerCopy(t('editProvider'), target)}
+                          disabled={!open && state.status !== 'ready'}
+                          onClick={() => {
+                            if (!open && controller.store.getSnapshot().status !== 'ready') return
+                            setSavedTarget(undefined)
+                            // One card at a time: the add card closes with whatever
+                            // it held, since closing either card would otherwise
+                            // discard the other's draft.
+                            setAddOpen(false)
+                            setEditing(open ? undefined : target)
+                          }}
+                        >
+                          {t('edit')}
+                        </button>
+                        {row.removable
+                          ? (
+                            <button
+                              type="button"
+                              className={styles['dangerButton']}
+                              aria-label={providerCopy(t('removeProvider'), target)}
+                              disabled={!state.writable || state.status !== 'ready'}
+                              onClick={() => {
+                                if (controller.store.getSnapshot().status !== 'ready') return
+                                setSavedTarget(undefined)
+                                setDeleteFailure(undefined)
+                                setDeleteTarget(target)
+                              }}
+                            >
+                              {t('remove')}
+                            </button>
+                          )
+                          : null}
+                      </>
+                    )}
                 </span>
               </div>
               {error}
