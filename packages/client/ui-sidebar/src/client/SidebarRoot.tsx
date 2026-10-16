@@ -137,6 +137,9 @@ export function SidebarRoot({
   // hide rather than restarting from a hidden bar.
   const column = useRef<HTMLDivElement>(null)
   const [pointerInside, setPointerInside] = useState(false)
+  // HeightLab（2026-10-17）：自建 hub 行（视频创作/资产中心）的选中态跟踪——
+  // 与原生 panelActive 同款反馈；关闭 hub/新会话/点面板行时清除。
+  const [activeHub, setActiveHub] = useState<string | null>(null)
   const lingerTimer = useRef<number | undefined>(undefined)
   const armLinger = (): void => {
     if (lingerTimer.current !== undefined) return
@@ -156,6 +159,12 @@ export function SidebarRoot({
   // here, and the bars would stay drawn over a column nobody is pointing at.
   // The element's own leave stays as the one signal geometry cannot give: a
   // pointer that leaves the window emits no further moves.
+  useEffect(() => {
+    const onCloseHub = (): void => { setActiveHub(null) }
+    window.addEventListener('hl:close-hub', onCloseHub)
+    return () => window.removeEventListener('hl:close-hub', onCloseHub)
+  }, [])
+
   useEffect(() => {
     if (!pointerInside) return
     const onMove = (event: PointerEvent): void => {
@@ -252,106 +261,85 @@ export function SidebarRoot({
           2026-09-15：迁移时此块被错放到新建任务之后（顺序搬反），此处按稳定线归位。 */}
       {wide && <HlModeSwitcher />}
 
-      {/* Expanded, the button carries its own label — tooltip only on the rail. */}
-      <Tooltip label={t('session.new.label')} delayMs={500} disabled={wide}>
-        <button
-          type="button"
-          className={css.newSession}
-          aria-label={t('session.new.label')}
-          onClick={() => {
-          // HeightLab 2026-09-19：普通创作入口清除控制台模式标记。
-            window.localStorage.removeItem('hl-console-mode')
-            window.dispatchEvent(new CustomEvent('hl:mode-change', { detail: { mode: '' } }))
-            // HeightLab 2026-10-16：原生面板（插件/自动化任务）激活时先回会话区，
-            // 否则面板盖住会话、hl: 监听者已卸载，入口点击无响应（用户实测）。
-            selectPanel(null)
-            startSession()
-          }}
-        >
-          {/* HeightLab 2026-08-26：展开态 16px，与 hlNav/添加工作区一致。 */}
-          <IconNewChatOutlineRegular size={wide ? 16 : 18} />
-          {wide && <span className={clsx(css.newSessionLabel, css.wide)}>{t('session.new')}</span>}
-        </button>
-      </Tooltip>
-
-      {/* HeightLab 2026-09-19（V24b）：「视频创作」一级入口——打开一级选择页
-          （8 个视频模板卡片，Hub 视图 video-studio），不直接进对话/工作台。
-          点卡片「爆款复刻」广播 hl:start-replication，由 ui-workspace 监听
-          执行新建会话+复刻模式（V26e-b 迁移，本组件不再监听）。 */}
-      <Tooltip label="视频创作" delayMs={500} disabled={wide}>
-        <button
-          type="button"
-          className={css.newSession}
-          onClick={() => {
-            // HeightLab 2026-10-16：先记 pending，供 ConversationRoot 挂载后消费；
-            // 直接 selectPanel(null) 会替换会话区导致事件丢失（实测回主页）。
-            ;(window as unknown as { __hlPendingHub?: string | null }).__hlPendingHub = 'video-studio'
-            selectPanel(null)
-            window.dispatchEvent(new CustomEvent('hl:open-hub', { detail: { page: 'video-studio' } }))
-          }}
-        >
-          <IconSparkleRegular size={wide ? 16 : 18} />
-          {wide && <span className={clsx(css.newSessionLabel, css.wide)}>视频创作</span>}
-        </button>
-      </Tooltip>
-
       {/* HeightLab 2026-10-17：「技能」一级入口并入插件面板（插件·技能合并页，
           页内「技能」标签承载技能中心）；本行删除，入口保留在 git 历史。 */}
-
-      {/* HeightLab：自定义导航（创意灵感 / 资料库）。
-          rc.2 原生 SVG 描边图标 + 主题 token（css.hlNav*），与原生风格统一。 */}
-      <div className={css.hlNav}>
-        {[
-          // HeightLab V31（用户拍板）：创意灵感一级入口暂时隐藏——代码保留，
-          // 取消注释即恢复。
-          // { key: 'inspiration', label: '创意灵感', Icon: IconInspirationStroke16, dispatch: 'hl:open-hub', detail: { page: 'inspiration' } },
-          { key: 'library', label: '资产中心', Icon: IconLibraryStroke16, dispatch: 'hl:open-hub', detail: { page: 'library' } },
-          // HeightLab（2026-10-16 用户拍板）：自建「自动化」入口取消——0.2.1 起
-          // DSH 原生「自动化任务」(ui-schedule 经 sidebar.panellist) 承接，
-          // 原生入口自然顶到本位置；hl:open-automation hub 页代码保留不删。
-          // { key: 'automation', label: '自动化', Icon: IconAutomationStroke16, dispatch: 'hl:open-automation', detail: {} },
-        ].map(item => (
-          <button
-            key={item.key}
-            type="button"
-            className={css.hlNavItem}
-            onClick={() => {
-              // HeightLab 2026-10-16：hub 页先记 pending，供 ConversationRoot
-              // 挂载后消费（selectPanel 替换会话区会丢 hl: 事件）。
-              if (item.dispatch === 'hl:open-hub' && typeof item.detail.page === 'string') {
-                ;(window as unknown as { __hlPendingHub?: string | null }).__hlPendingHub = item.detail.page
-              }
-              selectPanel(null)
-              window.dispatchEvent(new CustomEvent(item.dispatch, { detail: item.detail }))
-            }}
-            title={item.label}
-          >
-            {/* rail 内统一 18px（figma rail spec）。 */}
-            <item.Icon size={wide ? 16 : 18} className={css.hlNavIcon} />
-            {wide && <span className={css.hlNavLabel}>{item.label}</span>}
-          </button>
-        ))}
-      </div>
 
       {/* HeightLab V24b：视频创作一级页点「爆款复刻」→ 在这里执行真正的
           进入动作（startSession 在本组件手里；ConversationRoot 只负责关 Hub）。 */}
       {/* handled in useEffect below */}
 
-      {panels.length > 0 && (
-        <nav className={css.panelList} aria-label={t('panels.label')}>
-          {panels.map(({ id, label }) => (
-            <PanelRow
-              key={id}
-              id={id}
-              label={label}
-              wide={wide}
-              usePanelInfo={usePanelInfo}
-              selectPanel={selectPanel}
-              renderSlot={renderSlot}
-            />
-          ))}
-        </nav>
-      )}
+      {/* HeightLab（2026-10-17 用户拍板）：自建一级行（新建任务/视频创作/资产中心）
+          与原生面板行（插件·技能/自动化任务）合并进同一 panelList 容器——
+          同款 .panelRow 结构/间距/悬停/选中（panelActive），UI 与反馈完全一致。
+          hub 行激活态由 activeHub 跟踪（hl:close-hub / 新会话 / 面板行点击时清除）。 */}
+      <nav className={css.panelList} aria-label={t('panels.label')}>
+        {(() => {
+          const hubRows: readonly { key: string; label: string; Icon: typeof IconLibraryStroke16; page: string }[] = [
+            { key: 'video-studio', label: '视频创作', Icon: IconSparkleRegular, page: 'video-studio' },
+            { key: 'library', label: '资产中心', Icon: IconLibraryStroke16, page: 'library' },
+          ]
+          return (
+            <>
+              <Tooltip label={t('session.new.label')} delayMs={500} disabled={wide}>
+                <button
+                  type="button"
+                  className={css.panelRow}
+                  aria-label={t('session.new.label')}
+                  onClick={() => {
+                    // HeightLab 2026-09-19：普通创作入口清除控制台模式标记。
+                    window.localStorage.removeItem('hl-console-mode')
+                    window.dispatchEvent(new CustomEvent('hl:mode-change', { detail: { mode: '' } }))
+                    setActiveHub(null)
+                    selectPanel(null)
+                    startSession()
+                  }}
+                >
+                  <span className={css.panelGlyph} aria-hidden="true">
+                    <IconNewChatOutlineRegular size={wide ? 16 : 18} />
+                  </span>
+                  {wide && <span className={clsx(css.panelTitle, css.wide)}>{t('session.new')}</span>}
+                </button>
+              </Tooltip>
+              {hubRows.map(({ key, label, Icon, page }) => {
+                const active = activeHub === key
+                return (
+                  <Tooltip key={key} label={label} delayMs={500} disabled={wide}>
+                    <button
+                      type="button"
+                      className={clsx(css.panelRow, active && css.panelActive)}
+                      aria-label={label}
+                      aria-current={active ? 'page' : undefined}
+                      onClick={() => {
+                        // hub 页先记 pending，供 ConversationRoot 挂载后消费。
+                        ;(window as unknown as { __hlPendingHub?: string | null }).__hlPendingHub = page
+                        setActiveHub(key)
+                        selectPanel(null)
+                        window.dispatchEvent(new CustomEvent('hl:open-hub', { detail: { page } }))
+                      }}
+                    >
+                      <span className={css.panelGlyph} aria-hidden="true">
+                        <Icon size={wide ? 16 : 18} />
+                      </span>
+                      {wide && <span className={clsx(css.panelTitle, css.wide)}>{label}</span>}
+                    </button>
+                  </Tooltip>
+                )
+              })}
+            </>
+          )
+        })()}
+        {panels.map(({ id, label }) => (
+          <PanelRow
+            key={id}
+            id={id}
+            label={label}
+            wide={wide}
+            usePanelInfo={usePanelInfo}
+            selectPanel={(id) => { setActiveHub(null); selectPanel(id) }}
+            renderSlot={renderSlot}
+          />
+        ))}
+      </nav>
 
       {/* The browsing region fills the column between the controls and the
           foot in both states; its rail icon column rides the same slot. */}
