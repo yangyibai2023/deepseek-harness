@@ -26,7 +26,8 @@ import { requiresCodingTools } from './settings-store.ts'
 import css from './AgentPresetSeat.module.css'
 
 /** HeightLab：输入框内智能体选择器隐藏 Logo 开关（恢复 = false）。 */
-const HIDE_SEAT_ICON = true
+// HeightLab 功能开关：boolean 标注宽化字面量（lint 两配置皆过），改 false 即恢复。
+const HIDE_SEAT_ICON: boolean = true
 
 /** Registration-side business face for the hero chip. */
 export interface AgentPresetSeatInjected {
@@ -220,7 +221,6 @@ export function AgentPresetSeat({
             {/* HeightLab 2026-09-19（0.4.1 定制回植，2026-10-17）：隐藏智能体
                 Logo——用户拍板：模型等其他选项均无 Logo，保持一致；选中后输入框
                 内只显示名字。恢复 = 将 HIDE_SEAT_ICON 改为 false。 */}
-            {/* oxlint-disable typescript/no-unnecessary-condition -- HIDE_SEAT_ICON 是有意的功能开关（常 true），保留可一键回切。 */}
             {HIDE_SEAT_ICON ? null : (
               <IconAgentPresetOutlineRegular className={introducing ? `${css.seatIcon} ${css.introIcon}` : css.seatIcon} />
             )}
