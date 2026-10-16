@@ -1516,3 +1516,16 @@ label.registryOption {
   font-weight: 500;
   border-bottom-color: var(--dsw-alias-state-business-primary);
 }
+
+/* HeightLab（2026-10-17）：dsh-market 内嵌容器（占满插件面板内容区）。 */
+.marketHost {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  width: 100%;
+}
+.marketFallback {
+  padding: 32px 20px;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+}

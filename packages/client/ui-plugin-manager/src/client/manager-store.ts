@@ -312,6 +312,8 @@ export interface PluginManagerState {
 /** The registration-side face the tab's slot entry injects. */
 export interface PluginManagerFace {
   /** Resolve local package text in the current Client locale at render time. */
+  /** HeightLab：dsh-market 的 render（装了才有），供「市场」标签内嵌。 */
+  marketRender?: ((props?: Record<string, unknown>) => React.ReactNode) | undefined
   resolveText: (text: LocalizedText) => string
   /** Resolve a configuration form by the Host entry id. */
   configForm: ConfigForms['get']

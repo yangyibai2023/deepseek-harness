@@ -1406,7 +1406,7 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
   const view = props.useStore(state => state.view), { setView } = props.actions
   const [activation, setActivation] = useState<string | null>(null)
   // HeightLab（2026-10-17）：插件·技能合并页——页级标签（插件/技能）。
-  const [pageTab, setPageTab] = useState<'plugins' | 'skills'>('plugins')
+  const [pageTab, setPageTab] = useState<'plugins' | 'skills' | 'market'>('plugins')
   useEffect(() => { ensure() }, [ensure])
   // Installation highlights visible cards without changing the user's current page.
   const { highlight, clearHighlight } = { highlight: state.highlight, clearHighlight: props.clearHighlight }
@@ -1502,184 +1502,203 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
           className={clsx(css.pageTab, pageTab === 'skills' && css.pageTabActive)}
           onClick={() => { setPageTab('skills') }}
         >{t('pageTabSkills')}</button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={pageTab === 'market'}
+          className={clsx(css.pageTab, pageTab === 'market' && css.pageTabActive)}
+          onClick={() => { setPageTab('market') }}
+        >{t('pageTabMarket')}</button>
       </div>
-      {pageTab === 'skills'
-        ? renderSlot('plugins.page.skills', {})
-        : (
-          <>
-            {showsMainList
-              ? (
-                <header className={css.pageHead} data-window-drag>
-                  <div>
-                    <h1 className={css.pageTitle}>{t('title')}</h1>
-                    <div className={css.pageIntro}>
-                      <span>{t('intro')}</span>
-                      <Tooltip label={t('infoDescription')} side="bottom" delayMs={300} maxWidth={300} portal openOnClick>
-                        <Button variant="ghost" size="sm" className={css.infoButton} aria-label={t('infoLabel')}>
-                          <IconInfoOutlineRegular size={11} aria-hidden="true" />
-                        </Button>
-                      </Tooltip>
-                    </div>
-                  </div>
-                  <div className={css.toolbar}>
-                    <Tooltip label={t('refresh')} delayMs={500} focusDelayMs={500} side="bottom" portal disabled={!loaded || refreshing}>
-                      <button type="button" className={css.iconButton} aria-label={t('refresh')} aria-busy={refreshing} disabled={!loaded || refreshing} onClick={props.refresh}>
-                        <span className={css.iconWrap} aria-hidden="true">
-                          {refreshing ? <StateDot state="ongoing" size={18} /> : <IconRefreshOutlineRegular />}
-                        </span>
-                      </button>
-                    </Tooltip>
-                    {state.install.requestId === undefined
-                      ? <AddPluginMenu t={t} disabled={!loaded} openInstall={props.openInstall} renderSlot={renderSlot} />
-                      : <Button variant="primary" size="sm" className={css.addButton} icon={<IconPlusOutlineRegular size={13} />} disabled={!loaded} onClick={props.openInstall}>
-                        {t('installViewTask')}
-                      </Button>}
-                  </div>
-                </header>
-              )
-              : null}
-            {showsMoreList ? (
-              <header className={css.moreHead} data-window-drag>
-                <Button size="sm" className={css.moreBack} aria-label={t('backToList')} onClick={() => { setView({ kind: 'list' }) }}>
-                  <IconChevronLeftOutlineMedium size={20} aria-hidden="true" />
-                </Button>
-                <h1 className={css.pageTitle}>{t('moreTitle')}</h1>
-              </header>
-            ) : null}
-            {showsCards && state.status === 'loading' ? <ListSkeleton label={t('loading')} /> : null}
-            {showsCards && state.status === 'unavailable' ? (
-              <p className={`${css.status} ${css.statusWithDot}`} role="status">
-                <StateDot state="idle" />{t('unavailable')}
-              </p>
-            ) : null}
-            {state.notice === null || noticeLine === null
-              ? null
+      {pageTab === 'market'
+        ? (
+          <div className={css.marketHost} data-dsh-market-host="">
+            {props.marketRender !== undefined
+              ? props.marketRender({})
               : (
-                <Toast
-                  key={state.notice.seq}
-                  text={noticeLine}
-                  icon={<IconWarningOutlineRegular />}
-                  holdMs={toastHoldMs(noticeLine)}
-                  onDone={props.dismissNotice}
-                />
-              )}
-            {!showsCards && state.status === 'error' && !refreshing
-              ? (
-                <div className={css.failure}>
-                  <p className={css.statusWithDot} role="alert">
-                    <StateDot state="error" />{t(state.refreshStatus === 'failed' ? 'refreshError' : 'error')}
-                  </p>
-                  <Button variant="outline" size="sm" onClick={props.refresh}>{t('retry')}</Button>
+                <div className={css.marketFallback}>
+                  <p>{t('marketUnavailable')}</p>
                 </div>
-              )
-              : null}
-            {loaded && openPkg !== undefined && openRow !== undefined
-              ? (
-                <RowDetail
-                  pkg={openPkg}
-                  row={openRow}
-                  form={formFor(openRow.rowId)}
-                  t={t}
-                  resolveText={resolveText}
-                  renderSlot={renderSlot}
-                  onBack={() => { setView({ kind: 'package', name: openPkg.name, ...openPkgInMore ? { from: 'more' } : {} }) }}
-                />
-              )
-              : null}
-            {loaded && openPkg !== undefined && openRow === undefined
-              ? (
-                <PackageDetail
-                  pkg={openPkg}
-                  t={t}
-                  resolveText={resolveText}
-                  busy={packageBusy(openPkg)}
-                  rowBusy={row => row.entryId !== undefined && state.busy.includes(rowKey(row.entryId))}
-                  configured={ledger.bundles.has(openPkg.name)}
-                  configure={configure(openPkg)}
-                  renderSlot={renderSlot}
-                  inMore={openPkgInMore}
-                  onBack={() => { setView({ kind: openPkgInMore ? 'more' : 'list' }) }}
-                  onSetEnabled={(enabled) => { props.setEnabled(openPkg.name, enabled) }}
-                  onUninstall={() => { props.uninstall(openPkg.name) }}
-                  onUpdate={() => { props.update(openPkg.name) }}
-                  onSetRowEnabled={setRowEnabled}
-                />
-              )
-              : null}
-            {loaded && openItem !== undefined
-              ? <ItemDetail form={formFor(openItem.id)} item={openItem} t={t} renderSlot={renderSlot} onBack={() => { setView({ kind: 'list' }) }} />
-              : null}
-            {loaded && showsCards
-              ? basicCards.length === 0 && official.length === 0 && mine.length === 0 && state.status !== 'error'
-                ? <p className={css.empty}>{t('empty')}</p>
-                : (
-                  <>
-                    {showsMoreList ? (
-                      <section className={css.group} data-plugin-scope="global" data-plugin-group="more">
-                        <ul className={css.cards}>{more.map(packageCard)}</ul>
-                      </section>
-                    ) : (
-                      <>
-                        {renderGroup('basic', t('basicTitle'), basicCards)}
-                        {renderGroup('extensions', t('extensionsTitle'), extensions.map(packageCard))}
-                        {renderGroup('bundles', t('bundlesTitle'), mine.map(packageCard))}
-                      </>
-                    )}
-                    {/* A failed package read trails the groups it left incomplete: right under the groups on a
-                  first-load failure, and after the kept cards when a refresh fails over stale data. */}
-                    {state.status === 'error' && !refreshing
-                      ? (
-                        <div className={css.failure}>
-                          <p className={css.statusWithDot} role="alert">
-                            <StateDot state="error" />{t(state.refreshStatus === 'failed' ? 'refreshError' : 'error')}
-                          </p>
-                          <Button variant="outline" size="sm" onClick={props.refresh}>{t('retry')}</Button>
-                        </div>
-                      )
-                      : null}
-                  </>
-                )
-              : null}
-            {showsCards && activated !== undefined && !state.install.open
-              ? renderSlot('plugins.bundle.activation', {
-                packageName: activated.name,
-                onDismiss: () => { setActivation(null) },
-                onOpenDetails: () => {
-                  setActivation(null)
-                  setView({ kind: 'package', name: activated.name, ...showsMoreList ? { from: 'more' } : {} })
-                },
-              }, { entryKey: activated.name }) : null}
-            <InstallDialog
-              install={state.install}
-              t={t}
-              onClose={props.closeInstall}
-              onEditSpec={props.editInstallSpec}
-              onRun={props.runInstall}
-              onCancel={props.cancelInstall}
-              onReconcile={props.reconcileInstall}
-              onToggleDetails={props.toggleInstallDetails}
-              onEnableNow={() => { setActivation(state.install.installed); props.enableInstalled() }}
-              onApproveBuilds={props.approveBuildsAndRetry}
-              onToggleRegistry={props.toggleRegistryOptions}
-              onChooseRegistry={props.chooseRegistry}
-              onChangeRegistry={props.changeRegistry}
-              onUseGithubMirror={props.useGithubMirror}
-            />
-            {state.confirm === null
-              ? null
-              : (
-                <ConfirmDialog
-                  name={packageText(
-                    state.packages.find(pkg => pkg.name === state.confirm?.packageName) ?? { name: state.confirm.packageName },
-                    resolveText,
-                  ).title}
-                  t={t}
-                  onConfirm={props.confirm}
-                  onCancel={props.cancelConfirm}
-                />
               )}
-          </>
-        )}
+          </div>
+        )
+        : pageTab === 'skills'
+          ? renderSlot('plugins.page.skills', {})
+          : (
+            <>
+              {showsMainList
+                ? (
+                  <header className={css.pageHead} data-window-drag>
+                    <div>
+                      <h1 className={css.pageTitle}>{t('title')}</h1>
+                      <div className={css.pageIntro}>
+                        <span>{t('intro')}</span>
+                        <Tooltip label={t('infoDescription')} side="bottom" delayMs={300} maxWidth={300} portal openOnClick>
+                          <Button variant="ghost" size="sm" className={css.infoButton} aria-label={t('infoLabel')}>
+                            <IconInfoOutlineRegular size={11} aria-hidden="true" />
+                          </Button>
+                        </Tooltip>
+                      </div>
+                    </div>
+                    <div className={css.toolbar}>
+                      <Tooltip label={t('refresh')} delayMs={500} focusDelayMs={500} side="bottom" portal disabled={!loaded || refreshing}>
+                        <button type="button" className={css.iconButton} aria-label={t('refresh')} aria-busy={refreshing} disabled={!loaded || refreshing} onClick={props.refresh}>
+                          <span className={css.iconWrap} aria-hidden="true">
+                            {refreshing ? <StateDot state="ongoing" size={18} /> : <IconRefreshOutlineRegular />}
+                          </span>
+                        </button>
+                      </Tooltip>
+                      {state.install.requestId === undefined
+                        ? <AddPluginMenu t={t} disabled={!loaded} openInstall={props.openInstall} renderSlot={renderSlot} />
+                        : <Button variant="primary" size="sm" className={css.addButton} icon={<IconPlusOutlineRegular size={13} />} disabled={!loaded} onClick={props.openInstall}>
+                          {t('installViewTask')}
+                        </Button>}
+                    </div>
+                  </header>
+                )
+                : null}
+              {showsMoreList ? (
+                <header className={css.moreHead} data-window-drag>
+                  <Button size="sm" className={css.moreBack} aria-label={t('backToList')} onClick={() => { setView({ kind: 'list' }) }}>
+                    <IconChevronLeftOutlineMedium size={20} aria-hidden="true" />
+                  </Button>
+                  <h1 className={css.pageTitle}>{t('moreTitle')}</h1>
+                </header>
+              ) : null}
+              {showsCards && state.status === 'loading' ? <ListSkeleton label={t('loading')} /> : null}
+              {showsCards && state.status === 'unavailable' ? (
+                <p className={`${css.status} ${css.statusWithDot}`} role="status">
+                  <StateDot state="idle" />{t('unavailable')}
+                </p>
+              ) : null}
+              {state.notice === null || noticeLine === null
+                ? null
+                : (
+                  <Toast
+                    key={state.notice.seq}
+                    text={noticeLine}
+                    icon={<IconWarningOutlineRegular />}
+                    holdMs={toastHoldMs(noticeLine)}
+                    onDone={props.dismissNotice}
+                  />
+                )}
+              {!showsCards && state.status === 'error' && !refreshing
+                ? (
+                  <div className={css.failure}>
+                    <p className={css.statusWithDot} role="alert">
+                      <StateDot state="error" />{t(state.refreshStatus === 'failed' ? 'refreshError' : 'error')}
+                    </p>
+                    <Button variant="outline" size="sm" onClick={props.refresh}>{t('retry')}</Button>
+                  </div>
+                )
+                : null}
+              {loaded && openPkg !== undefined && openRow !== undefined
+                ? (
+                  <RowDetail
+                    pkg={openPkg}
+                    row={openRow}
+                    form={formFor(openRow.rowId)}
+                    t={t}
+                    resolveText={resolveText}
+                    renderSlot={renderSlot}
+                    onBack={() => { setView({ kind: 'package', name: openPkg.name, ...openPkgInMore ? { from: 'more' } : {} }) }}
+                  />
+                )
+                : null}
+              {loaded && openPkg !== undefined && openRow === undefined
+                ? (
+                  <PackageDetail
+                    pkg={openPkg}
+                    t={t}
+                    resolveText={resolveText}
+                    busy={packageBusy(openPkg)}
+                    rowBusy={row => row.entryId !== undefined && state.busy.includes(rowKey(row.entryId))}
+                    configured={ledger.bundles.has(openPkg.name)}
+                    configure={configure(openPkg)}
+                    renderSlot={renderSlot}
+                    inMore={openPkgInMore}
+                    onBack={() => { setView({ kind: openPkgInMore ? 'more' : 'list' }) }}
+                    onSetEnabled={(enabled) => { props.setEnabled(openPkg.name, enabled) }}
+                    onUninstall={() => { props.uninstall(openPkg.name) }}
+                    onUpdate={() => { props.update(openPkg.name) }}
+                    onSetRowEnabled={setRowEnabled}
+                  />
+                )
+                : null}
+              {loaded && openItem !== undefined
+                ? <ItemDetail form={formFor(openItem.id)} item={openItem} t={t} renderSlot={renderSlot} onBack={() => { setView({ kind: 'list' }) }} />
+                : null}
+              {loaded && showsCards
+                ? basicCards.length === 0 && official.length === 0 && mine.length === 0 && state.status !== 'error'
+                  ? <p className={css.empty}>{t('empty')}</p>
+                  : (
+                    <>
+                      {showsMoreList ? (
+                        <section className={css.group} data-plugin-scope="global" data-plugin-group="more">
+                          <ul className={css.cards}>{more.map(packageCard)}</ul>
+                        </section>
+                      ) : (
+                        <>
+                          {renderGroup('basic', t('basicTitle'), basicCards)}
+                          {renderGroup('extensions', t('extensionsTitle'), extensions.map(packageCard))}
+                          {renderGroup('bundles', t('bundlesTitle'), mine.map(packageCard))}
+                        </>
+                      )}
+                      {/* A failed package read trails the groups it left incomplete: right under the groups on a
+                  first-load failure, and after the kept cards when a refresh fails over stale data. */}
+                      {state.status === 'error' && !refreshing
+                        ? (
+                          <div className={css.failure}>
+                            <p className={css.statusWithDot} role="alert">
+                              <StateDot state="error" />{t(state.refreshStatus === 'failed' ? 'refreshError' : 'error')}
+                            </p>
+                            <Button variant="outline" size="sm" onClick={props.refresh}>{t('retry')}</Button>
+                          </div>
+                        )
+                        : null}
+                    </>
+                  )
+                : null}
+              {showsCards && activated !== undefined && !state.install.open
+                ? renderSlot('plugins.bundle.activation', {
+                  packageName: activated.name,
+                  onDismiss: () => { setActivation(null) },
+                  onOpenDetails: () => {
+                    setActivation(null)
+                    setView({ kind: 'package', name: activated.name, ...showsMoreList ? { from: 'more' } : {} })
+                  },
+                }, { entryKey: activated.name }) : null}
+              <InstallDialog
+                install={state.install}
+                t={t}
+                onClose={props.closeInstall}
+                onEditSpec={props.editInstallSpec}
+                onRun={props.runInstall}
+                onCancel={props.cancelInstall}
+                onReconcile={props.reconcileInstall}
+                onToggleDetails={props.toggleInstallDetails}
+                onEnableNow={() => { setActivation(state.install.installed); props.enableInstalled() }}
+                onApproveBuilds={props.approveBuildsAndRetry}
+                onToggleRegistry={props.toggleRegistryOptions}
+                onChooseRegistry={props.chooseRegistry}
+                onChangeRegistry={props.changeRegistry}
+                onUseGithubMirror={props.useGithubMirror}
+              />
+              {state.confirm === null
+                ? null
+                : (
+                  <ConfirmDialog
+                    name={packageText(
+                      state.packages.find(pkg => pkg.name === state.confirm?.packageName) ?? { name: state.confirm.packageName },
+                      resolveText,
+                    ).title}
+                    t={t}
+                    onConfirm={props.confirm}
+                    onCancel={props.cancelConfirm}
+                  />
+                )}
+            </>
+          )}
     </section>
   )
 }

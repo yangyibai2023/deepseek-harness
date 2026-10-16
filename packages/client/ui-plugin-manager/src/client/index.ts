@@ -100,6 +100,21 @@ export function apply(ctx: ClientContext): void {
   // page declares here, so the page never names a configurable plugin.
   const configLedger = configLedgerSource(ctx)
   const face = controller.inject(configLedger, text => ctx.locale.resolveText(text))
+  // HeightLab（2026-10-17）：dsh-market 的 render 接口（ctx.provide('market')），
+  // 用于插件·技能页的「市场」标签内嵌。无市场插件时 marketRender 为空，
+  // 标签显示说明文案。
+  const marketRenderInjected = (): { marketRender?: (props?: Record<string, unknown>) => React.ReactNode } => {
+    try {
+      const market = (ctx as unknown as { get?: (name: string) => unknown }).get?.('market') as
+        | { render?: (props?: Record<string, unknown>) => React.ReactNode }
+        | undefined
+      if (market?.render === undefined) return {}
+      const render = market.render.bind(market)
+      return { marketRender: (props?: Record<string, unknown>) => render(props) }
+    } catch {
+      return {}
+    }
+  }
   ctx.slots.inject('shell.overlay', () => ctx.slots.register({
     name: 'shell.overlay', id: 'plugin-manager.refresh-toast', locale: NS,
     inject: (): PluginRefreshToastFace => ({
@@ -115,7 +130,7 @@ export function apply(ctx: ClientContext): void {
       key: PANEL_ID,
       locale: NS,
       store,
-      inject: () => face,
+      inject: () => ({ ...face, ...marketRenderInjected() }),
       children: {
         'plugins.add.actions': { kind: 'list', scope: 'root' },
         'plugins.item': { kind: 'list', scope: 'root' },
