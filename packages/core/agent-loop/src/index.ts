@@ -388,6 +388,11 @@ export class AgentLoop extends Service implements AgentFactory {
     ctx.effect(() => ctx.agents.setFactory(this), 'agentLoop.setFactory()')
     ctx.systemPrompt.variable('provider', context => context.agent?.options.provider)
     ctx.systemPrompt.variable('model', context => context.agent?.options.model)
+    // HeightLab 2026-10-17 回植：0.2.1 上游删掉了 cwd 变量注册，我们的专家预设
+    // persona 前缀里引用 {{cwd}}（0.1.5 时代语义）→ 严格插值直接抛
+    // unknown prompt variable，回合被终止（用户实测「聊着聊着失败」）。
+    // 数据源与 0.1.5 相同：agent 的 session header.cwd。
+    ctx.systemPrompt.variable('cwd', context => context.agent?.session.header.cwd)
 
     for (const { id, sessionId, cwd, resumeSessionId, ...options } of this.config.agents) {
       const meta = cwd === undefined ? {} : { cwd }
