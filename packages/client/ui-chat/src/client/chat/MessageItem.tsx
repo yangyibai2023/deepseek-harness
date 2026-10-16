@@ -82,9 +82,12 @@ function failureMessage(
   code: unknown,
   t: ChatViewSlotProps['t'],
 ): string {
+  // HeightLab 2026-10-13（回植 2026-10-17）：结构化分类失败只出用户语言；
+  // 原文（含网关内部术语）不透传。
   if (code === 'ACCOUNT_SIGNED_OUT') return t('message.failure.accountSignedOut')
   if (code === 'ACCOUNT_SIGN_IN_REQUIRED') return t('message.failure.accountSignInRequired')
   if (code === 'QUOTA' || code === 'ACCOUNT_QUOTA') return t('message.failure.quota')
+  if (code === 'MODEL_UNAVAILABLE') return t('message.failure.modelUnavailable')
   return code === 'AUTH' ? t('message.failure.auth') : message
 }
 

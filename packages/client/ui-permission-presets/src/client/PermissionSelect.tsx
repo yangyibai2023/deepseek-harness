@@ -180,10 +180,15 @@ export function PermissionSelect({
             disabled={locked || busy}
             onClick={() => { setOpen(!open) }}
           >
-            {permissionGlyph(currentValue) !== undefined && (
+            {/* HeightLab（2026-09-18 定制回植，2026-10-17）：为输入框腾空间，
+                权限选择只显示图标，不显示文字（与左侧「上传文件/命令」图标按钮
+                一致）。完整名称保留在 aria-label 与弹出菜单里。仅当某取值没有
+                图标字形时才回退显示文字。 */}
+            {permissionGlyph(currentValue) !== undefined ? (
               <span className={css.triggerIcon} aria-hidden>{permissionGlyph(currentValue)}</span>
+            ) : (
+              <span className={css.triggerLabel}>{currentLabel}</span>
             )}
-            <span className={css.triggerLabel}>{currentLabel}</span>
             <span className={clsx(css.chevron, open && css.chevronOpen)} aria-hidden>
               <IconChevronDownOutlineRegular />
             </span>

@@ -1,5 +1,6 @@
 /** Strict per-session header/body content inserted into the resident conversation layout. */
 
+import { useEffect } from 'react'
 import clsx from 'clsx'
 import type { SessionListState, SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
@@ -64,6 +65,20 @@ export function ConversationSessionHeader({
   const active = resolveActiveView(tabs, selectedId)
   const ancestry = useSessions(s => deriveAncestry(s, sessionId), equalBreadcrumbs)
   const showTabs = !hideChrome && tabs.length > 1
+  // HeightLab V27（0.4.1 定制回植，2026-10-17）：会话切换全局广播——右侧栏
+  // 据此把创作工作台 tab 带到当前会话（控制台 tab 按会话挂载，切会话需显式
+  // 迁移/聚焦）。V29 埋点：广播发出事实落宿主日志（hlReplication.stage=
+  // broadcast），与 ui-sidebar-right 的消费侧埋点对账定位断点。
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('hl:session-switched', { detail: { sessionId } }))
+    try {
+      void fetch('/hl/boot-marker', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ hlReplication: true, stage: 'broadcast', sessionId }),
+      }).catch(() => { /* 非致命 */ })
+    } catch { /* 非致命 */ }
+  }, [sessionId])
   return (
     <>
       <div className={css.titleRow}>

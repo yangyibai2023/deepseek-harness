@@ -638,6 +638,20 @@ function MarkdownImage({ destination, alt, pathImages, streaming, inLink }: {
   const file = streaming ? undefined : parseFileLink(destination)
   const src = (file === undefined ? undefined : fileImages?.resolve(file.path)) ?? imageSource(destination, pathImages)
   if (src === undefined) return <span className={css.imageAlt}>{alt}</span>
+  // HeightLab（0.4.1 定制回植，2026-10-17）：assistant markdown 可能通过
+  // 图片语法嵌入生成的 mp4/webm/mov——以内联 <video> 播放器渲染而非破图。
+  const lowerSrc = src.toLowerCase()
+  if (lowerSrc.endsWith('.mp4') || lowerSrc.endsWith('.webm') || lowerSrc.endsWith('.mov')) {
+    return (
+      <video
+        key={`${destination}:${src}`}
+        className={css.video}
+        src={src}
+        controls
+        preload="metadata"
+      />
+    )
+  }
   return <LoadedMarkdownImage key={src} src={src} alt={alt} destination={destination} preview={inLink ? undefined : fileImages} />
 }
 

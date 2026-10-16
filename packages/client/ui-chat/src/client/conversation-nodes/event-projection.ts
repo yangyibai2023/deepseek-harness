@@ -68,6 +68,12 @@ export function contextProducer(source: unknown): ContextProducerView {
       return { role: 'inject', label: joined(collect(record, 'changes', 'path')) ?? kind }
     case 'skill-invocation':
       return { role: 'inject', label: readString(record, 'name') ?? kind }
+    case 'plugin': {
+      // HeightLab（0.4.1 定制回植，2026-10-17）：平台插件注入（如
+      // heightlab-dispatch 的视频参数/模板规则）在「谁已收到」行是动态源——
+      // 标题由 UI 侧映射为「{当前智能体} 已收到」；这里给稳定的内部标识。
+      return { role: 'inject', label: readString(record, 'plugin') ?? kind }
+    }
     default:
       // MessageSourceMap is merge-extensible; keep an unknown producer
       // visible by its durable kind.

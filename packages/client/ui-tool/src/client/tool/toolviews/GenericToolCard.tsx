@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import {
   IconApiOutlineRegular, IconBrowseOutlineRegular, IconCodeOutlineRegular, IconEditOutlineRegular, IconSearchOutlineRegular,
   IconSparkleRegular,
@@ -31,6 +32,8 @@ export type GenericToolCardProps = ToolCallOwnerProps & {
 
 /** @param props - current tool stage and locale. @returns its preparation or dispatched card. */
 export function GenericToolCard({ toolName, block, cwd, home, openFile, inspect, useDisclosure, t }: GenericToolCardProps) {
+  const [viewer, setViewer] = useState<string | null>(null)
+  const [downloadState, setDownloadState] = useState<string | null>(null)
   const model = toolRowModel(toolName, block, cwd, home)
   const autoReview = model.autoReviewDenial === null
     ? null
@@ -46,30 +49,144 @@ export function GenericToolCard({ toolName, block, cwd, home, openFile, inspect,
     ? 'error'
     : model.state
   const singleFile = model.filePath !== undefined
-  return (
-    <ToolRow
-      useDisclosure={useDisclosure}
-      t={t}
-      variant={model.variant}
-      toolName={toolName}
-      icon={VARIANT_ICONS[model.variant]}
-      title={t(model.titleKey)}
-      summary={model.summary}
-      // Single-file tools never expose an args body — the path link is the only
-      // args interaction. A card is not an args body: a read/write/edit row is
-      // single-file AND carries a card, so the card expands under the path link.
-      bodyRaw={singleFile || autoReview !== null ? null : model.bodyRaw}
-      output={autoReview?.output ?? model.output}
-      errorSummary={autoReview?.summary ?? model.errorSummary}
-      terminal={terminal}
-      diff={diff}
-      read={read}
-      search={search}
-      web={web}
-      state={state}
-      filePath={model.filePath}
-      onOpenFile={singleFile ? openFile : undefined}
-      inspect={inspect}
-    />
+  const images = extractImageUrls(model.output ?? '')
+  const downloadCurrent = async (): Promise<void> => {
+    if (viewer === null) return
+    try {
+      const saved = await downloadToWorkspace(viewer, cwd)
+      setDownloadState(`已保存到：${saved}`)
+    } catch (err) {
+      setDownloadState(`下载失败：${err instanceof Error ? err.message : String(err)}`)
+    }
+    window.setTimeout(() => { setDownloadState(null) }, 6000)
+  }
+  // oxlint-disable-next-line typescript/no-unsafe-assignment, typescript/no-unsafe-call -- react-dom 类型未解析（宿主提供同一实例）
+  const overlay = viewer === null ? null : createPortal(
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 99999,
+        background: 'rgba(0,0,0,0.88)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}
+      onClick={() => { setViewer(null) }}
+    >
+      <img
+        src={viewer}
+        alt="preview"
+        onClick={(e) => { e.stopPropagation() }}
+        style={{ maxWidth: '92%', maxHeight: '88%', objectFit: 'contain', borderRadius: 4 }}
+      />
+      <div style={{ position: 'fixed', top: 16, right: 16, display: 'flex', gap: 8 }}>
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); void window.open(viewer, '_blank', 'noopener') }}
+          style={viewerButtonStyle}
+        >
+          在浏览器中打开
+        </button>
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); void downloadCurrent() }}
+          style={viewerButtonStyle}
+        >
+          下载
+        </button>
+        <button type="button" style={viewerButtonStyle} onClick={() => { setViewer(null) }}>
+          关闭
+        </button>
+      </div>
+      {downloadState !== null && (
+        <div
+          style={{
+            position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
+            background: 'rgba(0,0,0,0.75)', color: '#fff', padding: '8px 14px',
+            borderRadius: 8, fontSize: 13, maxWidth: '80%', textAlign: 'center',
+          }}
+        >
+          {downloadState}
+        </div>
+      )}
+    </div>,
+    document.body,
   )
+  return (
+    <>
+      <ToolRow
+        useDisclosure={useDisclosure}
+        t={t}
+        variant={model.variant}
+        toolName={toolName}
+        icon={VARIANT_ICONS[model.variant]}
+        title={t(model.titleKey)}
+        summary={model.summary}
+        // Single-file tools never expose an args body — the path link is the only
+        // args interaction. A card is not an args body: a read/write/edit row is
+        // single-file AND carries a card, so the card expands under the path link.
+        bodyRaw={singleFile || autoReview !== null ? null : model.bodyRaw}
+        output={autoReview?.output ?? model.output}
+        errorSummary={autoReview?.summary ?? model.errorSummary}
+        terminal={terminal}
+        diff={diff}
+        read={read}
+        search={search}
+        web={web}
+        state={state}
+        filePath={model.filePath}
+        onOpenFile={singleFile ? openFile : undefined}
+        inspect={inspect}
+      />
+      {images.length > 0 && (
+        <div style={{ padding: '0 12px 10px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {images.map((img, i) => (
+            <img
+              key={i}
+              src={img}
+              alt="tool result image"
+              onClick={() => { setViewer(img) }}
+              style={{ maxWidth: '100%', maxHeight: 480, borderRadius: 8, objectFit: 'contain', cursor: 'zoom-in' }}
+            />
+          ))}
+        </div>
+      )}
+      {overlay}
+    </>
+  )
+}
+
+/** HeightLab：把聊天里的资源保存到当前工作区根目录（宿主 /hl/download）。 */
+async function downloadToWorkspace(url: string, workspace: string | undefined): Promise<string> {
+  const res = await fetch('/hl/download', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ url, workspace }),
+  })
+  const data = await res.json().catch(() => ({})) as { ok?: boolean; path?: string; message?: string }
+  if (!res.ok || data.ok !== true || typeof data.path !== 'string') {
+    throw new Error(data.message ?? '保存失败')
+  }
+  return data.path
+}
+
+function extractImageUrls(text: string): string[] {
+  if (!text) return []
+  // 2026-09-19：允许 .jpg 后带查询串（local-media 的 ?path=URL 形态）——
+  // 此前非贪婪匹配截断在 image.jpg 丢掉 ?path=，工具卡 <img> 404 显示问号破图。
+  const re = /(https?:\/\/[^\s)）"'<>]+?\.(?:png|jpe?g|webp|gif)(?:\?[^\s)）"'<>]*)?)/gi
+  const out: string[] = []
+  for (const match of text.matchAll(re)) {
+    if (match[1] && !out.includes(match[1])) out.push(match[1])
+  }
+  return out
+}
+
+const viewerButtonStyle: React.CSSProperties = {
+  background: 'rgba(255,255,255,0.16)',
+  color: '#fff',
+  border: '1px solid rgba(255,255,255,0.35)',
+  borderRadius: 8,
+  padding: '7px 14px',
+  fontSize: 13,
+  cursor: 'pointer',
+  textDecoration: 'none',
+  display: 'inline-block',
 }
