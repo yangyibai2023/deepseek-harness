@@ -6,6 +6,7 @@
  * 官方「使用」与我的「使用」都经 hl:fill-draft 注入加载指令；
  * 创建走聊天 = 关闭技能中心回到会话，附沉淀引导草稿。
  */
+import clsx from 'clsx'
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { SKILL_BODIES } from './HeightLabSkillBodies.ts'
@@ -21,7 +22,7 @@ function loadUserSkills(): Promise<UserSkill[]> {
     .catch(() => [])
 }
 
-export function HeightLabSkillHub({ onClose }: { onClose: () => void }): ReactNode {
+export function HeightLabSkillHub({ onClose, embedded }: { onClose: () => void; embedded?: boolean }): ReactNode {
   const [tab, setTab] = useState<Tab>('official')
   const [mine, setMine] = useState<UserSkill[] | null>(null)
   const [form, setForm] = useState({ name: '', description: '', steps: '' })
@@ -83,7 +84,7 @@ export function HeightLabSkillHub({ onClose }: { onClose: () => void }): ReactNo
   }))
 
   return (
-    <div className={css.skillHubRoot} data-hl-skill-hub="1">
+    <div className={clsx(css.skillHubRoot, embedded && css.skillHubRootEmbedded)} data-hl-skill-hub="1">
       <div className={css.skillHubHeader}>
         <div className={css.skillHubTitle}>
           <span style={{ fontSize: 17, fontWeight: 700 }}>技能中心</span>
@@ -91,7 +92,7 @@ export function HeightLabSkillHub({ onClose }: { onClose: () => void }): ReactNo
             把可复用的流程沉淀为技能；官方市场持续更新
           </span>
         </div>
-        <button type="button" className={css.skillHubClose} aria-label="关闭" onClick={onClose}>×</button>
+        {!embedded && <button type="button" className={css.skillHubClose} aria-label="关闭" onClick={onClose}>×</button>}
       </div>
       <div className={css.skillHubTabs}>
         {([

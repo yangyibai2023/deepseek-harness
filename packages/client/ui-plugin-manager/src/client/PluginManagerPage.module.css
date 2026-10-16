@@ -1486,3 +1486,33 @@ label.registryOption {
   color: var(--dsw-alias-state-error-primary);
   overflow-wrap: anywhere;
 }
+
+/* HeightLab（2026-10-17）：插件·技能合并页顶部标签（对齐会话头 tab 视觉）。 */
+.pageTabs {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  /* 顶部让开 macOS 拖拽条（~38px），标签条落在其下可点击。 */
+  padding: 44px 28px 0 20px;
+}
+.pageTab {
+  border: none;
+  background: transparent;
+  padding: 6px 2px;
+  margin-right: 14px;
+  font: inherit;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+.pageTab:hover {
+  color: var(--dsw-alias-label-primary);
+}
+.pageTabActive {
+  color: var(--dsw-alias-label-primary);
+  font-weight: 500;
+  border-bottom-color: var(--dsw-alias-state-business-primary);
+}

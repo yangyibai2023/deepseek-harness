@@ -17,6 +17,8 @@
  */
 
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
+// HeightLab：技能中心槽位的 owner 类型来自 ui-conversation 的声明（既有类型依赖，无新循环）。
+import type { PluginsPageSkillsOwnerProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { BundleInfo } from '@deepseek-ai/dsh-api-remotes/client'
 import type { ConfigForm, ConfigFormSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
 
@@ -99,6 +101,13 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * `plugins.bundle.config` or `plugins.row.config` instead.
      */
     'plugins.item': { kind: 'list'; scope: 'root'; owner: PluginConfigViewProps }
+    /**
+     * HeightLab（2026-10-17）：技能中心整页（原「技能」一级入口落地页）挂进
+     * 插件·技能合并页的「技能」标签。owner 类型与 ui-conversation 的声明
+     * 同一（接口合并要求全同）。
+     */
+    'plugins.page.skills': { kind: 'single'; scope: 'root'; owner: PluginsPageSkillsOwnerProps }
+
     /**
      * A bundle's own configuration, keyed by the bundle's package name and
      * rendered on the bundle's page between its description and its rows

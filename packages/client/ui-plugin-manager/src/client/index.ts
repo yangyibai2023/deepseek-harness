@@ -125,6 +125,8 @@ export function apply(ctx: ClientContext): void {
         'plugins.detail.actions': { kind: 'list', scope: 'root' },
         'plugins.detail.badge': { kind: 'list', scope: 'root' },
         'plugins.detail.section': { kind: 'list', scope: 'root' },
+        // HeightLab：技能中心整页（插件·技能合并页的「技能」标签）。
+        'plugins.page.skills': { kind: 'single', scope: 'root' },
       },
     }, PluginManagerPage)
     yield ctx.layout.panelInfo.subscribe(() => {

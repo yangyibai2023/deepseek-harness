@@ -198,6 +198,11 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     }
     /** Registered Conversation target Views, rendered one at a time. */
     'conversation.view': { kind: 'list'; scope: 'session'; owner: ConvViewOwnerProps }
+    /**
+     * HeightLab（2026-10-17）：技能中心整页，挂进插件·技能合并页的「技能」
+     * 标签（ui-plugin-manager 的页面渲染本槽位；owner 为空标记）。
+     */
+    'plugins.page.skills': { kind: 'single'; scope: 'root'; owner: PluginsPageSkillsOwnerProps }
     /** Selector-routed replacements for the current Session's resident composer. */
     'conversation.composer': { kind: 'chain'; scope: 'session'; owner: ComposerChainProps }
     /** Workspace picker shown by the blank-session Hero. */
@@ -341,6 +346,12 @@ export interface ConvViewOwnerProps {
   openView: (view: string, focus: string) => void
   /** Acknowledge the current one-shot focus request. */
   completeViewRequest: () => void
+}
+
+/** HeightLab：插件·技能合并页「技能」标签 occupant 的 owner（空标记）。 */
+export interface PluginsPageSkillsOwnerProps {
+  /** Marker field: the occupant receives no owner-specific values. */
+  children?: never
 }
 
 /** Base props of one target-owned Conversation View entry. */

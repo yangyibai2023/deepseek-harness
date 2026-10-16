@@ -34,6 +34,9 @@ import { queueDockEntry } from './queue/QueueDock.tsx'
 import { EnterBehaviorRow } from './settings/EnterBehaviorRow.tsx'
 import type { EnterBehaviorRowInjected } from './settings/EnterBehaviorRow.tsx'
 import { ConversationRoot } from './skeleton/ConversationRoot.tsx'
+import { HeightLabSkillHub } from './skeleton/HeightLabSkillHub.tsx'
+import type { ReactNode } from 'react'
+import React from 'react'
 import { ConversationContent } from './skeleton/ConversationContent.tsx'
 import { ConversationPanel } from './skeleton/ConversationPanel.tsx'
 import { ConversationHeader } from './skeleton/ConversationHeader.tsx'
@@ -176,6 +179,18 @@ export function apply(ctx: Context, config: Config = Config({})): void {
       setBusyEnter: (behavior) => { submissionPolicy.setBusyEnter(behavior) },
     }),
   }, EnterBehaviorRow))
+
+  // HeightLab（2026-10-17）：技能中心整页挂进插件·技能合并页的「技能」标签。
+  ctx.slots.inject('plugins.page.skills', () => ctx.slots.register({
+    name: 'plugins.page.skills',
+    locale: NS,
+  }, function HeightLabSkillHubTab(): ReactNode {
+    // .ts 文件不能写 JSX：用 createElement。
+    return React.createElement(HeightLabSkillHub, {
+      embedded: true,
+      onClose: () => { window.dispatchEvent(new CustomEvent('hl:close-hub')) },
+    })
+  }))
 
   const viewTabs = (): ViewTab[] => {
     const tabs: ViewTab[] = []

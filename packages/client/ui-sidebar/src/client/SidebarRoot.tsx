@@ -295,24 +295,8 @@ export function SidebarRoot({
         </button>
       </Tooltip>
 
-      {/* HeightLab 2026-10-14：技能中心一级入口——官方市场/我的沉淀/创建，
-          三栏页（HeightLabSkillHub），经技能注册表与 $DSH_HOME/skills。 */}
-      <Tooltip label="技能" delayMs={500} disabled={wide}>
-        <button
-          type="button"
-          className={css.newSession}
-          onClick={() => {
-            // HeightLab 2026-10-16：先记 pending，供 ConversationRoot 挂载后消费；
-            // 直接 selectPanel(null) 会替换会话区导致事件丢失（实测回主页）。
-            ;(window as unknown as { __hlPendingHub?: string | null }).__hlPendingHub = 'skill-hub'
-            selectPanel(null)
-            window.dispatchEvent(new CustomEvent('hl:open-hub', { detail: { page: 'skill-hub' } }))
-          }}
-        >
-          <IconSparkleRegular size={wide ? 16 : 18} />
-          {wide && <span className={clsx(css.newSessionLabel, css.wide)}>技能</span>}
-        </button>
-      </Tooltip>
+      {/* HeightLab 2026-10-17：「技能」一级入口并入插件面板（插件·技能合并页，
+          页内「技能」标签承载技能中心）；本行删除，入口保留在 git 历史。 */}
 
       {/* HeightLab：自定义导航（创意灵感 / 资料库）。
           rc.2 原生 SVG 描边图标 + 主题 token（css.hlNav*），与原生风格统一。 */}
