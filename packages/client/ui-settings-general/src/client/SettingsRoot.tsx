@@ -22,6 +22,7 @@ import type { ConnectionIndicatorState } from '@deepseek-ai/dsh-client-ui-primit
 import type { SettingsRootComponentProps, SettingsSectionRow } from './shell-contract.ts'
 import css from './SettingsRoot.module.css'
 import { DesktopUpdateIndicator } from './DesktopUpdateIndicator.tsx'
+import { IconPersonVoiceOutline16, IconInfoOutline16 } from './settings-nav-icons.tsx'
 
 const RECOVERY_CONFIRMATION_MS = 2_000
 
@@ -30,6 +31,10 @@ const CONNECTING_MIN_VISIBLE_MS = 800
 
 /** Nav glyph by section id; unknown ids fall back to the settings gear. */
 function navIcon(id: string) {
+  // HeightLab：三个自建 section 的导航图标（0.2.1 合并丢失，2026-10-16 回植）。
+  if (id === 'heightlab-account') return <IconUserOutlineMedium className={css.navIcon} size={16} />
+  if (id === 'heightlab-voice-avatar') return <IconPersonVoiceOutline16 className={css.navIcon} size={16} />
+  if (id === 'heightlab-about') return <IconInfoOutline16 className={css.navIcon} size={16} />
   if (id === 'account') return <IconUserOutlineMedium className={css.navIcon} size={16} />
   if (id === 'models') return <IconDataOutlineMedium className={css.navIcon} size={16} />
   if (id === 'agent-presets') return <IconAgentPresetOutlineMedium className={css.navIcon} size={16} />

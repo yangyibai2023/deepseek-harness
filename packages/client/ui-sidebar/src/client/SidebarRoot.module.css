@@ -265,22 +265,25 @@
    创意灵感/自动化（hlNavItem）一致的透明文字行：6/8 padding、6px 圆角、
    14px/500 主色文字 + 次级色图标；左缘与 hlNav 行对齐（margin-left 4px）。
    Collapsed it renders as the rail's plain icon control. */
+/* HeightLab（2026-10-16 用户拍板）：行观感统一按 DSH 原生 panelRow——
+   次级灰文字、原生字号/字重、36px 行高、8px 圆角、无额外缩进。 */
 .newSession {
   flex: none;
   display: flex;
   align-items: center;
   justify-content: flex-start;
   gap: 8px;
-  padding: 6px 8px;
-  margin: 0 0 2px 4px;
+  min-height: 36px;
+  padding: 7px 8px;
+  margin: 0;
   box-sizing: border-box;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   background: transparent;
-  color: var(--dsw-alias-label-primary);
-  font-size: 14px;
-  font-weight: 500;
+  color: var(--dsw-alias-label-secondary);
+  font: inherit;
   line-height: 22px;
+  text-align: left;
   cursor: pointer;
   overflow: hidden;
 }
@@ -409,32 +412,33 @@
 /* HeightLab 自定义导航（创意灵感 / 资料库 / 自动化）。
    与侧边栏原生 New Session / iconButton 同款样式：
    rc.2 主题 token 控制文字色、悬停底、圆角；收起时只留图标。 */
+/* HeightLab（2026-10-16）：容器对齐原生 panelList——无横向缩进、无分隔线、
+   4px 行距，使 资产中心 与上下原生行同缘。 */
 .hlNav {
   flex: none;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  /* HeightLab 2026-08-26：去顶 padding，与上方“新会话”行连成统一列表。 */
-  padding: 0 4px 8px;
-  border-bottom: 1px solid var(--dsw-alias-border-l1);
+  gap: 4px;
+  padding: 0;
   margin-bottom: 8px;
 }
 
+/* HeightLab（2026-10-16）：同 .newSession，统一按原生 panelRow 观感。 */
 .hlNavItem {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 8px;
   width: 100%;
   min-width: 0;
-  padding: 6px 8px;
+  min-height: 36px;
+  padding: 7px 8px;
+  box-sizing: border-box;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   background: transparent;
-  color: var(--dsw-alias-label-primary);
-  /* HeightLab 2026-08-22：与下方工作区文件夹名一致（14px）。 */
-  font-size: 14px;
+  color: var(--dsw-alias-label-secondary);
+  font: inherit;
   line-height: 22px;
-  font-weight: 500;
   text-align: left;
   cursor: pointer;
 }

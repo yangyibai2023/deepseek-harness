@@ -47,6 +47,22 @@
   border-bottom: 0.5px solid var(--dsw-alias-border-l3);
 }
 
+/* 上游 0.2.1：空白/hero 会话不画头部底边（用户指认的「聊天区顶部横线」）。
+   headerCorner 在空白态靠右；非 darwin 壳（Tauri）无需预留标题栏拖拽高。 */
+.headerBlank {
+  min-height: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.headerBlank .headerCorner {
+  margin-left: auto;
+}
+
+:global(html:not([data-platform='darwin'])) .headerSessionless {
+  padding-top: 0;
+}
+
 /* Blank hero/settling: keep the strict Session header mounted without taking
    column space; the root-owned scrollport and composer remain below it. */
 .headerHidden {

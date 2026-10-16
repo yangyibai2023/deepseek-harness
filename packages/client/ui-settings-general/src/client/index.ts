@@ -28,6 +28,9 @@ import type { ShortcutCommandId } from '@deepseek-ai/dsh-client-shortcuts/client
 import { createSettingsShellStore } from './shell-store.ts'
 import { SettingsRoot } from './SettingsRoot.tsx'
 import { HeightLabAccountFoot } from './HeightLabAccountFoot.tsx'
+import { HeightLabAccount } from './HeightLabAccount.tsx'
+import { HeightLabVoiceAvatar } from './HeightLabVoiceAvatar.tsx'
+import { HeightLabAbout } from './HeightLabAbout.tsx'
 import { DesktopUpdateBadge } from './DesktopUpdateIndicator.tsx'
 import type { DesktopUpdateBridge } from '../types.ts'
 import { DesktopUpdateSource } from './desktop-update-source.ts'
@@ -241,4 +244,30 @@ export function apply(ctx: ClientContext): void {
     locale: NS,
     children: { 'settings.general.item': { kind: 'list', scope: 'root' } },
   }, GeneralSection))
+
+  // ── HeightLab 定制 section（自 0.3.x 稳定线迁移；0.2.1 合并时丢失，2026-10-16 回植）──
+  // account section（余额 + 充值），紧跟通用设置（0）之后。
+  ctx.slots.inject('settings.section', () => ctx.slots.register({
+    name: 'settings.section',
+    id: 'heightlab-account',
+    // 紧跟通用设置（0）之后，排在原生 模型(10)/插件(15)/智能体预设(20) 之前
+    order: 5,
+    label: () => '账户',
+  }, HeightLabAccount))
+
+  // 形象与声音 section（avatars + voices 合并页）。
+  ctx.slots.inject('settings.section', () => ctx.slots.register({
+    name: 'settings.section',
+    id: 'heightlab-voice-avatar',
+    order: 110,
+    label: () => '形象与声音',
+  }, HeightLabVoiceAvatar))
+
+  // 关于（版本号/检查更新/软件介绍）。
+  ctx.slots.inject('settings.section', () => ctx.slots.register({
+    name: 'settings.section',
+    id: 'heightlab-about',
+    order: 120,
+    label: () => '关于',
+  }, HeightLabAbout))
 }
