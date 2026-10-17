@@ -74,14 +74,6 @@ function localPathFromMediaSrc(src: string): string | undefined {
   return undefined
 }
 
-/** 右侧边栏媒体预览页（宿主 /hl/media-preview 包装页，img/video 自适应）。
- * 外层与内层 url 都必须绝对化——原生 browser 标签会把无 scheme 地址解析成
- * 主机名；宿主 media-preview 也要求内层是带 origin 的绝对 URL。 */
-function mediaPreviewUrl(playable: string): string {
-  const absolute = new URL(playable, document.baseURI).href
-  return new URL(`/hl/media-preview?url=${encodeURIComponent(absolute)}`, document.baseURI).href
-}
-
 /** 保存到工作区用的引用：http(s) 与 /hl/ 原样，本地路径解析为绝对路径。 */
 function heightlabDownloadRef(raw: string, cwd: string | undefined): string {
   const value = raw.trim()
@@ -91,9 +83,28 @@ function heightlabDownloadRef(raw: string, cwd: string | undefined): string {
   return value
 }
 
-/** HeightLab：请求右侧边栏 browser 标签打开同源媒体预览（apply 层桥接 sidebarRight）。 */
-function openInSidebarPreview(playable: string): void {
-  window.dispatchEvent(new CustomEvent('hl:sidebar-open-url', { detail: { url: mediaPreviewUrl(playable) } }))
+/** 媒体显示名（标签标题用）：取引用末段文件名，剥查询串并解码。 */
+function mediaDisplayName(ref: string): string {
+  try {
+    const bare = decodeURIComponent(ref.split(/[?#]/u)[0] ?? '')
+    const base = bare.split('/').pop() ?? ''
+    return base === '' ? '媒体' : base
+  } catch { return '媒体' }
+}
+
+/** HeightLab：请求右侧边栏媒体标签预览（apply 层桥接 sidebarRight.openResource，
+ * heightlab-media-tab 插件原生渲染）。name 用于标签标题。 */
+function openInSidebarPreview(playable: string, name?: string): void {
+  const absolute = new URL(playable, document.baseURI).href
+  window.dispatchEvent(new CustomEvent('hl:sidebar-open-url', {
+    detail: { url: absolute, name: name ?? '' },
+  }))
+}
+
+/** HeightLab：打开侧栏/弹层播放面前，暂停页面全部 video——同源媒体多处同时
+ * 出声会叠加成重音/重复播放（用户实测反馈）。 */
+function pauseAllVideos(): void {
+  document.querySelectorAll('video').forEach((v) => { try { v.pause() } catch { /* 已停止 */ } })
 }
 
 /** HeightLab：经宿主在系统默认浏览器打开同源媒体（壳内 window.open 同源地址无反应）。 */
@@ -159,7 +170,7 @@ export const AssistantMarkdown = memo(function AssistantMarkdown({
     if (path === undefined) return
     event.preventDefault()
     event.stopPropagation()
-    openInSidebarPreview(heightlabMediaUrl(path, cwdRef.current) ?? src)
+    openInSidebarPreview(heightlabMediaUrl(path, cwdRef.current) ?? src, mediaDisplayName(path))
   }
   const last = blocks.length - 1
   // Tool-call heads render as tool rows in the chat view's grouping pass, so
@@ -307,17 +318,18 @@ function VideoEmbed({ url, downloadUrl, workspace }: {
         controls
         preload="metadata"
         className={css.videoThumb}
-        onClick={() => { openInSidebarPreview(url) }}
+        onClick={() => { pauseAllVideos(); openInSidebarPreview(url, mediaDisplayName(downloadUrl)) }}
       />
       <div className={css.videoActions}>
         <button type="button" className={css.videoAction} title="在侧栏播放"
-          onClick={() => { openInSidebarPreview(url) }}>
+          onClick={() => { pauseAllVideos(); openInSidebarPreview(url, mediaDisplayName(downloadUrl)) }}>
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
             <rect x="1.5" y="2.5" width="9" height="11" rx="1.2" stroke="currentColor" strokeWidth="1.2" />
             <path d="M13 5.5v5M15 6.5v3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
           </svg>
         </button>
-        <button type="button" className={css.videoAction} title="放大播放" onClick={() => { setExpanded(true) }}>
+        <button type="button" className={css.videoAction} title="放大播放"
+          onClick={() => { pauseAllVideos(); setExpanded(true) }}>
           <IconFullscreenOutlineRegular size={14} />
         </button>
         <button type="button" className={css.videoAction} title="下载视频" onClick={() => { void downloadVideo() }}>

@@ -165,15 +165,22 @@ export function apply(ctx: Context): void {
   })
   // HeightLab（2026-10-17 媒体链路修复）：聊天媒体点击 → 右侧边栏预览/播放。
   // 组件层拿不到 sidebarRight service，经 window CustomEvent 桥接；apply 每次
-  // 客户端启动只执行一次，监听器随页面生命周期存活。无 browser 标签时退回新窗口。
+  // 客户端启动只执行一次，监听器随页面生命周期存活。优先走原生媒体标签
+  // （heightlab-media-tab 插件，无 iframe/无黑底），其次 Browser 标签，都无则新窗口。
   window.addEventListener('hl:sidebar-open-url', (event: Event) => {
-    const url = (event as CustomEvent).detail?.url
+    const detail = (event as CustomEvent).detail as { url?: unknown; name?: unknown } | undefined
+    const url = detail?.url
+    const name = typeof detail?.name === 'string' && detail.name !== '' ? detail.name : '媒体'
     if (typeof url !== 'string' || url === '') return
-    if (ctx.get('sidebarRightTabs')?.get('browser') === undefined) {
-      window.open(url, '_blank', 'noopener')
+    if (ctx.get('sidebarRightTabs')?.get('heightlab-media') !== undefined) {
+      ctx.sidebarRight.openResource(`heightlab-media://m?src=${encodeURIComponent(url)}&name=${encodeURIComponent(name)}`)
       return
     }
-    ctx.sidebarRight.openTab('browser', { params: { url } })
+    if (ctx.get('sidebarRightTabs')?.get('browser') !== undefined) {
+      ctx.sidebarRight.openTab('browser', { params: { url } })
+      return
+    }
+    window.open(url, '_blank', 'noopener')
   })
   // HeightLab：桌面端未设置时的默认档也走 compact（简洁；用户可在设置→一般里自选四档）
   const transcriptView = new TranscriptViewPolicy(chatSettings, DEFAULT_TRANSCRIPT_VIEW_MODE)
