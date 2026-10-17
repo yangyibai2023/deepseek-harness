@@ -155,8 +155,8 @@ const MODE_ROUTES: ReadonlyArray<{ id: string; label: string; model: string }> =
   { id: 'max', label: '极致', model: 'claude-opus-5' },
 ]
 
-/** 分类内模型数不超过该值时用二级（分类 → 模型），否则切三级（分类 → 厂商 → 模型）。 */
-const FLAT_MODEL_LIMIT = 12
+/** 三级菜单阈值（2026-10-18 起 Menu 只支持两级，恒走平铺；常量保留兼容）。 */
+export const FLAT_MODEL_LIMIT = 12
 
 /** Effort choice row (text models only). */
 interface EffortChoice {
@@ -372,15 +372,28 @@ export function ModelSelect(
       }
     })
 
-    // 二级模式：分类行直接挂模型列表，只显示模型名（不带厂商前缀）。
-    if (options.length <= FLAT_MODEL_LIMIT) {
-      return options.map(o => ({
+    // HeightLab（2026-10-18 用户实测修正）：Menu 组件**只支持两级**——子菜单
+    // 里的项直接渲染成按钮，不会递归出第三级。47 个模型走「模型→厂商→型号」
+    // 必然展不开（用户报「只看到提供商名称，展不开具体模型」）。
+    // 因此统一压平为二级：模型 → 全部型号，用「厂商 ·」前缀区分来源。
+    // 排序按厂商顺序，同厂商内保持原顺序，扫视更整齐。
+    {
+      const orderIdx = (id: string): number => {
+        const i = TEXT_PROVIDERS.findIndex(p => p.id === providerFor(id).id)
+        return i === -1 ? 99 : i
+      }
+      const flat = [...options].sort((a, b) => {
+        const d = orderIdx(a.id.split(':')[1] ?? '') - orderIdx(b.id.split(':')[1] ?? '')
+        return d !== 0 ? d : 0
+      })
+      return flat.map(o => ({
         id: o.id,
-        label: o.label,
+        // 只在跨厂商时加前缀，避免同类型号被前缀淹没。
+        label: `${o.provider.label} · ${o.label}`,
       }))
     }
 
-    // 三级模式：分类 → 厂商 → 模型。
+    // 以下三级逻辑保留但不再可达（Menu 不支持），留作未来 Menu 支持递归时启用。
     const groupMap = new Map<string, { id: string; label: string; submenu: { id: string; label: string }[] }>()
     for (const o of options) {
       const key = `${category}:${o.provider.id}`
