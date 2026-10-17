@@ -41,6 +41,9 @@ import { ContextMeter } from './ContextMeter.tsx'
 import { observeControlRow } from './control-row-layout.ts'
 import css from './InputBar.module.css'
 
+// HeightLab 功能开关：boolean 标注宽化字面量（lint 两配置皆过），改 false 即恢复。
+const HIDE_INPUT_AGENT_PRESET: boolean = true
+
 export type InputBarProps = ComposerBarProps
 
 export const InputBar = memo(function InputBar({
@@ -486,8 +489,13 @@ export const InputBar = memo(function InputBar({
               {input === undefined || sessionId === undefined
                 ? null
                 : renderSlot('conversation.input.right', {})}
-              {/* HeightLab：智能体选择框（Colin / 专家）放在模型选择左侧（0.4.1 布局）。 */}
-              {sessionId === undefined ? null : renderSlot('conversation.input.agentPreset', {})}
+              {/* HeightLab（2026-10-17 用户拍板）：输入框不再显示智能体选择器。
+                  理由：用户始终通过 Colin 对话、由 Colin 派工，自己选专家没有意义，
+                  选错反而出问题；设置→Agent 管理里仍可查看（槽位注册保留）。
+                  恢复 = 将 HIDE_INPUT_AGENT_PRESET 改为 false。 */}
+              {HIDE_INPUT_AGENT_PRESET || sessionId === undefined
+                ? null
+                : renderSlot('conversation.input.agentPreset', {})}
               {sessionId === undefined ? null : renderSlot('conversation.input.model', { locked: modelSeatLocked })}
               {/* HeightLab（2026-10-16 回植）：ContextMeter 圆环收编全部指标，
                   位于输入框行内（0.4.1 布局）；0.2.1 把它挪到了行外 dock。 */}

@@ -18,15 +18,20 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
+// HeightLab（2026-10-17 用户拍板）：侧栏自建行图标统一到原生 panelRow 的
+// OutlineRegular 系列——基准是「插件·技能」(IconPluginPinwheelOutlineRegular)
+// 与「自动化任务」(IconClockOutlineRegular)：同线条粗细、同视觉重量、同尺寸。
+// 原实现「视频创作」用实心 IconSparkleRegular、「资产中心」用
+// IconLibraryStroke16（不同族），折叠后三项观感明显不一致。
 import {
-  IconNewChatOutlineRegular, IconSparkleRegular, Tooltip,
+  IconNewChatOutlineRegular, IconPlanOutlineRegular, IconWorkspaceTreeOutlineRegular, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
   // HeightLab V31：创意灵感一级入口暂时隐藏（首页输入框下方的视频模板网格
   // 已承接其职责，对标 MiniMax Design）。回滚：取消下面数组里 inspiration
   // 行与第 25 行 import 中的 IconInspirationStroke16 注释即可。
   // IconInspirationStroke16,
-  IconLibraryStroke16, IconPanelLeftStroke16,
+  IconPanelLeftStroke16,
   // IconAutomationStroke16,  // HeightLab 2026-10-16：自建「自动化」入口取消（原生自动化任务承接），随条目一并停用
 } from './sidebar-icons.tsx'
 import { HlModeSwitcher } from './hl-mode.tsx'
@@ -274,9 +279,11 @@ export function SidebarRoot({
           hub 行激活态由 activeHub 跟踪（hl:close-hub / 新会话 / 面板行点击时清除）。 */}
       <nav className={css.panelList} aria-label={t('panels.label')}>
         {(() => {
-          const hubRows: readonly { key: string; label: string; Icon: typeof IconLibraryStroke16; page: string }[] = [
-            { key: 'video-studio', label: '视频创作', Icon: IconSparkleRegular, page: 'video-studio' },
-            { key: 'library', label: '资产中心', Icon: IconLibraryStroke16, page: 'library' },
+          const hubRows: readonly { key: string; label: string; Icon: typeof IconPlanOutlineRegular; page: string }[] = [
+            // 图标统一到 OutlineRegular（2026-10-17）：「视频创作」用 Plan 型
+            // （分镜/计划语义），「资产中心」用 WorkspaceTree 型（目录/资产语义）。
+            { key: 'video-studio', label: '视频创作', Icon: IconPlanOutlineRegular, page: 'video-studio' },
+            { key: 'library', label: '资产中心', Icon: IconWorkspaceTreeOutlineRegular, page: 'library' },
           ]
           return (
             <>
