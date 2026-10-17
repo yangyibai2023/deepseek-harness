@@ -37,6 +37,8 @@ import { ProviderEditor, type ProviderEditorProps } from './ProviderEditor.tsx'
 import type { en } from './locales.ts'
 import styles from './ModelsSection.module.css'
 
+import { HeightLabModelDefaults } from './HeightLabModelDefaults.tsx'
+
 /** HeightLab：官方默认提供商（走 New API 托管渠道），展示为「HEIGHTLAB 官方」，不可修改/删除。 */
 const HEIGHTLAB_OFFICIAL_PROVIDER = 'deepseek-official'
 const HEIGHTLAB_OFFICIAL_NAME = 'HEIGHTLAB 官方'
@@ -452,6 +454,9 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
             && row.credential?.configured === false
           return (
             <li key={row.entry.provider} className={styles['rowCard']}>
+              {/* HeightLab（2026-10-17）：官方提供商展开即配置文本/图片/视频默认模型，
+                  输入框只保留文本模型与推理等级。 */}
+              {row.entry.provider === HEIGHTLAB_OFFICIAL_PROVIDER && <HeightLabModelDefaults />}
               <div className={styles['rowHead']}>
                 <span className={styles['rowIdentity']}>
                   <span className={styles['rowName']}>

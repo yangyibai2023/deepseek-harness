@@ -19,7 +19,7 @@ export const zh = {
   'trigger.selectAria': '请选择模型',
   'trigger.aria': '选择模型，当前 {model}',
   'trigger.ariaEffort': '选择模型，当前 {model}，推理等级 {effort}',
-  'menu.aria': '模型与推理等级',
+  'menu.aria': '模型推理等级',
   'menu.model': '模型',
   'menu.effort': '推理等级',
   'effort.providerDefault': 'Default',

@@ -26,14 +26,19 @@ type ModelCategory = 'text' | 'image' | 'video'
 
 // HeightLab 已确认开放清单（2026-08-18）：其余文本模型一律不展示。
 // 2026-09-19 起 deepseek-flash = DeepSeek 官方新名（V4.1-Flash 承载）。
+// HeightLab（2026-10-17）：按网关 GET /v1/models 实测清单对齐（24 个模型）。
+// 补齐原缺口：deepseek-v4-flash-vision-exp / claude-opus-4-6 / claude-sonnet-4-6 /
+// claude-sonnet-5 / gpt-5.4 / gpt-5.6-terra。
 const TEXT_MODEL_IDS = new Set([
-  'deepseek-flash', 'deepseek-v4-flash', 'deepseek-v4-pro',
-  'gpt-5.5', 'gpt-5.6-luna', 'gpt-5.6-sol',
-  'claude-opus-4-8', 'claude-fable-5',
+  'deepseek-flash', 'deepseek-v4-flash', 'deepseek-v4-flash-vision-exp', 'deepseek-v4-pro',
+  'gpt-5.4', 'gpt-5.5', 'gpt-5.6-luna', 'gpt-5.6-sol', 'gpt-5.6-terra',
+  'claude-opus-4-6', 'claude-opus-4-8', 'claude-sonnet-4-6', 'claude-sonnet-5', 'claude-fable-5',
   'glm-5.2', 'grok-4.5',
 ])
 
-const IMAGE_MODEL_IDS = new Set(['gpt-image-2', 'gpt-image-2-4k', 'image-01', 'image-01-live'])
+// HeightLab（2026-10-17）：网关实测只有 image2 两档；
+// image-01 / image-01-live 在 /v1/models 中不存在，已下线。
+const IMAGE_MODEL_IDS = new Set(['gpt-image-2', 'gpt-image-2-4k'])
 const VIDEO_MODEL_IDS = new Set([
   'MiniMax-H3', 'doubao-seedance-2-0-fast-260128', 'doubao-seedance-2-0-mini-260615',
   'doubao-seedance-2-0-260128', 'doubao-seedance-2-5-260628',
@@ -91,6 +96,17 @@ const CATEGORY_DEFAULTS: Record<ModelCategory, string> = {
   video: 'MiniMax-H3',
 }
 
+/**
+ * HeightLab（2026-10-17 用户拍板，模仿 WorkBuddy）：三档能力模式。
+ * 选模式 = 一键落到该档模型；手动选模型 = 显示「自定义」。
+ * 路由表刻意保持可改：只需替换 model 字段，不改 UI。
+ */
+const MODE_ROUTES: ReadonlyArray<{ id: string; label: string; model: string }> = [
+  { id: 'fast', label: '快速', model: 'deepseek-v4-flash' },
+  { id: 'balanced', label: '均衡', model: 'deepseek-v4-pro' },
+  { id: 'max', label: '极致', model: 'claude-opus-4-8' },
+]
+
 /** 分类内模型数不超过该值时用二级（分类 → 模型），否则切三级（分类 → 厂商 → 模型）。 */
 const FLAT_MODEL_LIMIT = 12
 
@@ -121,6 +137,9 @@ function shortModelLabel(
   }
   return name
 }
+
+// HeightLab 功能开关：boolean 标注宽化字面量（lint 两配置皆过），改 false 即恢复三分类菜单。
+const HIDE_MEDIA_MODEL_ROWS: boolean = true
 
 export function ModelSelect(
   { locked, available, directory, load, select, t }:
@@ -181,13 +200,14 @@ export function ModelSelect(
   // HeightLab：拉取全局模型映射（文本/图片/视频，全智能体共用）。
   const loadMapping = (): void => {
     void fetch('/hl/model-mapping')
-      .then(res => res.json())
+      .then(res => res.json() as Promise<{ ok?: boolean; mapping?: Record<string, unknown> }>)
       .then((data) => {
-        if (data?.ok && data.mapping) {
+        const mapping = data.mapping
+        if (data.ok === true && mapping !== undefined) {
           setMapping(prev => ({
-            text: typeof data.mapping.text === 'string' ? data.mapping.text : prev.text,
-            image: typeof data.mapping.image === 'string' ? data.mapping.image : prev.image,
-            video: typeof data.mapping.video === 'string' ? data.mapping.video : prev.video,
+            text: typeof mapping.text === 'string' ? mapping.text : prev.text,
+            image: typeof mapping.image === 'string' ? mapping.image : prev.image,
+            video: typeof mapping.video === 'string' ? mapping.video : prev.video,
           }))
         }
       })
@@ -330,18 +350,40 @@ export function ModelSelect(
     })
   }
 
+  // HeightLab（2026-10-17）：模式反推——当前模型命中某档路由即显示该档，
+  // 否则显示「自定义」。不额外存状态，避免与 session 的模型选择打架。
+  const currentModelId = state.current?.model
+  const currentMode = MODE_ROUTES.find(route => route.model === currentModelId)
+
+  // HeightLab（2026-10-17 用户拍板）：输入框菜单只留「模型」与「推理等级」两行。
+  // 图片/视频模型挪到设置→模型里单独配置（不再让用户每次选）。
+  // 菜单标题按要求不写「文本模型」，统一叫「模型」。
   const menuItems: MenuEntry[] = [
-    ...CATEGORY_LABELS.map(({ category, label }) => ({
-      id: `cat:${category}`,
-      label,
-      value: mapping[category],
-      submenu: categoryGroups(category),
-    })),
+    // 模式行排在最前：先选「多快多好」，需要时再手选具体模型。
+    {
+      id: 'cat:mode',
+      label: '模式',
+      value: currentMode?.label ?? '自定义',
+      submenu: MODE_ROUTES.map(route => ({ id: `mode:${route.id}`, label: route.label })),
+    },
+    ...(HIDE_MEDIA_MODEL_ROWS
+      ? [{
+        id: 'cat:text',
+        label: '模型',
+        value: mapping.text,
+        submenu: categoryGroups('text'),
+      }]
+      : CATEGORY_LABELS.map(({ category, label }) => ({
+        id: `cat:${category}`,
+        label,
+        value: mapping[category],
+        submenu: categoryGroups(category),
+      }))),
     ...(reasoning === undefined
       ? []
       : [{
         id: 'cat:effort',
-        label: t('menu.effort'),
+        label: '推理等级',
         value: effortLabel,
         submenu: effortChoices.map(level => ({
           id: level.key,
@@ -351,6 +393,7 @@ export function ModelSelect(
   ]
 
   const selectedIds = [
+    ...(currentMode === undefined ? [] : [`mode:${currentMode.id}`]),
     `text:${mapping.text}`,
     `image:${mapping.image}`,
     `video:${mapping.video}`,
@@ -360,6 +403,15 @@ export function ModelSelect(
   ]
 
   const onSelect = (itemId: string): void => {
+    if (itemId.startsWith('mode:')) {
+      const modeId = itemId.slice('mode:'.length)
+      const route = MODE_ROUTES.find(r => r.id === modeId)
+      if (route === undefined) return
+      const choice = choices.find(c => c.model.id === route.model)
+      if (choice === undefined) return
+      chooseText(choice.selection)
+      return
+    }
     if (itemId.startsWith('text:')) {
       const modelId = itemId.slice('text:'.length)
       const choice = choices.find(c => c.model.id === modelId)
@@ -385,7 +437,7 @@ export function ModelSelect(
     <div ref={rootRef} className={css.root}>
       <Menu
         open={open}
-        onClose={() => setOpen(false)}
+        onClose={() => { setOpen(false) }}
         items={menuItems}
         selectedIds={selectedIds}
         onSelect={onSelect}
