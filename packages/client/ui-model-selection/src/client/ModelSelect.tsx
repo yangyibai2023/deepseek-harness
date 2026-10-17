@@ -29,11 +29,14 @@ type ModelCategory = 'text' | 'image' | 'video'
 // HeightLab（2026-10-17）：按网关 GET /v1/models 实测清单对齐（24 个模型）。
 // 补齐原缺口：deepseek-v4-flash-vision-exp / claude-opus-4-6 / claude-sonnet-4-6 /
 // claude-sonnet-5 / gpt-5.4 / gpt-5.6-terra。
+// HeightLab（2026-10-17）：清单以**真实探活**为准（/v1/chat/completions 逐模型试调）：
+// 200 = 可用；500 = 渠道异常；超时 = 不可达。已剔除 gpt-5.4 / claude-fable-5（500）
+// 与 grok-4.5 / gpt-5.6-luna（超时）。补入 MiniMax-M3（200，0.4 元/百万 token，最便宜）。
 const TEXT_MODEL_IDS = new Set([
   'deepseek-flash', 'deepseek-v4-flash', 'deepseek-v4-flash-vision-exp', 'deepseek-v4-pro',
-  'gpt-5.4', 'gpt-5.5', 'gpt-5.6-luna', 'gpt-5.6-sol', 'gpt-5.6-terra',
-  'claude-opus-4-6', 'claude-opus-4-8', 'claude-sonnet-4-6', 'claude-sonnet-5', 'claude-fable-5',
-  'glm-5.2', 'grok-4.5',
+  'gpt-5.5', 'gpt-5.6-sol', 'gpt-5.6-terra',
+  'claude-opus-4-6', 'claude-opus-4-8', 'claude-sonnet-4-6', 'claude-sonnet-5',
+  'glm-5.2', 'MiniMax-M3',
 ])
 
 // HeightLab（2026-10-17）：网关实测只有 image2 两档；
@@ -101,9 +104,13 @@ const CATEGORY_DEFAULTS: Record<ModelCategory, string> = {
  * 选模式 = 一键落到该档模型；手动选模型 = 显示「自定义」。
  * 路由表刻意保持可改：只需替换 model 字段，不改 UI。
  */
+// HeightLab（2026-10-17）：路由按**贵州价格表 + 网关探活**双重校准。
+//   快速 = deepseek-v4-flash（2.5 倍率 / 1 元，200）
+//   均衡 = claude-sonnet-4-6（0.8 倍率 / 0.32 元，200）——全网性价比最高
+//   极致 = claude-opus-4-8（15 倍率 / 6 元，200）——最强推理
 const MODE_ROUTES: ReadonlyArray<{ id: string; label: string; model: string }> = [
   { id: 'fast', label: '快速', model: 'deepseek-v4-flash' },
-  { id: 'balanced', label: '均衡', model: 'deepseek-v4-pro' },
+  { id: 'balanced', label: '均衡', model: 'claude-sonnet-4-6' },
   { id: 'max', label: '极致', model: 'claude-opus-4-8' },
 ]
 
@@ -122,7 +129,7 @@ interface EffortChoice {
  * 规则：若模型名以提供商名/提供商 id 开头（大小写不敏感），去掉该前缀及
  * 分隔符；否则原样返回。
  */
-function shortModelLabel(
+export function shortModelLabel(
   name: string,
   providerName: string | undefined,
   providerId: string | undefined,
@@ -287,9 +294,9 @@ export function ModelSelect(
   }
 
   const modelLabel = currentChoice?.model.name ?? t('trigger.fallback')
-  const triggerModelLabel = currentChoice === undefined
-    ? modelLabel
-    : shortModelLabel(currentChoice.model.name, currentChoice.group.name, currentChoice.group.id)
+  // HeightLab（2026-10-17 用户拍板）：输入框内容已精简，直接显示模型**全称**，
+  // 不再用 shortModelLabel 去品牌前缀（原名太长时省略号截断，由 CSS 处理）。
+  const triggerModelLabel = modelLabel
   const fullLabel = effortLabel === undefined ? modelLabel : `${modelLabel} · ${effortLabel}`
   const triggerAria = currentChoice === undefined
     ? t('trigger.selectAria')
