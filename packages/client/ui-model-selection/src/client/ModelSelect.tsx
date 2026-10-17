@@ -335,9 +335,11 @@ export function ModelSelect(
   }
 
   const modelLabel = currentChoice?.model.name ?? t('trigger.fallback')
-  // HeightLab（2026-10-17 用户拍板）：输入框内容已精简，直接显示模型**全称**，
-  // 不再用 shortModelLabel 去品牌前缀（原名太长时省略号截断，由 CSS 处理）。
-  const triggerModelLabel = modelLabel
+  // HeightLab（2026-10-17 用户拍板·二次）：恢复 DSH 原生显示——触发按钮用
+  // shortModelLabel 去掉品牌前缀（DSH 原生写法），菜单里才显示全名。
+  const triggerModelLabel = currentChoice === undefined
+    ? modelLabel
+    : shortModelLabel(currentChoice.model.name, currentChoice.group.name, currentChoice.group.id)
   const fullLabel = effortLabel === undefined ? modelLabel : `${modelLabel} · ${effortLabel}`
   const triggerAria = currentChoice === undefined
     ? t('trigger.selectAria')
