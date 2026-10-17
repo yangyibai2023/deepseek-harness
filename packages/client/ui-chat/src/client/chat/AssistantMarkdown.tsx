@@ -74,9 +74,12 @@ function localPathFromMediaSrc(src: string): string | undefined {
   return undefined
 }
 
-/** 右侧边栏媒体预览页（宿主 /hl/media-preview 包装页，img/video 自适应）。 */
+/** 右侧边栏媒体预览页（宿主 /hl/media-preview 包装页，img/video 自适应）。
+ * 外层与内层 url 都必须绝对化——原生 browser 标签会把无 scheme 地址解析成
+ * 主机名；宿主 media-preview 也要求内层是带 origin 的绝对 URL。 */
 function mediaPreviewUrl(playable: string): string {
-  return `/hl/media-preview?url=${encodeURIComponent(playable)}`
+  const absolute = new URL(playable, document.baseURI).href
+  return new URL(`/hl/media-preview?url=${encodeURIComponent(absolute)}`, document.baseURI).href
 }
 
 /** 保存到工作区用的引用：http(s) 与 /hl/ 原样，本地路径解析为绝对路径。 */
