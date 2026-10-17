@@ -144,14 +144,15 @@ const CATEGORY_DEFAULTS: Record<ModelCategory, string> = {
  * 选模式 = 一键落到该档模型；手动选模型 = 显示「自定义」。
  * 路由表刻意保持可改：只需替换 model 字段，不改 UI。
  */
-// HeightLab（2026-10-17）：路由按**贵州价格表 + 网关探活**双重校准。
-//   快速 = deepseek-v4-flash（2.5 倍率 / 1 元，200）
-//   均衡 = claude-sonnet-4-6（0.8 倍率 / 0.32 元，200）——全网性价比最高
-//   极致 = claude-opus-4-8（15 倍率 / 6 元，200）——最强推理
+// HeightLab（2026-10-17 二次校准）：白名单全量开放后（24→75），按贵州价格表
+// 重排三档——全部实测 200 可用：
+//   快速 = gpt-5.6-luna（1 倍率 / 0.4 元）——低价批量档
+//   均衡 = claude-sonnet-4-6（0.8 倍率 / 0.32 元）——性价比之王
+//   极致 = claude-opus-5（15 倍率 / 6 元）——当前最强推理
 const MODE_ROUTES: ReadonlyArray<{ id: string; label: string; model: string }> = [
-  { id: 'fast', label: '快速', model: 'deepseek-v4-flash' },
+  { id: 'fast', label: '快速', model: 'gpt-5.6-luna' },
   { id: 'balanced', label: '均衡', model: 'claude-sonnet-4-6' },
-  { id: 'max', label: '极致', model: 'claude-opus-4-8' },
+  { id: 'max', label: '极致', model: 'claude-opus-5' },
 ]
 
 /** 分类内模型数不超过该值时用二级（分类 → 模型），否则切三级（分类 → 厂商 → 模型）。 */
