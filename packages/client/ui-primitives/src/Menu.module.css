@@ -290,33 +290,27 @@
   z-index: 101;
   min-width: 163px;
   max-width: min(360px, calc(100vw - 24px));
-  /* HeightLab：模型列表固定高度，多了在内部上下滚动。 */
-  max-height: 320px;
-  overflow-y: auto;
-  overflow-x: hidden;
-  /* HeightLab：滚动条改细、轨道透明，保持可滚动。 */
-  scrollbar-width: thin;
-  scrollbar-color: var(--dsw-alias-scrollbar-bg-l2, rgba(0, 0, 0, 0.18)) transparent;
   /* HeightLab（2026-10-18 用户实测修复玻璃消失）：
-     卡片自身是滚动容器（overflow-y:auto），而玻璃层 `.material` 是
-     `position:absolute; inset:0` → 它锚定的是卡片的**内容框**，卡片一滚
-     玻璃就跟着滚走（实测滚到底时 matTop=-804 而卡片 top=414）。
-     CSS 无法让绝对定位子元素相对滚动视口固定，因此改用**伪元素**在卡片
-     自身上画不透明底色：伪元素参与卡片背景层，不随内容滚动。 */
-  background: var(--dsw-menu-surface-solid, #fff);
-  isolation: isolate;
+     卡片**不能**自己做滚动容器——`MenuSurface` 的材质层 `.material` 是
+     `position:absolute; inset:0`，锚定内容框；卡片一滚材质就跟着滚走，
+     下半屏玻璃消失、文字浮在页面内容上（截图实锤 matTop=-804 / cardTop=414）。
+     正解：卡片只裁圆角（overflow:hidden），滚动交给内部 `.submenuBody`
+     （由 Menu.tsx 包一层 div），材质层锚定不滚的卡片。 */
+  max-height: 320px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
-/* HeightLab：卡片滚动时保持不透明底（覆盖玻璃层滚走后的空洞）。
-   ⭐必须用 ::after——::before 已被「10px 间隙桥」占用（见下方规则）。 */
-.submenu::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  border-radius: inherit;
-  background: var(--dsw-menu-surface-solid, #f8f9fa);
-  pointer-events: none;
+/* 内层滚动区：只有它滚，材质层不动。 */
+.submenuBody {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--dsw-alias-scrollbar-bg-l2, rgba(0, 0, 0, 0.18)) transparent;
 }
 
 /* HeightLab：二级/三级菜单 fixed 挂到 body，由 JS 统一做边界检测；

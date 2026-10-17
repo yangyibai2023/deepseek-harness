@@ -505,21 +505,25 @@ export function Menu({ open, anchor, items = [], children, selectedId, selectedI
         </button>
         {subOpen && entry.submenu !== undefined && (
           <MenuSurface compact={compact} className={clsx(css.submenu, compact && css.compactList)} role="menu">
-            {entry.submenu.map(sub => (
-              <button
-                key={sub.id}
-                type="button"
-                role="menuitem"
-                className={css.item}
-                disabled={sub.disabled}
-                aria-keyshortcuts={sub.shortcut?.aria}
-                onClick={() => { onSelect?.(sub.id); refocusAfterSelection() }}
-              >
-                {sub.icon !== undefined && <span className={css.itemIcon}>{sub.icon}</span>}
-                <span className={css.itemLabel}>{sub.label}</span>
-                {sub.shortcut !== undefined && <span aria-hidden="true" className={css.shortcut}><ShortcutKeys keys={sub.shortcut.keys} className={css.shortcutKeys} /></span>}
-              </button>
-            ))}
+            {/* HeightLab（2026-10-18）：滚动放内层——外层卡片不滚，材质层
+                （.material，absolute）才能始终覆盖可视区；否则滚到底玻璃消失。 */}
+            <div className={css.submenuBody}>
+              {entry.submenu.map(sub => (
+                <button
+                  key={sub.id}
+                  type="button"
+                  role="menuitem"
+                  className={css.item}
+                  disabled={sub.disabled}
+                  aria-keyshortcuts={sub.shortcut?.aria}
+                  onClick={() => { onSelect?.(sub.id); refocusAfterSelection() }}
+                >
+                  {sub.icon !== undefined && <span className={css.itemIcon}>{sub.icon}</span>}
+                  <span className={css.itemLabel}>{sub.label}</span>
+                  {sub.shortcut !== undefined && <span aria-hidden="true" className={css.shortcut}><ShortcutKeys keys={sub.shortcut.keys} className={css.shortcutKeys} /></span>}
+                </button>
+              ))}
+            </div>
           </MenuSurface>
         )}
       </div>
