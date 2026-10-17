@@ -9,6 +9,7 @@ import { CompactionItem } from './CompactionItem.tsx'
 import { ContextInjectionRow } from './ContextInjectionRow.tsx'
 import { MessageIconActions } from './MessageIconActions.tsx'
 import { HEIGHTLAB_UNKNOWN_BLOCK_TEXT, heightlabFriendlyErrorText } from './heightlab-friendly.ts'
+import { resolveTurnVerdict } from './turn-verdict.ts'
 import css from './MessageItem.module.css'
 
 type UserImage = Extract<UserMessageNode['content'][number], { type: 'image' }>
@@ -171,9 +172,13 @@ function TurnErrorItem({ node, t }: {
       window.dispatchEvent(new CustomEvent('hl:turn-failed', { detail: { code: node.code } }))
     }
   }, [node.code])
-  const isQuota = node.code === 'QUOTA'
+  // HeightLab（2026-10-17）：终态错误先过仲裁器，一个回合只出一处判决。
+  // 限流/通用失败的实际提示走输入框上方横幅，这里不再重复点亮。
+  const verdict = resolveTurnVerdict({ code: node.code, message: node.message })
+  const isQuota = verdict.recovery === 'recharge'
+  if (!verdict.showInBubble) return null
   return (
-    <div className={css.turnErrorRow} role="status">
+    <div className={css.turnErrorRow} role="status" data-turn-verdict={verdict.kind}>
       <StateDot state="error" className={css.turnErrorDot} />
       <div className={css.turnErrorCopy}>
         <span className={css.turnErrorTitle}>{node.code === 'ACCOUNT_SIGNED_OUT' ? t('message.accountStopped') : t('message.turnError')}</span>
