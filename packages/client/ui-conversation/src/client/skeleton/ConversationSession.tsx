@@ -60,7 +60,11 @@ export function ConversationSessionHeader({
   sessionId, hideChrome, useSessions, useConversationViews, useStore,
   renderSlot, open, selectView, t,
 }: ConversationSessionHeaderProps) {
-  const tabs = useConversationViews(value => value)
+  // HeightLab（2026-10-17 用户拍板）：隐藏「轨迹」页签——轨迹改回对话流内嵌
+  // 竖线步骤条；注册保留，改 false 即恢复页签。
+  const HIDE_TRAJECTORY_TAB: boolean = true
+  const allTabs = useConversationViews(value => value)
+  const tabs = HIDE_TRAJECTORY_TAB ? allTabs.filter(viewTab => viewTab.id !== 'trajectory') : allTabs
   const selectedId = useStore(s => s.view)
   const active = resolveActiveView(tabs, selectedId)
   const ancestry = useSessions(s => deriveAncestry(s, sessionId), equalBreadcrumbs)

@@ -127,8 +127,26 @@
 .content {
   display: flex;
   flex-direction: column;
+  /* HeightLab（2026-10-17 用户拍板）：轨迹改回对话流内嵌竖线步骤条——
+     过程组展开后每个执行步骤左侧一个节点圆点，由一条竖线串联
+     （Codex / ZCode 同款观感）。改 padding-left 为 0 即回到无轨道布局。 */
+  position: relative;
+  margin-left: 9px;
+  padding-left: 14px;
+  border-left: 1px solid var(--dsw-alias-separator-secondary, rgb(0 0 0 / 10%));
 }
 .content > * { flex-shrink: 0; }
+/* 每一步的节点圆点，压在竖线上（圆点直径 7px，竖线在其圆心处）。 */
+.content > *:not([hidden]):not(:empty)::before {
+  content: '';
+  position: absolute;
+  left: -5px;
+  width: 7px;
+  height: 7px;
+  margin-top: 8px;
+  border-radius: 50%;
+  background: var(--dsw-alias-separator-secondary, rgb(0 0 0 / 12%));
+}
 .content > :not([hidden]):not(:empty) ~ :not([hidden]):not(:empty) {
   margin-top: var(--dsh-chat-flow-gap, 6px);
 }
