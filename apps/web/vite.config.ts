@@ -11,7 +11,10 @@ const src = (rel: string): string => fileURLToPath(new URL(rel, import.meta.url)
 const STANDALONE_ERROR = 'apps/web is not a standalone application: bare Vite cannot inject window.__DSH_BOOT__. '
   + 'From a repository checkout, run `pnpm dsh web`; an installed package uses `dsh web`. '
   + 'For client-plugin HMR, run `pnpm run dev:web`, which starts `dsh web` and the rebuild watchers together.'
-const DEFAULT_CLIENT_TITLE = 'DSH Local Build'
+// HeightLab 品牌：构建时注入 index.html/preview.html 的 <title>（index.html 里的
+// 「DSH Local Build」只是 transformIndexHtml 的匹配占位符，不会出现在产物）。
+// DSH_CLIENT_TITLE 环境变量仍可覆盖。
+const DEFAULT_CLIENT_TITLE = 'HeightLab'
 
 /** Escape build-time text before placing it in the HTML title element. */
 function escapeHtmlText(value: string): string {
