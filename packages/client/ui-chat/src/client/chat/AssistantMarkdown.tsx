@@ -318,7 +318,11 @@ function VideoEmbed({ url, downloadUrl, workspace }: {
         controls
         preload="metadata"
         className={css.videoThumb}
-        onClick={() => { pauseAllVideos(); openInSidebarPreview(url, mediaDisplayName(downloadUrl)) }}
+        onClick={(event) => {
+          event.preventDefault()
+          pauseAllVideos()
+          openInSidebarPreview(url, mediaDisplayName(downloadUrl))
+        }}
       />
       <div className={css.videoActions}>
         <button type="button" className={css.videoAction} title="在侧栏播放"

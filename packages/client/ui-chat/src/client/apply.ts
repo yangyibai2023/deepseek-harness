@@ -173,7 +173,7 @@ export function apply(ctx: Context): void {
     const name = typeof detail?.name === 'string' && detail.name !== '' ? detail.name : '媒体'
     if (typeof url !== 'string' || url === '') return
     if (ctx.get('sidebarRightTabs')?.get('heightlab-media') !== undefined) {
-      ctx.sidebarRight.openResource(`heightlab-media://m?src=${encodeURIComponent(url)}&name=${encodeURIComponent(name)}`)
+      ctx.sidebarRight.openResource(`dsh-resource://heightlab-media/m?src=${encodeURIComponent(url)}&name=${encodeURIComponent(name)}`)
       return
     }
     if (ctx.get('sidebarRightTabs')?.get('browser') !== undefined) {
