@@ -1,7 +1,7 @@
-import { Fragment, memo, useEffect, useMemo, useState } from 'react'
+import { Fragment, memo, useEffect, useMemo, useRef, useState } from 'react'
 import { fileMediaUrl } from '@deepseek-ai/dsh-util-workspace-path'
 import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
-import type { ReactNode } from 'react'
+import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react'
 import {
   IconDownloadOutlineRegular, IconFullscreenOutlineRegular, MarkdownText,
 } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -34,6 +34,63 @@ export function localPathMediaUrl(base: string, value: string): string | undefin
   try { path = decodeURIComponent(value.split(/[?#]/u)[0] ?? '') }
   catch { return undefined } // Malformed URL escapes cannot identify a file.
   return fileMediaUrl(base, path)
+}
+
+/** POSIX join for a session workspace root and a model-authored relative path. */
+function joinWorkspacePath(cwd: string, rel: string): string {
+  const out: string[] = []
+  for (const part of `${cwd.replace(/\/+$/u, '')}/${rel}`.split('/')) {
+    if (part === '' || part === '.') continue
+    if (part === '..') out.pop()
+    else out.push(part)
+  }
+  return `/${out.join('/')}`
+}
+
+/**
+ * HeightLab（2026-10-17 媒体链路修复）：把模型给的媒体引用归一为可直接加载的
+ * 同源 URL。0.2.1 合并后三种形态断了两种——本地绝对路径曾被裸拼到 origin 后
+ * （404），工作区相对路径完全无法解析（只显示 alt 文本）。本地文件统一走
+ * 宿主 /hl/local-media（Range 206 分段 + 主目录沙箱）；/hl/ 同源路径原样补全。
+ */
+function heightlabMediaUrl(raw: string, cwd: string | undefined): string | undefined {
+  const value = raw.trim().replace(/^<|>$/gu, '')
+  if (value === '') return undefined
+  if (/^https?:\/\//iu.test(value)) return value
+  if (/^\/hl\//iu.test(value)) return new URL(value, document.baseURI).href
+  let abs: string
+  if (value.startsWith('/')) abs = value
+  else if (cwd !== undefined && cwd !== '') abs = joinWorkspacePath(cwd, value)
+  else return undefined
+  return `/hl/local-media?path=${encodeURIComponent(abs)}`
+}
+
+/** 从已渲染媒体的 src（api/file?path= 或 /hl/local-media?path=）还原本地绝对路径。 */
+function localPathFromMediaSrc(src: string): string | undefined {
+  try {
+    const path = new URL(src, document.baseURI).searchParams.get('path')
+    if (path !== null && path.startsWith('/')) return path
+  } catch { /* 相对 src 解析失败按非本地处理 */ }
+  return undefined
+}
+
+/** 右侧边栏媒体预览页（宿主 /hl/media-preview 包装页，img/video 自适应）。 */
+function mediaPreviewUrl(playable: string): string {
+  return `/hl/media-preview?url=${encodeURIComponent(playable)}`
+}
+
+/** 保存到工作区用的引用：http(s) 与 /hl/ 原样，本地路径解析为绝对路径。 */
+function heightlabDownloadRef(raw: string, cwd: string | undefined): string {
+  const value = raw.trim()
+  if (/^https?:\/\//iu.test(value) || /^\/hl\//iu.test(value)) return value
+  if (value.startsWith('/')) return value
+  if (cwd !== undefined && cwd !== '') return joinWorkspacePath(cwd, value)
+  return value
+}
+
+/** HeightLab：请求右侧边栏 browser 标签打开同源媒体预览（apply 层桥接 sidebarRight）。 */
+function openInSidebarPreview(playable: string): void {
+  window.dispatchEvent(new CustomEvent('hl:sidebar-open-url', { detail: { url: mediaPreviewUrl(playable) } }))
 }
 
 export interface AssistantMarkdownProps extends Pick<PropsRenderSlots<'conversation.chat.reasoning.body'>, 'renderSlot'> {
@@ -71,10 +128,27 @@ export const AssistantMarkdown = memo(function AssistantMarkdown({
   // Stable per locale revision (t identity changes on switch): a fresh object
   // per render would rebuild MarkdownText's component table every chunk.
   const labels = useMemo(() => markdownLabels(t), [t])
+  // HeightLab：图片 destination 归一（http(s)/同源 /hl//本地绝对/工作区相对）。
+  // cwd 随会话切换，经 ref 读取保持 resolve 身份稳定（MarkdownText 依赖其 memo）。
+  const cwdRef = useRef(cwd)
+  cwdRef.current = cwd
   // MarkdownText memoizes its vocabulary; keep its identity stable across renders.
   const pathImages = useMemo<MarkdownPathImages>(() => {
-    return { resolve: value => localPathMediaUrl(document.baseURI, value) }
+    return { resolve: value => heightlabMediaUrl(value, cwdRef.current) }
   }, [])
+  // HeightLab：点击本地媒体图片 → 右侧边栏预览（替代原地 lightbox，用户拍板
+  // 「点击后能在右侧边栏直接预览或播放」）；远程图片保持原 lightbox 行为。
+  const onMediaClickCapture = (event: ReactMouseEvent<HTMLDivElement>): void => {
+    const target = event.target instanceof Element ? event.target : null
+    const img = target?.closest('img') ?? null
+    if (img === null) return
+    const src = img.getAttribute('src') ?? ''
+    const path = localPathFromMediaSrc(src)
+    if (path === undefined) return
+    event.preventDefault()
+    event.stopPropagation()
+    openInSidebarPreview(heightlabMediaUrl(path, cwdRef.current) ?? src)
+  }
   const last = blocks.length - 1
   // Tool-call heads render as tool rows in the chat view's grouping pass, so
   // a node that is only those heads (or empty) would paint an empty root
@@ -153,7 +227,7 @@ export const AssistantMarkdown = memo(function AssistantMarkdown({
     }
   }
   return (
-    <div className={css.root} data-streaming={streaming || undefined}>
+    <div className={css.root} data-streaming={streaming || undefined} onClickCapture={onMediaClickCapture}>
       <div className={css.body}>
         {rendered}
         {interrupted && (groupPart === undefined || groupPart === 'response'
@@ -188,8 +262,13 @@ async function saveToWorkspace(url: string, workspace: string | undefined): Prom
   return data.path
 }
 
-/** HeightLab 视频成片：缩略播放器 + 放大/下载/新窗口，图标均为 SVG。 */
-function VideoEmbed({ url, workspace }: { url: string; workspace?: string | undefined }) {
+/** HeightLab 视频成片：缩略播放器 + 侧栏播放/下载/新窗口，图标均为 SVG。 */
+function VideoEmbed({ url, downloadUrl, workspace }: {
+  url: string
+  /** 保存到工作区用的原始引用（本地绝对路径或 http(s) 直链），可与播放 url 不同。 */
+  downloadUrl: string
+  workspace?: string | undefined
+}) {
   const [expanded, setExpanded] = useState(false)
   const [downloadMsg, setDownloadMsg] = useState<string | null>(null)
   useEffect(() => {
@@ -202,7 +281,7 @@ function VideoEmbed({ url, workspace }: { url: string; workspace?: string | unde
   }, [expanded])
   const downloadVideo = async (): Promise<void> => {
     try {
-      const saved = await saveToWorkspace(url, workspace)
+      const saved = await saveToWorkspace(downloadUrl, workspace)
       setDownloadMsg(`已保存到：${saved}`)
     } catch (err) {
       setDownloadMsg(`下载失败：${err instanceof Error ? err.message : String(err)}`)
@@ -219,6 +298,13 @@ function VideoEmbed({ url, workspace }: { url: string; workspace?: string | unde
         onClick={() => { setExpanded(true) }}
       />
       <div className={css.videoActions}>
+        <button type="button" className={css.videoAction} title="在侧栏播放"
+          onClick={() => { openInSidebarPreview(url) }}>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+            <rect x="1.5" y="2.5" width="9" height="11" rx="1.2" stroke="currentColor" strokeWidth="1.2" />
+            <path d="M13 5.5v5M15 6.5v3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+          </svg>
+        </button>
         <button type="button" className={css.videoAction} title="放大播放" onClick={() => { setExpanded(true) }}>
           <IconFullscreenOutlineRegular size={14} />
         </button>
@@ -273,6 +359,7 @@ function AssistantTextWithPreview({
   cwd?: string | undefined
 }): ReactNode {
   const video = extractVideoUrl(text)
+  const playable = video !== null ? heightlabMediaUrl(video.url, cwd) : undefined
   const cleanText = video?.markdown !== undefined ? text.replace(video.markdown, '') : text
   const parts: ReactNode[] = []
   let cursor = 0
@@ -298,15 +385,15 @@ function AssistantTextWithPreview({
     const markdown = (
       <MarkdownText text={cleanText} streaming={streaming} labels={labels} fileMentions={fileMentions} pathImages={pathImages} />
     )
-    return video
-      ? (<>{markdown}<VideoEmbed key="video" url={video.url} workspace={cwd} /></>)
+    return video !== null && playable !== undefined
+      ? (<>{markdown}<VideoEmbed key="video" url={playable} downloadUrl={heightlabDownloadRef(video.url, cwd)} workspace={cwd} /></>)
       : markdown
   }
   if (cursor < cleanText.length) {
     parts.push(<MarkdownText key={`text-${cursor}`} text={cleanText.slice(cursor)} streaming={streaming} labels={labels} fileMentions={fileMentions} pathImages={pathImages} />)
   }
-  if (video) {
-    parts.push(<VideoEmbed key="video" url={video.url} workspace={cwd} />)
+  if (video !== null && playable !== undefined) {
+    parts.push(<VideoEmbed key="video" url={playable} downloadUrl={heightlabDownloadRef(video.url, cwd)} workspace={cwd} />)
   }
   return <>{parts}</>
 }

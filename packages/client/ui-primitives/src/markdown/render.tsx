@@ -640,8 +640,13 @@ function MarkdownImage({ destination, alt, pathImages, streaming, inLink }: {
   if (src === undefined) return <span className={css.imageAlt}>{alt}</span>
   // HeightLab（0.4.1 定制回植，2026-10-17）：assistant markdown 可能通过
   // 图片语法嵌入生成的 mp4/webm/mov——以内联 <video> 播放器渲染而非破图。
+  // 2026-10-17 媒体链路修复：src 常带查询串（/hl/local-media?path=…mp4、
+  // api/file?path=…mp4），按原始与解码两种形态判定后缀。
   const lowerSrc = src.toLowerCase()
-  if (lowerSrc.endsWith('.mp4') || lowerSrc.endsWith('.webm') || lowerSrc.endsWith('.mov')) {
+  let decodedSrc: string | null = null
+  try { decodedSrc = decodeURIComponent(lowerSrc) } catch { decodedSrc = null }
+  if (/\.(?:mp4|webm|mov)(?:$|[?#])/u.test(lowerSrc)
+    || (decodedSrc !== null && /\.(?:mp4|webm|mov)(?:$|[?#])/u.test(decodedSrc))) {
     return (
       <video
         key={`${destination}:${src}`}

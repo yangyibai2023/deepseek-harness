@@ -163,6 +163,18 @@ export function apply(ctx: Context): void {
       }),
     }, LinkOpeningRow))
   })
+  // HeightLab（2026-10-17 媒体链路修复）：聊天媒体点击 → 右侧边栏预览/播放。
+  // 组件层拿不到 sidebarRight service，经 window CustomEvent 桥接；apply 每次
+  // 客户端启动只执行一次，监听器随页面生命周期存活。无 browser 标签时退回新窗口。
+  window.addEventListener('hl:sidebar-open-url', (event: Event) => {
+    const url = (event as CustomEvent).detail?.url
+    if (typeof url !== 'string' || url === '') return
+    if (ctx.get('sidebarRightTabs')?.get('browser') === undefined) {
+      window.open(url, '_blank', 'noopener')
+      return
+    }
+    ctx.sidebarRight.openTab('browser', { params: { url } })
+  })
   // HeightLab：桌面端未设置时的默认档也走 compact（简洁；用户可在设置→一般里自选四档）
   const transcriptView = new TranscriptViewPolicy(chatSettings, DEFAULT_TRANSCRIPT_VIEW_MODE)
   const presentation = derivePresentationPolicy(transcriptView.mode, transcriptView.collapseTiming)

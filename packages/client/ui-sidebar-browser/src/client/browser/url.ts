@@ -34,7 +34,12 @@ export function parseBrowserAddress(input: string, applicationOrigin?: string): 
   if (url.protocol === 'https:' || url.protocol === 'http:') {
     if (applicationOrigin !== undefined && applicationOrigin !== 'null') {
       try {
-        if (url.origin === new URL(applicationOrigin).origin) return { ok: false, reason: 'application-origin' }
+        // HeightLab（2026-10-17 媒体链路修复）：同源 /hl/ 前缀是我们自己的媒体
+        // 预览端点（/hl/media-preview、/hl/local-media、/hl/videos、/hl/images），
+        // 放行给右侧边栏 browser 标签——否则聊天媒体点击无法在侧栏预览/播放。
+        if (url.origin === new URL(applicationOrigin).origin && !url.pathname.startsWith('/hl/')) {
+          return { ok: false, reason: 'application-origin' }
+        }
       } catch {
         // An unavailable application origin cannot grant access to a target.
       }
