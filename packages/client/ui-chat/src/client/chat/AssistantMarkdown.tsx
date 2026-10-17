@@ -96,6 +96,15 @@ function openInSidebarPreview(playable: string): void {
   window.dispatchEvent(new CustomEvent('hl:sidebar-open-url', { detail: { url: mediaPreviewUrl(playable) } }))
 }
 
+/** HeightLab：经宿主在系统默认浏览器打开同源媒体（壳内 window.open 同源地址无反应）。 */
+async function openInSystemBrowser(playable: string): Promise<void> {
+  await fetch('/hl/open-url', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ url: new URL(playable, document.baseURI).href }),
+  }).catch(() => undefined)
+}
+
 export interface AssistantMarkdownProps extends Pick<PropsRenderSlots<'conversation.chat.reasoning.body'>, 'renderSlot'> {
   /** Render only the requested business portion, preserving original block indexes. */
   groupPart?: string | undefined
@@ -298,7 +307,7 @@ function VideoEmbed({ url, downloadUrl, workspace }: {
         controls
         preload="metadata"
         className={css.videoThumb}
-        onClick={() => { setExpanded(true) }}
+        onClick={() => { openInSidebarPreview(url) }}
       />
       <div className={css.videoActions}>
         <button type="button" className={css.videoAction} title="在侧栏播放"
@@ -318,7 +327,7 @@ function VideoEmbed({ url, downloadUrl, workspace }: {
           type="button"
           className={css.videoAction}
           title="在浏览器中打开"
-          onClick={() => { window.open(url, '_blank', 'noopener') }}
+          onClick={() => { void openInSystemBrowser(url) }}
         >
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
             <path d="M6 3H3v10h10v-3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
