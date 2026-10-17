@@ -87,7 +87,7 @@ export const zh = {
   'chat.loadOlder': '加载更早',
   'chat.toBottom': '回到底部',
   'chat.deepDiving': '正在执行中…',
-  'chat.deepDivingFor': '深度求索中，用时 {duration} ···',
+  'chat.deepDivingFor': '高能研究中，用时 {duration} ···',
   'chat.turnNavigation.label': '轮次导航',
   'chat.turnNavigation.jump': '跳转到第 {turn} 轮',
   'chat.turnNavigation.jumpLoad': '加载并跳转到第 {turn} 轮',
