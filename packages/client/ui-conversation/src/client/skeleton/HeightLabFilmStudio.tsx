@@ -63,10 +63,14 @@ export function HeightLabFilmStudio({ onClose, opensChat = false }: {
   const [selection, setSelection] = useState<StudioSelection | null>(null)
   const frameRef = useRef<HTMLIFrameElement | null>(null)
 
-  // 入口 (a)：右侧开一段新对话（better-sidebar 的侧边对话，从 0 开始）。
+  // 入口 (a)：按 OpenFilm 原生桌面版的形态摆位——
+  //   ① 左侧主导航折叠（把宽度让给剪辑台）
+  //   ② 右侧边栏打开并给到对话列（约 400px，可窄一点）
+  //   ③ 里面起一段全新会话（从 0 开始）
+  // 三者都是事件驱动的，各自由所属插件处理，这里不直接改别人的 DOM。
   useEffect(() => {
     if (!opensChat) return
-    window.dispatchEvent(new CustomEvent('hl:film-open-chat'))
+    window.dispatchEvent(new CustomEvent('hl:film-enter-native'))
   }, [opensChat])
 
   // 拉 Studio 地址（宿主扩展托管进程；首次会稍慢）。
@@ -117,6 +121,8 @@ export function HeightLabFilmStudio({ onClose, opensChat = false }: {
         <iframe
           ref={frameRef}
           id="hl-film-frame"
+          /* 外层容器已经用真实 DOM 分好栏，Studio 拿满即可。
+             再通过 panel 通道传宽度会让它二次收缩（右侧出现空白阴影）。 */
           src={boot.url}
           title="剪辑台"
           allow="clipboard-read; clipboard-write; fullscreen"
