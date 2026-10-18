@@ -63,6 +63,60 @@
   overflow-y: auto;
 }
 
+/* HeightLab（2026-10-17）：圆环弹层顶部的积分余额区 + 充值入口。 */
+.balanceRow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 0 2px;
+}
+
+.balanceHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.balanceLabel {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.balanceValue {
+  font-variant-numeric: tabular-nums;
+  color: var(--dsw-alias-label-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.balanceCny {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.recharge {
+  flex: none;
+  padding: 1px 10px;
+  border: none;
+  border-radius: 999px;
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 18px;
+  cursor: pointer;
+}
+
+.recharge:hover {
+  color: var(--dsw-alias-label-primary);
+  filter: brightness(0.96);
+}
+
+.emptyHint {
+  padding: 2px 0;
+  color: var(--dsw-alias-label-tertiary);
+}
+
 .statsDivider {
   margin: 10px 0;
   border-top: 1px solid var(--dsw-alias-border-l3);

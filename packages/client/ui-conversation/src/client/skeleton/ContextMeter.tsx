@@ -25,6 +25,16 @@ const CIRCUMFERENCE = 2 * Math.PI * RADIUS
  */
 const READING_SLOT = '\u0000'
 
+/** HeightLab：积分余额采样间隔（与 QuotaNotice 同频，5 分钟）。 */
+const BALANCE_POLL_MS = 5 * 60 * 1000
+
+/** HeightLab：余额紧凑格式（1.14 亿 / 18.6 万），大数字不撑破弹层。 */
+function formatCredits(value: number): string {
+  if (value >= 100_000_000) return `${(value / 100_000_000).toFixed(2).replace(/\.?0+$/, '')} 亿`
+  if (value >= 10_000) return `${(value / 10_000).toFixed(1).replace(/\.0$/, '')} 万`
+  return String(Math.round(value))
+}
+
 /** Panel legend rows, in bar-segment order; each color class carries the shared swatch/segment tint. */
 const ROWS = [
   { key: 'systemTokens', label: 'context.system', color: css.colorSystem },
@@ -60,12 +70,11 @@ function formatDuration(ms: number): string {
   return `${minutes}m${seconds}s`
 }
 
-/** Throughput like `118 tok/s` (stable-line formatTokensPerSecond). */
+/** Throughput number only — the locale template already appends `tok/s`. */
 function formatTps(tokensPerSecond: number): string {
-  const rounded = tokensPerSecond >= 100
+  return tokensPerSecond >= 100
     ? String(Math.round(tokensPerSecond))
     : String(Math.round(tokensPerSecond * 10) / 10)
-  return `${rounded} tok/s`
 }
 
 /** Billed input = uncached input + cache reads + cache writes. */
@@ -123,40 +132,63 @@ export function ContextMeter({ useProjection, t }: ContextMeterProps) {
   const breakdown = useProjection('contextBreakdown')
   // HeightLab（0.4.1 定制回植，2026-10-17）：全部 hooks 必须在任何条件 return
   // 之前调用（React hooks 规则）——stats/usage 提前到这里。
-  // oxlint-disable-next-line typescript/no-confusing-void-expression -- 非本包投影键的受控断言（0.4.1 既有写法）
   const stats = useProjection('sessionStats' as never) as SessionStatsLike | undefined
   const usage = useProjection('tokenUsage')
   const [open, setOpen] = useState(false)
+  // HeightLab（2026-10-17 用户拍板）：积分余额收编进圆环弹层（ZCode 同款把
+  // 余额放进圆环的形态）。数据源与 QuotaNotice 同源（/hl/balance），挂载 +
+  // 每 5 分钟刷新；拉不到就不显示余额行，不干扰对话。
+  const [balance, setBalance] = useState<{ balance: number; cny: number } | null>(null)
   const rootRef = useRef<HTMLSpanElement | null>(null)
   const panelRef = useRef<HTMLDivElement | null>(null)
   const context = contextOccupancy(pressure)
-  const available = context !== null
+  // HeightLab（2026-10-17 用户拍板）：圆环常显（ZCode 同款）——新会话还没有
+  // token 计量数据时渲染 0% 空环，不再整体隐藏；弹层恒可用（内含积分余额）。
+  const shown = context ?? { percent: 0, usedTokens: 0, contextWindow: 0 }
   const position = useAnchoredPosition({
-    open: open && available,
+    open,
     anchorRef: rootRef,
     panelRef,
     side: 'top',
     gap: 8,
     margin: 12,
   })
-  useDismissOnOutsidePointer(rootRef, open && available, setOpen, panelRef)
-
-  // A model switch can temporarily remove capacity while this component stays
-  // mounted. Close the now-unavailable panel instead of preserving stale UI.
-  useEffect(() => {
-    if (!available && open) setOpen(false)
-  }, [available, open])
+  useDismissOnOutsidePointer(rootRef, open, setOpen, panelRef)
 
   useEffect(() => {
-    if (!open || !available) return
+    if (!open) return
     const onKeyDown = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') setOpen(false)
     }
     document.addEventListener('keydown', onKeyDown)
     return () => { document.removeEventListener('keydown', onKeyDown) }
-  }, [available, open])
+  }, [open])
 
-  if (context === null) return null
+  useEffect(() => {
+    let alive = true
+    const refresh = (): void => {
+      fetch('/hl/balance', { cache: 'no-store' })
+        .then(r => r.json())
+        .then((data: { ok?: boolean; balance?: number; creditsPerCny?: number }) => {
+          if (!alive) return
+          if (!data?.ok || typeof data.balance !== 'number') {
+            setBalance(null)
+            return
+          }
+          const cny = typeof data.creditsPerCny === 'number' && data.creditsPerCny > 0
+            ? data.balance / data.creditsPerCny
+            : data.balance
+          setBalance({ balance: data.balance, cny })
+        })
+        .catch(() => { /* 拉不到余额就保持上一态，不打断对话 */ })
+    }
+    refresh()
+    const timer = window.setInterval(refresh, BALANCE_POLL_MS)
+    return () => {
+      alive = false
+      window.clearInterval(timer)
+    }
+  }, [])
   // HeightLab（0.4.1 定制回植，2026-10-17）：圆环面板收编 DSH 全部原生指标
   // （与 0.3.30 稳定线同口径）——会话统计（轮次/步骤/LLM 与工具耗时/首 token
   // 延迟/吞吐）+ token 账目（缓存命中/输入输出）。输入框下方不再展示这些
@@ -190,8 +222,9 @@ export function ContextMeter({ useProjection, t }: ContextMeterProps) {
       output: formatTokens(usage.outputTokens, t),
     }))
   }
-  const percent = context.percent
-  const reading = `${percent}%`
+  const percent = shown.percent
+  // 新会话尚无计量：显示空环 + 「—」，不谎报 0%。
+  const reading = context === null ? '—' : `${percent}%`
   const [headBefore = '', headAfter = ''] = t('context.aria', { percent: READING_SLOT })
     .split(READING_SLOT)
     .map(part => part.trim())
@@ -210,11 +243,11 @@ export function ContextMeter({ useProjection, t }: ContextMeterProps) {
 
   return (
     <span ref={rootRef} className={css.root}>
-      <Tooltip label={t('context.aria', { percent: reading })} side="top" delayMs={200} disabled={open}>
+      <Tooltip label={context === null ? '上下文与积分余额' : t('context.aria', { percent: reading })} side="top" delayMs={200} disabled={open}>
         <button
           type="button"
           className={css.trigger}
-          aria-label={t('context.aria', { percent: reading })}
+          aria-label={context === null ? '上下文与积分余额' : t('context.aria', { percent: reading })}
           aria-haspopup="dialog"
           aria-expanded={open}
           onClick={() => { setOpen(!open) }}
@@ -241,40 +274,72 @@ export function ContextMeter({ useProjection, t }: ContextMeterProps) {
           role="dialog"
           aria-label={t('context.used')}
         >
-          <div className={css.header}>
-            {/* Empty sides collapse through `.headline:empty` so the locale that
-                needs no leading (or trailing) text spends no header gap. */}
-            <span className={css.headline}>{headBefore}</span>
-            <span className={css.percent}>{reading}</span>
-            <span className={css.headline}>{headAfter}</span>
-            {/* `~`: usedTokens prefers projectedTokens, whose surface delta is
-                heuristically repriced on top of the provider-anchored sample. */}
-            <span className={css.figures}>
-              {`~${formatTokens(context.usedTokens, t)} / ${formatTokens(context.contextWindow, t)}`}
-            </span>
+          {/* HeightLab（2026-10-17 用户拍板）：积分余额收编进圆环弹层，
+              与 ZCode 圆环承载账户信息同形态。两行布局：标题/充值一行，
+              金额独占一行，避免 264px 弹层里被截断。 */}
+          <div className={css.balanceRow}>
+            <div className={css.balanceHead}>
+              <span className={css.balanceLabel}>积分余额</span>
+              <button
+                type="button"
+                className={css.recharge}
+                onClick={() => {
+                  setOpen(false)
+                  window.dispatchEvent(new CustomEvent('hl:open-settings-section', { detail: { section: 'heightlab-account' } }))
+                }}
+              >
+                充值
+              </button>
+            </div>
+            <div className={css.balanceValue}>
+              {balance === null
+                ? '—'
+                : <>
+                  <strong>{formatCredits(balance.balance)}</strong>
+                  {' 积分'}
+                  <span className={css.balanceCny}>{` ≈ ¥${balance.cny.toFixed(2)}`}</span>
+                </>}
+            </div>
           </div>
-          <div className={css.bar}>
-            {segments.map(segment => (
-              <div
-                key={segment.key}
-                className={segment.color === undefined ? css.segment : `${css.segment} ${segment.color}`}
-                style={{ width: `${segment.width}%` }}
-              />
-            ))}
-          </div>
-          {breakdown !== undefined && (
-            <dl className={css.rows}>
-              {ROWS.map(row => (
-                <div key={row.key} className={css.row}>
-                  <dt>
-                    <span className={`${css.swatch} ${row.color}`} aria-hidden />
-                    {t(row.label)}
-                  </dt>
-                  <dd>{`~${formatTokens(breakdown[row.key], t)}`}</dd>
-                </div>
-              ))}
-            </dl>
-          )}
+          <div className={css.statsDivider} aria-hidden />
+          {context === null
+            ? <div className={css.emptyHint}>首次对话后显示上下文占用与会话统计</div>
+            : <>
+              <div className={css.header}>
+                {/* Empty sides collapse through `.headline:empty` so the locale that
+                      needs no leading (or trailing) text spends no header gap. */}
+                <span className={css.headline}>{headBefore}</span>
+                <span className={css.percent}>{reading}</span>
+                <span className={css.headline}>{headAfter}</span>
+                {/* `~`: usedTokens prefers projectedTokens, whose surface delta is
+                      heuristically repriced on top of the provider-anchored sample. */}
+                <span className={css.figures}>
+                  {`~${formatTokens(shown.usedTokens, t)} / ${formatTokens(shown.contextWindow, t)}`}
+                </span>
+              </div>
+              <div className={css.bar}>
+                {segments.map(segment => (
+                  <div
+                    key={segment.key}
+                    className={segment.color === undefined ? css.segment : `${css.segment} ${segment.color}`}
+                    style={{ width: `${segment.width}%` }}
+                  />
+                ))}
+              </div>
+              {breakdown !== undefined && (
+                <dl className={css.rows}>
+                  {ROWS.map(row => (
+                    <div key={row.key} className={css.row}>
+                      <dt>
+                        <span className={`${css.swatch} ${row.color}`} aria-hidden />
+                        {t(row.label)}
+                      </dt>
+                      <dd>{`~${formatTokens(breakdown[row.key], t)}`}</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
+            </>}
           {/* HeightLab（0.4.1 定制回植）：会话统计区（轮次/步骤/耗时/吞吐+token 账单）。 */}
           {groups.length > 0 && (
             <>
