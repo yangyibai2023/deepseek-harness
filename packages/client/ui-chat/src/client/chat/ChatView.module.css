@@ -194,14 +194,15 @@
   height: 100%;
 }
 
+/* viewBox 是 0 0 100 100，旋转中心取画布中心。 */
 .runningMarkOrbit {
-  transform-origin: 12px 12px;
+  transform-origin: 50px 50px;
   animation: hl-orbit-spin 2.4s linear infinite;
 }
 
 @keyframes hl-orbit-spin {
-  from { transform: rotate(-30deg); }
-  to { transform: rotate(330deg); }
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 @media (prefers-reduced-motion: reduce) {
