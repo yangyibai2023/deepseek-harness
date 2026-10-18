@@ -319,10 +319,10 @@ export function HlModeSwitcher() {
           type="button"
           className={clsx(css.hlModeSeg, teamActive && css.hlModeSegActive)}
           aria-pressed={teamActive}
-          title={enterpriseName === '' ? '团队模式' : enterpriseName}
+          title={enterpriseName === '' ? 'OPC 团队模式' : enterpriseName}
           onClick={() => { void choose('enterprise') }}
         >
-          团队
+          OPC 团队
         </button>
       </div>
       {joinOpen && (

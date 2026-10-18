@@ -51,6 +51,15 @@ function describeSelection(selection: StudioSelection | null): string {
 }
 
 /**
+ * 当前 HeightLab 是深色还是浅色。
+ * 原生 shell 跑在自己的 origin，读不到我们的 DOM，所以只能在开 iframe 时
+ * 把主题塞进 query，由 FILM_SHELL_THEME 在首帧前落到它的 localStorage。
+ */
+function currentTheme(): 'dark' | 'light' {
+  return document.body.hasAttribute('data-ds-dark-theme') ? 'dark' : 'light'
+}
+
+/**
  * @param onClose - 关闭回调。
  * @param opensChat - true 时挂载后请宿主在右侧开一段新对话（入口 a）。
  */
@@ -83,7 +92,16 @@ export function HeightLabFilmStudio({ onClose, opensChat = false }: {
       // 原生 shell 需要 Studio 服务在跑，先预热一下再挂 iframe（失败也让
       // shell 自己显示错误，而不是我们这里白屏）。
       void fetch('/hl/film', { cache: 'no-store' }).catch(() => null)
-      setBoot({ ok: true, url: '/hl/film/native/' })
+      // 仍然用 /hl/film/native/：宿主会 302 到 shell 自己的 origin。
+      // 对 iframe 来说跳转是透明的，而 shell 需要的是**它自己的源**才能
+      // 让 /projects/<id>/assets/*、/api/* 原生生效（见 heightlab-film.ts
+      // 的 shell server 注释）。直接写端口会在宿主重启后过期。
+      // 主题/语言走 query：shell 跨源读不到我们的 DOM，只能在首帧前传过去。
+      //
+      // 入口语义（2026-10-20 用户拍板「正常软件的逻辑」）：从一级菜单进来
+      // **不自动打开任何项目**，落在项目页自己选「新建」或「打开已有」。
+      // 这一点由 shell 侧的补丁 P6 保证（它原本会自动跳最近项目）。
+      setBoot({ ok: true, url: `/hl/film/native/?hl_theme=${currentTheme()}&hl_lang=zh-CN` })
       return () => { alive = false }
     }
     void fetch('/hl/film', { cache: 'no-store' })
@@ -106,6 +124,23 @@ export function HeightLabFilmStudio({ onClose, opensChat = false }: {
     window.addEventListener('message', onMessage)
     return () => { window.removeEventListener('message', onMessage) }
   }, [])
+
+  // 主题实时同步：我们切明暗时把新主题推给 shell（跨源，只能 postMessage）。
+  // shell 那边收到后改 localStorage + dataset，并派发 storage 事件让它自己的
+  // React 层跟着重渲染（见 FILM_SHELL_THEME）。
+  useEffect(() => {
+    if (!opensChat) return
+    const push = (): void => {
+      const frame = frameRef.current
+      if (frame?.contentWindow == null) return
+      frame.contentWindow.postMessage({ hl: 'film-theme', theme: currentTheme() }, '*')
+    }
+    const observer = new MutationObserver(push)
+    observer.observe(document.body, { attributes: true, attributeFilter: ['data-ds-dark-theme'] })
+    // 壳刚加载完时再补一次（首次 postMessage 可能早于它的监听注册）。
+    const timer = window.setTimeout(push, 1200)
+    return () => { observer.disconnect(); window.clearTimeout(timer) }
+  }, [opensChat])
 
   const referSelection = (): void => {
     window.dispatchEvent(new CustomEvent('hl:insert-reference', { detail: { marker: describeSelection(selection) } }))
