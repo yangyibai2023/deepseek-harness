@@ -177,7 +177,14 @@ export function HlModeSwitcher() {
       const next = readDsBotSurface()
       setSurface(current => current === next ? current : next)
     }, 600)
-    return () => { window.clearInterval(id) }
+    // 用户在侧栏点了团队工作区里的会话 → 自动切到团队页（保留团队工作区可见，
+    // 让用户能手动回看团队对话；个人页的默认工作目录仍由隔离 effect 守住）。
+    const onRequestTeam = (): void => { void switchDsBotSurface('bot') }
+    window.addEventListener('hl:request-team-surface', onRequestTeam)
+    return () => {
+      window.clearInterval(id)
+      window.removeEventListener('hl:request-team-surface', onRequestTeam)
+    }
   }, [])
 
   const refreshOrgs = async (): Promise<HlOrgEntry[]> => {

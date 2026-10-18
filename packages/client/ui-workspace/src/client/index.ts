@@ -302,6 +302,9 @@ export function apply(ctx: Context): void {
       if (team) {
         const teamId = await dsBotWorkspaceId()
         if (teamId === undefined) return
+        // 发布团队工作区 id：navigation.openSession 用它判断「用户点开的是不是
+        // 团队会话」——单一权威，不靠标题匹配。
+        ;(globalThis as { __hlTeamWorkspaceId?: string }).__hlTeamWorkspaceId = teamId
         void renameTeamWorkspace(teamId)
         // 团队模式：会话必须落在团队工作区；当前不在就切过去（复用空白会话）。
         const teamEntry = workspaces.list.getSnapshot().items
@@ -336,13 +339,21 @@ export function apply(ctx: Context): void {
       const detail = (event as CustomEvent<{ mode?: unknown }>).detail
       void sync(detail?.mode === 'enterprise' ? 'team' : 'personal')
     }
+    // 用户点了团队工作区里的某个会话（navigation.openSession 派发）：把 surface
+    // 切到团队页。切换走 hl-mode 的桥接（点 ds-bot 官方按钮），surface 变更后
+    // 本 effect 的轮询会把高亮同步，不需要在这里重复做工作区校验。
+    const onTeamSessionOpened = (): void => {
+      window.dispatchEvent(new CustomEvent('hl:request-team-surface'))
+    }
     window.addEventListener('hl:mode-changed', onModeChanged)
+    window.addEventListener('hl:team-session-opened', onTeamSessionOpened)
     // 启动时跑一次：把历史遗留的「DS Bot」工作区名纠正为「团队」。
     void sync()
     const timer = window.setInterval(() => { void sync() }, 5000)
     return () => {
       window.clearInterval(timer)
       window.removeEventListener('hl:mode-changed', onModeChanged)
+      window.removeEventListener('hl:team-session-opened', onTeamSessionOpened)
     }
   }, 'ui-workspace: HeightLab personal/team workspace isolation')
   const shortcutControls = createWorkspaceShortcutControls()

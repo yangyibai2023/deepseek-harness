@@ -9,6 +9,7 @@ import type {
   SessionReference,
   SessionTarget,
   SessionListState,
+  SessionSummary,
 } from '@deepseek-ai/dsh-api-session-controller/client'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { SubagentAddress } from '@deepseek-ai/dsh-subagent/client'
@@ -214,7 +215,32 @@ class UiWorkspaceService extends Service implements UiWorkspace {
   }
 
   openSession(target: SessionTarget): void {
+    // HeightLab（2026-10-18 用户铁律）：这是**用户主动打开某个已有会话**的唯一
+    // 入口（启动恢复走 restoreSelection → replaceMain，不经过这里）。
+    // 若目标会话属于 ds-bot 的团队工作区，说明用户想看团队对话 —— 自动把
+    // surface 切到团队页；个人模式下的默认工作目录限定由 ui-workspace 的隔离
+    // effect 负责（它只会把个人模式的会话拉回「我的工作区」）。
+    this.enterTeamSurfaceIfTeamSession(target)
     this.replaceMain(target, this.lifetime.signal, 'reveal')
+  }
+
+  /**
+   * Ask the team surface to take over when the opened Session lives in the
+   * ds-bot workspace. The team workspace id is published by ui-workspace's
+   * isolation effect (`globalThis.__hlTeamWorkspaceId`), so both halves agree
+   * on one authority instead of matching a title.
+   * @param target - the Session the user just opened.
+   */
+  private enterTeamSurfaceIfTeamSession(target: SessionTarget): void {
+    if (typeof window === 'undefined') return
+    const sessionId = typeof target === 'string' ? target : undefined
+    if (sessionId === undefined) return
+    const teamId = (globalThis as { __hlTeamWorkspaceId?: unknown }).__hlTeamWorkspaceId
+    if (typeof teamId !== 'string' || teamId === '') return
+    const workspace = this.workspaces.list.getSnapshot().items
+      .find(item => item.workspaceId === teamId)
+    if (workspace === undefined || !workspace.sessionIds.includes(sessionId as never)) return
+    window.dispatchEvent(new CustomEvent('hl:team-session-opened', { detail: { sessionId } }))
   }
 
   openWorkspace(workspaceId: WorkspaceId, beforeOpen?: (sessionId: SessionId) => void): Promise<void> {
@@ -378,6 +404,18 @@ class UiWorkspaceService extends Service implements UiWorkspace {
       this.replaceMain(saved.subagentAddress, this.lifetime.signal, 'preserve')
       return
     }
+    // HeightLab（2026-10-18 用户铁律）：个人页面的默认工作目录绝不能是团队目录。
+    // 启动恢复时若持久化的当前会话属于团队工作区，直接丢弃该选择，走下面的
+    // 「最近工作区（已排除团队）」路径——这样冷启动、从团队切回个人、刷新页面
+    // 三种情况都不会把用户带进团队目录。
+    const teamWorkspaceId = this.teamWorkspaceId()
+    const savedInTeam = saved.sessionId !== undefined && teamWorkspaceId !== undefined
+      && workspaces.items.some(item =>
+        item.workspaceId === teamWorkspaceId && item.sessionIds.includes(saved.sessionId as never))
+    if (savedInTeam) {
+      this.selection.set({})
+      return await this.restoreSelectionPersonal(workspaces, sessions, teamWorkspaceId)
+    }
     const summary = saved.sessionId === undefined ? undefined : sessions.byId[saved.sessionId]
     const workspace = summary === undefined ? undefined
       : workspaces.items.find(item => item.sessionIds.includes(summary.id))
@@ -385,14 +423,48 @@ class UiWorkspaceService extends Service implements UiWorkspace {
       this.replaceMain(summary.id, this.lifetime.signal, 'preserve')
       return
     }
+    return await this.restoreSelectionPersonal(workspaces, sessions, teamWorkspaceId, summary, workspace)
+  }
+
+  /**
+   * The ds-bot team workspace id, published by ui-workspace's isolation effect.
+   * Absent means ds-bot is not installed, so no exclusion is needed.
+   */
+  private teamWorkspaceId(): string | undefined {
+    if (typeof globalThis === 'undefined') return undefined
+    const id = (globalThis as { __hlTeamWorkspaceId?: unknown }).__hlTeamWorkspaceId
+    return typeof id === 'string' && id !== '' ? id : undefined
+  }
+
+  /**
+   * Restore the personal default: never the team workspace.
+   * @param workspaces - ready workspace snapshot.
+   * @param sessions - ready session snapshot.
+   * @param teamWorkspaceId - excluded workspace, when ds-bot is installed.
+   * @param summary - saved session summary, when it may be reusable.
+   * @param workspace - the saved session's owning workspace.
+   */
+  private async restoreSelectionPersonal(
+    workspaces: WorkspaceSnapshot,
+    _sessions: SessionListState,
+    teamWorkspaceId: string | undefined,
+    summary?: SessionSummary,
+    workspace?: WorkspaceView,
+  ): Promise<void> {
     const navigation = AbortSignal.any([this.ctx.layout.beginNavigation(), this.lifetime.signal])
     let sessionId: SessionId | undefined
     if (summary !== undefined && workspace !== undefined && summary.cwd === workspace.path
       && !workspaces.archivedSessionIds.includes(summary.id)) {
       sessionId = await this.reuseBlank(workspace.workspaceId, summary.id)
     }
-    let target = workspace?.workspaceId ?? recentWorkspace(workspaces.items, sessions.byId)
-    if (target === undefined && workspaces.items.length === 0 && sessions.ids.length === 0) {
+    // 回退目标同样排除团队工作区：否则「最近更新的工作区」可能正好是团队。
+    const eligible = teamWorkspaceId === undefined
+      ? workspaces.items
+      : workspaces.items.filter(item => item.workspaceId !== teamWorkspaceId)
+    let target = workspace !== undefined && workspace.workspaceId !== teamWorkspaceId
+      ? workspace.workspaceId
+      : recentWorkspace(eligible, _sessions.byId)
+    if (target === undefined && workspaces.items.length === 0 && _sessions.ids.length === 0) {
       const prepared = await this.initializeDefaultWorkspace(navigation)
       if (navigation.aborted) return
       target = prepared?.workspaceId
