@@ -118,3 +118,10 @@
   --bt-accent-ink: var(--dsw-alias-brand-primary-invert);
   --bt-tag-bg: var(--dsw-alias-bg-layer-3);
 }
+/* 全局用量顶部的一句范围说明（用户 2026-10-19：要区分「全局」与「团队」口径）。 */
+.usageHint {
+  margin: 0 0 12px;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}

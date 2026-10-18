@@ -59,6 +59,13 @@ export function GlobalUsageSection(_props: PropsRuntime<'settings.section'>) {
 
   return (
     <div className={css.root}>
+      {/* 用户 2026-10-19 强调：这一份是**全局**用量——涵盖整个 HeightLab
+          （个人会话 + 团队 Bot + 后台任务），团队只是其中一部分；团队视角的
+          细分在「团队设置 → 团队用量」。这句说明就是为了不让两个入口混淆。 */}
+      <div className={css.usageHint}>
+        这里统计整个 HeightLab 的用量：个人会话、团队 Bot 与后台任务都算在内。
+        只给团队用的细分，见「团队设置 → 团队用量」。
+      </div>
       {failure !== undefined && <div className={css.failure} role="alert">{failure}</div>}
       {bridge === undefined
         ? <div className={css.placeholder}>用量统计正在加载……</div>

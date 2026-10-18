@@ -25,8 +25,13 @@ import {
 
 /** Tab order/labels for the team pages (team-facing, Chinese).
  *  「外观」放第一位——它控制的就是团队页面的观感，属于团队设置的一部分。
- *  2026-10-19 用户拍板：连接器与反馈用不到，从横排里隐藏（页面实现仍保留在
- *  ds-bot 桥里，需要时把对应项加回本数组即可恢复）。 */
+ *  2026-10-19 用户拍板：
+ *    · 连接器与反馈用不到，从横排里隐藏（页面实现仍保留在 ds-bot 桥里）；
+ *    · 「密钥」也用不到（团队从未存过密钥，preset/技能都不调 request_secret），
+ *      一并隐藏；
+ *    · 「用量」改名「团队用量」——**全局用量在设置导航自己的「用量」里**，
+ *      那一份涵盖整个 DSH（团队只是其中一部分）；这里这份是团队视角。
+ *  需要恢复任何一项，把对应条目加回本数组即可。 */
 const APPEARANCE_PAGE = 'appearance'
 
 const PAGES: ReadonlyArray<{ id: string; label: string }> = [
@@ -35,8 +40,7 @@ const PAGES: ReadonlyArray<{ id: string; label: string }> = [
   { id: 'groups', label: '群聊' },
   { id: 'capabilities', label: '能力' },
   { id: 'schedules', label: '定时任务' },
-  { id: 'usage', label: '用量' },
-  { id: 'secrets', label: '密钥' },
+  { id: 'usage', label: '团队用量' },
 ]
 
 const FIRST_PAGE = PAGES[0]?.id ?? 'bots'
