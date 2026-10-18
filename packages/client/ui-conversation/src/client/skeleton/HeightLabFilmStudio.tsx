@@ -64,7 +64,13 @@ function describeSelection(selection: StudioSelection | null): string {
   return `【剪辑台：${first.label}${where} · ${span}】`
 }
 
-export function HeightLabFilmStudio({ onClose }: { onClose: () => void }) {
+/**
+ * @param onClose - 关闭回调。
+ * @param native - true 时满幅铺开、不显示我们自己的标题栏（一级菜单「剪辑台」
+ *   用这个形态：以 OpenFilm 原生布局为准，顶部是它自己的工具栏）。
+ *   会话内标签页用 false：保留一条细标题栏，里面放「引用到对话」。
+ */
+export function HeightLabFilmStudio({ onClose, native = false }: { onClose: () => void; native?: boolean }) {
   const [boot, setBoot] = useState<FilmBoot | null>(null)
   const [error, setError] = useState<string | undefined>()
   const [selection, setSelection] = useState<StudioSelection | null>(null)
@@ -123,65 +129,107 @@ export function HeightLabFilmStudio({ onClose }: { onClose: () => void }) {
   }, [boot])
 
   return (
-    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--dsw-alias-bg-base)' }}>
-      <div
-        style={{
-          display: 'flex', alignItems: 'center', gap: 8, flex: 'none',
-          height: 44, padding: '0 12px 0 16px', boxSizing: 'border-box',
-          borderBottom: '1px solid var(--dsw-alias-border-l2)',
-        }}
-        data-tauri-drag-region="deep"
-      >
-        <span style={{ fontWeight: 600, fontSize: 13, lineHeight: '20px' }}>剪辑台</span>
-        {boot?.projects !== undefined && boot.projects.length > 0 && (
-          <select
-            aria-label="切换影片"
-            defaultValue=""
-            onChange={(event) => {
-              const hit = boot.projects?.find(p => p.name === event.target.value)
-              if (hit !== undefined) openProject(hit)
-            }}
+    <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--dsw-alias-bg-base)' }}>
+      {!native && (
+        <div
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8, flex: 'none',
+            height: 44, padding: '0 12px 0 16px', boxSizing: 'border-box',
+            borderBottom: '1px solid var(--dsw-alias-border-l2)',
+          }}
+          data-tauri-drag-region="deep"
+        >
+          <span style={{ fontWeight: 600, fontSize: 13, lineHeight: '20px' }}>剪辑台</span>
+          {boot?.projects !== undefined && boot.projects.length > 0 && (
+            <select
+              aria-label="切换影片"
+              defaultValue=""
+              onChange={(event) => {
+                const hit = boot.projects?.find(p => p.name === event.target.value)
+                if (hit !== undefined) openProject(hit)
+              }}
+              style={{
+                height: 26, maxWidth: 220, border: '1px solid var(--dsw-alias-border-l2)',
+                borderRadius: 8, background: 'transparent', fontFamily: 'inherit',
+                fontSize: 12, color: 'var(--dsw-alias-label-secondary)',
+              }}
+            >
+              <option value="">选择影片…</option>
+              {boot.projects.map(p => (
+                <option key={p.id} value={p.name}>{p.name}{p.hasFilm ? '' : '（空）'}</option>
+              ))}
+            </select>
+          )}
+          <button
+            type="button"
+            onClick={referSelection}
+            disabled={boot?.url === undefined}
             style={{
-              height: 26, maxWidth: 220, border: '1px solid var(--dsw-alias-border-l2)',
-              borderRadius: 8, background: 'transparent', fontFamily: 'inherit',
-              fontSize: 12, color: 'var(--dsw-alias-label-secondary)',
+              height: 26, padding: '0 12px', marginLeft: 'auto',
+              border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 999,
+              background: 'transparent', color: 'var(--dsw-alias-label-primary)',
+              fontFamily: 'inherit', fontSize: 12, cursor: boot?.url === undefined ? 'default' : 'pointer',
+              opacity: boot?.url === undefined ? 0.5 : 1,
             }}
           >
-            <option value="">选择影片…</option>
-            {boot.projects.map(p => (
-              <option key={p.id} value={p.name}>{p.name}{p.hasFilm ? '' : '（空）'}</option>
-            ))}
-          </select>
-        )}
-        <button
-          type="button"
-          onClick={referSelection}
-          disabled={boot?.url === undefined}
-          style={{
-            height: 26, padding: '0 12px', marginLeft: 'auto',
-            border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 999,
-            background: 'transparent', color: 'var(--dsw-alias-label-primary)',
-            fontFamily: 'inherit', fontSize: 12, cursor: boot?.url === undefined ? 'default' : 'pointer',
-            opacity: boot?.url === undefined ? 0.5 : 1,
-          }}
-        >
           引用到对话
-        </button>
-        <button
-          type="button"
+          </button>
+          <button
+            type="button"
+            style={{
+              width: 28, height: 28, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              border: 'none', borderRadius: 8, background: 'transparent',
+              color: 'var(--dsw-alias-label-primary)', cursor: 'pointer',
+            }}
+            aria-label="关闭"
+            onClick={onClose}
+          >
+            <svg viewBox="0 0 16 16" width="16" height="16" fill="none" aria-hidden="true">
+              <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
+      )}
+
+      {/* 满幅形态下的浮层控件：Studio 的顶栏在最上方，我们只叠两个小按钮。 */}
+      {native && (
+        <div
           style={{
-            width: 28, height: 28, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            border: 'none', borderRadius: 8, background: 'transparent',
-            color: 'var(--dsw-alias-label-primary)', cursor: 'pointer',
+            position: 'absolute', top: 8, right: 10, zIndex: 2,
+            display: 'flex', alignItems: 'center', gap: 6,
           }}
-          aria-label="关闭"
-          onClick={onClose}
         >
-          <svg viewBox="0 0 16 16" width="16" height="16" fill="none" aria-hidden="true">
-            <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
-          </svg>
-        </button>
-      </div>
+          <button
+            type="button"
+            onClick={referSelection}
+            disabled={boot?.url === undefined}
+            style={{
+              height: 24, padding: '0 10px',
+              border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 999,
+              background: 'var(--dsw-alias-bg-layer-1)', color: 'var(--dsw-alias-label-primary)',
+              fontFamily: 'inherit', fontSize: 11.5, cursor: 'pointer',
+              opacity: boot?.url === undefined ? 0.5 : 0.92,
+            }}
+          >
+            引用到对话
+          </button>
+          <button
+            type="button"
+            aria-label="关闭"
+            onClick={onClose}
+            style={{
+              width: 24, height: 24, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 999,
+              background: 'var(--dsw-alias-bg-layer-1)', color: 'var(--dsw-alias-label-primary)',
+              cursor: 'pointer', opacity: 0.92,
+            }}
+          >
+            <svg viewBox="0 0 16 16" width="12" height="12" fill="none" aria-hidden="true">
+              <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
+      )}
 
       {error !== undefined && (
         <div style={{ padding: 16, fontSize: 13, color: 'var(--dsw-alias-label-secondary)' }}>{error}</div>

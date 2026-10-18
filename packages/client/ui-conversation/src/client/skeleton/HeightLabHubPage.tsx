@@ -194,20 +194,26 @@ export function HeightLabHubPage({ page, onClose }: { page: HubPage; onClose: ()
         background: 'var(--dsw-alias-bg-base)',
       }}
     >
-      <div style={headerStyle} data-tauri-drag-region="deep">
-        <span style={{ fontWeight: 600, fontSize: 13, lineHeight: '20px' }}>{PAGE_TITLES[page]}</span>
-        <button
-          type="button"
-          style={closeStyle}
-          className={css.closeHover}
-          aria-label="关闭"
-          onClick={onClose}
-        >
-          <svg viewBox="0 0 16 16" width="16" height="16" fill="none" aria-hidden="true">
-            <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
-          </svg>
-        </button>
-      </div>
+      {/* 2026-10-20 用户要求：一级菜单「剪辑台」以 OpenFilm 原生布局为准——
+          它的顶栏就是整个工作区的顶栏，我们不再叠一条自己的标题栏。
+          关闭入口挪进 Studio 右上角的浮层里（HeightLabFilmStudio native）。
+          其他 hub 页（灵感/资产）保持原样。 */}
+      {page === 'film-studio' ? null : (
+        <div style={headerStyle} data-tauri-drag-region="deep">
+          <span style={{ fontWeight: 600, fontSize: 13, lineHeight: '20px' }}>{PAGE_TITLES[page]}</span>
+          <button
+            type="button"
+            style={closeStyle}
+            className={css.closeHover}
+            aria-label="关闭"
+            onClick={onClose}
+          >
+            <svg viewBox="0 0 16 16" width="16" height="16" fill="none" aria-hidden="true">
+              <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
+      )}
       {page === 'video-studio' ? (
         <div style={studioWrapStyle}>
           <div style={studioGridStyle}>
@@ -253,7 +259,8 @@ export function HeightLabHubPage({ page, onClose }: { page: HubPage; onClose: ()
           ))}
         </div>
       ) : page === 'film-studio' ? (
-        <HeightLabFilmStudio onClose={onClose} />
+        // 一级菜单「剪辑台」= OpenFilm 原生形态：满幅 Studio，不加我们自己的标题栏。
+        <HeightLabFilmStudio onClose={onClose} native />
       ) : page === 'library' ? (
         <HeightLabLibraryPage />
       ) : (
