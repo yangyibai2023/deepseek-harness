@@ -496,10 +496,10 @@ export const InputBar = memo(function InputBar({
               {HIDE_INPUT_AGENT_PRESET || sessionId === undefined
                 ? null
                 : renderSlot('conversation.input.agentPreset', {})}
-              {sessionId === undefined ? null : renderSlot('conversation.input.model', { locked: modelSeatLocked })}
-              {/* HeightLab（2026-10-16 回植）：ContextMeter 圆环收编全部指标，
-                  位于输入框行内（0.4.1 布局）；0.2.1 把它挪到了行外 dock。 */}
+              {/* HeightLab（2026-10-18 用户拍板）：ContextMeter 圆环挪到模型
+                  按钮左侧——模型/思考程度整体右移靠发送按钮，圆环居左。 */}
               {activity ? null : <ContextMeter useProjection={useProjection} t={t} />}
+              {sessionId === undefined ? null : renderSlot('conversation.input.model', { locked: modelSeatLocked })}
             </div>
             {input === undefined || sessionId === undefined ? null : <div className={activity ? css.activityExpanded : css.activity}>
               {renderSlot('conversation.input.activity', { locked, onActiveChange: setActivity })}

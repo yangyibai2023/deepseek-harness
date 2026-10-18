@@ -224,7 +224,7 @@ export function ContextMeter({ useProjection, t }: ContextMeterProps) {
   }
   const percent = shown.percent
   // 新会话尚无计量：显示空环 + 「—」，不谎报 0%。
-  const reading = context === null ? '—' : `${percent}%`
+  const reading = `${percent}%`
   const [headBefore = '', headAfter = ''] = t('context.aria', { percent: READING_SLOT })
     .split(READING_SLOT)
     .map(part => part.trim())
@@ -263,7 +263,9 @@ export function ContextMeter({ useProjection, t }: ContextMeterProps) {
               transform="rotate(-90 7 7)"
             />
           </svg>
-          <span>{reading}</span>
+          {/* HeightLab（2026-10-18 用户拍板）：还没产生 token 计量时不显示占位
+              读数——只留一个干净的空环，弹层里仍可看积分余额。 */}
+          {context === null ? null : <span>{reading}</span>}
         </button>
       </Tooltip>
       {open && createPortal(
