@@ -1,11 +1,14 @@
 /**
- * HeightLab 2026-08-29（企业版 M3）：左侧边栏「个人 | 企业」模式切换。
+ * HeightLab 2026-08-29（企业版 M3）：左侧边栏「个人 | 团队」模式切换。
  *
- * 交互（用户 2026-08-29 拍板）：
+ * 交互（用户 2026-08-29 拍板，2026-10-18 改版）：
  * - 所有登录用户可见切换项（云端组织能力降级时隐藏）。
- * - 已属于组织的用户点击「企业」直接进入企业模式。
- * - 不属于组织的用户点击「企业」弹出邀请码输入，加入成功后切企业模式；
+ * - 已属于组织的用户点击「团队」直接进入企业模式。
+ * - 不属于组织的用户点击「团队」弹出邀请码输入，加入成功后切企业模式；
  *   失败留在个人版，可随时切回。
+ * - **2026-10-18 用户拍板**：本切换同时驱动 ds-bot 的 surface——「团队」= ds-bot
+ *   模式，「个人」= 经典 Agent 模式（我们原本的页面）。两者绑成同一个入口，
+ *   状态以 ds-bot 的实际 surface 为准（它自己的切换按钮改了也会同步回来）。
  *
  * 数据边界：组织归属权威在云端 Logto Organizations，经
  * GET /hl/org-context 与 POST /hl/org-join 访问；本组件只消费结果。
@@ -36,15 +39,100 @@ export function readHlMode(): { mode: HlMode; orgId: string } {
   }
 }
 
+/* ── ds-bot surface 桥接（2026-10-18）───────────────────────────────────────
+ * ds-bot 把「经典 Agent 模式 / 它的模式」存在 localStorage `ds-bot:surface`
+ * （值 `agent` / `bot`），只在插件初始化时读一次；它没有对外暴露切换 API，
+ * 但两种模式各有一个官方按钮：
+ *   · 经典模式里：侧栏底部 `button.bt-return[aria-label="DS Bot"]` → 进它的模式
+ *   · 它的模式里：账号按钮 `button.bt-account` → 菜单「切换经典 Agent 模式」
+ * 因此优先点官方按钮（瞬时、无刷新）；找不到按钮（插件未装 / 文案变了）时
+ * 回退到「写 storage + reload」——这条只依赖存储键，升级后依然成立。
+ */
+const DSBOT_SURFACE_KEY = 'ds-bot:surface'
+
+export type DsBotSurface = 'agent' | 'bot'
+
+/** ds-bot 是否在场（它的 hub 在两种模式下都注册，可作为插件已加载的信号）。 */
+function dsBotPresent(): boolean {
+  if (typeof window === 'undefined') return false
+  return (window as unknown as { dshBot?: unknown }).dshBot !== undefined
+}
+
+/** 读 ds-bot 当前 surface；插件不在场返回 undefined。 */
+export function readDsBotSurface(): DsBotSurface | undefined {
+  if (!dsBotPresent()) return undefined
+  try {
+    const raw = window.localStorage.getItem(DSBOT_SURFACE_KEY)
+    // 未写过时 ds-bot 自己的 readMode() 默认 'bot'。
+    return raw === 'agent' ? 'agent' : 'bot'
+  } catch {
+    return 'bot'
+  }
+}
+
+const nextFrame = (): Promise<void> => new Promise((resolve) => {
+  window.requestAnimationFrame(() => { resolve() })
+})
+
+/**
+ * 切换 ds-bot surface。
+ * @param target - `bot` 进它的模式，`agent` 回经典 Agent 模式。
+ * @returns 是否发起了一次切换（插件不在场时为 false）。
+ */
+export async function switchDsBotSurface(target: DsBotSurface): Promise<boolean> {
+  if (!dsBotPresent()) return false
+  if (readDsBotSurface() === target) return false
+
+  if (target === 'bot') {
+    const button = document.querySelector<HTMLButtonElement>('button.bt-return')
+    if (button !== null) {
+      button.click()
+      return true
+    }
+  } else {
+    const account = document.querySelector<HTMLButtonElement>('button.bt-account')
+    if (account !== null) {
+      account.click()
+      // 菜单在同一次点击后同步渲染；下一帧再找不到说明结构变了。
+      await nextFrame()
+      const item = [...document.querySelectorAll<HTMLElement>('button, [role="menuitem"]')]
+        .find(el => /切换经典|Switch to classic/i.test(el.textContent ?? ''))
+      if (item !== undefined) {
+        item.click()
+        return true
+      }
+      account.click() // 关掉没点中的菜单，保持界面干净
+    }
+  }
+
+  // 回退：写存储后重载，ds-bot 初始化时会读到新值。
+  try {
+    window.localStorage.setItem(DSBOT_SURFACE_KEY, target)
+  } catch { /* 隐私模式等：只能依赖上面的按钮路径 */ }
+  window.location.reload()
+  return true
+}
+
 export function HlModeSwitcher() {
   const [orgs, setOrgs] = useState<HlOrgEntry[]>([])
   const [sel, setSel] = useState(readHlMode)
+  // ds-bot 在场时以它的实际 surface 为准：它自己的切换按钮改了也要同步回来，
+  // 否则两个入口会各说各话（轮询成本只是一次 localStorage 读）。
+  const [surface, setSurface] = useState<DsBotSurface | undefined>(readDsBotSurface)
   const [loaded, setLoaded] = useState(false)
   const [degraded, setDegraded] = useState(false)
   const [joinOpen, setJoinOpen] = useState(false)
   const [code, setCode] = useState('')
   const [joining, setJoining] = useState(false)
   const [joinError, setJoinError] = useState('')
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      const next = readDsBotSurface()
+      setSurface(current => current === next ? current : next)
+    }, 600)
+    return () => { window.clearInterval(id) }
+  }, [])
 
   const refreshOrgs = async (): Promise<HlOrgEntry[]> => {
     try {
@@ -87,6 +175,8 @@ export function HlModeSwitcher() {
   }
 
   const choose = async (mode: HlMode) => {
+    // 先驱动 ds-bot：点它的官方按钮，切完 surface 轮询会把高亮同步过去。
+    void switchDsBotSurface(mode === 'enterprise' ? 'bot' : 'agent')
     if (mode === 'personal') {
       // 邀码面板打开时：直接关闭并切回个人（不再要求先点「取消」）。
       setJoinOpen(false)
@@ -159,25 +249,30 @@ export function HlModeSwitcher() {
     }
   }
 
+  // 高亮以 ds-bot 的实际 surface 为准（插件不在场时退回组织模式）。
+  const personalActive = surface === undefined ? sel.mode === 'personal' : surface === 'agent'
+  const teamActive = surface === undefined ? sel.mode === 'enterprise' : surface === 'bot'
+
   return (
     <div>
       <div className={css.hlModeRow} role="group" aria-label="模式切换">
         <button
           type="button"
-          className={clsx(css.hlModeSeg, sel.mode === 'personal' && css.hlModeSegActive)}
-          aria-pressed={sel.mode === 'personal'}
-          onClick={() => { choose('personal') }}
+          className={clsx(css.hlModeSeg, personalActive && css.hlModeSegActive)}
+          aria-pressed={personalActive}
+          title="经典 Agent 模式"
+          onClick={() => { void choose('personal') }}
         >
-          营销
+          个人
         </button>
         <button
           type="button"
-          className={clsx(css.hlModeSeg, sel.mode === 'enterprise' && css.hlModeSegActive)}
-          aria-pressed={sel.mode === 'enterprise'}
-          title={enterpriseName}
-          onClick={() => { choose('enterprise') }}
+          className={clsx(css.hlModeSeg, teamActive && css.hlModeSegActive)}
+          aria-pressed={teamActive}
+          title={enterpriseName === '' ? 'DS Bot 团队模式' : enterpriseName}
+          onClick={() => { void choose('enterprise') }}
         >
-          办公
+          团队
         </button>
       </div>
       {joinOpen && (
