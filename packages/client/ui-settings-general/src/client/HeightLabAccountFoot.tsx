@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import clsx from 'clsx'
-import { IconCloseOutlineRegular, IconSettingsOutlineMedium, IconUserOutlineMedium, Menu } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconCloseOutlineRegular, IconSettingsOutlineMedium, IconUserOutlineMedium, Menu, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import css from './SettingsRoot.module.css'
@@ -194,6 +194,18 @@ export function HeightLabAccountFoot({ wide, openSettings }: HeightLabAccountFoo
       <path d="M6.6 11.9h2.8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
     </svg>
   )
+  // HeightLab（2026-10-19 用户拍板）：ds-bot 底部「Connect plugins」收进这排
+  // 图标里，改名「更多能力」，只留图标、无底色，位置在通知左侧，间距与
+  // 通知/连接手机一致（由 `.accountActions` 的 gap 统一控制）。
+  // 点击打开插件面板：layout 服务不在本组件注入面里，用窗口事件交给
+  // SidebarRoot 的监听转给 ctx.layout.selectPanel('plugins')。
+  const PlugIcon = (): ReactNode => (
+    <svg viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path d="M6.4 2.2v2.6M9.6 2.2v2.6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      <path d="M4.6 4.8h6.8v2.6a3.4 3.4 0 0 1-6.8 0V4.8Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+      <path d="M8 10.8v3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  )
 
   return (
     <>
@@ -279,6 +291,18 @@ export function HeightLabAccountFoot({ wide, openSettings }: HeightLabAccountFoo
         />
         {wide && (
           <div className={css.accountActions}>
+            {/* HeightLab（2026-10-19）：更多能力（原 ds-bot 的 Connect plugins），
+                在通知左侧，同尺寸同间距的纯图标按钮。 */}
+            <Tooltip label="更多能力" side="top" delayMs={300}>
+              <button
+                type="button"
+                className={css.sideAction}
+                aria-label="更多能力"
+                onClick={() => { window.dispatchEvent(new CustomEvent('hl:open-panel', { detail: { panel: 'plugins' } })) }}
+              >
+                <PlugIcon />
+              </button>
+            </Tooltip>
             <button
               type="button"
               className={css.sideAction}

@@ -24,7 +24,7 @@ import clsx from 'clsx'
 // 原实现「视频创作」用实心 IconSparkleRegular、「资产中心」用
 // IconLibraryStroke16（不同族），折叠后三项观感明显不一致。
 import {
-  IconNewChatOutlineRegular, IconPlanOutlineRegular, IconSettingsOutlineRegular,
+  IconNewChatOutlineRegular, IconPlanOutlineRegular,
   IconWorkspaceTreeOutlineRegular, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
@@ -35,7 +35,7 @@ import {
   IconPanelLeftStroke16,
   // IconAutomationStroke16,  // HeightLab 2026-10-16：自建「自动化」入口取消（原生自动化任务承接），随条目一并停用
 } from './sidebar-icons.tsx'
-import { HlModeSwitcher, openDsBotSettings, readDsBotSurface } from './hl-mode.tsx'
+import { HlModeSwitcher } from './hl-mode.tsx'
 import type { InjectFace, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {
   SidebarPanelMetadata, SidebarRootComponentProps, SidebarRootInjected, SidebarSectionOwnerProps,
@@ -115,28 +115,6 @@ export function SidebarRoot({
   // Wide content stays mounted while the collapse animates (fading via
   // .collapsed .wide), unmounts at settle, and remounts right away on expand.
   const [settled, setSettled] = useState(collapsed)
-  // HeightLab（2026-10-18 用户铁律）：左侧边栏底部「DSH BOT 设置」只在团队模式
-  // 显示；个人模式（经典 Agent）下完全隐藏，不占位。ds-bot 自带的 DS Bot 返回
-  // 按钮同样只在团队模式出现——统一由 surface 状态驱动。
-  const [dsBotAvailable, setDsBotAvailable] = useState(() => readDsBotSurface() !== undefined)
-  const [inTeamMode, setInTeamMode] = useState(() => readDsBotSurface() === 'bot')
-  useEffect(() => {
-    const id = window.setInterval(() => {
-      const surface = readDsBotSurface()
-      if (surface !== undefined) setDsBotAvailable(true)
-      setInTeamMode(surface === 'bot')
-    }, 300)
-    // 点切换按钮当帧就同步一次，不必等轮询——否则个人模式下会闪一下设置行。
-    const onMode = (event: Event): void => {
-      const mode = (event as CustomEvent<{ mode?: unknown }>).detail?.mode
-      if (mode === 'enterprise' || mode === 'personal') setInTeamMode(mode === 'enterprise')
-    }
-    window.addEventListener('hl:mode-changed', onMode)
-    return () => {
-      window.clearInterval(id)
-      window.removeEventListener('hl:mode-changed', onMode)
-    }
-  }, [])
   // HeightLab V26e：hl:start-replication 的消费方已迁移至 ui-workspace
   // （openWorkspace beforeOpen 精确时机：设置复刻模式标记+广播会话就绪），
   // 本组件不再监听——避免与 ui-workspace 路径双重创建会话。
@@ -192,6 +170,20 @@ export function SidebarRoot({
     window.addEventListener('hl:close-hub', onCloseHub)
     return () => { window.removeEventListener('hl:close-hub', onCloseHub) }
   }, [])
+
+  // HeightLab（2026-10-19）：底部「更多能力」图标要打开插件面板。那个按钮在
+  // HeightLabAccountFoot 里（ui-settings-general），拿不到 layout 服务，因此
+  // 由本组件把窗口事件转成 selectPanel —— selectPanel 就在本组件 props 里。
+  useEffect(() => {
+    const onOpenPanel = (event: Event): void => {
+      const panel = (event as CustomEvent<{ panel?: unknown }>).detail?.panel
+      if (typeof panel !== 'string' || panel === '') return
+      setActiveHub(null)
+      selectPanel(panel as Parameters<typeof selectPanel>[0])
+    }
+    window.addEventListener('hl:open-panel', onOpenPanel)
+    return () => { window.removeEventListener('hl:open-panel', onOpenPanel) }
+  }, [selectPanel])
 
   useEffect(() => {
     if (!pointerInside) return
@@ -382,27 +374,11 @@ export function SidebarRoot({
 
       {/* Footer actions stack above Settings in both sidebar widths. */}
       <div className={css.footArea}>
-        {/* HeightLab（2026-10-18 用户拍板）：用户名上方单独一行「DSH BOT 设置」。
-            ds-bot 的个性化项（外观/主题/强调色/头像动效、Bots、群聊、Connectors、
-            能力、定时任务、用量、Secrets、反馈、关于）全部收在它自己的设置面板里，
-            这里只做入口，点开行为与它的原生鲸鱼菜单一致。插件不在场时整行不渲染。 */}
-        {dsBotAvailable && inTeamMode ? (
-          <div className={css.footerActions}>
-            <Tooltip label="DSH BOT 设置" delayMs={500} disabled={wide}>
-              <button
-                type="button"
-                className={css.panelRow}
-                aria-label="DSH BOT 设置"
-                onClick={() => { void openDsBotSettings() }}
-              >
-                <span className={css.panelGlyph} aria-hidden>
-                  <IconSettingsOutlineRegular size={wide ? 16 : 18} />
-                </span>
-                {wide && <span className={clsx(css.panelTitle, css.wide)}>DSH BOT 设置</span>}
-              </button>
-            </Tooltip>
-          </div>
-        ) : null}
+        {/* HeightLab（2026-10-19 用户拍板）：底部「DSH BOT 设置」行已移除——
+            团队侧栏顶部第三个圆钮（原折叠按钮位置）已换成齿轮设置入口，
+            点开即设置页；折叠仍由上方通用按钮承担。
+            恢复 = 还原 ds-bot 补丁里的 collapseButton→settingsButton 替换，
+            并恢复 git 历史中的这一行。 */}
         <div className={css.footerActions}>
           {renderSlot('sidebar.footer.action', { wide })}
         </div>
