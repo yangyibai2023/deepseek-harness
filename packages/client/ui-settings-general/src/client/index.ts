@@ -41,6 +41,7 @@ import { DeveloperToolsRow, type DeveloperToolsRowInjected } from './DeveloperTo
 import { FusionRow } from './FusionRow.tsx'
 import { TeamSettingsSection } from './TeamSettingsSection.tsx'
 import { GlobalUsageSection } from './GlobalUsageSection.tsx'
+import { GlobalMemorySection } from './GlobalMemorySection.tsx'
 import { SettingsDocumentAction } from './SettingsDocumentAction.tsx'
 import type { SettingsDocumentActionInjected } from './SettingsDocumentAction.tsx'
 import { SettingsDocumentStore } from './settings-document-store.ts'
@@ -66,6 +67,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 
 /** Dictionary namespace owned by this plugin (shell chrome + General copy). */
 const NS = 'settings'
+
 
 /**
  * Required services (cordis fiber inject). The target slots are declared by
@@ -236,11 +238,16 @@ export function apply(ctx: ClientContext): void {
     ctx.slots.register({ name: 'settings.launcher', locale: NS }, HeightLabAccountFoot))
   ctx.slots.inject('settings.header', () =>
     ctx.slots.register({ name: 'settings.header', locale: NS }, HeaderContent))
-  // HeightLab：隐藏设置右上角「打开配置文件」入口（功能保留，
-  // 恢复 = 把 HIDE_SETTINGS_DOCUMENT_ACTION 改为 false）——商业封装版不给
+  // HeightLab：设置右上角「打开配置文件」入口默认**不注册**——商业封装版不给
   // 用户暴露配置文件（2026-08-16 收口先例，2026-10-16 回植）。
-  const HIDE_SETTINGS_DOCUMENT_ACTION = true
-  if (documentInjected !== undefined && !HIDE_SETTINGS_DOCUMENT_ACTION) {
+  //
+  // 恢复开关是**运行时**全局变量而不是编译期常量：常量（无论函数内还是模块级）
+  // 都会被 tsc 判成无重叠比较（TS2367）、被 oxlint 判成恒假分支，只能写成死代码
+  // 或干脆删掉。改成读全局属性后，两全其美——排查时在控制台执行
+  // `__HL_SHOW_DOCUMENT_ACTION__ = true` 再刷新即可看到入口。
+  const showDocumentAction = (globalThis as { __HL_SHOW_DOCUMENT_ACTION__?: boolean })
+    .__HL_SHOW_DOCUMENT_ACTION__ === true
+  if (documentInjected !== undefined && showDocumentAction) {
     ctx.slots.inject('settings.action', () => ctx.slots.register({
       name: 'settings.action',
       id: 'open-document',
@@ -295,6 +302,16 @@ export function apply(ctx: ClientContext): void {
     order: 6,
     label: () => '用量',
   }, GlobalUsageSection))
+
+  // HeightLab（2026-10-19 用户拍板）：ds-bot 的「长期记忆」是我们原来没有的
+  // 能力，复制一份到全局设置——个人模式也能看每个 Bot 记住了什么。编辑仍用
+  // ds-bot 原生面板（切到团队 surface 后打开），数据同一份。
+  ctx.slots.inject('settings.section', () => ctx.slots.register({
+    name: 'settings.section',
+    id: 'heightlab-memory',
+    order: 7,
+    label: () => '记忆',
+  }, GlobalMemorySection))
 
   // 形象与声音 section（avatars + voices 合并页）。
   ctx.slots.inject('settings.section', () => ctx.slots.register({

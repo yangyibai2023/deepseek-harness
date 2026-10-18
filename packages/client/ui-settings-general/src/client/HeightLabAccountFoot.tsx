@@ -31,6 +31,18 @@ function formatAnnouncementTime(ts: number | null): string {
   return new Date(ts * 1000).toLocaleString('zh-CN', { hour12: false })
 }
 
+/**
+ * ds-bot 的 surface（`bot` = 团队、`agent` = 个人）存在 localStorage。
+ * 插件不在场时按个人模式处理（不显示团队专属入口）。
+ */
+function readTeamSurface(): boolean {
+  try {
+    return window.localStorage.getItem('ds-bot:surface') === 'bot'
+  } catch {
+    return false
+  }
+}
+
 /** HeightLab：公告通知中心（铃铛绿点 + 原生时间线弹窗）。 */
 function AnnouncementCenter({
   open,
@@ -49,7 +61,7 @@ function AnnouncementCenter({
       if (e.key === 'Escape') onClose()
     }
     document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
+    return () => { document.removeEventListener('keydown', onKeyDown) }
   }, [open, onClose])
 
   if (!open) return null
@@ -98,6 +110,17 @@ export function HeightLabAccountFoot({ wide, openSettings }: HeightLabAccountFoo
   const [noticeOpen, setNoticeOpen] = useState(false)
   const [notices, setNotices] = useState<AnnouncementItem[]>([])
   const [noticesLoading, setNoticesLoading] = useState(false)
+  // 用户 2026-10-19 拍板：「更多能力」图标只在团队模式出现——个人模式下方的
+  // 能力入口用不到（能力/插件都在设置与侧栏面板里）。这里跟随 ds-bot 的
+  // surface（它自己切换或我们的「个人|团队」切换都会写这个键）。
+  const [teamSurface, setTeamSurface] = useState(readTeamSurface)
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      const next = readTeamSurface()
+      setTeamSurface(current => current === next ? current : next)
+    }, 600)
+    return () => { window.clearInterval(id) }
+  }, [])
 
   const loadAccount = (): void => {
     fetch('/hl/me')
@@ -125,7 +148,7 @@ export function HeightLabAccountFoot({ wide, openSettings }: HeightLabAccountFoo
       loadAccount()
     }
     window.addEventListener('hl:profile-updated', refreshAccountName)
-    return () => window.removeEventListener('hl:profile-updated', refreshAccountName)
+    return () => { window.removeEventListener('hl:profile-updated', refreshAccountName) }
   }, [])
 
   // 公告：进入页面即拉取，随后每 60 秒轮询一次；切回前台也刷新。
@@ -133,7 +156,7 @@ export function HeightLabAccountFoot({ wide, openSettings }: HeightLabAccountFoo
     try {
       const res = await fetch('/hl/announcements')
       const data = await res.json().catch(() => ({})) as { ok?: boolean; items?: AnnouncementItem[] }
-      if (data?.ok === true && Array.isArray(data.items)) {
+      if (data.ok === true && Array.isArray(data.items)) {
         setNotices(data.items)
         return data.items
       }
@@ -170,7 +193,7 @@ export function HeightLabAccountFoot({ wide, openSettings }: HeightLabAccountFoo
           setNotices(items.map(item => ({ ...item, read: true })))
         }
       })
-      .finally(() => setNoticesLoading(false))
+      .finally(() => { setNoticesLoading(false) })
   }, [refreshNotices])
 
   const accountLabel = account?.username || account?.email || account?.name || '账户'
@@ -199,11 +222,13 @@ export function HeightLabAccountFoot({ wide, openSettings }: HeightLabAccountFoo
   // 通知/连接手机一致（由 `.accountActions` 的 gap 统一控制）。
   // 点击打开插件面板：layout 服务不在本组件注入面里，用窗口事件交给
   // SidebarRoot 的监听转给 ctx.layout.selectPanel('plugins')。
+  // 图标几何按「与铃铛/手机同视觉尺寸」重画：原插头图形只占 viewBox 的
+  // 6.8×11.6（宽 42%），看起来明显比铃铛小；现在铺到 9.2 宽，与手机图标一致。
   const PlugIcon = (): ReactNode => (
     <svg viewBox="0 0 16 16" fill="none" aria-hidden>
-      <path d="M6.4 2.2v2.6M9.6 2.2v2.6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-      <path d="M4.6 4.8h6.8v2.6a3.4 3.4 0 0 1-6.8 0V4.8Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
-      <path d="M8 10.8v3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      <path d="M5.6 1.7v3.3M10.4 1.7v3.3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      <path d="M3.4 5h9.2v2.9a4.6 4.6 0 0 1-9.2 0V5Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+      <path d="M8 11.8v2.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
     </svg>
   )
 
@@ -213,7 +238,7 @@ export function HeightLabAccountFoot({ wide, openSettings }: HeightLabAccountFoo
       <div className={clsx(css.accountRow, !wide && css.accountRowRail)}>
         <Menu
           open={accountMenuOpen}
-          onClose={() => setAccountMenuOpen(false)}
+          onClose={() => { setAccountMenuOpen(false) }}
           items={[
             { id: 'account', label: '账户', icon: <IconUserOutlineMedium /> },
             { id: 'settings', label: '设置', icon: <IconSettingsOutlineMedium /> },
@@ -236,7 +261,7 @@ export function HeightLabAccountFoot({ wide, openSettings }: HeightLabAccountFoo
               aria-haspopup="menu"
               aria-expanded={accountMenuOpen}
               aria-label={accountLabel}
-              onClick={() => setAccountMenuOpen(value => !value)}
+              onClick={() => { setAccountMenuOpen(value => !value) }}
             >
               {account?.avatar
                 ? (
@@ -292,17 +317,20 @@ export function HeightLabAccountFoot({ wide, openSettings }: HeightLabAccountFoo
         {wide && (
           <div className={css.accountActions}>
             {/* HeightLab（2026-10-19）：更多能力（原 ds-bot 的 Connect plugins），
-                在通知左侧，同尺寸同间距的纯图标按钮。 */}
-            <Tooltip label="更多能力" side="top" delayMs={300}>
-              <button
-                type="button"
-                className={css.sideAction}
-                aria-label="更多能力"
-                onClick={() => { window.dispatchEvent(new CustomEvent('hl:open-panel', { detail: { panel: 'plugins' } })) }}
-              >
-                <PlugIcon />
-              </button>
-            </Tooltip>
+                在通知左侧，同尺寸同间距的纯图标按钮。
+                用户当日晚间补充：**只在团队模式显示**——个人模式不需要这个入口。 */}
+            {teamSurface && (
+              <Tooltip label="更多能力" side="top" delayMs={300}>
+                <button
+                  type="button"
+                  className={css.sideAction}
+                  aria-label="更多能力"
+                  onClick={() => { window.dispatchEvent(new CustomEvent('hl:open-panel', { detail: { panel: 'plugins' } })) }}
+                >
+                  <PlugIcon />
+                </button>
+              </Tooltip>
+            )}
             <button
               type="button"
               className={css.sideAction}
@@ -327,7 +355,7 @@ export function HeightLabAccountFoot({ wide, openSettings }: HeightLabAccountFoo
         open={noticeOpen}
         items={notices}
         loading={noticesLoading}
-        onClose={() => setNoticeOpen(false)}
+        onClose={() => { setNoticeOpen(false) }}
       />
     </>
   )

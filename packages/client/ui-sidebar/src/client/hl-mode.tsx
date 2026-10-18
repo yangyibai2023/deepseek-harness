@@ -101,7 +101,7 @@ export async function switchDsBotSurface(target: DsBotSurface): Promise<boolean>
       // 菜单在同一次点击后同步渲染；下一帧再找不到说明结构变了。
       await nextFrame()
       const item = [...document.querySelectorAll<HTMLElement>('button, [role="menuitem"]')]
-        .find(el => /切换经典|Switch to classic/i.test(el.textContent ?? ''))
+        .find(el => /切换经典|Switch to classic/i.test(el.textContent))
       if (item !== undefined) {
         item.click()
         return true
@@ -149,7 +149,7 @@ export async function openDsBotSettings(): Promise<boolean> {
     const menu = document.querySelector('.bt-account-menu')
     const scope = menu ?? document
     const item = [...scope.querySelectorAll<HTMLElement>('button, [role="menuitem"]')]
-      .find(el => /bot\s*(设置|settings)/i.test(el.textContent ?? ''))
+      .find(el => /bot\s*(设置|settings)/i.test(el.textContent))
     if (item !== undefined) {
       item.click()
       return true
@@ -195,7 +195,7 @@ export function HlModeSwitcher() {
         degraded?: boolean
       } | null
       const next = Array.isArray(data?.organizations)
-        ? data.organizations.filter(o => typeof o?.id === 'string' && o.id !== '')
+        ? data.organizations.filter(o => o.id !== '')
         : []
       setOrgs(next)
       setDegraded(data?.degraded === true)
@@ -237,17 +237,14 @@ export function HlModeSwitcher() {
       enter('personal', '')
       return
     }
-    if (mode === 'enterprise') {
-      const next = await refreshOrgs()
-      if (next.length === 0) {
-        setJoinOpen(true)
-        setJoinError('')
-        return
-      }
-      const target = next.some(o => o.id === sel.orgId) ? sel.orgId : (next[0]?.id ?? '')
-      enter('enterprise', target)
+    const next = await refreshOrgs()
+    if (next.length === 0) {
+      setJoinOpen(true)
+      setJoinError('')
       return
     }
+    const target = next.some(o => o.id === sel.orgId) ? sel.orgId : (next[0]?.id ?? '')
+    enter('enterprise', target)
   }
 
   const join = async () => {
@@ -313,7 +310,7 @@ export function HlModeSwitcher() {
           type="button"
           className={clsx(css.hlModeSeg, personalActive && css.hlModeSegActive)}
           aria-pressed={personalActive}
-          title="经典 Agent 模式"
+          title="个人模式"
           onClick={() => { void choose('personal') }}
         >
           个人
@@ -322,7 +319,7 @@ export function HlModeSwitcher() {
           type="button"
           className={clsx(css.hlModeSeg, teamActive && css.hlModeSegActive)}
           aria-pressed={teamActive}
-          title={enterpriseName === '' ? 'DS Bot 团队模式' : enterpriseName}
+          title={enterpriseName === '' ? '团队模式' : enterpriseName}
           onClick={() => { void choose('enterprise') }}
         >
           团队
