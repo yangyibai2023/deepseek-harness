@@ -24,7 +24,8 @@ import clsx from 'clsx'
 // 原实现「视频创作」用实心 IconSparkleRegular、「资产中心」用
 // IconLibraryStroke16（不同族），折叠后三项观感明显不一致。
 import {
-  IconNewChatOutlineRegular, IconPlanOutlineRegular, IconWorkspaceTreeOutlineRegular, Tooltip,
+  IconNewChatOutlineRegular, IconPlanOutlineRegular, IconSettingsOutlineRegular,
+  IconWorkspaceTreeOutlineRegular, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
   // HeightLab V31：创意灵感一级入口暂时隐藏（首页输入框下方的视频模板网格
@@ -34,7 +35,7 @@ import {
   IconPanelLeftStroke16,
   // IconAutomationStroke16,  // HeightLab 2026-10-16：自建「自动化」入口取消（原生自动化任务承接），随条目一并停用
 } from './sidebar-icons.tsx'
-import { HlModeSwitcher } from './hl-mode.tsx'
+import { HlModeSwitcher, openDsBotSettings, readDsBotSurface } from './hl-mode.tsx'
 import type { InjectFace, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {
   SidebarPanelMetadata, SidebarRootComponentProps, SidebarRootInjected, SidebarSectionOwnerProps,
@@ -114,6 +115,16 @@ export function SidebarRoot({
   // Wide content stays mounted while the collapse animates (fading via
   // .collapsed .wide), unmounts at settle, and remounts right away on expand.
   const [settled, setSettled] = useState(collapsed)
+  // HeightLab（2026-10-18）：「DSH BOT 设置」入口只在 ds-bot 装上时出现。
+  // 插件是后挂载的（宿主异步加载），挂载前读一次、再轮询到出现为止。
+  const [dsBotAvailable, setDsBotAvailable] = useState(() => readDsBotSurface() !== undefined)
+  useEffect(() => {
+    if (dsBotAvailable) return
+    const id = window.setInterval(() => {
+      if (readDsBotSurface() !== undefined) setDsBotAvailable(true)
+    }, 1000)
+    return () => { window.clearInterval(id) }
+  }, [dsBotAvailable])
   // HeightLab V26e：hl:start-replication 的消费方已迁移至 ui-workspace
   // （openWorkspace beforeOpen 精确时机：设置复刻模式标记+广播会话就绪），
   // 本组件不再监听——避免与 ui-workspace 路径双重创建会话。
@@ -359,6 +370,27 @@ export function SidebarRoot({
 
       {/* Footer actions stack above Settings in both sidebar widths. */}
       <div className={css.footArea}>
+        {/* HeightLab（2026-10-18 用户拍板）：用户名上方单独一行「DSH BOT 设置」。
+            ds-bot 的个性化项（外观/主题/强调色/头像动效、Bots、群聊、Connectors、
+            能力、定时任务、用量、Secrets、反馈、关于）全部收在它自己的设置面板里，
+            这里只做入口，点开行为与它的原生鲸鱼菜单一致。插件不在场时整行不渲染。 */}
+        {dsBotAvailable ? (
+          <div className={css.footerActions}>
+            <Tooltip label="DSH BOT 设置" delayMs={500} disabled={wide}>
+              <button
+                type="button"
+                className={css.panelRow}
+                aria-label="DSH BOT 设置"
+                onClick={() => { void openDsBotSettings() }}
+              >
+                <span className={css.panelGlyph} aria-hidden>
+                  <IconSettingsOutlineRegular size={wide ? 16 : 18} />
+                </span>
+                {wide && <span className={clsx(css.panelTitle, css.wide)}>DSH BOT 设置</span>}
+              </button>
+            </Tooltip>
+          </div>
+        ) : null}
         <div className={css.footerActions}>
           {renderSlot('sidebar.footer.action', { wide })}
         </div>

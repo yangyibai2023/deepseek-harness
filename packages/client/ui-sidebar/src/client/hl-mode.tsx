@@ -113,6 +113,43 @@ export async function switchDsBotSurface(target: DsBotSurface): Promise<boolean>
   return true
 }
 
+/**
+ * 打开 DS Bot 设置（用户 2026-10-18：「在我们原来的用户名上方，加一个单独的
+ * DSH BOT 设置」）。它没有对外暴露 openSettings，但鲸鱼账号按钮
+ * （`button.bt-account`）会弹菜单，「Bot 设置」直达设置页——那里已经包含
+ * 外观/主题/强调色/头像动效、Bots、群聊、Connectors、能力、定时任务、用量、
+ * Secrets、反馈、关于等全部个性化项。我们只借用同一个入口，保证行为与它原生
+ * 一致，且它以后新增设置分区也自动可见。
+ * @returns 是否成功打开设置面板。
+ */
+export async function openDsBotSettings(): Promise<boolean> {
+  if (!dsBotPresent()) return false
+  // 经典模式下先切到它的模式——设置面板只存在于那个 surface。
+  if (readDsBotSurface() !== 'bot') {
+    const switched = await switchDsBotSurface('bot')
+    if (!switched) return false
+    // surface 切换后菜单按钮要等一帧才挂上。
+    for (let i = 0; i < 40; i += 1) {
+      await nextFrame()
+      if (document.querySelector('button.bt-account') !== null) break
+    }
+  }
+  const account = document.querySelector<HTMLButtonElement>('button.bt-account')
+  if (account === null) return false
+  account.click()
+  for (let i = 0; i < 20; i += 1) {
+    await nextFrame()
+    const item = [...document.querySelectorAll<HTMLElement>('button, [role="menuitem"]')]
+      .find(el => /(^|\s)Bot 设置|Bot settings/i.test(el.textContent ?? ''))
+    if (item !== undefined) {
+      item.click()
+      return true
+    }
+  }
+  account.click() // 没找到就收起菜单，不留浮层
+  return false
+}
+
 export function HlModeSwitcher() {
   const [orgs, setOrgs] = useState<HlOrgEntry[]>([])
   const [sel, setSel] = useState(readHlMode)
