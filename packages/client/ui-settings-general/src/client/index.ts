@@ -38,6 +38,7 @@ import { CloseLabel, HeaderContent, TriggerContent } from './chrome.tsx'
 import { GeneralSection } from './GeneralSection.tsx'
 import { CurrentVersionRow } from './CurrentVersionRow.tsx'
 import { DeveloperToolsRow, type DeveloperToolsRowInjected } from './DeveloperToolsRow.tsx'
+import { FusionRow } from './FusionRow.tsx'
 import { SettingsDocumentAction } from './SettingsDocumentAction.tsx'
 import type { SettingsDocumentActionInjected } from './SettingsDocumentAction.tsx'
 import { SettingsDocumentStore } from './settings-document-store.ts'
@@ -84,6 +85,10 @@ export function apply(ctx: ClientContext): void {
       setEnabled: enabled => ctx.configForms.developerTools.setEnabled(enabled),
     }),
   }, DeveloperToolsRow))
+  // HeightLab（2026-10-18）：个人/团队模式融合开关，默认关闭（严格隔离）。
+  ctx.slots.inject('settings.general.item', () => ctx.slots.register({
+    name: 'settings.general.item', id: 'personal-team-fusion', order: 20,
+  }, FusionRow))
   // Version information follows the core preferences.
   ctx.slots.inject('settings.general.item', () => ctx.slots.register({
     name: 'settings.general.item', id: 'current-version', order: 100, locale: NS,

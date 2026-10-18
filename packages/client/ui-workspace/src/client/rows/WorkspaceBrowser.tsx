@@ -31,6 +31,7 @@ import { workspaceDisplayTitle } from '@deepseek-ai/dsh-api-workspace-controller
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import type { WorkspaceBrowserProps } from '../contract/slots.ts'
+import { FUSION_EVENT, readFusion, teamWorkspaceId } from '../fusion.ts'
 import type { ArchivedFilter, GroupNode, SessionNode, SessionOrderBy, SessionRowState } from '../tree.ts'
 import {
   deriveFlat, deriveGroups, deriveSearchResults, orderByRecency, owningGroupKey, owningParentFolder,
@@ -876,12 +877,41 @@ export function WorkspaceBrowser({
   // The resolved name, not `t`, is the memo dependency: the bound seat keeps
   // its identity across a language switch.
   const defaultWorkspaceName = t('workspace.defaultName')
+  // HeightLab（2026-10-18 用户拍板）：个人模式默认**严格隔离**——列表里不出现
+  // ds-bot 的团队工作区；打开设置里的「个人和团队模式融合」后两者合并可见。
+  // 团队模式下永远显示（那是它自己的主区域）。
+  const [fusion, setFusion] = useState(readFusion)
+  useEffect(() => {
+    const onFusion = (): void => { setFusion(readFusion()) }
+    window.addEventListener(FUSION_EVENT, onFusion)
+    return () => { window.removeEventListener(FUSION_EVENT, onFusion) }
+  }, [])
+  const [surfaceMode, setSurfaceMode] = useState<string | null>(() => {
+    try { return window.localStorage.getItem('ds-bot:surface') } catch { return null }
+  })
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      try {
+        const next = window.localStorage.getItem('ds-bot:surface')
+        setSurfaceMode(current => current === next ? current : next)
+      } catch { /* 存储不可用：维持当前值 */ }
+    }, 700)
+    return () => { window.clearInterval(id) }
+  }, [])
+  const teamId = teamWorkspaceId()
+  const hideTeamWorkspace = !fusion && surfaceMode !== 'bot' && teamId !== undefined
+  const visibleWorkspaces = useMemo(
+    () => (hideTeamWorkspace
+      ? storedWorkspaces.filter(workspace => workspace.workspaceId !== teamId)
+      : storedWorkspaces),
+    [storedWorkspaces, hideTeamWorkspace, teamId],
+  )
   const workspaces = useMemo(
-    () => storedWorkspaces.map(workspace => ({
+    () => visibleWorkspaces.map(workspace => ({
       ...workspace,
       title: workspaceDisplayTitle(workspace.title, defaultWorkspaceName),
     })),
-    [storedWorkspaces, defaultWorkspaceName],
+    [visibleWorkspaces, defaultWorkspaceName],
   )
   const workspacePhase = useWorkspaces(state => state.phase)
   const workspaceStreamState = useWorkspaces(state => state.state)

@@ -64,6 +64,9 @@ export type {
   WorkspacePickerInjected, WorkspacePickerProps,
 } from './contract/slots.ts'
 export type { WorkspaceKey } from './locales.ts'
+// HeightLab（2026-10-18）：个人/团队融合开关的读写与团队工作区 id，供设置页
+// （ui-settings-general 的 FusionRow）与工作区列表共用同一份状态。
+export { FUSION_EVENT, readFusion, writeFusion, teamWorkspaceId } from './fusion.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface GlobalStandardProps {
@@ -290,6 +293,14 @@ export function apply(ctx: Context): void {
         try { return localStorage.getItem('ds-bot:surface') } catch { return null }
       })()
       const team = intent !== undefined ? intent === 'team' : surface === 'bot'
+      // 无论当前是哪个模式，都先解析并发布团队工作区 id：个人模式的工作区列表
+      // 需要它来隐藏团队行（融合开关关闭时），不能等切到团队才发布。
+      {
+        const resolved = await dsBotWorkspaceId()
+        if (resolved !== undefined) {
+          ;(globalThis as { __hlTeamWorkspaceId?: string }).__hlTeamWorkspaceId = resolved
+        }
+      }
       const activeSessionId = (): SessionId | undefined => {
         try {
           const raw = localStorage.getItem('dsh.sessions.current')

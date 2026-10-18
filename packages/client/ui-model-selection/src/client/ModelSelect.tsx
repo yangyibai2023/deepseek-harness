@@ -349,27 +349,11 @@ export function ModelSelect(
     })
 
     // HeightLab（2026-10-18 用户实测修正）：Menu 组件**只支持两级**——子菜单
-    // 里的项直接渲染成按钮，不会递归出第三级。47 个模型走「模型→厂商→型号」
-    // 必然展不开（用户报「只看到提供商名称，展不开具体模型」）。
-    // 因此统一压平为二级：模型 → 全部型号，用「厂商 ·」前缀区分来源。
-    // 排序按厂商顺序，同厂商内保持原顺序，扫视更整齐。
-    {
-      const orderIdx = (id: string): number => {
-        const i = TEXT_PROVIDERS.findIndex(p => p.id === providerFor(id).id)
-        return i === -1 ? 99 : i
-      }
-      const flat = [...options].sort((a, b) => {
-        const d = orderIdx(a.id.split(':')[1] ?? '') - orderIdx(b.id.split(':')[1] ?? '')
-        return d !== 0 ? d : 0
-      })
-      return flat.map(o => ({
-        id: o.id,
-        // 只在跨厂商时加前缀，避免同类型号被前缀淹没。
-        label: `${o.provider.label} · ${o.label}`,
-      }))
-    }
-
-    // 以下三级逻辑保留但不再可达（Menu 不支持），留作未来 Menu 支持递归时启用。
+    // HeightLab（2026-10-18 用户拍板·三次）：恢复「厂商 → 悬浮弹出型号」的
+    // 两级结构。此前误判为「三级展不开」而压平，其实 Menu 支持**两级** submenu：
+    // 一级是厂商行，悬浮/点击弹出二级卡片列出该厂商的具体型号。真正不支持的是
+    // 第三级（分类 → 厂商 → 型号），这里分类已经由 trigger 上方的模式行承担，
+    // 所以厂商 → 型号正好两级。
     const groupMap = new Map<string, { id: string; label: string; submenu: { id: string; label: string }[] }>()
     for (const o of options) {
       const key = `${category}:${o.provider.id}`
