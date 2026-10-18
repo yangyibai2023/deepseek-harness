@@ -7,12 +7,12 @@
  * 单独展示，走系统默认。
  */
 import {
-  useEffect, useId, useMemo, useRef, useState, useSyncExternalStore,
+  useEffect, useMemo, useRef, useState, useSyncExternalStore,
 } from 'react'
 import clsx from 'clsx'
 import type { ModelReasoningEffort, ModelSelection } from '@deepseek-ai/dsh-api-remotes/client'
 import {
-  IconChevronDownOutlineRegular, IconWarningOutlineRegular, Menu, Toast,
+  IconChevronDownOutlineRegular, IconThinkOutlineRegular, IconWarningOutlineRegular, Menu, Toast,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { MenuEntry, MenuItem } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
@@ -127,12 +127,6 @@ const VIDEO_MODEL_LABELS: Record<string, string> = {
   'MiniMax-H3': 'MiniMax H3',
 }
 
-const CATEGORY_LABELS: ReadonlyArray<{ category: ModelCategory; label: string }> = [
-  { category: 'text', label: '文本模型' },
-  { category: 'image', label: '图片模型' },
-  { category: 'video', label: '视频模型' },
-]
-
 const CATEGORY_DEFAULTS: Record<ModelCategory, string> = {
   text: 'deepseek-v4-flash',
   image: 'gpt-image-2',
@@ -186,9 +180,6 @@ export function shortModelLabel(
   return name
 }
 
-// HeightLab 功能开关：boolean 标注宽化字面量（lint 两配置皆过），改 false 即恢复三分类菜单。
-const HIDE_MEDIA_MODEL_ROWS: boolean = true
-
 export function ModelSelect(
   { locked, available, directory, load, select, t }:
   ModelSelectInjected & { locked: boolean } & PropsLocale<'model'>,
@@ -198,13 +189,14 @@ export function ModelSelect(
     () => directory.getSnapshot(),
   )
   const customModel = state.current !== null && !HEIGHTLAB_OFFICIAL_PROVIDERS.has(state.current.provider)
-  const [open, setOpen] = useState(false)
-  const [mapping, setMapping] = useState<Record<ModelCategory, string>>({ ...CATEGORY_DEFAULTS })
+  // HeightLab（2026-10-18 用户拍板）：模型与思考程度拆成两个独立触发（ZCode 同款）。
+  const [modelOpen, setModelOpen] = useState(false)
+  const [reasoningOpen, setReasoningOpen] = useState(false)
+  const mappingRef = useRef<Record<ModelCategory, string>>({ ...CATEGORY_DEFAULTS })
   const [toast, setToast] = useState<{ seq: number; text: string } | null>(null)
   const toastSeq = useRef(0)
   const rootRef = useRef<HTMLDivElement | null>(null)
   const triggerRef = useRef<HTMLButtonElement | null>(null)
-  const id = useId()
 
   const choices = useMemo(() => state.groups.flatMap(group =>
     group.models.map(model => ({
@@ -252,11 +244,11 @@ export function ModelSelect(
       .then((data) => {
         const mapping = data.mapping
         if (data.ok === true && mapping !== undefined) {
-          setMapping(prev => ({
-            text: typeof mapping.text === 'string' ? mapping.text : prev.text,
-            image: typeof mapping.image === 'string' ? mapping.image : prev.image,
-            video: typeof mapping.video === 'string' ? mapping.video : prev.video,
-          }))
+          mappingRef.current = ({
+            text: typeof mapping.text === 'string' ? mapping.text : mappingRef.current.text,
+            image: typeof mapping.image === 'string' ? mapping.image : mappingRef.current.image,
+            video: typeof mapping.video === 'string' ? mapping.video : mappingRef.current.video,
+          })
         }
       })
       .catch(() => { /* 离线/未登录：用默认值 */ })
@@ -280,7 +272,7 @@ export function ModelSelect(
   if (!available) return null
 
   const show = (): void => {
-    setOpen(true)
+    setModelOpen(true)
     reload()
     loadMapping()
   }
@@ -294,7 +286,7 @@ export function ModelSelect(
   }
 
   const persistText = (modelId: string): void => {
-    setMapping(prev => ({ ...prev, text: modelId }))
+    mappingRef.current = { ...mappingRef.current, text: modelId }
     void fetch('/hl/model-mapping', {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
@@ -315,15 +307,6 @@ export function ModelSelect(
     void select(selection).then(settleSelection)
   }
 
-  const chooseMedia = (media: 'image' | 'video', modelId: string): void => {
-    setMapping(prev => ({ ...prev, [media]: modelId }))
-    void fetch('/hl/model-mapping', {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ [media]: modelId }),
-    }).catch(() => { /* 网络失败保持本地选择 */ })
-  }
-
   const chooseEffort = (effort: string | undefined): void => {
     if (state.current === null) return
     const selection: ModelSelection = {
@@ -340,13 +323,6 @@ export function ModelSelect(
   const triggerModelLabel = currentChoice === undefined
     ? modelLabel
     : shortModelLabel(currentChoice.model.name, currentChoice.group.name, currentChoice.group.id)
-  const fullLabel = effortLabel === undefined ? modelLabel : `${modelLabel} · ${effortLabel}`
-  const triggerAria = currentChoice === undefined
-    ? t('trigger.selectAria')
-    : effortLabel === undefined
-      ? t('trigger.aria', { model: modelLabel })
-      : t('trigger.ariaEffort', { model: modelLabel, effort: effortLabel })
-
   // 自适应菜单：二级能放下（分类 → 模型）就用二级；
   // 放不下（超过 FLAT_MODEL_LIMIT）再切三级（分类 → 厂商 → 模型）。
   // 图片只开放 OpenAI 的 image2 两档；视频只开放 MiniMax-H3。
@@ -421,51 +397,32 @@ export function ModelSelect(
   // HeightLab（2026-10-17 用户拍板）：输入框菜单只留「模型」与「推理等级」两行。
   // 图片/视频模型挪到设置→模型里单独配置（不再让用户每次选）。
   // 菜单标题按要求不写「文本模型」，统一叫「模型」。
-  const menuItems: MenuEntry[] = [
-    // 模式行排在最前：先选「多快多好」，需要时再手选具体模型。
+  // HeightLab（2026-10-18 用户拍板）：模型与思考程度拆成两个独立触发。
+  // 模型菜单：模式行 + 供应商行（二级弹具体型号，两级结构 Menu 可渲染）。
+  const modelMenuItems: MenuEntry[] = [
     {
       id: 'cat:mode',
       label: '模式',
       value: currentMode?.label ?? '自定义',
       submenu: MODE_ROUTES.map(route => ({ id: `mode:${route.id}`, label: route.label })),
     },
-    ...(HIDE_MEDIA_MODEL_ROWS
-      ? [{
-        id: 'cat:text',
-        label: '模型',
-        value: mapping.text,
-        submenu: categoryGroups('text'),
-      }]
-      : CATEGORY_LABELS.map(({ category, label }) => ({
-        id: `cat:${category}`,
-        label,
-        value: mapping[category],
-        submenu: categoryGroups(category),
-      }))),
-    ...(reasoning === undefined
-      ? []
-      : [{
-        id: 'cat:effort',
-        label: '推理等级',
-        value: effortLabel,
-        submenu: effortChoices.map(level => ({
-          id: level.key,
-          label: level.label,
-        })),
-      }]),
+    ...categoryGroups('text'),
   ]
 
-  const selectedIds = [
+  // 思考程度菜单：档位随当前模型（有的 3 级有的 4 级）。
+  const reasoningMenuItems: MenuEntry[] = effortChoices.map(level => ({
+    id: level.key,
+    label: level.label,
+  }))
+  const reasoningSelectedIds = effectiveEffort === undefined ? [] : [`effort:${effectiveEffort}`]
+
+  // HeightLab：菜单选中态——模式命中 + 当前 text 模型。
+  const modelSelectedIds = [
     ...(currentMode === undefined ? [] : [`mode:${currentMode.id}`]),
-    `text:${mapping.text}`,
-    `image:${mapping.image}`,
-    `video:${mapping.video}`,
-    ...(effectiveEffort === undefined
-      ? []
-      : [`effort:${effectiveEffort}`]),
+    `text:${mappingRef.current.text}`,
   ]
 
-  const onSelect = (itemId: string): void => {
+  const onModelSelect = (itemId: string): void => {
     if (itemId.startsWith('mode:')) {
       const modeId = itemId.slice('mode:'.length)
       const route = MODE_ROUTES.find(r => r.id === modeId)
@@ -482,52 +439,79 @@ export function ModelSelect(
       chooseText(choice.selection)
       return
     }
-    if (itemId.startsWith('image:')) {
-      chooseMedia('image', itemId.slice('image:'.length))
-      return
-    }
-    if (itemId.startsWith('video:')) {
-      chooseMedia('video', itemId.slice('video:'.length))
-      return
-    }
-    if (itemId.startsWith('effort:')) {
-      const key = itemId.slice('effort:'.length)
-      chooseEffort(effortChoices.find(e => e.key === `effort:${key}`)?.effort)
-    }
   }
+
+  const onReasoningSelect = (itemId: string): void => {
+    chooseEffort(effortChoices.find(e => e.key === itemId)?.effort)
+  }
+
+  // HeightLab（2026-10-18 用户拍板）：模型与思考程度拆成两个独立触发（ZCode 同款）。
+  const modelAria = currentChoice === undefined
+    ? t('trigger.selectAria')
+    : t('trigger.aria', { model: modelLabel })
+  const reasoningAria = effortLabel === undefined
+    ? '选择思考程度'
+    : `思考程度，当前 ${effortLabel}`
 
   return (
     <div ref={rootRef} className={css.root}>
+      {/* ① 模型：模式行 + 供应商分组（二级弹具体型号） */}
       <Menu
-        open={open}
-        onClose={() => { setOpen(false) }}
-        items={menuItems}
-        selectedIds={selectedIds}
-        onSelect={onSelect}
+        open={modelOpen}
+        onClose={() => { setModelOpen(false) }}
+        items={modelMenuItems}
+        selectedIds={modelSelectedIds}
+        onSelect={onModelSelect}
         anchor={(
           <button
             ref={triggerRef}
             type="button"
             className={css.trigger}
-            aria-label={triggerAria}
+            aria-label={modelAria}
             aria-haspopup="menu"
-            aria-expanded={open}
-            aria-controls={open ? `${id}-menu` : undefined}
-            title={fullLabel}
+            aria-expanded={modelOpen}
+            title={triggerModelLabel}
             disabled={locked}
             onClick={() => {
-              if (open) setOpen(false)
+              if (modelOpen) setModelOpen(false)
               else show()
             }}
           >
             <span className={css.triggerLabel}>{triggerModelLabel}</span>
-            {effortLabel !== undefined && <span className={css.triggerEffort}>{effortLabel}</span>}
-            <IconChevronDownOutlineRegular className={clsx(css.chevron, open && css.chevronOpen)} />
+            <IconChevronDownOutlineRegular className={clsx(css.chevron, modelOpen && css.chevronOpen)} />
           </button>
         )}
         portal
         closeOnPointerLeave={false}
       />
+      {/* ② 思考程度：档位随当前模型（3 级/4 级） */}
+      {reasoning !== undefined && (
+        <Menu
+          open={reasoningOpen}
+          onClose={() => { setReasoningOpen(false) }}
+          items={reasoningMenuItems}
+          selectedIds={reasoningSelectedIds}
+          onSelect={onReasoningSelect}
+          anchor={(
+            <button
+              type="button"
+              className={css.trigger}
+              aria-label={reasoningAria}
+              aria-haspopup="menu"
+              aria-expanded={reasoningOpen}
+              title={effortLabel}
+              disabled={locked}
+              onClick={() => { setReasoningOpen(!reasoningOpen) }}
+            >
+              <IconThinkOutlineRegular className={css.triggerIcon ?? css.chevron} />
+              <span className={css.triggerLabel}>{effortLabel}</span>
+              <IconChevronDownOutlineRegular className={clsx(css.chevron, reasoningOpen && css.chevronOpen)} />
+            </button>
+          )}
+          portal
+          closeOnPointerLeave={false}
+        />
+      )}
       {toast !== null && (
         <Toast
           key={toast.seq}
