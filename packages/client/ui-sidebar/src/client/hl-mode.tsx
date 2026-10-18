@@ -74,6 +74,11 @@ const nextFrame = (): Promise<void> => new Promise((resolve) => {
   window.requestAnimationFrame(() => { resolve() })
 })
 
+/** 等一小段时间（菜单展开有过渡动画，单帧不够）。 */
+const wait = (ms: number): Promise<void> => new Promise((resolve) => {
+  window.setTimeout(resolve, ms)
+})
+
 /**
  * 切换 ds-bot surface。
  * @param target - `bot` 进它的模式，`agent` 回经典 Agent 模式。
@@ -137,10 +142,14 @@ export async function openDsBotSettings(): Promise<boolean> {
   const account = document.querySelector<HTMLButtonElement>('button.bt-account')
   if (account === null) return false
   account.click()
+  // 菜单是 `button.bt-account` 后插入的 `.bt-account-menu`，里面是普通 button。
+  // 文案随语言变化（英文 "Bot settings" / 中文「Bot 设置」），两种都收。
   for (let i = 0; i < 20; i += 1) {
-    await nextFrame()
-    const item = [...document.querySelectorAll<HTMLElement>('button, [role="menuitem"]')]
-      .find(el => /(^|\s)Bot 设置|Bot settings/i.test(el.textContent ?? ''))
+    await wait(80)
+    const menu = document.querySelector('.bt-account-menu')
+    const scope = menu ?? document
+    const item = [...scope.querySelectorAll<HTMLElement>('button, [role="menuitem"]')]
+      .find(el => /bot\s*(设置|settings)/i.test(el.textContent ?? ''))
     if (item !== undefined) {
       item.click()
       return true
