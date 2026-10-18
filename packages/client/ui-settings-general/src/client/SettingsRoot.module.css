@@ -135,6 +135,23 @@
   overflow-y: auto;
 }
 
+/* HeightLab（2026-10-19）：设置导航的分组标题与分组间分割线。 */
+.navGroup {
+  padding: 6px 12px 2px;
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--dsw-alias-label-tertiary);
+  user-select: none;
+}
+
+.navGroupDivided {
+  margin-top: 8px;
+  border-top: 1px solid var(--dsw-alias-border-l2);
+  padding-top: 12px;
+}
+
 /* Nav cell (figma .Setting-nav-cell 501:29962): 164x40, r12, pad
    (12,9,16,9), gap 8; label 14/400 lh22; selected fill #EBEEF2. */
 .navCell {

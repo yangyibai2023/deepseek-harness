@@ -1,0 +1,129 @@
+/**
+ * HeightLab（2026-10-19 用户拍板）：把 ds-bot 的团队设置**整页内嵌**进全局设置。
+ *
+ * 为什么：ds-bot 自带的设置面板与我们的全局设置是两套入口，用户要求「完全
+ * 融合」——只留一个入口，团队专属项在「团队专属」分组下、成员专属项在
+ * 「成员专属」分组下。
+ *
+ * 关键设计：**不重写 ds-bot 的页面**，通过补丁暴露的 `window.dshBot.settings`
+ * 桥复用它的页面组件与 roster/actions。数据与行为 = ds-bot 本体，不存在两套
+ * 状态；它升级新增功能这里自动跟着变。
+ *
+ * ⚠️ 这些页面用 **ds-bot 模块内的 React 实例**。直接放进我们的 React 树会抛
+ * "Invalid hook call"（实测表现：`data-slot-error="settings.section"` 空白）。
+ * 因此桥提供 `mount(container, pageId)`，由 **它自己的 ReactDOM** 渲染到我们
+ * 提供的容器里——两个 React 实例各管各的 DOM 子树，互不干扰。
+ */
+import { useEffect, useState } from 'react'
+import type { ComponentType, ReactNode } from 'react'
+import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import css from './TeamSettingsSection.module.css'
+
+/** The shape the ds-bot patch publishes on window.dshBot.settings. */
+interface DsBotSettingsBridge {
+  roster: unknown
+  actions: Record<string, (...args: never[]) => unknown>
+  SetSection: ComponentType<{ title?: ReactNode; children?: ReactNode }>
+  SetRow: ComponentType<{ label?: ReactNode; hint?: ReactNode; children?: ReactNode }>
+  run: (promise: unknown) => Promise<boolean>
+  pages: Record<string, ComponentType<Record<string, unknown>>>
+  /** Render one team page into a container using ds-bot's own ReactDOM. */
+  mount?: (container: Element, pageId: string) => () => void
+}
+
+/** Tab order/labels for the team-only pages (team-facing, Chinese). */
+const PAGES: ReadonlyArray<{ id: string; label: string }> = [
+  { id: 'bots', label: 'Bots' },
+  { id: 'groups', label: '群聊' },
+  { id: 'connectors', label: '连接器' },
+  { id: 'capabilities', label: '能力' },
+  { id: 'schedules', label: '定时任务' },
+  { id: 'usage', label: '用量' },
+  { id: 'secrets', label: '密钥' },
+  { id: 'feedback', label: '反馈' },
+]
+
+const FIRST_PAGE = PAGES[0]?.id ?? 'bots'
+
+const readBridge = (): DsBotSettingsBridge | undefined => {
+  if (typeof window === 'undefined') return undefined
+  const hub = (window as unknown as { dshBot?: { settings?: DsBotSettingsBridge } }).dshBot
+  return hub?.settings
+}
+
+/**
+ * Render the team settings section: a sub-nav of the eight team pages, each
+ * mounted from ds-bot's own implementation into its own React root.
+ */
+export function TeamSettingsSection(_props: PropsRuntime<'settings.section'>) {
+  const [bridge, setBridge] = useState<DsBotSettingsBridge | undefined>(readBridge)
+  const [page, setPage] = useState<string>(FIRST_PAGE)
+  // Callback ref, not a plain ref object: the host div only mounts once the
+  // bridge is available (the placeholder branch renders before that), so the
+  // mount effect must re-run when the element actually appears.
+  const [host, setHost] = useState<HTMLDivElement | null>(null)
+  const [failure, setFailure] = useState<string | undefined>()
+
+  // The bridge is published when ds-bot's client applies; poll briefly so
+  // opening settings before it lands still works.
+  useEffect(() => {
+    if (bridge !== undefined) return
+    const id = window.setInterval(() => {
+      const next = readBridge()
+      if (next !== undefined) setBridge(next)
+    }, 400)
+    return () => { window.clearInterval(id) }
+  }, [bridge])
+
+  // Mount the active page through the bridge (its own React instance) and
+  // unmount the previous one on switch.
+  useEffect(() => {
+    if (host === null || bridge === undefined) return
+    if (bridge.mount === undefined) {
+      setFailure('团队设置桥缺少 mount（补丁版本过旧，请重启应用）')
+      return
+    }
+    let dispose: (() => void) | undefined
+    try {
+      dispose = bridge.mount(host, page)
+      // ds-bot 的 ReactDOM 渲染是异步的；这里做一次回读，把「调用成功但没画出
+      // 内容」这种情况显性化，而不是留一个空框让人以为卡住。
+      const stop = dispose
+      const timer = window.setTimeout(() => {
+        if ((host.textContent ?? '').trim() === '' && host.childElementCount === 0) {
+          setFailure(`「${page}」没有渲染出内容（ds-bot 桥已调用但返回空）`)
+        }
+      }, 1200)
+      dispose = () => {
+        window.clearTimeout(timer)
+        stop?.()
+      }
+    } catch (error) {
+      setFailure(error instanceof Error ? error.message : String(error))
+    }
+    return () => { dispose?.() }
+  }, [bridge, page, host])
+
+  return (
+    <div className={css.root}>
+      <div className={css.subnav} role="tablist" aria-label="团队设置">
+        {PAGES.map(item => (
+          <button
+            key={item.id}
+            type="button"
+            role="tab"
+            aria-selected={page === item.id}
+            className={page === item.id ? `${css.subnavCell} ${css.subnavActive}` : css.subnavCell}
+            onClick={() => { setFailure(undefined); setPage(item.id) }}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+      {failure !== undefined && <div className={css.failure} role="alert">{failure}</div>}
+      {bridge === undefined
+        ? <div className={css.placeholder}>团队设置正在加载……</div>
+        : <div ref={setHost} className={css.body} />}
+    </div>
+  )
+}

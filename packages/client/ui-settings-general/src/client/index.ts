@@ -39,6 +39,8 @@ import { GeneralSection } from './GeneralSection.tsx'
 import { CurrentVersionRow } from './CurrentVersionRow.tsx'
 import { DeveloperToolsRow, type DeveloperToolsRowInjected } from './DeveloperToolsRow.tsx'
 import { FusionRow } from './FusionRow.tsx'
+import { TeamAppearanceSection } from './TeamAppearanceSection.tsx'
+import { TeamSettingsSection } from './TeamSettingsSection.tsx'
 import { SettingsDocumentAction } from './SettingsDocumentAction.tsx'
 import type { SettingsDocumentActionInjected } from './SettingsDocumentAction.tsx'
 import { SettingsDocumentStore } from './settings-document-store.ts'
@@ -148,6 +150,10 @@ export function apply(ctx: ClientContext): void {
                 id: e.options.id ?? '',
                 order: e.options.order ?? 0,
                 label: resolveSlotLabel(e.options.label) ?? '',
+                /* HeightLab（2026-10-19）：可选导航分组名，供导航渲染标题与分割线。 */
+                group: typeof (e.options as { group?: unknown }).group === 'string'
+                  ? (e.options as { group: string }).group
+                  : undefined,
               }))
               .sort((a, b) => a.order - b.order)
           }
@@ -253,6 +259,28 @@ export function apply(ctx: ClientContext): void {
     locale: NS,
     children: { 'settings.general.item': { kind: 'list', scope: 'root' } },
   }, GeneralSection))
+
+  // HeightLab（2026-10-19 用户拍板）：把 ds-bot 的「外观」并进全局设置——
+  // 主题 / 强调色 / 动画三项原本在团队设置面板里，与全局「外观」撞车。
+  // 团队设置从此只保留团队专属页（Bots / 群聊 / 连接器 / 能力 / 用量 / 密钥 / 反馈）。
+  ctx.slots.inject('settings.section', () => ctx.slots.register({
+    name: 'settings.section',
+    id: 'heightlab-team-appearance',
+    order: 1,
+    label: () => '团队外观',
+    // 分组：成员专属（与「团队专属」之间画分割线）
+    group: '成员专属（个人与团队共用）',
+  } as never, TeamAppearanceSection))
+
+  // HeightLab（2026-10-19 用户拍板）：团队专属设置整页内嵌——复用 ds-bot 的
+  // 实现（经 window.dshBot.settings 桥），不重写、不产生第二套状态。
+  ctx.slots.inject('settings.section', () => ctx.slots.register({
+    name: 'settings.section',
+    id: 'heightlab-team',
+    order: 200,
+    label: () => '团队设置',
+    group: '团队专属',
+  } as never, TeamSettingsSection))
 
   // ── HeightLab 定制 section（自 0.3.x 稳定线迁移；0.2.1 合并时丢失，2026-10-16 回植）──
   // account section（余额 + 充值），紧跟通用设置（0）之后。

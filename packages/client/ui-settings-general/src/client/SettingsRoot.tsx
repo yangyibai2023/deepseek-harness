@@ -10,7 +10,7 @@
  * sessions-derived empty-Hero fact is active. Visible dialog chrome belongs
  * to the step, so a mounted-but-deciding step paints nothing here.
  */
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import clsx from 'clsx'
 import {
@@ -77,19 +77,31 @@ function SettingsPanel({ rows, renderSlot, activeId, onSelect, onClose }: PanelP
           <div className={css.navTitle} id={titleId} tabIndex={-1}
             data-modal-autofocus={active === undefined ? '' : undefined}>{renderSlot('settings.header', {})}</div>
           <div className={css.navList}>
-            {rows.map(row => (
-              <button
-                key={row.id}
-                type="button"
-                className={clsx(css.navCell, row.id === active && css.active)}
-                aria-current={row.id === active ? 'true' : undefined}
-                data-modal-autofocus={row.id === active ? '' : undefined}
-                onClick={() => { onSelect(row.id) }}
-              >
-                {navIcon(row.id)}
-                <span className={css.navLabel}>{row.label}</span>
-              </button>
-            ))}
+            {rows.map((row, index) => {
+              // HeightLab（2026-10-19）：分组标题 + 分割线。相邻且 group 相同的行
+              // 归到同一组；组之间画一条细分割线。row.group 为空即旧行为（不画）。
+              const previous = index > 0 ? rows[index - 1] : undefined
+              const startsGroup = row.group !== undefined && row.group !== previous?.group
+              return (
+                <Fragment key={row.id}>
+                  {startsGroup && (
+                    <div className={clsx(css.navGroup, index > 0 && css.navGroupDivided)} role="presentation">
+                      {row.group}
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    className={clsx(css.navCell, row.id === active && css.active)}
+                    aria-current={row.id === active ? 'true' : undefined}
+                    data-modal-autofocus={row.id === active ? '' : undefined}
+                    onClick={() => { onSelect(row.id) }}
+                  >
+                    {navIcon(row.id)}
+                    <span className={css.navLabel}>{row.label}</span>
+                  </button>
+                </Fragment>
+              )
+            })}
           </div>
         </nav>
         <div className={css.content}>

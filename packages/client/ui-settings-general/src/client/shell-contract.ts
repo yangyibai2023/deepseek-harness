@@ -25,6 +25,12 @@ export interface SettingsSectionRow {
   id: string
   order: number
   label: string
+  /**
+   * HeightLab（2026-10-19）：可选的导航分组名。相邻且同名的行归到同一个
+   * 分组标题下，分组之间画分割线。不传即旧行为（无标题、无分割线）。
+   * `| undefined` 是为了在 exactOptionalPropertyTypes 下允许显式 undefined。
+   */
+  group?: string | undefined
 }
 
 /** One ordered onboarding step projected from a slot registration. */

@@ -1,0 +1,62 @@
+/* HeightLab（2026-10-19）：团队设置分区——子导航 + 页面容器。 */
+
+.root {
+  min-height: 0;
+}
+
+.subnav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--dsw-alias-border-l2);
+}
+
+.subnavCell {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+}
+
+.subnavCell:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.subnavActive {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+  font-weight: 500;
+}
+
+.body {
+  min-height: 0;
+}
+
+/* ds-bot 的页面用 .bt-set-* 类名与它自己的局部变量；这里给一个兜底的内边距，
+   避免它的卡片贴到我们容器的边缘。 */
+.body :global(.bt-set-section):first-child {
+  margin-top: 0;
+}
+
+.placeholder {
+  padding: 12px 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 13px;
+}
+
+.failure {
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-3);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+}

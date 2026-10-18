@@ -775,6 +775,11 @@ export type KindOptions<
       id: string
       order?: number
       label?: SlotLabel
+      /**
+       * HeightLab（2026-10-19）：可选的展示分组名。列表型渲染方（如设置导航）
+       * 用它把相邻同名的条目归到同一分组标题下；不传即旧行为。
+       */
+      group?: string
       /** Cell shadowing rank (ascending, default 0, lowest renders; same id + same priority throws — see {@link SlotCore.register}). */
       priority?: number
     }
@@ -840,7 +845,7 @@ type BaseOptions<
  */
 export interface StoredEntry {
   component: unknown
-  options: { key?: string; id?: string; order?: number; label?: SlotLabel; priority?: number }
+  options: { key?: string; id?: string; order?: number; label?: SlotLabel; priority?: number; group?: string }
   /** Chain routing selector (type-erased like `inject`; present exactly on chain-slot entries). */
   select?: ((owner: never) => unknown) | undefined
   /** Registrant business face; positional params derive from the declaration (sessionId?, actions?). */
@@ -1266,6 +1271,10 @@ export class SlotCore {
         ...(options.order !== undefined ? { order: options.order } : {}),
         ...(options.label !== undefined ? { label: options.label } : {}),
         ...(options.priority !== undefined ? { priority: options.priority } : {}),
+        /* HeightLab（2026-10-19）：透传分组名，供列表渲染方画分组标题。 */
+        ...(typeof (options as { group?: unknown }).group === 'string'
+          ? { group: (options as unknown as { group: string }).group }
+          : {}),
       },
       ...(options.select !== undefined ? { select: options.select } : {}),
       ...(options.inject !== undefined ? { inject: options.inject } : {}),
