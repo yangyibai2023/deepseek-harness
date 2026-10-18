@@ -73,9 +73,19 @@ export function HeightLabFilmStudio({ onClose, opensChat = false }: {
     window.dispatchEvent(new CustomEvent('hl:film-enter-native'))
   }, [opensChat])
 
-  // 拉 Studio 地址（宿主扩展托管进程；首次会稍慢）。
+  // 地址选择（2026-10-20 用户拍板「一模一样还原」）：
+  //   · 入口 (a) 一级菜单 → 用 **OpenFilm 原生 shell**（它自己的 Studio +
+  //     自己的聊天栏，见 /hl/film/native/），这就是截图里那个样子。
+  //   · 否则 → 我们拼装的 Studio（右侧是我们的对话）。
   useEffect(() => {
     let alive = true
+    if (opensChat) {
+      // 原生 shell 需要 Studio 服务在跑，先预热一下再挂 iframe（失败也让
+      // shell 自己显示错误，而不是我们这里白屏）。
+      void fetch('/hl/film', { cache: 'no-store' }).catch(() => null)
+      setBoot({ ok: true, url: '/hl/film/native/' })
+      return () => { alive = false }
+    }
     void fetch('/hl/film', { cache: 'no-store' })
       .then(async (res) => {
         const data = await res.json().catch(() => ({})) as FilmBoot
@@ -83,7 +93,7 @@ export function HeightLabFilmStudio({ onClose, opensChat = false }: {
       })
       .catch(() => { if (alive) setError('剪辑运行时无法连接') })
     return () => { alive = false }
-  }, [])
+  }, [opensChat])
 
   // 接收 Studio 的选中回传（注入脚本 postMessage 上来）。
   useEffect(() => {
@@ -130,8 +140,8 @@ export function HeightLabFilmStudio({ onClose, opensChat = false }: {
         />
       )}
 
-      {/* 浮层控件：只有这两个，不占布局。Studio 自己的顶栏就是工作区顶栏。 */}
-      <div style={{ position: 'absolute', top: 8, right: 10, zIndex: 2, display: 'flex', gap: 6 }}>
+      {/* 浮层控件：只有这两个，不占布局。原生 shell 形态下它自己有完整界面，不叠。 */}
+      <div style={{ position: 'absolute', top: 8, right: 10, zIndex: 2, display: opensChat ? 'none' : 'flex', gap: 6 }}>
         <button
           type="button"
           onClick={referSelection}

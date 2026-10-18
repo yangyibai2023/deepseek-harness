@@ -71,6 +71,8 @@ export function ConversationRoot(props: ConversationRootProps) {
         if (detail.page !== 'library') {
           window.dispatchEvent(new CustomEvent('hl:close-knowledge'))
         }
+        // 事件已直达 → 清掉可能残留的 pending（同 onClose 的理由）
+        ;(window as unknown as { __hlPendingHub?: HubPage | null }).__hlPendingHub = null
         try { document.body.dataset.hlHub = '1' } catch { /* 非致命 */ }
         setHub(detail.page)
       }
@@ -87,6 +89,11 @@ export function ConversationRoot(props: ConversationRootProps) {
     const onClose = (): void => {
       window.dispatchEvent(new CustomEvent('hl:close-knowledge'))
       try { document.body.dataset.hlHub = '0' } catch { /* 非致命 */ }
+      // ⚠️ 必须同时清掉待消费标记：SidebarRoot 点击时会写 __hlPendingHub，
+      // 如果本组件**当时已挂载**（事件直接生效、没走 pending 分支），这个标记
+      // 就永远挂着；下一次挂载（切模式/新建对话触发的重挂）会再消费一次，
+      // 表现为「关掉剪辑台后又被弹回去，要点两次」（2026-10-20 用户实测）。
+      ;(window as unknown as { __hlPendingHub?: HubPage | null }).__hlPendingHub = null
       setHub(null)
     }
     window.addEventListener('hl:open-hub', onOpen)
