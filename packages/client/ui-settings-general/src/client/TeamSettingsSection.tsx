@@ -18,6 +18,7 @@ import { useEffect, useState } from 'react'
 import type { ComponentType, ReactNode } from 'react'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import css from './TeamSettingsSection.module.css'
+import { TeamAppearanceSection } from './TeamAppearanceSection.tsx'
 
 /** The shape the ds-bot patch publishes on window.dshBot.settings. */
 interface DsBotSettingsBridge {
@@ -31,8 +32,12 @@ interface DsBotSettingsBridge {
   mount?: (container: Element, pageId: string) => () => void
 }
 
-/** Tab order/labels for the team-only pages (team-facing, Chinese). */
+/** Tab order/labels for the team pages (team-facing, Chinese).
+ *  「团队外观」放第一位——它控制的就是团队页面的观感，属于团队设置的一部分。 */
+const APPEARANCE_PAGE = 'appearance'
+
 const PAGES: ReadonlyArray<{ id: string; label: string }> = [
+  { id: APPEARANCE_PAGE, label: '团队外观' },
   { id: 'bots', label: 'Bots' },
   { id: 'groups', label: '群聊' },
   { id: 'connectors', label: '连接器' },
@@ -44,6 +49,9 @@ const PAGES: ReadonlyArray<{ id: string; label: string }> = [
 ]
 
 const FIRST_PAGE = PAGES[0]?.id ?? 'bots'
+
+/** 外观页是我们自己的组件，props 走同一套标准全局属性；这里原样转发。 */
+const TeamAppearanceInline = TeamAppearanceSection as unknown as () => ReactNode
 
 const readBridge = (): DsBotSettingsBridge | undefined => {
   if (typeof window === 'undefined') return undefined
@@ -76,8 +84,11 @@ export function TeamSettingsSection(_props: PropsRuntime<'settings.section'>) {
   }, [bridge])
 
   // Mount the active page through the bridge (its own React instance) and
-  // unmount the previous one on switch.
+  // unmount the previous one on switch. The appearance page is ours, so it
+  // renders in this tree instead.
+  const isAppearance = page === APPEARANCE_PAGE
   useEffect(() => {
+    if (isAppearance) return
     if (host === null || bridge === undefined) return
     if (bridge.mount === undefined) {
       setFailure('团队设置桥缺少 mount（补丁版本过旧，请重启应用）')
@@ -102,7 +113,7 @@ export function TeamSettingsSection(_props: PropsRuntime<'settings.section'>) {
       setFailure(error instanceof Error ? error.message : String(error))
     }
     return () => { dispose?.() }
-  }, [bridge, page, host])
+  }, [bridge, page, host, isAppearance])
 
   return (
     <div className={css.root}>
@@ -121,9 +132,11 @@ export function TeamSettingsSection(_props: PropsRuntime<'settings.section'>) {
         ))}
       </div>
       {failure !== undefined && <div className={css.failure} role="alert">{failure}</div>}
-      {bridge === undefined
-        ? <div className={css.placeholder}>团队设置正在加载……</div>
-        : <div ref={setHost} className={css.body} />}
+      {isAppearance
+        ? <TeamAppearanceInline />
+        : bridge === undefined
+          ? <div className={css.placeholder}>团队设置正在加载……</div>
+          : <div ref={setHost} className={css.body} />}
     </div>
   )
 }

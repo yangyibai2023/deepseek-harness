@@ -4,46 +4,85 @@
   min-height: 0;
 }
 
+/* 九个横排子标签：与设置导航的 navCell 同视觉语言（圆角 8、hover 浅底、
+   选中加粗）。宽度要能在一行内放下 9 项（内容区约 570px），所以内边距收到
+   8px、间距 2px，并允许横向滚动兜底窄窗口。 */
 .subnav {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-bottom: 16px;
-  padding-bottom: 12px;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 2px;
+  margin: 0 0 18px;
+  padding: 0 0 12px;
   border-bottom: 1px solid var(--dsw-alias-border-l2);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.subnav::-webkit-scrollbar {
+  display: none;
 }
 
 .subnavCell {
   appearance: none;
+  flex: none;
   border: none;
   background: transparent;
-  padding: 4px 10px;
+  padding: 4px 8px;
   border-radius: 8px;
   font-family: inherit;
-  font-size: 13px;
+  font-size: 12.5px;
   line-height: 20px;
+  white-space: nowrap;
   color: var(--dsw-alias-label-secondary);
   cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
 }
 
 .subnavCell:hover {
   background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
 }
 
-.subnavActive {
+.subnavActive,
+.subnavActive:hover {
   background: var(--dsw-alias-interactive-bg-hover);
   color: var(--dsw-alias-label-primary);
   font-weight: 500;
+}
+
+/* 外观页在我们自己的 React 树里，给它与其他页一致的首行留白。 */
+.body > *:first-child,
+.root > div:not(.subnav):first-of-type > *:first-child {
+  margin-top: 0;
 }
 
 .body {
   min-height: 0;
 }
 
-/* ds-bot 的页面用 .bt-set-* 类名与它自己的局部变量；这里给一个兜底的内边距，
-   避免它的卡片贴到我们容器的边缘。 */
+/* ds-bot 的页面用 .bt-set-* 类名与它自己的局部变量。它的卡片自带
+   padding/圆角，嵌进来后左右会顶到容器边缘——补一点外边距让层次与我们的
+   设置行一致（8.3 之前实测：卡片贴边、标题紧贴分割线）。 */
+.body :global(.bt-set-section) {
+  margin: 0 0 16px;
+}
+
 .body :global(.bt-set-section):first-child {
   margin-top: 0;
+}
+
+.body :global(.bt-set-card) {
+  border-radius: 10px;
+}
+
+/* ds-bot 的页面标题与我们的设置行标题同字号，避免上下文切换时跳档。 */
+.body :global(.bt-set-section) > h3 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary);
 }
 
 .placeholder {
