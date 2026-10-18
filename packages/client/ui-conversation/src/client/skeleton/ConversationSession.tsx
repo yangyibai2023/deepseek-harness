@@ -172,6 +172,18 @@ export function ConversationSessionHeader({
               {viewTab.label}
             </button>
           ))}
+          {/* HeightLab（2026-10-20 用户拍板）：剪辑不再占一个视图标签。
+              「剪辑台」是**右侧边栏**的一个标签（better-sidebar），主区保持当前
+              对话不变——两者并排，和 OpenFilm 原生一致。这里只放一个入口按钮，
+              点了就在右栏开剪辑台；已有同名标签时聚焦它。 */}
+          <button
+            type="button"
+            className={css.tab}
+            title="在右侧打开剪辑台"
+            onClick={() => { window.dispatchEvent(new CustomEvent('hl:film-open-sidebar')) }}
+          >
+            剪辑台
+          </button>
         </div>
       )}
     </>

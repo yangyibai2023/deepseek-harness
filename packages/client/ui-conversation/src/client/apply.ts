@@ -35,7 +35,6 @@ import { EnterBehaviorRow } from './settings/EnterBehaviorRow.tsx'
 import type { EnterBehaviorRowInjected } from './settings/EnterBehaviorRow.tsx'
 import { ConversationRoot } from './skeleton/ConversationRoot.tsx'
 import { HeightLabSkillHub } from './skeleton/HeightLabSkillHub.tsx'
-import { HeightLabFilmStudio } from './skeleton/HeightLabFilmStudio.tsx'
 import type { ReactNode } from 'react'
 import React from 'react'
 import { ConversationContent } from './skeleton/ConversationContent.tsx'
@@ -193,24 +192,14 @@ export function apply(ctx: Context, config: Config = Config({})): void {
     })
   }))
 
-  // HeightLab（2026-10-20 用户拍板）：剪辑台做成**会话内视图**，与「画布」
-  // 同构——不是独立页面、也不是右侧边栏。
+  // HeightLab（2026-10-20）：剪辑台**不再**注册成 conversation.view。
   //
-  // 为什么是这样：用户要的是「通过对话让我剪辑」，那么输入框必须在场。
-  // conversation.view 是会话内容区的一个标签页，Composer 在它下面原样保留，
-  // 所以切到「剪辑台」以后：上面是影片，下面是我们的输入框，用户直接说话，
-  // Colin 在同一段会话历史里拿到影片上下文。侧栏一级入口只是「进入方式」。
-  ctx.slots.inject('conversation.view', () => ctx.slots.register({
-    name: 'conversation.view',
-    id: 'heightlab-film',
-    order: 21,
-    locale: NS,
-    label: () => '剪辑台',
-  }, function HeightLabFilmView(): ReactNode {
-    return React.createElement(HeightLabFilmStudio, {
-      onClose: () => { window.dispatchEvent(new CustomEvent('hl:close-hub')) },
-    })
-  }))
+  // 原因（用户实测纠正）：conversation.view 会**顶掉消息流**，切到「剪辑台」
+  // 后右边只剩 hero（logo + 模板网格），而不是对话——那正是用户否掉的形态。
+  //
+  // 正解：剪辑台走 **hub 覆盖层**，只占左侧；下面保持 Chat 视图不动，
+  // 于是右侧天然就是真实的对话（消息 + 输入框）。这与 OpenFilm 原生
+  // 「左影片、右侧边对话」一致，而且是同一段会话历史。
 
   const viewTabs = (): ViewTab[] => {
     const tabs: ViewTab[] = []

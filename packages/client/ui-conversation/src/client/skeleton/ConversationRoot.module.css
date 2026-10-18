@@ -526,7 +526,6 @@
   background: var(--dsw-alias-bg-base);
 }
 
-/* ==== HeightLab：素材库/自动化/关闭按钮样式（0.1.5 迁移补齐）==== */
 
 /* HeightLab：左侧步骤导航条 + 会话主体横排；导航条为空时只占 0 宽。 */
 .bodyRow {

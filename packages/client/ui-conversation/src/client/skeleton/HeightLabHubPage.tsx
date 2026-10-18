@@ -259,8 +259,9 @@ export function HeightLabHubPage({ page, onClose }: { page: HubPage; onClose: ()
           ))}
         </div>
       ) : page === 'film-studio' ? (
-        // 一级菜单「剪辑台」= OpenFilm 原生形态：满幅 Studio，不加我们自己的标题栏。
-        <HeightLabFilmStudio onClose={onClose} native />
+        // 入口 (a)：一级菜单「剪辑台」= 主区满幅 Studio + 右侧开一段全新对话。
+        // 这就是 OpenFilm 原生的「左影片、右侧边对话」，只是对话从 0 开始。
+        <HeightLabFilmStudio onClose={onClose} opensChat />
       ) : page === 'library' ? (
         <HeightLabLibraryPage />
       ) : (

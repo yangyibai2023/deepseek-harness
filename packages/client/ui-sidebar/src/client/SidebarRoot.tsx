@@ -339,6 +339,9 @@ export function SidebarRoot({
                         // hub 页先记 pending，供 ConversationRoot 挂载后消费。
                         ;(window as unknown as { __hlPendingHub?: string | null }).__hlPendingHub = page
                         setActiveHub(key)
+                        // 2026-10-20 用户拍板：剪辑台要「左影片、右侧边对话」。
+                        // 覆盖层只占左侧，右边保持 Chat 视图不动——所以这里
+                        // 不切视图、不清会话，天然就是同一段对话。
                         selectPanel(null)
                         window.dispatchEvent(new CustomEvent('hl:open-hub', { detail: { page } }))
                       }}

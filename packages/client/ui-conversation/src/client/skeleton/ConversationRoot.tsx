@@ -67,6 +67,7 @@ export function ConversationRoot(props: ConversationRootProps) {
       // 2026-10-20 新增 'film-studio' 时踩过。
       if (detail?.page === 'inspiration' || detail?.page === 'library' || detail?.page === 'video-studio'
         || detail?.page === 'skill-hub' || detail?.page === 'film-studio') {
+        // film-studio 仍走 hub 覆盖层（入口 a：主区满幅 + 右侧开新对话）。
         if (detail.page !== 'library') {
           window.dispatchEvent(new CustomEvent('hl:close-knowledge'))
         }
