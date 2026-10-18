@@ -1,18 +1,42 @@
-/** Animated whale mask and static SVG fallback for the running Chat status. */
+/**
+ * 运行中状态的前导标记。
+ *
+ * 2026-10-20：原实现是 DeepSeek 的鲸鱼尾巴（一张 APNG 遮罩 + 静态 SVG 兜底）。
+ * 用户要求「项目里全部图标排查，暴露的换成胶囊或 SVG」。这里改成我们的品牌
+ * 标记（胶囊穿过轨道环）的 SVG 版本，并让轨道环缓慢自转——视觉上仍然是
+ * 「在工作」的动效，但不再出现任何第三方品牌资产。
+ *
+ * 可访问性沿用原口径：`prefers-reduced-motion` 下停转。
+ */
 import css from './ChatView.module.css'
 
-const REST_PATH = 'M8.844 13.742C8.967 12.328 8.45 10.4 8.45 9.65C8.45 8.94 8.88 8.43 9.6 8.43C11.285 8.43 12.106 8.281 12.685 8.104C13.71 7.791 14.585 6.768 15.055 5.945C15.137 5.803 14.99 5.641 14.829 5.671C13.829 5.86 12.828 5.376 11.827 4.978C10.659 4.514 9.491 4.707 8.935 4.876C8.805 4.915 8.658 4.819 8.636 4.686C8.468 3.643 7.405 2.615 5.498 2.238C4.54 2.048 3.748 1.574 3.347 1.202C3.252 1.113 3.088 1.125 3.03 1.242C2.628 2.059 2.168 3.82 5.248 6.115C5.82 6.494 6.31 6.785 6.574 7.637C6.72 8.104 6.157 9.168 6.061 9.368C5.157 11.27 5.089 12.19 4.926 13.742'
-
 /**
- * Render the decorative running icon; the APNG asset owns its animation timing.
- * @returns mask and static SVG selected by browser capabilities and accessibility preferences.
+ * Render the decorative running mark.
+ * @returns an inline SVG capsule-orbit mark with a reduced-motion fallback.
  */
 export function RunningWhaleTail() {
   return (
     <span className={css.runningIcon} aria-hidden="true">
-      <span className={css.runningWhaleAnimated} />
-      <svg className={css.runningWhaleStill} width="100%" height="100%" viewBox="0 0 16 16" fill="none">
-        <path d={REST_PATH} stroke="currentColor" strokeWidth={1} />
+      <svg className={css.runningMark} width="100%" height="100%" viewBox="0 0 24 24" fill="none">
+        <ellipse
+          className={css.runningMarkOrbit}
+          cx="12"
+          cy="12"
+          rx="10.8"
+          ry="5.2"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          transform="rotate(-30 12 12)"
+        />
+        <rect
+          x="9.6"
+          y="8"
+          width="4.8"
+          height="8"
+          rx="2.4"
+          fill="currentColor"
+          transform="rotate(-30 12 12)"
+        />
       </svg>
     </span>
   )

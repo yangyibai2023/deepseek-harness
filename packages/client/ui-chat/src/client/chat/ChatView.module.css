@@ -186,30 +186,27 @@
   overflow: hidden;
 }
 
-.runningWhaleAnimated {
-  display: none;
-  position: absolute;
-  inset: 0;
+/* 2026-10-20：原先这里用 running-whale@2x.png（APNG 遮罩）做鲸鱼动效。
+   改用内联 SVG 品牌标记后不再需要图片，只保留一个缓慢的自转动画。 */
+.runningMark {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
-.runningWhaleStill {
-  display: initial;
+.runningMarkOrbit {
+  transform-origin: 12px 12px;
+  animation: hl-orbit-spin 2.4s linear infinite;
 }
 
-@supports (mask-mode: alpha) and (mask-image: url('')) {
-  @media (prefers-reduced-motion: no-preference) and (forced-colors: none) {
-    .runningWhaleAnimated {
-      display: block;
-      background: currentColor;
-      mask: url('./running-whale@2x.png') center / 100% 100% no-repeat;
-      mask-mode: alpha;
-      /* Keep animated-mask repaints on an icon-sized composited layer. */
-      will-change: transform;
-    }
+@keyframes hl-orbit-spin {
+  from { transform: rotate(-30deg); }
+  to { transform: rotate(330deg); }
+}
 
-    .runningWhaleStill {
-      display: none;
-    }
+@media (prefers-reduced-motion: reduce) {
+  .runningMarkOrbit {
+    animation: none;
   }
 }
 
