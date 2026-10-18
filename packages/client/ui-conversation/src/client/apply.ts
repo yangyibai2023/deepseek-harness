@@ -35,6 +35,7 @@ import { EnterBehaviorRow } from './settings/EnterBehaviorRow.tsx'
 import type { EnterBehaviorRowInjected } from './settings/EnterBehaviorRow.tsx'
 import { ConversationRoot } from './skeleton/ConversationRoot.tsx'
 import { HeightLabSkillHub } from './skeleton/HeightLabSkillHub.tsx'
+import { HeightLabFilmStudio } from './skeleton/HeightLabFilmStudio.tsx'
 import type { ReactNode } from 'react'
 import React from 'react'
 import { ConversationContent } from './skeleton/ConversationContent.tsx'
@@ -188,6 +189,25 @@ export function apply(ctx: Context, config: Config = Config({})): void {
     // .ts 文件不能写 JSX：用 createElement。
     return React.createElement(HeightLabSkillHub, {
       embedded: true,
+      onClose: () => { window.dispatchEvent(new CustomEvent('hl:close-hub')) },
+    })
+  }))
+
+  // HeightLab（2026-10-20 用户拍板）：剪辑台做成**会话内视图**，与「画布」
+  // 同构——不是独立页面、也不是右侧边栏。
+  //
+  // 为什么是这样：用户要的是「通过对话让我剪辑」，那么输入框必须在场。
+  // conversation.view 是会话内容区的一个标签页，Composer 在它下面原样保留，
+  // 所以切到「剪辑台」以后：上面是影片，下面是我们的输入框，用户直接说话，
+  // Colin 在同一段会话历史里拿到影片上下文。侧栏一级入口只是「进入方式」。
+  ctx.slots.inject('conversation.view', () => ctx.slots.register({
+    name: 'conversation.view',
+    id: 'heightlab-film',
+    order: 21,
+    locale: NS,
+    label: () => '剪辑台',
+  }, function HeightLabFilmView(): ReactNode {
+    return React.createElement(HeightLabFilmStudio, {
       onClose: () => { window.dispatchEvent(new CustomEvent('hl:close-hub')) },
     })
   }))
