@@ -72,6 +72,13 @@ export function TeamSettingsSection(_props: PropsRuntime<'settings.section'>) {
   const [host, setHost] = useState<HTMLDivElement | null>(null)
   const [failure, setFailure] = useState<string | undefined>()
 
+  // ds-bot 的样式表只在它的团队 surface 挂载；个人模式下这些页面会只剩裸文字。
+  // 桥提供 styles.ensure()，用独立 tag 常驻安装一份（只装一次）。
+  useEffect(() => {
+    const hub = (window as unknown as { dshBot?: { styles?: { ensure?: () => void } } }).dshBot
+    hub?.styles?.ensure?.()
+  }, [bridge])
+
   // The bridge is published when ds-bot's client applies; poll briefly so
   // opening settings before it lands still works.
   useEffect(() => {
