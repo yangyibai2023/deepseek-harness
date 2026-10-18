@@ -237,6 +237,114 @@ export function apply(ctx: Context): void {
       window.clearInterval(timer)
     }
   }, 'ui-workspace: auto-start first session')
+
+  // ── HeightLab（2026-10-18 用户铁律）个人/团队工作区隔离 ─────────────────────
+  // 「个人」= 经典 Agent，会话必须落在官方默认工作区（我的工作区）；
+  // 「团队」= ds-bot，会话只能在 ds-bot 自己的团队工作区（显示名统一「团队」）。
+  // 两条硬规定：①切回个人绝不留在团队目录；②团队工作区名必须与顶部切换一致。
+  // ds-bot 的工作区 id 以它自己的 /api/bot state 为准（权威），不靠猜标题。
+  ctx.effect(() => {
+    if (typeof window === 'undefined') return () => {}
+    let renaming = false
+    const dsBotWorkspaceId = async (): Promise<string | undefined> => {
+      try {
+        const res = await fetch('/api/bot', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ endpoint: 'state', payload: {} }),
+        })
+        if (!res.ok) return undefined
+        const data = await res.json() as { ok?: boolean; value?: { workspaceId?: unknown } }
+        return data?.ok === true && typeof data.value?.workspaceId === 'string'
+          ? data.value.workspaceId
+          : undefined
+      } catch {
+        return undefined
+      }
+    }
+    // 团队工作区显示名统一为「团队」：它默认建出来叫「DS Bot」，是历史遗留。
+    const renameTeamWorkspace = async (workspaceId: string): Promise<void> => {
+      if (renaming) return
+      const current = workspaces.list.getSnapshot().items
+        .find(item => item.workspaceId === workspaceId)
+      if (current === undefined || current.title === '团队') return
+      renaming = true
+      try {
+        await workspaces.rename(workspaceId as Parameters<typeof workspaces.rename>[0], '团队')
+      } catch {
+        // 重命名失败不阻塞切换，下次启动会再试。
+      } finally {
+        renaming = false
+      }
+    }
+    const pickPersonalWorkspace = (): string | undefined => {
+      const items = workspaces.list.getSnapshot().items
+      // 官方默认工作区标题即「我的工作区」；用户改过名则退回路径末段 HeightLab。
+      return items.find(item => item.title === '我的工作区')?.workspaceId
+        ?? items.find(item => /[\\/]HeightLab$/i.test(item.path))?.workspaceId
+    }
+    const sync = async (intent?: 'team' | 'personal'): Promise<void> => {
+      // 点击切换时以事件意图为准（此刻 ds-bot 的 localStorage 可能还没写入）；
+      // 轮询时退回读实际 surface。
+      const surface = intent ?? (() => {
+        try { return localStorage.getItem('ds-bot:surface') } catch { return null }
+      })()
+      const team = intent !== undefined ? intent === 'team' : surface === 'bot'
+      const activeSessionId = (): SessionId | undefined => {
+        try {
+          const raw = localStorage.getItem('dsh.sessions.current')
+          const parsed = raw === null ? undefined : JSON.parse(raw) as { sessionId?: unknown }
+          return typeof parsed?.sessionId === 'string' ? parsed.sessionId as SessionId : undefined
+        } catch {
+          return undefined
+        }
+      }
+      if (team) {
+        const teamId = await dsBotWorkspaceId()
+        if (teamId === undefined) return
+        void renameTeamWorkspace(teamId)
+        // 团队模式：会话必须落在团队工作区；当前不在就切过去（复用空白会话）。
+        const teamEntry = workspaces.list.getSnapshot().items
+          .find(item => item.workspaceId === teamId)
+        if (teamEntry === undefined) return
+        const active = activeSessionId()
+        if (active !== undefined && teamEntry.sessionIds.includes(active)) return
+        await uiWorkspace.connectWorkspace(teamEntry.workspaceId).then(
+          (sessionId) => { uiWorkspace.openSession(sessionId) },
+          () => { /* 创建失败交给宿主提示 */ },
+        )
+        return
+      }
+      // 个人模式：绝不停在团队工作区（用户铁律，无条件执行）。
+      // 当前会话属于团队工作区时，直接切回官方默认工作区「我的工作区」——
+      // 团队会话本身不删除，仍可在切回团队模式后继续。
+      const teamId = await dsBotWorkspaceId()
+      if (teamId === undefined) return
+      const personal = pickPersonalWorkspace()
+      if (personal === undefined) return
+      const teamEntry = workspaces.list.getSnapshot().items
+        .find(item => item.workspaceId === teamId)
+      if (teamEntry === undefined) return
+      const activeId = activeSessionId()
+      if (activeId === undefined || !teamEntry.sessionIds.includes(activeId)) return
+      await uiWorkspace.connectWorkspace(personal as never).then(
+        (sessionId) => { uiWorkspace.openSession(sessionId) },
+        () => { /* 失败不阻塞 */ },
+      )
+    }
+    const onModeChanged = (event: Event): void => {
+      const detail = (event as CustomEvent<{ mode?: unknown }>).detail
+      void sync(detail?.mode === 'enterprise' ? 'team' : 'personal')
+    }
+    window.addEventListener('hl:mode-changed', onModeChanged)
+    // 启动时跑一次：把历史遗留的「DS Bot」工作区名纠正为「团队」。
+    void sync()
+    const timer = window.setInterval(() => { void sync() }, 5000)
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener('hl:mode-changed', onModeChanged)
+    }
+  }, 'ui-workspace: HeightLab personal/team workspace isolation')
   const shortcutControls = createWorkspaceShortcutControls()
 
   const searchSessions: WorkspaceBrowserInjected['searchSessions'] = async (query, signal) => {

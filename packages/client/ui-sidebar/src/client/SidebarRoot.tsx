@@ -115,16 +115,28 @@ export function SidebarRoot({
   // Wide content stays mounted while the collapse animates (fading via
   // .collapsed .wide), unmounts at settle, and remounts right away on expand.
   const [settled, setSettled] = useState(collapsed)
-  // HeightLab（2026-10-18）：「DSH BOT 设置」入口只在 ds-bot 装上时出现。
-  // 插件是后挂载的（宿主异步加载），挂载前读一次、再轮询到出现为止。
+  // HeightLab（2026-10-18 用户铁律）：左侧边栏底部「DSH BOT 设置」只在团队模式
+  // 显示；个人模式（经典 Agent）下完全隐藏，不占位。ds-bot 自带的 DS Bot 返回
+  // 按钮同样只在团队模式出现——统一由 surface 状态驱动。
   const [dsBotAvailable, setDsBotAvailable] = useState(() => readDsBotSurface() !== undefined)
+  const [inTeamMode, setInTeamMode] = useState(() => readDsBotSurface() === 'bot')
   useEffect(() => {
-    if (dsBotAvailable) return
     const id = window.setInterval(() => {
-      if (readDsBotSurface() !== undefined) setDsBotAvailable(true)
-    }, 1000)
-    return () => { window.clearInterval(id) }
-  }, [dsBotAvailable])
+      const surface = readDsBotSurface()
+      if (surface !== undefined) setDsBotAvailable(true)
+      setInTeamMode(surface === 'bot')
+    }, 300)
+    // 点切换按钮当帧就同步一次，不必等轮询——否则个人模式下会闪一下设置行。
+    const onMode = (event: Event): void => {
+      const mode = (event as CustomEvent<{ mode?: unknown }>).detail?.mode
+      if (mode === 'enterprise' || mode === 'personal') setInTeamMode(mode === 'enterprise')
+    }
+    window.addEventListener('hl:mode-changed', onMode)
+    return () => {
+      window.clearInterval(id)
+      window.removeEventListener('hl:mode-changed', onMode)
+    }
+  }, [])
   // HeightLab V26e：hl:start-replication 的消费方已迁移至 ui-workspace
   // （openWorkspace beforeOpen 精确时机：设置复刻模式标记+广播会话就绪），
   // 本组件不再监听——避免与 ui-workspace 路径双重创建会话。
@@ -374,7 +386,7 @@ export function SidebarRoot({
             ds-bot 的个性化项（外观/主题/强调色/头像动效、Bots、群聊、Connectors、
             能力、定时任务、用量、Secrets、反馈、关于）全部收在它自己的设置面板里，
             这里只做入口，点开行为与它的原生鲸鱼菜单一致。插件不在场时整行不渲染。 */}
-        {dsBotAvailable ? (
+        {dsBotAvailable && inTeamMode ? (
           <div className={css.footerActions}>
             <Tooltip label="DSH BOT 设置" delayMs={500} disabled={wide}>
               <button
