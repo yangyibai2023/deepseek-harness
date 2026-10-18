@@ -15,37 +15,28 @@
  * 提供的容器里——两个 React 实例各管各的 DOM 子树，互不干扰。
  */
 import { useEffect, useState } from 'react'
-import type { ComponentType, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import css from './TeamSettingsSection.module.css'
 import { TeamAppearanceSection } from './TeamAppearanceSection.tsx'
-
-/** The shape the ds-bot patch publishes on window.dshBot.settings. */
-interface DsBotSettingsBridge {
-  roster: unknown
-  actions: Record<string, (...args: never[]) => unknown>
-  SetSection: ComponentType<{ title?: ReactNode; children?: ReactNode }>
-  SetRow: ComponentType<{ label?: ReactNode; hint?: ReactNode; children?: ReactNode }>
-  run: (promise: unknown) => Promise<boolean>
-  pages: Record<string, ComponentType<Record<string, unknown>>>
-  /** Render one team page into a container using ds-bot's own ReactDOM. */
-  mount?: (container: Element, pageId: string) => () => void
-}
+import {
+  ensureDsBotStyles, pollDsBotBridge, readDsBotBridge, type DsBotSettingsBridge,
+} from './dsbot-bridge.ts'
 
 /** Tab order/labels for the team pages (team-facing, Chinese).
- *  「团队外观」放第一位——它控制的就是团队页面的观感，属于团队设置的一部分。 */
+ *  「外观」放第一位——它控制的就是团队页面的观感，属于团队设置的一部分。
+ *  2026-10-19 用户拍板：连接器与反馈用不到，从横排里隐藏（页面实现仍保留在
+ *  ds-bot 桥里，需要时把对应项加回本数组即可恢复）。 */
 const APPEARANCE_PAGE = 'appearance'
 
 const PAGES: ReadonlyArray<{ id: string; label: string }> = [
-  { id: APPEARANCE_PAGE, label: '团队外观' },
+  { id: APPEARANCE_PAGE, label: '外观' },
   { id: 'bots', label: 'Bots' },
   { id: 'groups', label: '群聊' },
-  { id: 'connectors', label: '连接器' },
   { id: 'capabilities', label: '能力' },
   { id: 'schedules', label: '定时任务' },
   { id: 'usage', label: '用量' },
   { id: 'secrets', label: '密钥' },
-  { id: 'feedback', label: '反馈' },
 ]
 
 const FIRST_PAGE = PAGES[0]?.id ?? 'bots'
@@ -53,18 +44,12 @@ const FIRST_PAGE = PAGES[0]?.id ?? 'bots'
 /** 外观页是我们自己的组件，props 走同一套标准全局属性；这里原样转发。 */
 const TeamAppearanceInline = TeamAppearanceSection as unknown as () => ReactNode
 
-const readBridge = (): DsBotSettingsBridge | undefined => {
-  if (typeof window === 'undefined') return undefined
-  const hub = (window as unknown as { dshBot?: { settings?: DsBotSettingsBridge } }).dshBot
-  return hub?.settings
-}
-
 /**
  * Render the team settings section: a sub-nav of the eight team pages, each
  * mounted from ds-bot's own implementation into its own React root.
  */
 export function TeamSettingsSection(_props: PropsRuntime<'settings.section'>) {
-  const [bridge, setBridge] = useState<DsBotSettingsBridge | undefined>(readBridge)
+  const [bridge, setBridge] = useState<DsBotSettingsBridge | undefined>(readDsBotBridge)
   const [page, setPage] = useState<string>(FIRST_PAGE)
   // Callback ref, not a plain ref object: the host div only mounts once the
   // bridge is available (the placeholder branch renders before that), so the
@@ -73,21 +58,13 @@ export function TeamSettingsSection(_props: PropsRuntime<'settings.section'>) {
   const [failure, setFailure] = useState<string | undefined>()
 
   // ds-bot 的样式表只在它的团队 surface 挂载；个人模式下这些页面会只剩裸文字。
-  // 桥提供 styles.ensure()，用独立 tag 常驻安装一份（只装一次）。
-  useEffect(() => {
-    const hub = (window as unknown as { dshBot?: { styles?: { ensure?: () => void } } }).dshBot
-    hub?.styles?.ensure?.()
-  }, [bridge])
+  useEffect(() => { ensureDsBotStyles() }, [bridge])
 
   // The bridge is published when ds-bot's client applies; poll briefly so
   // opening settings before it lands still works.
   useEffect(() => {
     if (bridge !== undefined) return
-    const id = window.setInterval(() => {
-      const next = readBridge()
-      if (next !== undefined) setBridge(next)
-    }, 400)
-    return () => { window.clearInterval(id) }
+    return pollDsBotBridge(setBridge)
   }, [bridge])
 
   // Mount the active page through the bridge (its own React instance) and

@@ -99,3 +99,22 @@
   color: var(--dsw-alias-label-secondary);
   font-size: 12px;
 }
+
+/* 全局用量页嵌在个人模式的设置里，没有 ds-bot 的 installTheme（只在团队
+   surface 挂载）。这里把它实际用到的 12 个 --bt-* 变量映射到我们自己的
+   设计令牌，页面才能跟随当前明暗主题，而不是固定成 ds-bot 的浅色底
+   （2026-10-19）。刻意只作用在 .usageScope 上，不影响团队设置里按团队主题
+   取色的那些页面。 */
+.usageScope {
+  --bt-ink: var(--dsw-alias-label-primary);
+  --bt-ink-2: var(--dsw-alias-label-secondary);
+  --bt-ink-3: var(--dsw-alias-label-tertiary);
+  --bt-card: var(--dsw-alias-bg-layer-1);
+  --bt-line: var(--dsw-alias-border-l2);
+  --bt-line-2: var(--dsw-alias-border-l3);
+  --bt-hover: var(--dsw-alias-interactive-bg-hover);
+  --bt-active: var(--dsw-alias-interactive-bg-active);
+  --bt-accent: var(--dsw-alias-brand-primary);
+  --bt-accent-ink: var(--dsw-alias-brand-primary-invert);
+  --bt-tag-bg: var(--dsw-alias-bg-layer-3);
+}

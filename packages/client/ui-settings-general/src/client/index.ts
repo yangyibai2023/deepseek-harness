@@ -40,6 +40,7 @@ import { CurrentVersionRow } from './CurrentVersionRow.tsx'
 import { DeveloperToolsRow, type DeveloperToolsRowInjected } from './DeveloperToolsRow.tsx'
 import { FusionRow } from './FusionRow.tsx'
 import { TeamSettingsSection } from './TeamSettingsSection.tsx'
+import { GlobalUsageSection } from './GlobalUsageSection.tsx'
 import { SettingsDocumentAction } from './SettingsDocumentAction.tsx'
 import type { SettingsDocumentActionInjected } from './SettingsDocumentAction.tsx'
 import { SettingsDocumentStore } from './settings-document-store.ts'
@@ -283,6 +284,17 @@ export function apply(ctx: ClientContext): void {
     order: 5,
     label: () => '账户',
   }, HeightLabAccount))
+
+  // HeightLab（2026-10-19 用户拍板）：ds-bot 的「用量」很好用，复制一份到全局
+  // 设置，作为个人模式也能看的用量监测。团队设置里的「用量」保留不动——两处
+  // 同一个页面组件、同一份 usage.sqlite 台账，只是入口不同（不产生第二套数据）。
+  ctx.slots.inject('settings.section', () => ctx.slots.register({
+    name: 'settings.section',
+    id: 'heightlab-usage',
+    // 紧跟「账户」之后：余额与消耗放在一起看。
+    order: 6,
+    label: () => '用量',
+  }, GlobalUsageSection))
 
   // 形象与声音 section（avatars + voices 合并页）。
   ctx.slots.inject('settings.section', () => ctx.slots.register({
