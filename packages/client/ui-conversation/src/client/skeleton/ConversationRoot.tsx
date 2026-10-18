@@ -62,7 +62,11 @@ export function ConversationRoot(props: ConversationRootProps) {
   useEffect(() => {
     const onOpen = (event: Event): void => {
       const detail = (event as CustomEvent<{ page?: unknown }>).detail
-      if (detail?.page === 'inspiration' || detail?.page === 'library' || detail?.page === 'video-studio' || detail?.page === 'skill-hub') {
+      // ⚠️ 这里是 hub 页的**白名单**：新增 HubPage 必须同步加进来，否则
+      // 事件被静默忽略（点侧栏没反应，且 __hlPendingHub 会一直挂着）。
+      // 2026-10-20 新增 'film-studio' 时踩过。
+      if (detail?.page === 'inspiration' || detail?.page === 'library' || detail?.page === 'video-studio'
+        || detail?.page === 'skill-hub' || detail?.page === 'film-studio') {
         if (detail.page !== 'library') {
           window.dispatchEvent(new CustomEvent('hl:close-knowledge'))
         }

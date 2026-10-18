@@ -10,9 +10,10 @@ import { useEffect, useState, type CSSProperties } from 'react'
 import { TEMPLATE_CARDS, TEMPLATE_ORDER, loadTemplateCatalog, templateThumb, type Recommendation, type TemplateCategory } from './HeightLabTemplates.ts'
 import { TemplatePreview } from './TemplatePreview.tsx'
 import { HeightLabLibraryPage } from './HeightLabLibraryPage.tsx'
+import { HeightLabFilmStudio } from './HeightLabFilmStudio.tsx'
 import css from './ConversationRoot.module.css'
 
-export type HubPage = 'inspiration' | 'library' | 'automation' | 'video-studio' | 'skill-hub'
+export type HubPage = 'inspiration' | 'library' | 'automation' | 'video-studio' | 'skill-hub' | 'film-studio'
 
 /** HeightLab V24b：视频创作一级页的 8 个模板卡片（第一排流量转化/第二排人设内容）。 */
 type StudioCard = { name: string; desc: string; icon: string; enabled: boolean }
@@ -69,6 +70,7 @@ const studioBadgeStyle: CSSProperties = {
 }
 
 const PAGE_TITLES: Record<HubPage, string> = {
+  'film-studio': '剪辑台',
   'skill-hub': '技能中心',
   inspiration: '创意灵感',
   library: '资产中心',
@@ -250,6 +252,8 @@ export function HeightLabHubPage({ page, onClose }: { page: HubPage; onClose: ()
             </section>
           ))}
         </div>
+      ) : page === 'film-studio' ? (
+        <HeightLabFilmStudio onClose={onClose} />
       ) : page === 'library' ? (
         <HeightLabLibraryPage />
       ) : (

@@ -41,9 +41,6 @@ import { ContextMeter } from './ContextMeter.tsx'
 import { observeControlRow } from './control-row-layout.ts'
 import css from './InputBar.module.css'
 
-// HeightLab 功能开关：boolean 标注宽化字面量（lint 两配置皆过），改 false 即恢复。
-const HIDE_INPUT_AGENT_PRESET: boolean = true
-
 export type InputBarProps = ComposerBarProps
 
 export const InputBar = memo(function InputBar({
@@ -184,6 +181,61 @@ export const InputBar = memo(function InputBar({
     if (locked || editor === null) return
     focusDraftEditor(editor, revealSelection)
   }, [locked, sessionId, editor])
+
+  // HeightLab（2026-10-20 回归修复）：模板「做同款」、技能中心「使用」、
+  // 视频控制台 prefill 都靠这三个窗口事件往输入框里写内容。0.2.1 合并时
+  // 监听端丢失（派发还在，监听为 0），三处功能都在静默失效。
+  //
+  // 这里补回监听，并新增 `hl:insert-reference` 供「剪辑台」把影片里选中的
+  // 片段作为引用塞进草稿 —— 走的是 setDraft 的 DraftSnapshot 形态
+  // （text + references），与用户手动 @ 文件产生的引用是同一种数据结构。
+  useEffect(() => {
+    if (inputActions === undefined) return
+    // 焦点必须在草稿写入、React 提交之后再给，否则会被推荐区收起的时序覆盖。
+    const focusLater = (): void => {
+      window.setTimeout(() => {
+        if (editor !== null) focusDraftEditor(editor, revealSelection)
+      }, 50)
+    }
+    const fill = (event: Event): void => {
+      const text = (event as CustomEvent<{ text?: unknown }>).detail.text
+      if (typeof text !== 'string' || text === '') return
+      inputActions.setDraft(text)
+      focusLater()
+    }
+    const send = (event: Event): void => {
+      const text = (event as CustomEvent<{ text?: unknown }>).detail.text
+      if (typeof text !== 'string' || text === '') return
+      inputActions.setDraft(text)
+      window.setTimeout(() => { inputActions.submit() }, 80)
+    }
+    // ref: { label, marker } —— 把「剪辑台」选中的片段追加到草稿末尾。
+    //
+    // 为什么不用引用芯片：公共契约 `InputActions.setDraft` 只接受纯文本，
+    // 芯片要的是 span（`insertReference(ref, span)`），跨插件拿不到。这里用
+    // **可读标记**（如「【片段：开场 · 00:12.4–00:18.0】」）追加进正文——
+    // 对 Agent 来说它和芯片一样是明确指代，而且会作为消息正文长期留存，
+    // 反而更稳（芯片在消息里会退化成文本）。
+    const insertReference = (event: Event): void => {
+      const detail = (event as CustomEvent<{ marker?: unknown }>).detail
+      const marker = typeof detail.marker === 'string' ? detail.marker.trim() : ''
+      if (marker === '') return
+      const current = draft
+      const space = current === '' || current.endsWith(' ') ? '' : ' '
+      const insertion = `${space}${marker} `
+      const span = inputActions.captureInsertion()
+      // insertText 是 revision 守卫的：草稿在这期间被改过就放弃，不覆盖用户输入。
+      if (inputActions.insertText(insertion, span)) focusLater()
+    }
+    window.addEventListener('hl:fill-draft', fill)
+    window.addEventListener('hl:send-template', send)
+    window.addEventListener('hl:insert-reference', insertReference)
+    return () => {
+      window.removeEventListener('hl:fill-draft', fill)
+      window.removeEventListener('hl:send-template', send)
+      window.removeEventListener('hl:insert-reference', insertReference)
+    }
+  }, [inputActions, draft, editor])
 
   // A persisted draft arrives AFTER the unlock effect: DefaultConversationViews
   // adopts it in its own mount effect, and a parent's mount effect runs after
@@ -493,7 +545,12 @@ export const InputBar = memo(function InputBar({
                   理由：用户始终通过 Colin 对话、由 Colin 派工，自己选专家没有意义，
                   选错反而出问题；设置→Agent 管理里仍可查看（槽位注册保留）。
                   恢复 = 将 HIDE_INPUT_AGENT_PRESET 改为 false。 */}
-              {HIDE_INPUT_AGENT_PRESET || sessionId === undefined
+              {/* 常量写死为 true，条件在类型层恒真——oxlint 会报
+                  no-unnecessary-condition。改成读运行时全局开关，既能真恢复
+                  （控制台设 __HL_SHOW_AGENT_PRESET__ = true 再刷新），
+                  又不会被静态推断成恒真（同 index.ts 的文件入口开关手法）。 */}
+              {(globalThis as { __HL_SHOW_AGENT_PRESET__?: boolean }).__HL_SHOW_AGENT_PRESET__ !== true
+                || sessionId === undefined
                 ? null
                 : renderSlot('conversation.input.agentPreset', {})}
               {/* HeightLab（2026-10-18 用户拍板）：ContextMeter 圆环挪到模型

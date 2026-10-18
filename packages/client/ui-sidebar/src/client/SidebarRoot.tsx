@@ -24,7 +24,7 @@ import clsx from 'clsx'
 // 原实现「视频创作」用实心 IconSparkleRegular、「资产中心」用
 // IconLibraryStroke16（不同族），折叠后三项观感明显不一致。
 import {
-  IconNewChatOutlineRegular, IconPlanOutlineRegular,
+  IconBrowseOutlineRegular, IconNewChatOutlineRegular, IconPlanOutlineRegular,
   IconWorkspaceTreeOutlineRegular, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
@@ -298,6 +298,10 @@ export function SidebarRoot({
             // 图标统一到 OutlineRegular（2026-10-17）：「视频创作」用 Plan 型
             // （分镜/计划语义），「资产中心」用 WorkspaceTree 型（目录/资产语义）。
             { key: 'video-studio', label: '视频创作', Icon: IconPlanOutlineRegular, page: 'video-studio' },
+            // HeightLab（2026-10-20 用户拍板）：剪辑台是一级入口，紧邻「视频创作」——
+            // 语义上「先创作、再成片」连成一条线。它是个人模式里的工具视图，不是
+            // 第三套模式，所以不占「个人|团队」那排。
+            { key: 'film-studio', label: '剪辑台', Icon: IconBrowseOutlineRegular, page: 'film-studio' },
             { key: 'library', label: '资产中心', Icon: IconWorkspaceTreeOutlineRegular, page: 'library' },
           ]
           return (
