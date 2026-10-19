@@ -15,6 +15,31 @@ import css from './ConversationRoot.module.css'
 
 const CONTENT_SLOTS = { widthControls: ConversationWidthControls }
 
+/* ── ds-bot surface 探测（2026-10-19 用户实测缺陷）──────────────────────────
+ * 团队（OPC）模式下点左边任意 BOT，右侧会渲染成**个人模式的首页**：品牌标题、
+ * 模板网格、个人输入框——因为 BOT 的会话同样走 ConversationRoot，而 hero 的
+ * 判定只看「这个会话是否为空」，不看当前在哪个 surface。
+ *
+ * `.bt-head` / `.bt-q` / `.bt-composer` 是 ds-bot 自己的聊天区类名（团队欢迎页
+ * 也用它判断「是否选中联系人」），出现在 DOM 里就说明当前渲染的是 BOT 聊天。
+ * 用 MutationObserver 而不是读一次：surface 切换不一定整页 reload。
+ * ───────────────────────────────────────────────────────────────────────── */
+function useBotChatSurface(): boolean {
+  const [bot, setBot] = useState<boolean>(() =>
+    typeof document !== 'undefined' && document.querySelector('.bt-head, .bt-q, .bt-composer') !== null)
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    const read = (): void => {
+      setBot(document.querySelector('.bt-head, .bt-q, .bt-composer') !== null)
+    }
+    read()
+    const observer = new MutationObserver(read)
+    observer.observe(document.body, { childList: true, subtree: true })
+    return () => observer.disconnect()
+  }, [])
+  return bot
+}
+
 /** Full props composed from the slot contract. */
 export type ConversationRootProps = ConversationSlotProps
 
@@ -50,8 +75,12 @@ export function ConversationRoot(props: ConversationRootProps) {
     (shellPhase === 'blank' && openState === 'loading' && summaryBlank !== true)
     || parentAvailabilityPending
   )
-  const hero = sessionId === undefined
-    || (shellPhase === 'blank' && (openState === 'open' || summaryBlank === true))
+  /* 2026-10-19：BOT 聊天里**不显示**个人模式首页（品牌 hero + 模板网格 +
+   * 个人输入卡布局）。BOT 的空会话应当就是一个普通的空聊天：消息区为空、
+   * 输入框停靠底部，而不是把整个个人首页搬进团队模式。 */
+  const botChatSurface = useBotChatSurface()
+  const hero = !botChatSurface && (sessionId === undefined
+    || (shellPhase === 'blank' && (openState === 'open' || summaryBlank === true)))
   const phase = settling ? 'settling' : hero ? 'hero' : 'active'
 
   // HeightLab：创意灵感 / 资料库覆盖层页状态（null = 显示聊天）。
