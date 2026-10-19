@@ -169,7 +169,7 @@ export function HeightLabFilmStudio({ onClose, opensChat = false }: {
           /* 外层容器已经用真实 DOM 分好栏，Studio 拿满即可。
              再通过 panel 通道传宽度会让它二次收缩（右侧出现空白阴影）。 */
           src={boot.url}
-          title="剪辑台"
+          title="智能剪辑台"
           allow="clipboard-read; clipboard-write; fullscreen"
           style={{ flex: 1, width: '100%', border: 'none', background: 'transparent' }}
         />

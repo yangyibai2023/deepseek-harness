@@ -301,7 +301,7 @@ export function SidebarRoot({
             // HeightLab（2026-10-20 用户拍板）：剪辑台是一级入口，紧邻「视频创作」——
             // 语义上「先创作、再成片」连成一条线。它是个人模式里的工具视图，不是
             // 第三套模式，所以不占「个人|团队」那排。
-            { key: 'film-studio', label: '剪辑台', Icon: IconBrowseOutlineRegular, page: 'film-studio' },
+            { key: 'film-studio', label: '智能剪辑台', Icon: IconBrowseOutlineRegular, page: 'film-studio' },
             { key: 'library', label: '资产中心', Icon: IconWorkspaceTreeOutlineRegular, page: 'library' },
           ]
           return (

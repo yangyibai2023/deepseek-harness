@@ -385,8 +385,13 @@
 .root[data-phase='active'] .composerSeat {
   position: sticky;
   bottom: 0;
+  /* 2026-10-19 用户实测（团队模式点 BOT）：空会话（active 但没有任何消息）
+   * 时 viewArea 高度为 0，sticky 元素的静态位置就在容器顶部——输入框因此
+   * 贴在页面最上方、下方全空白。margin-top:auto 在内容不足时吸收剩余空间
+   * 把 seat 推到底部；有消息时它解析为 0，不影响正常滚动。 */
+  margin-top: auto;
   /* Above markdown CodeBlock sticky banners (z-index 6) so the footer never
-     paints under a sticking code header while scrolling. */
+   * paints under a sticking code header while scrolling. */
   z-index: 7;
   /* Input mask (figma 1205:27463): transcript fades out under a FIXED 36px
      band at the seat's top (the figma 24% of the resting ~150px composer),
