@@ -146,6 +146,24 @@ export function CapsuleLoader({ progress = 0, burst = false, onBurstComplete }: 
     return () => cancelAnimationFrame(rafRef.current)
   }, [])
 
+  /* 2026-10-19 干净机器实测（0.4.4）：爆发完成回调原本**只挂在 rAF 循环**里。
+   * WKWebView / Chromium 在窗口被遮挡、最小化或省电模式下会**暂停 rAF**
+   * （实测 1 秒 0 帧），phase 永久停在 'bursting'：
+   *   · 页面只剩一层粒子背景
+   *   · 登录页永远不渲染，用户无法登录，只能强退
+   * 这是启动阻断级缺陷。修法：burst 开始时挂一个 wall-clock 兜底，
+   * 1200ms 后无论如何都完成（setTimeout 在后台只会降频，不会完全停）。
+   * 动画本身仍由 rAF 驱动；这里只保证状态机一定前进。 */
+  useEffect(() => {
+    if (!burst || completeRef.current) return
+    const timer = window.setTimeout(() => {
+      if (completeRef.current) return
+      completeRef.current = true
+      callbackRef.current?.()
+    }, 1200)
+    return () => window.clearTimeout(timer)
+  }, [burst])
+
   return (
     <div className={css.root}>
       <canvas ref={canvasRef} className={css.canvas} />
