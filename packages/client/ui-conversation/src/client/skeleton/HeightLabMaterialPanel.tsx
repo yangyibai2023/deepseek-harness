@@ -17,6 +17,7 @@ interface ArtifactItem {
   artifact_type: string
   tags: string[]
   size_bytes: number
+  exists?: boolean
   stars?: number
   references?: string[]
   created_at: number
@@ -439,10 +440,28 @@ export function HeightLabMaterialPanel() {
               {filtered.map(item => (
                 <div key={item.id} className={css.libraryCard}>
                   <div className={css.libraryCardThumb}>
-                    {item.artifact_type === 'image' ? (
+                    {/* 2026-10-20 用户要求：图片和视频都要有缩略图，不要一片空白。
+                        · 图片：直接 <img>
+                        · 视频：<video preload="metadata"> + #t=0.1 让它解码首帧
+                          （服务端 /file 已支持 Range，否则浏览器不肯出首帧）
+                        · 音频/文档/代码：给一个带扩展名的文字标记（比纯类型名好认） */}
+                    {item.exists === false ? (
+                      /* 源文件被删/移动的记录：给明确失效标，不要再留一片空白 */
+                      <span style={{ fontSize: 11, letterSpacing: 0.4, opacity: 0.55 }}>文件已失效</span>
+                    ) : item.artifact_type === 'image' ? (
                       <img src={`/ext/artifacts/${item.id}/file`} alt="" loading="lazy" />
+                    ) : item.artifact_type === 'video' ? (
+                      <video
+                        src={`/ext/artifacts/${item.id}/file#t=0.1`}
+                        preload="metadata"
+                        muted
+                        playsInline
+                        aria-label={item.title || item.filename}
+                      />
                     ) : (
-                      TYPE_MAP[item.artifact_type] ?? '素材'
+                      <span style={{ fontSize: 11, letterSpacing: 0.4 }}>
+                        {(item.filename.split('.').pop() || '').toUpperCase().slice(0, 6) || (TYPE_MAP[item.artifact_type] ?? '素材')}
+                      </span>
                     )}
                   </div>
                   <span className={css.libraryCardTitle}>{item.title || item.filename}</span>
