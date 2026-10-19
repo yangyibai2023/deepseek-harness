@@ -138,7 +138,7 @@ export function ContextMeter({ useProjection, t }: ContextMeterProps) {
   // HeightLab（2026-10-17 用户拍板）：积分余额收编进圆环弹层（ZCode 同款把
   // 余额放进圆环的形态）。数据源与 QuotaNotice 同源（/hl/balance），挂载 +
   // 每 5 分钟刷新；拉不到就不显示余额行，不干扰对话。
-  const [balance, setBalance] = useState<{ balance: number; cny: number } | null>(null)
+  const [balance, setBalance] = useState<{ balance: number; cny: number | null } | null>(null)
   const rootRef = useRef<HTMLSpanElement | null>(null)
   const panelRef = useRef<HTMLDivElement | null>(null)
   const context = contextOccupancy(pressure)
@@ -175,9 +175,11 @@ export function ContextMeter({ useProjection, t }: ContextMeterProps) {
             setBalance(null)
             return
           }
+          /* 2026-10-19 上线审计 P1-10：缺换算率时不再把内部 quota 当 CNY
+           * （会放大 7 万倍）。给 null 表示「余额未知」，UI 显示占位。 */
           const cny = typeof data.creditsPerCny === 'number' && data.creditsPerCny > 0
             ? data.balance / data.creditsPerCny
-            : data.balance
+            : null
           setBalance({ balance: data.balance, cny })
         })
         .catch(() => { /* 拉不到余额就保持上一态，不打断对话 */ })
@@ -299,7 +301,9 @@ export function ContextMeter({ useProjection, t }: ContextMeterProps) {
                 : <>
                   <strong>{formatCredits(balance.balance)}</strong>
                   {' 积分'}
-                  <span className={css.balanceCny}>{` ≈ ¥${balance.cny.toFixed(2)}`}</span>
+                  {balance.cny !== null && (
+                    <span className={css.balanceCny}>{` ≈ ¥${balance.cny.toFixed(2)}`}</span>
+                  )}
                 </>}
             </div>
           </div>

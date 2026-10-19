@@ -219,15 +219,14 @@ function AccountMenu({
    * 不是给用户看的积分。设置页里的换算口径是：
    *   cny = balance / creditsPerCny；displayCredits = cny × DISPLAY_CREDITS_PER_CNY
    * 这里沿用同一口径，否则面板会显示一个七位数的天文数字（实测踩到）。
-   * 换算不可用时退回原始值，但至少不会是误导性的巨大数字。 */
+   * 2026-10-19 上线审计 P1-10：换算率缺失时**不再回退原始值**——那会把
+   * 内部单位当人民币，放大 7 万倍且让低余额提醒永不触发。改为显示「—」。 */
   const credits = ((): number | null => {
     if (balance === null) return null
     const perCny = balance.creditsPerCny
-    if (typeof perCny === 'number' && perCny > 0) {
-      const cny = balance.balance / perCny
-      return Math.round(cny * DISPLAY_CREDITS_PER_CNY * 100) / 100
-    }
-    return Math.round(balance.balance * 100) / 100
+    if (typeof perCny !== 'number' || !(perCny > 0)) return null
+    const cny = balance.balance / perCny
+    return Math.round(cny * DISPLAY_CREDITS_PER_CNY * 100) / 100
   })()
 
   const itemStyle: React.CSSProperties = {

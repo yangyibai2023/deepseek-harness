@@ -236,12 +236,15 @@ export function HeightLabAccount() {
   // 前端展示换算：后端积分是 tokens（creditsPerCny 表示 1 元 = N 积分），
   // 展示时按竞品尺度映射（参考腾讯 Work Buddy：299 元 = 5000 积分），
   // 避免出现 7 位数大数；用户充值 ¥299 时正好显示 5000 积分。
+  // 2026-10-19 上线审计 P1-10：换算率缺失时显示「—」，不把内部单位当人民币。
   const DISPLAY_CREDITS_PER_CNY = 5000 / 299
-  const cnyValue = balance?.creditsPerCny != null && balance.creditsPerCny > 0
-    ? (balance.balance ?? 0) / balance.creditsPerCny
-    : (balance?.balance ?? 0)
-  const displayCredits = cnyValue * DISPLAY_CREDITS_PER_CNY
-  const creditsText = `${displayCredits.toFixed(displayCredits >= 100 ? 0 : 2)} 积分`
+  const hasRate = balance?.creditsPerCny != null && balance.creditsPerCny > 0
+  const displayCredits = hasRate
+    ? ((balance?.balance ?? 0) / (balance?.creditsPerCny ?? 1)) * DISPLAY_CREDITS_PER_CNY
+    : null
+  const creditsText = displayCredits === null
+    ? '—'
+    : `${displayCredits.toFixed(displayCredits >= 100 ? 0 : 2)} 积分`
 
   const orderStatus = (order: TopupOrder): { label: string; color: string } => {
     const s = order.status ?? ''
@@ -691,7 +694,8 @@ export function HeightLabAccount() {
               {balance ? creditsText : (balanceError ?? '加载中…')}
             </div>
             <div style={{ fontSize: 12, opacity: 0.55, marginTop: 2 }}>
-              ≈ ¥{cnyValue.toFixed(2)}{balance?.mock ? '（测试数据）' : ''}
+              {hasRate ? `≈ ¥${((balance?.balance ?? 0) / (balance?.creditsPerCny ?? 1)).toFixed(2)}` : '余额换算暂不可用'}
+              {balance?.mock ? '（测试数据）' : ''}
             </div>
           </div>
           <button type="button" style={primaryButtonStyle} onClick={() => { setOpen(true); setStatus(null); setCheckoutUrl(null) }}>

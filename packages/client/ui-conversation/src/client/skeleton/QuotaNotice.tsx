@@ -15,12 +15,16 @@ type Phase =
   | { kind: 'empty'; cny: number }
   | { kind: 'low'; cny: number }
 
+/**
+ * 把 /hl/balance 的原始余额换算成人民币。
+ * 2026-10-19 上线审计 P1-10：换算率缺失时返回 undefined（→ 不显示提醒），
+ * 绝不把内部 quota 单位当人民币——否则 ¥10 的余额看起来像 ¥70 万，
+ * 低余额提醒永远不会触发。
+ */
 function readCny(data: { balance?: number; creditsPerCny?: number } | undefined): number | undefined {
   if (!data || typeof data.balance !== 'number') return undefined
-  if (typeof data.creditsPerCny === 'number' && data.creditsPerCny > 0) {
-    return data.balance / data.creditsPerCny
-  }
-  return data.balance
+  if (typeof data.creditsPerCny !== 'number' || !(data.creditsPerCny > 0)) return undefined
+  return data.balance / data.creditsPerCny
 }
 
 export function QuotaNotice(): ReactNode {
