@@ -95,6 +95,24 @@ function AddPluginMenu({ t, disabled, openInstall, renderSlot }: {
 /** How long the list marks a package an install just enabled. */
 const HIGHLIGHT_MS = 2_400
 
+/**
+ * HeightLab（2026-10-20 用户拍板）：0.4.4 发布版隐藏插件安装入口，0.4.5 再开放。
+ *
+ * 这是**隐藏开关，不是删除**：dshmarket 插件照常加载，`ctx.provide('market')`、
+ * 各配置卡片、安装提示都保持接线；只是插件页不渲染「市场」标签，也不渲染
+ * 「添加插件」（第三方 npm / Git 仓库 / 本地目录）。
+ *
+ * 为什么两个一起隐藏：它们走的是**同一套安装机制**（`pnpm install` 改写
+ * profile 的 node_modules 与依赖树），风险完全一样。只挡市场、留着"添加插件"，
+ * 等于把同一个口子留在旁边。市场本身也没有后台定时器——只有打开页面才会动作，
+ * 所以隐藏入口即事实停用。
+ *
+ * 0.4.5 恢复：把下面改成 true。设置里的独立「市场」入口另由宿主侧的
+ * `market.setSettingsVisible(false)`（ui-plugin-manager/src/client/index.ts）控制，
+ * 恢复时同样要去掉那一行。
+ */
+const PLUGIN_INSTALL_UI_ENABLED = false
+
 /** Built-in profile bundles stay out of this page even when the profile declares them as dependencies. */
 const BUILTIN_PROFILE_BUNDLES = new Set([
   '@deepseek-ai/dsh-base',
@@ -1406,6 +1424,14 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
   const view = props.useStore(state => state.view), { setView } = props.actions
   const [activation, setActivation] = useState<string | null>(null)
   // HeightLab（2026-10-17）：插件·技能合并页——页级标签（插件/技能）。
+  //
+  // HeightLab（2026-10-20 用户拍板）：**0.4.4 发布版隐藏市场入口，0.4.5 再开放**。
+  // 理由：市场会真的执行 `pnpm install`（替换 node_modules、升级依赖、卸载不兼容
+  // 插件）并自行重启宿主，存在让宿主起不来的风险；发布版先不给这个入口。
+  //
+  // "隐藏而不是删除"：市场插件本身照常加载（`ctx.provide('market')` 正常，
+  // `marketRender` 也仍然接线），只是页面不渲染第三个标签。
+  // 0.4.5 恢复：把下面的常量改成 true 即可，无需还原任何代码。
   const [pageTab, setPageTab] = useState<'plugins' | 'skills' | 'market'>('plugins')
   useEffect(() => { ensure() }, [ensure])
   // Installation highlights visible cards without changing the user's current page.
@@ -1502,15 +1528,19 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
           className={clsx(css.pageTab, pageTab === 'skills' && css.pageTabActive)}
           onClick={() => { setPageTab('skills') }}
         >{t('pageTabSkills')}</button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={pageTab === 'market'}
-          className={clsx(css.pageTab, pageTab === 'market' && css.pageTabActive)}
-          onClick={() => { setPageTab('market') }}
-        >{t('pageTabMarket')}</button>
+        {PLUGIN_INSTALL_UI_ENABLED
+          ? (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={pageTab === 'market'}
+              className={clsx(css.pageTab, pageTab === 'market' && css.pageTabActive)}
+              onClick={() => { setPageTab('market') }}
+            >{t('pageTabMarket')}</button>
+          )
+          : null}
       </div>
-      {pageTab === 'market'
+      {PLUGIN_INSTALL_UI_ENABLED && pageTab === 'market'
         ? (
           <div className={css.marketHost} data-dsh-market-host="">
             {props.marketRender !== undefined
@@ -1549,7 +1579,9 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
                         </button>
                       </Tooltip>
                       {state.install.requestId === undefined
-                        ? <AddPluginMenu t={t} disabled={!loaded} openInstall={props.openInstall} renderSlot={renderSlot} />
+                        ? (PLUGIN_INSTALL_UI_ENABLED
+                          ? <AddPluginMenu t={t} disabled={!loaded} openInstall={props.openInstall} renderSlot={renderSlot} />
+                          : null)
                         : <Button variant="primary" size="sm" className={css.addButton} icon={<IconPlusOutlineRegular size={13} />} disabled={!loaded} onClick={props.openInstall}>
                           {t('installViewTask')}
                         </Button>}
