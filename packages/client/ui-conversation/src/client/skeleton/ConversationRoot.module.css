@@ -1468,18 +1468,29 @@
 .composerHero > :first-child {
   height: auto;
 }
-/* 品牌收缩包装层：内容 = HeroShell（含 -17px 负边距）+ 工作区行 ≈103px，
-   120px 上限在静止态不裁切；滚动时高度收至 0、淡出，并以负边距抵消
-   栈 gap，让输入卡精确停靠到容器顶。 */
+/* 品牌层（大标题 + 工作区行）：**常驻固定，不随滚动收缩淡出**。
+ *
+ * 2026-10-21 用户拍板：「输入框和它上方的文字固定住不要动，模板从它们下方
+ * 划过去」。原 V32 做法是品牌层随 --hl-collapse 收缩淡出（对标 MiniMax 的
+ * 轻滑），但用户要的是标题一直可见。
+ *
+ * 注意：这里只取消"收缩"，仍保留 flex-shrink:0 —— 它必须保持完整高度，
+ * 否则下面的输入卡 sticky 停靠点会漂移。 */
 .heroBrandWrap {
   display: flex;
   flex-direction: column;
   gap: 8px;
   flex-shrink: 0;
-  max-height: calc((1 - var(--hl-collapse, 0)) * 120px);
-  opacity: calc(1 - var(--hl-collapse, 0));
-  overflow: hidden;
-  margin-bottom: calc(var(--hl-collapse, 0) * -8px);
+  /* 标题 + 工作区行**常驻顶部**：用户要求「输入框和它上方的文字固定住不要动，
+     模板从它们下方划过去」。sticky 而不是普通流内块——否则滚走后会留出
+     一片空白，模板仍从最上方开始滚。
+     实测品牌层高 103px（标题 68 + 间距 + 工作区行），此值只用于布局参考，
+     sticky 靠 top:0 自然贴合，不依赖具体高度。 */
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  /* 必须不透明：滚动中的模板卡会从下方划过，透明会让它透过标题显示。 */
+  background: var(--dsw-alias-bg-base, #f5f6f7);
 }
 /* 输入卡 sticky：实测嵌套链 栈 > 槽位 div(display:contents，无盒子，
    sticky 对其无效) > 输入卡根(真盒子) > 卡。sticky 挂在「卡的直接父层」
@@ -1487,7 +1498,9 @@
    同样命中但无盒子、无副作用。停靠后模板卡片从它身后继续滚过。 */
 .composerHero :has(> [data-composer-card]) {
   position: sticky;
-  top: 0;
+  /* 停在品牌层正下方（不盖住标题）。该值 = 品牌层实测高度 103 + 栈 gap 14
+     = 117，与静止态下卡片的实际位置完全一致，因此停靠瞬间**不跳位**。 */
+  top: 117px;
   z-index: 2;
   /* 停靠卡与分类行之间有 8px 栈 gap，滚动的封面会从这条缝里露出来
      （elementsFromPoint 实测封面成为最顶层）——用 9px 页面底色实心

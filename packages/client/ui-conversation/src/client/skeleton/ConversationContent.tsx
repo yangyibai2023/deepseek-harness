@@ -81,16 +81,14 @@ export function ConversationContent(props: ConversationContentProps) {
     }
   }, [])
 
-  // HeightLab V32：hero 滚动流——composerStack 成为滚动容器，scrollTop
-  // 0→111px（品牌区+工作区行的总高）映射为 --hl-collapse 0→1，驱动品牌
-  // 包装层收缩淡出（对标 MiniMax 轻滑动态）；输入卡 sticky 停靠由纯 CSS
-  // 完成（见 module.css V32 块）。初始态几何与 V29 完全一致。
+  // HeightLab V32：hero 滚动流——composerStack 成为滚动容器；输入卡与
+  // 品牌层（标题 + 工作区行）都靠纯 CSS sticky 常驻顶部（见 module.css V32 块）。
+  //
+  // 2026-10-21 用户拍板「输入框和它上方的文字固定住不要动，模板从它们下方
+  // 划过去」→ 品牌层不再随滚动收缩淡出，因此这里不再写 --hl-collapse。
+  // 保留 ref 与 scroll 处理器？（无副作用：不再写变量，仅留空实现会误导）
+  // 故整体移除收缩驱动，滚动完全交给 CSS。
   const stackRef = useRef<HTMLDivElement | null>(null)
-  const onStackScroll = useCallback((event: React.UIEvent<HTMLDivElement>): void => {
-    const el = event.currentTarget
-    const collapse = Math.min(1, Math.max(0, el.scrollTop / 111))
-    el.style.setProperty('--hl-collapse', collapse.toFixed(4))
-  }, [])
 
   // Publishes the two live measurements floating View chrome reads off the
   // scroll body: the seat's height as --dsh-composer-height, so controls clear
@@ -214,7 +212,6 @@ export function ConversationContent(props: ConversationContentProps) {
     <div
       ref={stackRef}
       className={clsx(css.composerStack, hero && (replicationMode ? css.composerHeroReplication : css.composerHero))}
-      onScroll={hero && !replicationMode ? onStackScroll : undefined}
     >
       {hero && (replicationMode ? (
         <>
