@@ -74,40 +74,62 @@ export function HeightLabVideoGrid() {
     ? featured
     : VIDEO_CATALOG.filter(item => item.category === category)
 
+  /**
+   * 「聊天」：把模板写进上方输入框，形态与技能中心的「使用」一致——
+   * 让 Agent 去读该模板的 skill 全文并按流程执行。用 hl:fill-draft
+   * 注入草稿（InputBar 已监听），用户可再补充需求后自行发送。
+   */
+  const useTemplateInChat = (item: typeof VIDEO_CATALOG[number]): void => {
+    const prompt = `请使用创作模板「${item.name}」`
+      + `（skill：${item.skill}，可读取 ~/.heightlab/yunj-skills/${item.skill}/SKILL.md 全文），`
+      + '严格按该模板的工作流与产出规范执行我的任务：\n'
+    window.dispatchEvent(new CustomEvent('hl:fill-draft', { detail: { text: prompt } }))
+  }
+
+  /** 「面板」：原整卡点击行为——右侧打开该模板的专属操作面板。 */
+  const openTemplatePanel = (item: typeof VIDEO_CATALOG[number]): void => {
+    try {
+      sessionStorage.setItem('hl-template-console', JSON.stringify({ id: item.id, template: item.name, skill: item.skill }))
+    } catch { /* 非致命 */ }
+    window.dispatchEvent(new CustomEvent('hl:open-template-console', { detail: { id: item.id, template: item.name, skill: item.skill } }))
+  }
+
   const renderCatalogCard = (item: typeof VIDEO_CATALOG[number]) => (
     <button
       key={item.id}
       type="button"
       className={css.card}
-      onClick={() => {
-        // V41 修复：模板标记必须在派发事件前落 sessionStorage——面板收起时
-        // ConsoleBody 尚未挂载、监听器不存在，事件会丢失；挂载后从
-        // sessionStorage 恢复模板模式（时序与面板展开重试解耦）。
-        try {
-          sessionStorage.setItem('hl-template-console', JSON.stringify({ id: item.id, template: item.name, skill: item.skill }))
-        } catch { /* 非致命 */ }
-        window.dispatchEvent(new CustomEvent('hl:open-template-console', { detail: { id: item.id, template: item.name, skill: item.skill } }))
-      }}
+      onClick={() => { openTemplatePanel(item) }}
     >
       <span className={css.cover}>
         <img className={css.coverImg} src={item.cover} alt="" loading="lazy" draggable={false}
           style={{ objectPosition: item.pos }} />
-        {/* V32 hover 覆盖层（对标页悬停态）：封面压暗 + 居中播放点 + 胶囊。 */}
+        {/* 2026-10-21 用户拍板：hover 显示两个按钮
+            · 「聊天」——把模板作为 skill 写进上方输入框（点发送即执行）
+            · 「面板」——打开右侧该模板的操作面板（= 原整卡点击行为）
+            文案压到两个字：卡片宽度有限，长文案会挤成一团。 */}
         <span className={css.hoverShade} aria-hidden>
-          <span className={css.playDot}>
-            <span className={css.playTri} />
-          </span>
-          {/* V38：胶囊可点——打开该模板对应 skill 正文预览（阻止冒泡，
-              不触发整卡进入工作台）。 */}
-          <span
-            className={css.promptPill}
-            role="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              setPreview({ name: item.name, skill: item.skill })
-            }}
-          >
-            查看提示词
+          <span className={css.hoverActions}>
+            <button
+              type="button"
+              className={css.promptPill}
+              onClick={(e) => {
+                e.stopPropagation()
+                useTemplateInChat(item)
+              }}
+            >
+              聊天
+            </button>
+            <button
+              type="button"
+              className={`${css.promptPill} ${css.promptPillPrimary}`}
+              onClick={(e) => {
+                e.stopPropagation()
+                openTemplatePanel(item)
+              }}
+            >
+              面板
+            </button>
           </span>
         </span>
       </span>

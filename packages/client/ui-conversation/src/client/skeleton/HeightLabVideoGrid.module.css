@@ -153,7 +153,12 @@
   background: linear-gradient(180deg, rgba(0, 0, 0, 0) 30%, rgba(0, 0, 0, 0.45) 100%);
   opacity: 0;
   transition: opacity 0.18s ease;
+  /* 默认不吃事件（整卡可点）；hover 时恢复，让胶囊按钮各自可点。 */
   pointer-events: none;
+}
+
+.card:hover .hoverActions {
+  pointer-events: auto;
 }
 
 .card:hover .hoverShade {
@@ -180,6 +185,14 @@
   border-left: 11px solid #111;
 }
 
+/* hover 操作组：两个等宽胶囊并排（2026-10-21 用户拍板）。
+   文案必须保持在两个字以内 —— 卡片宽度有限，长文案会挤成一团。 */
+.hoverActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .promptPill {
   font-size: 12px;
   line-height: 1;
@@ -188,6 +201,25 @@
   padding: 7px 14px;
   border-radius: 999px;
   backdrop-filter: blur(4px);
+  /* 胶囊是 <button>：抹掉浏览器默认外观，保持与旧版视觉一致。 */
+  border: none;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.promptPill:hover {
+  background: rgba(17, 17, 17, 0.88);
+}
+
+/* 「面板」为主操作（进入工作台），用实底强调；「聊天」为次操作。 */
+.promptPillPrimary {
+  background: rgba(255, 255, 255, 0.94);
+  color: #111;
+}
+
+.promptPillPrimary:hover {
+  background: #fff;
 }
 
 /* 占位卡：视觉弱化一档、不可点不抬升。 */
