@@ -1502,6 +1502,13 @@
      上方封面图盖过（实测 elementsFromPoint 仍是 coverImg 最顶）。 */
   padding-bottom: 13px;
   margin-bottom: -13px;
+  /* 亚像素保险：窗口尺寸/缩放的组合会让 sticky 元素的边缘出现 1px 透明缝，
+     滚动的卡片就从标题正上方透出来（用户实测截图，4 条与卡片列对齐的色带）。
+     向上 24px、向下 1px 的实心投影都用页面底色，把缝糊住——投影不参与
+     布局，几何零变化；z-index 3 保证它画在卡片之上。 */
+  box-shadow:
+    0 -24px 0 0 var(--dsw-alias-bg-base, #f5f6f7),
+    0 1px 0 0 var(--dsw-alias-bg-base, #f5f6f7);
 }
 
 /* 全宽遮挡带：卡片滚到头部区域后完全不可见。
@@ -1544,5 +1551,7 @@
      （elementsFromPoint 实测封面成为最顶层）——用实心投影把缝补成连续
      不透明带；静止时缝里本就是页面底色，投影不可见。
      （品牌层与卡之间的 14px 缝隙由 .heroBrandWrap::after 补。） */
-  box-shadow: 0 9px 0 0 var(--dsw-alias-bg-base);
+  box-shadow:
+    0 -12px 0 0 var(--dsw-alias-bg-base),
+    0 9px 0 0 var(--dsw-alias-bg-base);
 }
