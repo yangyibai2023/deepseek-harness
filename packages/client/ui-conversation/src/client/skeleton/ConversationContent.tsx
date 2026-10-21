@@ -223,6 +223,15 @@ export function ConversationContent(props: ConversationContentProps) {
       className={clsx(css.composerStack, hero && (replicationMode ? css.composerHeroReplication : css.composerHero))}
       onScroll={hero && !replicationMode ? onStackScroll : undefined}
     >
+      {hero && !replicationMode && (
+        /* 2026-10-21：卡片滚到头部区域后必须**完全不可见**。
+           输入卡只有中间一段宽，模板网格比它宽 —— 卡片会从输入框左右两侧
+           露出来（用户实测截图）。这里铺一层全宽、不透明的 sticky 遮挡带，
+           覆盖「标题 + 输入卡 + 分类行」整段；它不占布局（负 margin 抵消），
+           纯靠背景把下方滚上来的内容挡掉。z-index 低于品牌层与输入卡，
+           因此不会盖住它们自己的圆角与描边。 */
+        <div className={css.composerShield} aria-hidden />
+      )}
       {hero && (replicationMode ? (
         <>
           <HeroShell t={t} renderSlot={renderSlot} />

@@ -1465,7 +1465,7 @@
 }
 /* HeroShell 根节点自带 height:100%——栈变成定高滚动容器后必须归还
    auto，否则品牌块被拉成整栈高。 */
-.composerHero > :first-child {
+.composerHero > :first-child:not(.composerShield) {
   height: auto;
 }
 /* 品牌层（大标题 + 工作区行）：**常驻固定，不随滚动收缩淡出**。
@@ -1500,8 +1500,34 @@
        （卡片位置、分类行位置均与改动前一致）。
      不用 ::after 的原因：父级是 flex 容器，绝对定位伪元素的层叠会被
      上方封面图盖过（实测 elementsFromPoint 仍是 coverImg 最顶）。 */
-  padding-bottom: 14px;
-  margin-bottom: -14px;
+  padding-bottom: 13px;
+  margin-bottom: -13px;
+}
+
+/* 全宽遮挡带：卡片滚到头部区域后完全不可见。
+ *
+ * 为什么需要：输入卡宽 max-width 920，模板网格宽 = 容器 − 32px，卡片会从
+ * 输入框左右两侧露出（2026-10-21 用户实测截图）。只在卡片背后补底色不够。
+ *
+ * 几何：覆盖「标题(103) + 标题↔卡间距(14) + 卡(108 − squeeze×24) + 卡↔分类(8)
+ *      + 分类行(55)」≈ 288 − squeeze×24，从 scroller 顶部(top:0)往下铺。
+ * 不占布局：flex 容器里 height H + 负 margin-bottom(H + gap 14) → 净贡献 0，
+ *          因此标题与卡片的实际位置完全不变。
+ * 层级：z-index 1 —— 高于卡片(auto/0)，低于输入卡(2)与标题(3)，所以不会
+ *      盖住它们自己的圆角与描边。
+ */
+.composerShield {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  flex: none;
+  height: calc(288px - var(--hl-squeeze, 0) * 24px);
+  margin-bottom: calc(-302px + var(--hl-squeeze, 0) * 24px);
+  /* 铺满视口宽：50% 是容器半宽，减 50vw 让左右各溢出到视口边缘。 */
+  margin-left: calc(50% - 50vw);
+  width: 100vw;
+  background: var(--dsw-alias-bg-base, #f5f6f7);
+  pointer-events: none;
 }
 
 /* 输入卡 sticky：实测嵌套链 栈 > 槽位 div(display:contents，无盒子，
