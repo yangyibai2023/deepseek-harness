@@ -1500,15 +1500,19 @@
        （卡片位置、分类行位置均与改动前一致）。
      不用 ::after 的原因：父级是 flex 容器，绝对定位伪元素的层叠会被
      上方封面图盖过（实测 elementsFromPoint 仍是 coverImg 最顶）。 */
-  padding-bottom: 13px;
-  margin-bottom: -13px;
-  /* 亚像素保险：窗口尺寸/缩放的组合会让 sticky 元素的边缘出现 1px 透明缝，
-     滚动的卡片就从标题正上方透出来（用户实测截图，4 条与卡片列对齐的色带）。
-     向上 24px、向下 1px 的实心投影都用页面底色，把缝糊住——投影不参与
-     布局，几何零变化；z-index 3 保证它画在卡片之上。 */
-  box-shadow:
-    0 -24px 0 0 var(--dsw-alias-bg-base, #f5f6f7),
-    0 1px 0 0 var(--dsw-alias-bg-base, #f5f6f7);
+  /* 背景只铺到卡片上方 2px 处（卡片顶 − 品牌层底 = 1px 栈 gap + 1px 留白）。
+     2026-10-21 实测：先前 padding-bottom 13px 让背景一直延伸进卡片上边框，
+     而卡片的自带描边是 `box-shadow: 0 0 0 0.5px`（画在边界**外**），于是
+     上边框被白底吃掉 —— 用户看到的就是「输入框上边框不见了」。
+     现在止步于 12px，给那条 0.5px 描边留出完整空间。 */
+  /* 13.5px：背景刚好铺到卡片描边的**外沿**（卡片自带的 0.5px 描边画在
+     边界之外，占 card.top−0.5 .. card.top），既不留缝、也不压线。 */
+  padding-bottom: 13.5px;
+  margin-bottom: -13.5px;
+  /* 只保留**向上**的实心投影：用于兜住 sticky 边缘的亚像素缝（滚动卡片
+     会从标题正上方透出与卡片列对齐的色带）。**不加向下投影**——它会直接
+     盖住输入框的上边框。 */
+  box-shadow: 0 -24px 0 0 var(--dsw-alias-bg-base, #f5f6f7);
 }
 
 /* 全宽遮挡带：卡片滚到头部区域后完全不可见。
@@ -1551,7 +1555,7 @@
      （elementsFromPoint 实测封面成为最顶层）——用实心投影把缝补成连续
      不透明带；静止时缝里本就是页面底色，投影不可见。
      （品牌层与卡之间的 14px 缝隙由 .heroBrandWrap::after 补。） */
-  box-shadow:
-    0 -12px 0 0 var(--dsw-alias-bg-base),
-    0 9px 0 0 var(--dsw-alias-bg-base);
+  /* 只向下补缝：向上投影会盖住**输入框自己的上边框**（用户实测）。
+     上方已有品牌层下 1px 投影 + 全宽遮挡带兜底，无需再从卡片往上铺。 */
+  box-shadow: 0 9px 0 0 var(--dsw-alias-bg-base);
 }
