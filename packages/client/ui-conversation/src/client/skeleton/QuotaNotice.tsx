@@ -59,7 +59,25 @@ export function QuotaNotice(): ReactNode {
   useEffect(() => {
     refresh()
     const timer = window.setInterval(refresh, POLL_MS)
-    const onTurnFailed = (): void => refresh()
+    /**
+     * AUTH 类失败 → 先让宿主重新拉一次模型密钥（2026-10-21）。
+     *
+     * 为什么需要：`DEEPSEEK_API_KEY` 只在登录那一刻从网关拉一次。该 key 若
+     * 在网关侧失效（另一台设备重登导致轮换、管理员重置），本地就留下死 key，
+     * 用户在本机「重新登录」也不会刷新它 —— 表现为登录成功但一聊天就报
+     * 「登录已过期」（Windows 用户实测，反复重登无效）。
+     * 这里在失败时打一次自愈端点，下一个回合即可用新 key。
+     * 只在 AUTH 触发，且 30s 内最多一次，避免失败风暴里反复请求。
+     */
+    let lastHealAt = 0
+    const onTurnFailed = (event: Event): void => {
+      const code = (event as CustomEvent<{ code?: unknown }>).detail?.code
+      if (code === 'AUTH' && Date.now() - lastHealAt > 30_000) {
+        lastHealAt = Date.now()
+        void fetch('/hl/refresh-model-key', { method: 'POST' }).catch(() => { /* 失败就交给用户重登 */ })
+      }
+      refresh()
+    }
     window.addEventListener('hl:turn-failed', onTurnFailed)
     return () => {
       window.clearInterval(timer)
