@@ -354,6 +354,22 @@
   min-height: 0;
 }
 
+/* 余额提醒槽位：脱离滚动流，固定在对话区顶部居中。
+ *
+ * 为什么必须脱流：放在 composerStack 内时，栈高 758 > 可视区 601，
+ * 静止态就已被滚掉 116px —— 提示条被顶出可视区、视觉上压住大标题
+ * （2026-10-21 用户两轮反馈「不要在中间」「再往上，别挡住大标题」）。
+ * 绝对定位后它完全不参与 hero 的 sticky / 收缩计算。 */
+.quotaNoticeSlot {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  z-index: 5;
+  width: min(var(--dsh-composer-card-max-width), calc(100% - 32px));
+  transform: translateX(-50%);
+  pointer-events: auto;
+}
+
 .scrollBody {
   display: flex;
   flex: 1;

@@ -232,10 +232,6 @@ export function ConversationContent(props: ConversationContentProps) {
            因此不会盖住它们自己的圆角与描边。 */
         <div className={css.composerShield} aria-hidden />
       )}
-      {/* 2026-10-21 用户拍板：余额提醒挪到**大标题上方**（那里本来是空白），
-          并且只在 hero 页出现——原先它夹在标题与输入框之间，会把输入框左上角
-          的「我的工作区」布局挤变形。 */}
-      {hero && !replicationMode && <QuotaNotice />}
       {hero && (replicationMode ? (
         <>
           <HeroShell t={t} renderSlot={renderSlot} />
@@ -293,6 +289,16 @@ export function ConversationContent(props: ConversationContentProps) {
       data-content-phase={phase}
       data-hl-conversation-body=""
     >
+      {/* 2026-10-21 用户拍板：余额提醒放在**大标题上方的空白区**。
+          必须脱离滚动流（绝对定位在 .body 内）：
+          它原先放在 composerStack 里，使栈高 758 > 可视区 601，静止态就被
+          滚掉 116px，提示条被顶出可视区、视觉上压住大标题。
+          脱流后既不参与 hero 的 sticky/收缩计算，也不影响输入框周围布局。 */}
+      {hero && !replicationMode && (
+        <div className={css.quotaNoticeSlot}>
+          <QuotaNotice />
+        </div>
+      )}
       <div className={css.scrollBody} data-conversation-scroll="">
         {sessionId === undefined ? null : <Views />}
         {composerSeat}
