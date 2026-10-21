@@ -30,17 +30,23 @@
    riding the title's top-right. */
 .headline {
   display: flex;
-  /* Overflow-driven: the fish and the title group are two wrap units sharing
-     one centered line while they fit; squeezed, the fish takes its own line
-     above the group. No breakpoint. */
-  flex-wrap: wrap;
+  /* HeightLab 2026-10-21 用户拍板：**标题永远单行，绝不折成两行**。
+   *
+   * 原来 flex-wrap: wrap 会在宽度不足时把「图 + 标题」拆成两行（打开右侧
+   * 边栏、窗口变窄、打字机文本变长任一情况都可能触发），跳动标题折行后
+   * 上下跳动非常难看。用户原话：「希望它永远不要出现这种情况」。
+   *
+   * 改为 nowrap + 横向收缩：空间不足时整块等比缩小（min-width:0 +
+   * 字号用 clamp 随容器宽度收敛），标题本身加 white-space: nowrap，
+   * 宁可略小也不折行。 */
+  flex-wrap: nowrap;
   column-gap: 10px;
-  /* Wrapped, the fish sits on its own line; more air than the 10px side gap
-     keeps it reading as a mark above the title, not a squeezed inline glyph. */
-  row-gap: 12px;
   align-items: center;
   justify-content: center;
-  font-size: 26px;
+  min-width: 0;
+  /* 字号随视口宽度收敛：窄窗口（或右侧栏展开后）自动缩小整块，
+     保证标题单行放得下。26px 是设计基准，15px 是可读下限。 */
+  font-size: clamp(15px, 1.9vw, 26px);
   line-height: 32px;
   font-weight: 500;
   color: var(--dsw-alias-label-primary);
@@ -52,13 +58,17 @@
    is content-sized and centering is a no-op, keeping the superscript snug. */
 .titleGroup {
   display: flex;
-  flex-wrap: wrap;
+  /* 同 .headline：单行优先，标题本身不折行。 */
+  flex-wrap: nowrap;
   justify-content: center;
   align-items: center;
   /* Superscript sits 7 from the title. */
   column-gap: 7px;
-  row-gap: 4px;
   min-width: 0;
+  /* 允许收缩：flex 子项默认 min-width:auto 会顶着不缩，导致父级溢出。
+     ⚠️ 不要用 container-type: inline-size —— 它会建立独立的尺寸上下文，
+     在 flex 行里造成图标与标题重叠（2026-10-21 实测）。 */
+  flex-shrink: 1;
 }
 
 .previewBadge {
@@ -257,4 +267,9 @@
 .titleGroup span:first-child {
   min-height: 1.4em;
   display: inline-block;
+  /* 永不折行（2026-10-21 用户要求）。
+     不截断：宁可整块缩小，也不要出现「从…」这种被切掉的字。
+     字号继承 .headline 的 clamp，随视口宽度收敛。 */
+  white-space: nowrap;
+  min-width: 0;
 }

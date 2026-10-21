@@ -27,6 +27,7 @@ import type {} from '@deepseek-ai/dsh-goal/client'
 // The `imageLimits` projection key merge (intake pre-check) arrives with the
 // wire types: apiproxy's sessions contract declares it, and client-runtime's
 // api-remotes import already places it in every client program.
+import { $getRoot } from 'lexical'
 import type { Translate } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ComposerBarProps } from '../contract/slots.ts'
 import { DraftEditor } from '../input/editor/DraftEditor.tsx'
@@ -253,7 +254,20 @@ export const InputBar = memo(function InputBar({
         appearance: 'file',
         clipboardText: prompt,
       })
+      /* 光标必须落在芯片**右侧**（用户要在后面打字补充需求）。
+       *
+       * 只靠 insertChip 不够：setDraft('') 是离散提交，紧跟的 insertChip 在
+       * 同一次 update 批次里可能拿不到刚重建的 selection，实测光标停在芯片
+       * 左侧。这里在 focus 之后再显式 selectEnd 一次（下一帧），确保落点稳定。 */
       focusLater()
+      window.setTimeout(() => {
+        if (editor === null) return
+        editor.update(() => {
+          const root = $getRoot()
+          root.selectEnd()
+        }, { discrete: true })
+        focusDraftEditor(editor, revealSelection)
+      }, 80)
     }
     window.addEventListener('hl:fill-draft', fill)
     window.addEventListener('hl:send-template', send)
