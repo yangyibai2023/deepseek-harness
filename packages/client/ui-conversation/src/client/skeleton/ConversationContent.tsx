@@ -232,6 +232,10 @@ export function ConversationContent(props: ConversationContentProps) {
            因此不会盖住它们自己的圆角与描边。 */
         <div className={css.composerShield} aria-hidden />
       )}
+      {/* 2026-10-21 用户拍板：余额提醒挪到**大标题上方**（那里本来是空白），
+          并且只在 hero 页出现——原先它夹在标题与输入框之间，会把输入框左上角
+          的「我的工作区」布局挤变形。 */}
+      {hero && !replicationMode && <QuotaNotice />}
       {hero && (replicationMode ? (
         <>
           <HeroShell t={t} renderSlot={renderSlot} />
@@ -246,7 +250,6 @@ export function ConversationContent(props: ConversationContentProps) {
         </div>
       ))}
       {zone !== undefined && renderSlot('conversation.input.dock', zone)}
-      <QuotaNotice />
       {inputBar}
       {/* HeightLab V32：首页视频模板网格（仅普通 hero；复刻态不渲染）。 */}
       {hero && !replicationMode && <HeightLabVideoGrid />}

@@ -1,11 +1,20 @@
 /**
- * HeightLab 2026-10-13：输入框上方余额提示条（对标 ZCode/Cursor 的前置
- * 额度提醒）。余额充足时完全不渲染；低于阈值琥珀色提醒；耗尽红色阻断提醒
- * 并提供「充值」直达入口（打开账户设置的充值区）。数据源 /hl/balance，
- * 刷新时机 = 挂载 / 每 5 分钟 / 收到 hl:turn-failed（额度类失败即时刷新）。
+ * HeightLab 2026-10-13：余额提醒条。余额充足时完全不渲染；低于阈值提醒；
+ * 耗尽时阻断提醒，并提供「充值」直达入口（账户设置的充值区）。
+ * 数据源 /hl/balance，刷新时机 = 挂载 / 每 5 分钟 / hl:turn-failed。
+ *
+ * 2026-10-21 用户拍板两处调整：
+ *  ① 位置：挪到**大标题上方**（那里本来是空白）。原先夹在标题与输入框之间，
+ *     把输入框左上角「我的工作区」的布局挤变了形。
+ *  ② 样式：原内联样式是自定义的琥珀/红色块，与本产品（DSH 原生设计语言）
+ *     不协调。改为**纯令牌实现**：底色用 --dsw-alias-bg-layer-1、描边用
+ *     --dsw-alias-border-l2、主文字用 --dsw-alias-label-primary、强调用
+ *     --dsw-alias-state-business-primary。告警程度只体现在小圆点与文字上，
+ *     不再整条换底色——视觉噪声更低，也更贴近原生。
  */
 import { useCallback, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
+import css from './QuotaNotice.module.css'
 
 const LOW_CNY_THRESHOLD = 10
 const POLL_MS = 5 * 60 * 1000
@@ -60,44 +69,22 @@ export function QuotaNotice(): ReactNode {
 
   if (dismissed || phase.kind === 'hidden') return null
   const empty = phase.kind === 'empty'
-  const cnyText = `\¥${phase.cny.toFixed(2)}`
+  const cnyText = `¥${phase.cny.toFixed(2)}`
   const openRecharge = (): void => {
     window.dispatchEvent(new CustomEvent('hl:open-settings-section', { detail: { section: 'heightlab-account' } }))
   }
   return (
-    <div
-      role="status"
-      style={{
-        display: 'flex', alignItems: 'center', gap: 10,
-        maxWidth: 640, margin: '0 auto 10px', padding: '8px 14px',
-        borderRadius: 10, fontSize: 13,
-        background: empty ? '#fff1f0' : '#fffbe6',
-        border: empty ? '1px solid #ffa39e' : '1px solid #ffe58f',
-        color: '#1a1a1a',
-      }}
-    >
-      <span style={{ flex: 1 }}>
+    <div className={css.notice} role="status" data-quota-notice={empty ? 'empty' : 'low'}>
+      <span className={empty ? `${css.dot} ${css.dotEmpty}` : css.dot} aria-hidden />
+      <span className={css.text}>
         {empty
           ? `额度已用尽，充值后即可继续使用（当前余额 ${cnyText}）`
           : `额度即将用尽（当前余额 ${cnyText}），建议及时充值`}
       </span>
-      <button
-        type="button"
-        onClick={openRecharge}
-        style={{
-          padding: '4px 14px', borderRadius: 6, border: 'none',
-          background: empty ? '#cf1322' : '#d48806', color: '#fff',
-          fontSize: 12, cursor: 'pointer', flexShrink: 0,
-        }}
-      >
+      <button type="button" className={css.recharge} onClick={openRecharge}>
         充值
       </button>
-      <button
-        type="button"
-        aria-label="关闭提醒"
-        onClick={() => setDismissed(true)}
-        style={{ border: 'none', background: 'transparent', color: '#999', cursor: 'pointer', fontSize: 14, flexShrink: 0 }}
-      >
+      <button type="button" className={css.close} aria-label="关闭提醒" onClick={() => setDismissed(true)}>
         ×
       </button>
     </div>

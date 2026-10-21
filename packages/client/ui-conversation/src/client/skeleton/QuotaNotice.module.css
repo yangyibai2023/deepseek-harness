@@ -1,0 +1,90 @@
+/* 余额提醒条：DSH 原生设计语言（2026-10-21 用户要求「符合当前 UI 风格」）。
+ *
+ * 设计取舍：
+ *  · 不做整条琥珀/红色底色（原实现），改用 layer-1 中性底 + hairline 描边，
+ *    与输入卡、菜单、胶囊控件同一套表面语言；告警强度由**小圆点颜色**与
+ *    文案承载，视觉噪声更低。
+ *  · 高度 28px 对齐输入卡附近的小胶囊控件（工作区行 28px）。
+ *  · 定位在 hero 栈顶部（大标题上方），不参与输入框周围的布局。
+ */
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: var(--dsh-composer-card-max-width);
+  min-height: 28px;
+  margin: 0 auto;
+  padding: 4px 6px 4px 12px;
+  /* 与容器同宽居中（父级是 flex column + align-items:stretch）。 */
+  align-self: center;
+  /* ⚠️ 浅色主题下 --dsw-alias-bg-layer-1/2/3 **全是纯白**（实测），
+     用它做底色等于隐形。这里用 interactive-bg-hover（rgba(38,49,72,.06)
+     的淡灰），它是 DSH 里真实可见的一档层次，也仍属令牌体系。 */
+  border: 0.5px solid var(--dsw-alias-border-l2);
+  border-radius: 14px;
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+/* 告警圆点：常态用强调色，耗尽用错误色。 */
+.dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--dsw-alias-state-business-primary);
+}
+
+.dotEmpty {
+  background: var(--dsw-alias-state-error-primary);
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--dsw-alias-label-primary);
+}
+
+/* 与侧栏/菜单里的次级按钮同形：无边框、hover 才出底。 */
+.recharge {
+  flex: none;
+  padding: 3px 10px;
+  border: none;
+  border-radius: var(--dsw-radius-sm);
+  background: transparent;
+  color: var(--dsw-alias-state-business-primary);
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.recharge:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.close {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: var(--dsw-radius-sm);
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.close:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-secondary);
+}
