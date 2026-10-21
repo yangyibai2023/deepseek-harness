@@ -91,7 +91,9 @@ export const zh = {
   'access.confirm.cancel': '取消',
   'access.confirm.enable': '启用完全权限',
   'hero.headline': '从一张产品图，到一支带货视频',
-  'hero.preview': '内测版',
+  // 2026-10-21 用户拍板：徽章统一显示英文 "Beta"（中文侧也用 Beta，
+  // 与英文侧一致；用户认为这样更高级，且避免中英混排）。
+  'hero.preview': 'Beta',
   'rail.aria': '会话步骤',
   'rail.step': '步骤 {n}',
   'hero.chooseWorkspace': '选择工作区',
