@@ -49,8 +49,12 @@ function tauriUpdateBridge(): DesktopUpdateBridge | undefined {
     status: async () => map() ?? { phase: 'idle' },
     subscribe(listener) {
       return subscribeUpdateState(() => {
-        const next = map()
-        if (next !== undefined) listener(next)
+        /* 必须**无条件**通知：`idle` / `current`（已是最新）时 map() 返回
+         * undefined，表示「没有要展示的状态」。若这时跳过通知，指示器会
+         * 停在最后一次可见的 phase —— 用户实测「检查更新一直在」正是
+         * checking → current 之后再也没收到事件造成的。
+         * 用 idle 覆盖，指示器按 idle 隐藏。 */
+        listener(map() ?? { phase: 'idle' })
       })
     },
     async open() {
