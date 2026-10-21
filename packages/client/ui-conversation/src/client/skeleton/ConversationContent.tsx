@@ -84,11 +84,20 @@ export function ConversationContent(props: ConversationContentProps) {
   // HeightLab V32：hero 滚动流——composerStack 成为滚动容器；输入卡与
   // 品牌层（标题 + 工作区行）都靠纯 CSS sticky 常驻顶部（见 module.css V32 块）。
   //
-  // 2026-10-21 用户拍板「输入框和它上方的文字固定住不要动，模板从它们下方
-  // 划过去」→ 品牌层不再随滚动收缩淡出，因此这里不再写 --hl-collapse。
-  // 保留 ref 与 scroll 处理器？（无副作用：不再写变量，仅留空实现会误导）
-  // 故整体移除收缩驱动，滚动完全交给 CSS。
+  // 2026-10-21 用户拍板 V44：「输入框也不动，是输入框内部高度压缩……滑动
+  // 的时候，高度缩短一半，只留一行字的空间。分类行跟着输入框一块儿上移，
+  // 它和输入框的距离是固定不变的。」
+  //
+  // 这里只做一件事：把 scrollTop 0→24px 映射为 --hl-squeeze 0→1。
+  // 24px = 文字区从两行（52）压到一行（28）的差值；CSS 侧（InputBar /
+  // HeightLabVideoGrid）用 calc 消费它。品牌层不再收缩淡出（V32 的
+  // --hl-collapse 已移除）——标题全程固定不动。
   const stackRef = useRef<HTMLDivElement | null>(null)
+  const onStackScroll = useCallback((event: React.UIEvent<HTMLDivElement>): void => {
+    const el = event.currentTarget
+    const squeeze = Math.min(1, Math.max(0, el.scrollTop / 24))
+    el.style.setProperty('--hl-squeeze', squeeze.toFixed(4))
+  }, [])
 
   // Publishes the two live measurements floating View chrome reads off the
   // scroll body: the seat's height as --dsh-composer-height, so controls clear
@@ -212,6 +221,7 @@ export function ConversationContent(props: ConversationContentProps) {
     <div
       ref={stackRef}
       className={clsx(css.composerStack, hero && (replicationMode ? css.composerHeroReplication : css.composerHero))}
+      onScroll={hero && !replicationMode ? onStackScroll : undefined}
     >
       {hero && (replicationMode ? (
         <>

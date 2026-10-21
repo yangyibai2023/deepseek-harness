@@ -236,6 +236,20 @@
   min-height: 52px;
 }
 
+/* ── HeightLab V44（2026-10-21 用户拍板）：滚动时输入框内部压缩 ──────────
+   用户原话：「输入框也不动，是输入框内部高度压缩……滑动的时候，高度缩短
+   一半，只留一行字的空间。这样就会有一种伸缩变换的感觉。」
+
+   实现：卡片上沿钉住（sticky top 由 ConversationRoot 负责），本文件只压缩
+   **文字区**高度 52px（两行）→ 28px（一行 24 + 上内边距 4）。卡片是
+   flex column，文字区变矮 → 卡片总高 -24px → 下沿上移 → 分类行在流内
+   自然跟着上移，二者间距不变（分类行 sticky top 同步减 24px）。
+
+   为什么不用 transition：位移由 scrollTop 连续驱动，加过渡会与滚动脱节。 */
+.hero .input {
+  min-height: calc(52px - var(--hl-squeeze, 0) * 24px);
+}
+
 /* The hero's 52px floor fits two lines, so its placeholder clamps at two
    instead of the docked single line. */
 .hero .placeholder {
@@ -244,6 +258,9 @@
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   line-clamp: 2;
+  /* 压缩时用高度遮罩平滑收成一行（line-clamp 无法参与 calc 插值）。 */
+  max-height: calc(48px - var(--hl-squeeze, 0) * 24px);
+  overflow: hidden;
 }
 
 /* Toolbar: attach + Plan + Read-only on the left; model + send on the right

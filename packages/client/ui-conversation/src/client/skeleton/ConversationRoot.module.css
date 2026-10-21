@@ -1489,9 +1489,21 @@
   position: sticky;
   top: 0;
   z-index: 3;
+  /* 伪元素补缝的定位基准（sticky 本身已建立包含块，显式声明便于阅读）。 */
   /* 必须不透明：滚动中的模板卡会从下方划过，透明会让它透过标题显示。 */
   background: var(--dsw-alias-bg-base, #f5f6f7);
+  /* 品牌层与输入卡之间有 14px 栈 gap，滚动时封面会从这条缝透出一条横线
+     （用户截图可见）。用「padding 撑背景 + 负 margin 抵消布局」补上：
+     · padding-bottom 14 → 背景向下多涂 14px，且 sticky 高度随之变 117，
+       滚动时正好覆盖到输入卡顶（top:117），无缝；
+     · margin-bottom: -14 → 抵消多出的 14px，静止态几何**完全不变**
+       （卡片位置、分类行位置均与改动前一致）。
+     不用 ::after 的原因：父级是 flex 容器，绝对定位伪元素的层叠会被
+     上方封面图盖过（实测 elementsFromPoint 仍是 coverImg 最顶）。 */
+  padding-bottom: 14px;
+  margin-bottom: -14px;
 }
+
 /* 输入卡 sticky：实测嵌套链 栈 > 槽位 div(display:contents，无盒子，
    sticky 对其无效) > 输入卡根(真盒子) > 卡。sticky 挂在「卡的直接父层」
    ——它的父级即栈（contents 透明），行程=整栈，可停靠；contents 包装层
@@ -1503,7 +1515,8 @@
   top: 117px;
   z-index: 2;
   /* 停靠卡与分类行之间有 8px 栈 gap，滚动的封面会从这条缝里露出来
-     （elementsFromPoint 实测封面成为最顶层）——用 9px 页面底色实心
-     投影把缝补成连续不透明带；静止时缝里本就是页面底色，投影不可见。 */
+     （elementsFromPoint 实测封面成为最顶层）——用实心投影把缝补成连续
+     不透明带；静止时缝里本就是页面底色，投影不可见。
+     （品牌层与卡之间的 14px 缝隙由 .heroBrandWrap::after 补。） */
   box-shadow: 0 9px 0 0 var(--dsw-alias-bg-base);
 }
