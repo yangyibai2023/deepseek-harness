@@ -116,11 +116,21 @@ export function shortName(name: string): string {
  *
  * 这里只做**显示层**替换：不改任何包、不改存储、不改设置键名。
  * 顺序有讲究：先替换最长的短语，避免 "DeepSeek Harness" 被拆成两段。
+ *
+ * ⚠️ 2026-10-21 实机回归发现的坑：只加 `\bdsh\b` 一条会**误伤技术标识**——
+ * `dsh-knowledge` 被改成 `HeightLab-knowledge`、`@changfenhuang/dsh-genui`
+ * 变成 `@changfenhuang/HeightLab-genui`。标题在 meta.title 缺失时回退到
+ * **包名**，而包名是技术身份，改了就让用户对不上文档/issue/市场页面，也与
+ * 「底层逻辑什么都不变」相违。
+ *
+ * 判据：`dsh` 只作为**独立单词**（前后不接连字符/字母数字/@）才替换；
+ * 包名、模块路径、配置键一律原样保留。
  */
 const BRAND_REPLACEMENTS: ReadonlyArray<readonly [RegExp, string]> = [
   [/DeepSeek Harness/giu, 'HeightLab'],
   [/\bDSH\b/gu, 'HeightLab'],
-  [/\bdsh\b/gu, 'HeightLab'],      // 小写出现在描述句子里（"inside dsh"）
+  // 独立单词 dsh（前面不能是 @ 或 -，后面不能是字母数字或 -）
+  [/(?<![@\w-])dsh(?![-\w])/gu, 'HeightLab'],
   [/DS Bot/gu, '智能体团队'],        // ds-bot 的产品名，用户已改叫这个
 ]
 
@@ -140,11 +150,16 @@ function brandText(value: string): string {
 export function packageText(
   pkg: Pick<PackageView, 'name' | 'meta'>, resolveText: PluginManagerFace['resolveText'],
 ): { title: string; description: string | undefined; beta: boolean } {
-  const title = pkg.meta?.title === undefined ? pkg.name : resolveText(pkg.meta.title)
-  const description = pkg.meta?.description === undefined ? undefined : resolveText(pkg.meta.description) || undefined
+  // 标题回退到包名时**不做品牌替换**：包名是技术身份（用户要拿它对文档、issue、
+  // 市场页面），改了只会让信息对不上。只有作者写的 title/description 才替换。
+  const authored = pkg.meta?.title
+  const title = authored === undefined ? pkg.name : brandText(resolveText(authored))
+  const rawDescription = pkg.meta?.description
+  const resolved = rawDescription === undefined ? undefined : resolveText(rawDescription) || undefined
+  const description = resolved === undefined ? undefined : brandText(resolved)
   return {
-    title: brandText(title),
-    description: description === undefined ? undefined : brandText(description),
+    title,
+    description,
     beta: pkg.name.startsWith('@deepseek-ai/dsh-experimental-'),
   }
 }
@@ -158,12 +173,13 @@ export function packageText(
 export function rowText(
   row: Pick<PackageRow, 'moduleName' | 'meta'>, resolveText: PluginManagerFace['resolveText'],
 ): { title: string; description: string | undefined } {
-  const title = row.meta?.title === undefined ? row.moduleName : resolveText(row.meta.title)
-  const description = row.meta?.description === undefined ? undefined : resolveText(row.meta.description) || undefined
-  return {
-    title: brandText(title),
-    description: description === undefined ? undefined : brandText(description),
-  }
+  // 同 packageText：模块名是技术身份，回退到它时不替换。
+  const authored = row.meta?.title
+  const title = authored === undefined ? row.moduleName : brandText(resolveText(authored))
+  const rawDescription = row.meta?.description
+  const resolved = rawDescription === undefined ? undefined : resolveText(rawDescription) || undefined
+  const description = resolved === undefined ? undefined : brandText(resolved)
+  return { title, description }
 }
 
 /**
