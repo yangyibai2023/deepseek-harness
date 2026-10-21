@@ -50,6 +50,13 @@ function isShippedMcpEntry(entry: { entryId: string; moduleName: string }): bool
  * 只显示用户自己后来安装的插件（白名单之外安装的 skill）。
  * 以后我们新增/更新任何预装插件，必须把它的 entryId 或模块名前缀加入下面的
  * 隐藏名单，否则会出现在用户列表里。
+ *
+ * ⚠️ 2026-10-21 实测漏出 4 条（用户截图确认）：video-downloader / 插件市场 /
+ * ds-bot / ds-bot/web-search。它们都是我们**随包预装**的社区插件，属「预装
+ * 一律隐藏」。漏的原因是新装插件只加了模块名、没加 entryId，而 entryId 与
+ * 模块名不一定同名（market 的 entryId 是 `dsh-market`、模块名是 `dshmarket`；
+ * ds-bot 的 web search 行模块名是 `ds-bot/web-search`）。因此下面同时按
+ * **entryId** 与**模块名**收录，并在 isUserInstalled 里加 scope 前缀兜底。
  */
 const HEIGHTLAB_ENTRY_IDS: ReadonlySet<string> = new Set([
   'heightlab-brand',
@@ -67,31 +74,54 @@ const HEIGHTLAB_ENTRY_IDS: ReadonlySet<string> = new Set([
   'better-sidebar',
   'genui',
   'modlens',
+  // 2026-10-21 补：预装但此前漏出的四条。
+  'video-downloader',
+  'dsh-market',
+  'bot',
+  'web-search-auto',
 ])
+
+/**
+ * 预装社区插件的**模块名前缀**。
+ * 与 entryId 名单互补：entryId 会随上游改名，模块名 scope 更稳。
+ * 判据是「我们随包预装了它」——用户自己装的同 scope 包目前不存在，
+ * 若将来出现，应改为白名单而不是放宽这里。
+ */
+const SHIPPED_MODULE_PREFIXES: ReadonlyArray<string> = [
+  '@omdsh-dev/',
+  '@changfenhuang/',
+  '@liustack/',
+  '@dsh-external/',
+  '@heightlab/',
+  'dsh-knowledge',
+  'dsh-better-sidebar',
+  'dshmarket',
+  'ds-bot',
+  'dsh-video-downloader',
+]
 
 /** Whether one Loader entry is user-installed (visible in the list). */
 function isUserInstalled(entry: { entryId: string; moduleName: string }): boolean {
   // Loader id 可能带 'include:' 等前缀，短 id 与全 id 都比对。
   const shortId = entry.entryId.split(':').pop() ?? entry.entryId
   if (HEIGHTLAB_ENTRY_IDS.has(shortId) || HEIGHTLAB_ENTRY_IDS.has(entry.entryId)) return false
+  // 2026-10-21 补：`heightlab-*` 的 entryId 有十几个（film / canvas-tools /
+  // enterprise / team-welcome / local-guard / customization-guard / …），
+  // 逐个列名单必然漏（实测 heightlab-film 就会漏出）。前缀判据一次覆盖。
+  if (shortId.startsWith('heightlab')) return false
   const name = entry.moduleName
   // 用户自装的 MCP 客户端行（module 也是 @deepseek-ai/dsh-mcp-client）只要
   // 不是内置的 heightlab-tools，就算用户自装，两个标签页都会显示并可管理。
   if (name === MCP_CLIENT_MODULE) return !isShippedMcpEntry(entry)
-  if (name.startsWith('@heightlab/')) return false
+  // 预装社区插件的模块名前缀（scope 与包名两类）——比 entryId 更稳，
+  // 上游改 id 也不会漏（2026-10-21 漏出四条后补）。
+  for (const prefix of SHIPPED_MODULE_PREFIXES) {
+    if (name.startsWith(prefix)) return false
+  }
   if (name.includes('heightlab')) return false
   if (name.startsWith('@deepseek-ai/')) return false
   if (name.startsWith('cordis-plugin-') || name === 'cordis') return false
   if (name.startsWith('cordis:')) return false
-  // 我们随产品预装的社区插件也算 shipped（按作者 scope 前缀兜底，防止新版本改 id）。
-  if (name.startsWith('@omdsh-dev/')) return false
-  // genui 0.10.0 起包名/Loader id 都改为 @changfenhuang scope（bundle 行 id
-  // 即包名，不再叫 'genui'）——scope 前缀兜底，防止再改名漏出。
-  if (name.startsWith('@changfenhuang/')) return false
-  if (name.startsWith('@liustack/')) return false
-  if (name.startsWith('@dsh-external/')) return false
-  if (name.startsWith('dsh-knowledge')) return false
-  if (name === 'dsh-better-sidebar' || name === '@omdsh-dev/dsh-genui') return false
   return true
 }
 

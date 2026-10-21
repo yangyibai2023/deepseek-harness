@@ -131,6 +131,12 @@ export class ClientEntries {
       if (entry === undefined) {
         this.modules.invalidate(id, desired.rev)
         removeOwnedStyles(id)
+        // HeightLab（2026-10-21）：与 sync 同一条竞态——client-hmr 的 rebuild
+        // 帧可能在 bootClient.start() 之前到达。此处的 reconcile 会抛
+        // `client-modules: entries have not started` 并被永久记进 failures，
+        // 设置里的内置插件页就常驻「本页面的插件未能完成同步」
+        // （用户 2026-10-21 截图实测）。desired 已在上方更新，start 会应用它。
+        if (this.loader === undefined) return
         await this.reconcile(this.generation)
         return
       }
