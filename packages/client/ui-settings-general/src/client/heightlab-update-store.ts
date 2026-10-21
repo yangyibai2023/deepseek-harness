@@ -122,6 +122,23 @@ export async function installUpdate(): Promise<void> {
     return
   }
   if (state.busy) return
+  /* 先做预检（2026-10-22）。壳在真正安装时还会再拦一次，这里提前是为了：
+   * ① 立刻告诉用户「磁盘不足 X GB」而不是先下载 1.4GB 再失败；
+   * ② 失败原因能显示在按钮 tooltip 上（用户实测只看到「重试更新」）。 */
+  try {
+    const pre = await invoke('hl_update_preflight') as
+      { ok?: boolean; message?: string } | undefined
+    if (pre !== undefined && pre.ok === false) {
+      setState({
+        busy: false,
+        phase: 'error',
+        message: pre.message !== undefined && pre.message !== ''
+          ? pre.message
+          : '更新前的检查未通过，请稍后重试。',
+      })
+      return
+    }
+  } catch { /* 预检不可用时不拦，交给壳内的同一道检查 */ }
   setState({ busy: true, progress: 0, phase: 'installing', message: '正在下载更新…' })
   let downloaded = 0
   let total: number | null = null

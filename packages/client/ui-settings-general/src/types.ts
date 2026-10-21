@@ -18,6 +18,15 @@ export interface DesktopUpdatePresentation {
   readonly version?: string
   readonly percent?: number
   readonly failure?: DesktopUpdateFailureKind
+  /**
+   * HeightLab（2026-10-22）：失败/进行中的**可读原因**。
+   *
+   * 上游只给 failure 枚举，指示器据此显示一句通用文案（「更新失败」），
+   * 于是用户只会看到一个「重试更新」按钮，完全不知道是磁盘不足、网络不通
+   * 还是签名校验失败——用户实测就卡在这一步（实际是磁盘只剩 7.9GB 被 8GB
+   * 预检拦下）。这个字段把壳返回的具体原因带出来，只用于 tooltip 展示。
+   */
+  readonly message?: string
 }
 
 /** Optional carrier API; it cannot select artifacts or authorize installation. */

@@ -38,7 +38,17 @@ function updateCopy(state: DesktopUpdatePresentation, t: SettingsTranslate): { l
       'tasks-changed': t('desktop.update.tasksChanged'),
       'tasks-unavailable': t('desktop.update.tasksUnavailable'),
     }
-    return { label, detail: failures[state.failure ?? 'install'] }
+    /* HeightLab（2026-10-22）：壳回传的具体原因优先于通用文案。
+     * 用户实测「更新失败 → 重试更新」反复循环，实际是「磁盘空间不足
+     * （当前可用约 7GB，更新需要至少 8GB）」——那句话就藏在 state.message
+     * 里，不显示出来等于让用户猜。 */
+    const reason = state.message?.replace(/^更新失败：/, '').trim()
+    return {
+      label,
+      detail: reason !== undefined && reason !== ''
+        ? reason
+        : failures[state.failure ?? 'install'],
+    }
   }
   if (state.phase === 'downloading' && state.version !== undefined) {
     return { label, detail: t('desktop.update.downloadDetail', { percent: state.percent ?? 0, version: state.version }) }

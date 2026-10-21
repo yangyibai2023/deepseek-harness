@@ -34,11 +34,16 @@ function tauriUpdateBridge(): DesktopUpdateBridge | undefined {
       case 'available':
         return { phase: 'available', ...(version === undefined ? {} : { version }) }
       case 'installing':
-        return { phase: 'downloading', percent: s.progress, ...(version === undefined ? {} : { version }) }
+        return {
+          phase: 'downloading', percent: s.progress,
+          ...(version === undefined ? {} : { version }),
+          ...(s.message === null ? {} : { message: s.message }),
+        }
       case 'done':
         return { phase: 'ready', ...(version === undefined ? {} : { version }) }
       case 'error':
-        return { phase: 'error', failure: 'check' }
+        // 带上壳返回的具体原因（磁盘不足/网络/签名），否则用户只看到「重试更新」
+        return { phase: 'error', failure: 'check', ...(s.message === null ? {} : { message: s.message }) }
       // idle / current：没有可展示的状态，指示器应隐藏。
       default:
         return undefined
