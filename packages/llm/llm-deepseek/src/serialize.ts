@@ -1,7 +1,7 @@
 /** Map system snapshots, tool changes, and conversation turns to Messages using the configured route capability. */
 
 import { LlmError, requestImageHandleText } from '@deepseek-ai/dsh-llm'
-import type { ContentBlock, GenerateOptions, ImageAttachmentAccessResolver, Message, RequestMessage } from '@deepseek-ai/dsh-llm'
+import type { ContentBlock, GenerateOptions, ImageAttachmentAccessResolver, Message, RequestMessage, ToolResultMessage } from '@deepseek-ai/dsh-llm'
 import type { ImageAttachmentRef, RequestImageAttachment } from '@deepseek-ai/dsh-attachment'
 import type { DeepSeekConnectionOptions as Connection } from './types.ts'
 import type { DeepSeekFileId } from './file-id.ts'
@@ -76,6 +76,34 @@ export function serialize(
         : { type: 'image', source: { type: 'file', file_id: fileId } },
     ]
   })
+  /* HeightLab（2026-10-21）：工具结果里的图片必须**提到 tool_result 之外**同层发送。
+   *
+   * 实测（api.heightlabai.com 网关，deepseek-flash）同一张 1024² PNG：
+   *   · 作为 user 消息顶层 image 块 → 653 input tokens（按像素计费，正确）
+   *   · 放在 tool_result.content 里       → 760,438 input tokens（当文本计，1107 倍）
+   * `read_image` 的结果正是走 tool_result，于是每看一张 1MB 图就吃掉 76 万 token，
+   * 两张即超出 1M 上下文窗口，用户看到「超出模型执行范围」。
+   *
+   * 修法只在**线格式**上做：tool_result 只保留文本，图片紧随其后成为同一条
+   * user 消息的顶层 image 块。历史、事件、模型可见内容都不变，因此重放、
+   * 会话记录与 offload 选择都不受影响。
+   */
+  const toolResult = (message: ToolResultMessage, encode: (blocks: readonly ContentBlock[]) => WireInput[]): WireBlock[] => {
+    const images = message.content.filter(block => block.type === 'image')
+    const rest = message.content.filter(block => block.type !== 'image')
+    const resultContent = encode(rest)
+    const result: WireBlock = {
+      type: 'tool_result',
+      tool_use_id: message.toolCallId,
+      // 图片被提走后可能什么都不剩；空 content 会被协议拒绝，补一句说明，
+      // 同时让模型知道结果里有图片（图片块本身紧随其后）。
+      content: resultContent.length === 0
+        ? [{ type: 'text', text: '(image result; see the attached image)' }]
+        : resultContent,
+      ...message.isError === undefined ? {} : { is_error: message.isError },
+    }
+    return images.length === 0 ? [result] : [result, ...encode(images)]
+  }
   const messages: WireMessage[] = []
   let historySystem: string | undefined
   const systemUpdates: WireMessage[] = []
@@ -118,7 +146,7 @@ export function serialize(
     const content: WireBlock[] = message.role === 'assistant'
       ? assistant(message, options.model, onReplayDegrade)
       : message.role === 'tool'
-        ? [{ type: 'tool_result', tool_use_id: message.toolCallId, content: input(message.content), ...message.isError === undefined ? {} : { is_error: message.isError } }]
+        ? toolResult(message, input)
         : message.content.flatMap((block): WireBlock[] => input([block]))
     if (message.role === 'user' && content.length === 0) continue
     const wireRole = message.role === 'tool' ? 'user' : message.role

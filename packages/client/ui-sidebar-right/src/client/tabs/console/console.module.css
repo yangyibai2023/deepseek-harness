@@ -1,9 +1,19 @@
-/* 创作控制台：黑白灰原生风，分区编号卡片式布局（2026-09-18 重设计）。 */
+/* 创作控制台：黑白灰原生风，分区编号卡片式布局（2026-09-18 重设计）。
+ *
+ * 滚动归内容自己管：父级 tabBody 是 `height:100%; overflow:hidden`，只负责
+ * 撑满面板并裁掉溢出。复刻控制台字段少、此前勉强不超；模板工作台（13 族
+ * 8–14 字段）一打开就超出，被裁掉的部分既看不见也滚不到
+ * （2026-10-21 Windows 干净机器实测「右侧边栏无法上下滑动」）。 */
 .console {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: 8px;
+  box-sizing: border-box;
+  min-height: 0;
   padding: 12px 12px 14px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   font-size: 12px;
   color: #1a1a1a;
 }

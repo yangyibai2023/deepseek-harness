@@ -108,6 +108,30 @@ export function shortName(name: string): string {
 }
 
 /**
+ * HeightLab（2026-10-21 用户拍板）：「表面上做封装，底层逻辑什么都不变」。
+ *
+ * 插件页的标题/描述是**各插件 package.json 里原样写的**，社区插件普遍带
+ * `DSH`、`DeepSeek Harness` 字样（如 "Better Sidebar for DSH — …"）。
+ * 用户看到的是自己买的产品，不该被上游/社区的名词打扰。
+ *
+ * 这里只做**显示层**替换：不改任何包、不改存储、不改设置键名。
+ * 顺序有讲究：先替换最长的短语，避免 "DeepSeek Harness" 被拆成两段。
+ */
+const BRAND_REPLACEMENTS: ReadonlyArray<readonly [RegExp, string]> = [
+  [/DeepSeek Harness/giu, 'HeightLab'],
+  [/\bDSH\b/gu, 'HeightLab'],
+  [/\bdsh\b/gu, 'HeightLab'],      // 小写出现在描述句子里（"inside dsh"）
+  [/DS Bot/gu, '智能体团队'],        // ds-bot 的产品名，用户已改叫这个
+]
+
+/** Replace upstream product names in a user-visible string. Non-matching text passes through untouched. */
+function brandText(value: string): string {
+  let out = value
+  for (const [pattern, replacement] of BRAND_REPLACEMENTS) out = out.replace(pattern, replacement)
+  return out
+}
+
+/**
  * Resolve installed package metadata without changing its technical identity.
  * @param pkg - package identity and local metadata.
  * @param resolveText - current-locale package text resolver.
@@ -116,9 +140,11 @@ export function shortName(name: string): string {
 export function packageText(
   pkg: Pick<PackageView, 'name' | 'meta'>, resolveText: PluginManagerFace['resolveText'],
 ): { title: string; description: string | undefined; beta: boolean } {
+  const title = pkg.meta?.title === undefined ? pkg.name : resolveText(pkg.meta.title)
+  const description = pkg.meta?.description === undefined ? undefined : resolveText(pkg.meta.description) || undefined
   return {
-    title: pkg.meta?.title === undefined ? pkg.name : resolveText(pkg.meta.title),
-    description: pkg.meta?.description === undefined ? undefined : resolveText(pkg.meta.description) || undefined,
+    title: brandText(title),
+    description: description === undefined ? undefined : brandText(description),
     beta: pkg.name.startsWith('@deepseek-ai/dsh-experimental-'),
   }
 }
@@ -132,9 +158,11 @@ export function packageText(
 export function rowText(
   row: Pick<PackageRow, 'moduleName' | 'meta'>, resolveText: PluginManagerFace['resolveText'],
 ): { title: string; description: string | undefined } {
+  const title = row.meta?.title === undefined ? row.moduleName : resolveText(row.meta.title)
+  const description = row.meta?.description === undefined ? undefined : resolveText(row.meta.description) || undefined
   return {
-    title: row.meta?.title === undefined ? row.moduleName : resolveText(row.meta.title),
-    description: row.meta?.description === undefined ? undefined : resolveText(row.meta.description) || undefined,
+    title: brandText(title),
+    description: description === undefined ? undefined : brandText(description),
   }
 }
 
