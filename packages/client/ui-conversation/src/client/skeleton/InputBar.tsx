@@ -227,12 +227,42 @@ export const InputBar = memo(function InputBar({
       // insertText 是 revision 守卫的：草稿在这期间被改过就放弃，不覆盖用户输入。
       if (inputActions.insertText(insertion, span)) focusLater()
     }
+    /**
+     * HeightLab 2026-10-21：模板芯片——「聊天」按钮把模板作为**已选中的对象**
+     * 放进输入框，而不是把内部指令原文灌进草稿。
+     *
+     * 用户只看到模板名（如「中文爽剧带货」）；发送时序列化为 detail.prompt
+     * （完整执行指令，含 skill 路径）。这样商业版界面上不会出现
+     * `heightlab-studio-router` / `~/.heightlab/yunj-skills/...` 这类内部细节。
+     *
+     * 为什么走芯片而不是 setDraft：芯片是整体不可分割的实体（删除即整块删），
+     * 用户可以接着在后面补充需求，两者一起发送。这正是「选中一个东西」的语义。
+     */
+    const insertTemplateChip = (event: Event): void => {
+      const detail = (event as CustomEvent<{ label?: unknown; prompt?: unknown; skill?: unknown }>).detail
+      const label = typeof detail.label === 'string' ? detail.label.trim() : ''
+      const prompt = typeof detail.prompt === 'string' ? detail.prompt : ''
+      if (label === '' || prompt === '') return
+      const skill = typeof detail.skill === 'string' ? detail.skill : label
+      // 草稿清空后插入芯片，保证「刚点模板」时输入框里只有这一个胶囊。
+      inputActions.setDraft('')
+      inputActions.insertChip({
+        source: 'heightlab-template',
+        ref: skill,
+        label,
+        appearance: 'file',
+        clipboardText: prompt,
+      })
+      focusLater()
+    }
     window.addEventListener('hl:fill-draft', fill)
     window.addEventListener('hl:send-template', send)
+    window.addEventListener('hl:insert-template-chip', insertTemplateChip)
     window.addEventListener('hl:insert-reference', insertReference)
     return () => {
       window.removeEventListener('hl:fill-draft', fill)
       window.removeEventListener('hl:send-template', send)
+      window.removeEventListener('hl:insert-template-chip', insertTemplateChip)
       window.removeEventListener('hl:insert-reference', insertReference)
     }
   }, [inputActions, draft, editor])

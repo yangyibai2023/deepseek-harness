@@ -249,6 +249,16 @@ export interface InputActions {
   insertText(text: string, span: TokenSpan): boolean
   /** Replace the whole draft with plain text, removing inline reference chips. */
   setDraft(text: string): void
+  /**
+   * Insert one inline reference chip at the caret (2026-10-21).
+   *
+   * 界面只显示 `label`，发送时序列化为 `clipboardText`。用于「把模板作为
+   * 已选中的对象放进输入框」——用户看到模板名，模型收到完整执行指令，
+   * 不暴露内部 skill 路径。
+   * @param ref - chip identity and the two projections.
+   * @returns false when the draft is locked or the caret moved meanwhile.
+   */
+  insertChip(ref: ReferenceInsert): boolean
   /** Write the current semantic document through the mounted persistence callback. */
   persistDraft(): void
   /** Append ordered browser-owned attachment ids; busy admission phases refuse. */

@@ -80,10 +80,13 @@ export function HeightLabVideoGrid() {
    * 注入草稿（InputBar 已监听），用户可再补充需求后自行发送。
    */
   const useTemplateInChat = (item: typeof VIDEO_CATALOG[number]): void => {
+    // 芯片只显示模板名；prompt 是发送时替换进去的完整指令（用户不可见）。
     const prompt = `请使用创作模板「${item.name}」`
       + `（skill：${item.skill}，可读取 ~/.heightlab/yunj-skills/${item.skill}/SKILL.md 全文），`
       + '严格按该模板的工作流与产出规范执行我的任务：\n'
-    window.dispatchEvent(new CustomEvent('hl:fill-draft', { detail: { text: prompt } }))
+    window.dispatchEvent(new CustomEvent('hl:insert-template-chip', {
+      detail: { label: item.name, prompt, skill: item.skill },
+    }))
   }
 
   /** 「面板」：原整卡点击行为——右侧打开该模板的专属操作面板。 */

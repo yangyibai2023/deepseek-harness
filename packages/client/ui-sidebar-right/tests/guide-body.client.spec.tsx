@@ -31,7 +31,8 @@ const standard: GlobalStandardProps & SessionStandardProps = {
   useInput: unused, useChat: unused, useTrajectory: unused,
   usePanelInfo: unused, useSessions: unused, useSessionStatus: unused,
   useSessionRetainInfo: unused, useResource: unused, useWorkspaces: unused,
-  inputActions: { captureInsertion: unused, insertText: unused, setDraft: unused, persistDraft: unused,
+  inputActions: { captureInsertion: unused, insertText: unused, setDraft: unused,
+    insertChip: unused, persistDraft: unused,
     addAttachments: unused, removeAttachment: unused, pruneAttachments: unused, submit: unused },
 }
 
