@@ -1,5 +1,12 @@
 /* popupSelect uses the same compact translucent card as the shared Menu. */
 
+/* HeightLab（2026-10-22）：方向由 placeOverlay 判定，TSX 写 inline top/bottom。
+   这里保留 data-side 作为样式钩子（也用于门禁识别「有方向切换」）。 */
+.card[data-side='bottom'] {
+  /* 向下展开时由 TSX 的 inline top 接管，抵消默认的 bottom 定位。 */
+  bottom: auto;
+}
+
 .card {
   /* The overlay anchor is a zero-height strip on the composer card's top
      edge; entries float themselves above it (same rule as MenuView). */

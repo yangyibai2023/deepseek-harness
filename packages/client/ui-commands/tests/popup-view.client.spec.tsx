@@ -227,16 +227,37 @@ describe('PopupSelectView', () => {
     expect(scrollIntoView.mock.instances.at(-1)).toBe(options[2])
   })
 
-  it('caps the card height at the design maximum when the composer sits low enough', async () => {
-    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({ bottom: 800 } as DOMRect)
+  /* HeightLab（2026-10-22）：卡片高度不再一律按「上方空间」算。
+   *
+   * 原实现假定卡片永远向上展开，于是高度恒等于「锚点 top − 顶部边距」。
+   * 现在由 overlayPlacement.placeOverlay 先决定方向：下方放得下就向下
+   * （用下方空间），放不下才翻上去（用上方空间）。这两个用例跟着改成
+   * 断言**方向 + 该方向的可用高度**，而不是旧的单向公式。
+   *
+   * 完整的方向矩阵在 ui-primitives/tests/overlay-placement.client.spec.ts
+   * （17 项），这里只验 PopupSelectView 的接线是否正确。 */
+
+  it('opens downward with the full design cap when the composer sits high', async () => {
+    // 锚点在视口上方，下方空间充裕 → 向下展开、用满 320px。
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+      top: 100, bottom: 180, height: 80, left: 0, right: 600, width: 600, x: 0, y: 100,
+    } as DOMRect)
     await mountOpen()
-    expect(screen.getByLabelText('/theme 选项').style.maxHeight).toBe('320px')
+    const card = screen.getByLabelText('/theme 选项')
+    expect(card.dataset.side).toBe('bottom')
+    expect(card.style.maxHeight).toBe('320px')
   })
 
-  it('clamps the card height to the space above the composer minus the safe margin', async () => {
-    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({ bottom: 200 } as DOMRect)
+  it('flips upward when there is no room below', async () => {
+    // 锚点贴底：下方只剩几十像素 → 翻到上方，并用上方空间限高。
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+      top: 620, bottom: 700, height: 80, left: 0, right: 600, width: 600, x: 0, y: 620,
+    } as DOMRect)
     await mountOpen()
-    expect(screen.getByLabelText('/theme 选项').style.maxHeight).toBe('188px')
+    const card = screen.getByLabelText('/theme 选项')
+    expect(card.dataset.side).toBe('top')
+    // 上方可用 = 620 − 12 − 4 = 604 → 取设计上限 320
+    expect(card.style.maxHeight).toBe('320px')
   })
 
   it('Enter accepts the parked highlight — the current value on open — then consumes, closes, and refocuses', async () => {

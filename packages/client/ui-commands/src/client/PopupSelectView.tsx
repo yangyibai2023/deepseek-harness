@@ -11,10 +11,12 @@
  * above the composer.
  */
 import { MenuGroup, MenuSurface, observeStickyMenuGroups } from '@deepseek-ai/dsh-client-ui-primitives'
-import { Fragment, useEffect, useMemo, useRef } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useSyncExternalStore } from 'react'
 import clsx from 'clsx'
-import { IconCheckOutlineRegular, RiskConfirmation, useAnchoredMaxHeight } from '@deepseek-ai/dsh-client-ui-primitives'
+import {
+  IconCheckOutlineRegular, RiskConfirmation, overlayTopMargin, placeOverlay, toRectLike,
+} from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { filterOptions } from './popup.ts'
 import type { SelectOption } from './contract.ts'
@@ -55,9 +57,65 @@ export function PopupSelectView({ popup, t }: PopupSelectViewProps) {
     if (viewport === null) return
     return observeStickyMenuGroups(viewport)
   }, [state.open, state.status, state.confirming, groups])
-  // The card is bottom-anchored above the composer; clamp the design cap to
-  // the space above it, re-measured on every store update.
-  const maxHeight = useAnchoredMaxHeight(cardRef, MAX_HEIGHT, state)
+  /* HeightLab（2026-10-22 用户要求统一）：方向与限高都由 placeOverlay 决定。
+   *
+   * 原先 `useAnchoredMaxHeight` 假定卡片**向上**展开（底边固定），CSS 也是
+   * `bottom: calc(100% + 4px)`。输入框在屏幕上方时（比如小窗、或用户把窗口
+   * 拖到底部），卡片仍然往上长，直接顶出视口顶部 —— 它只会「压低高度」，
+   * 从不换个方向。
+   *
+   * 现在先量锚点（最近的带尺寸祖先 = 输入框卡片），由 placeOverlay 决定
+   * 朝上还是朝下，并给出该方向下的真实可用高度。 */
+  const [placement, setPlacement] = useState<{
+    side: 'top' | 'bottom'
+    maxHeight: number
+    anchorHeight: number
+  }>({ side: 'top', maxHeight: MAX_HEIGHT, anchorHeight: 0 })
+
+  useLayoutEffect(() => {
+    if (!state.open) return
+    const place = (): void => {
+      // 锚点 = 最近的带尺寸祖先（跳过零尺寸 overlayAnchor 包装层）。
+      let node: HTMLElement | null = cardRef.current?.parentElement ?? null
+      while (node !== null) {
+        const r = node.getBoundingClientRect()
+        if (r.width > 0 && r.height > 0) {
+          const p = placeOverlay({
+            anchor: toRectLike(r),
+            panel: { width: 0, height: 0 },
+            viewport: { width: window.innerWidth, height: window.innerHeight },
+            side: 'top',
+            align: 'start',
+            gap: 4,
+            margin: 12,
+            topClearance: overlayTopMargin(12),
+            maxHeight: MAX_HEIGHT,
+          })
+          setPlacement((prev) => {
+            const next = {
+              side: p.side === 'bottom' ? 'bottom' as const : 'top' as const,
+              maxHeight: p.maxHeight ?? MAX_HEIGHT,
+              // 朝上时要抬过整张卡片（锚点钉在卡片底边）。
+              anchorHeight: r.height,
+            }
+            return prev.side === next.side && prev.maxHeight === next.maxHeight
+              && prev.anchorHeight === next.anchorHeight ? prev : next
+          })
+          return
+        }
+        node = node.parentElement
+      }
+    }
+    place()
+    window.addEventListener('resize', place)
+    window.addEventListener('scroll', place, true)
+    return () => {
+      window.removeEventListener('resize', place)
+      window.removeEventListener('scroll', place, true)
+    }
+  }, [state.open, state])
+
+  const maxHeight = placement.maxHeight
   const active = state.open ? state.active : null
 
   // The search input keeps focus while arrows move a virtual highlight, so
@@ -156,7 +214,11 @@ export function PopupSelectView({ popup, t }: PopupSelectViewProps) {
         <MenuSurface
           ref={cardRef}
           className={css.card}
-          style={{ maxHeight }}
+          data-side={placement.side}
+          style={placement.side === 'top'
+            // 朝上：抬过整张输入框卡片（锚点钉在其底边）。
+            ? { maxHeight, top: 'auto', bottom: placement.anchorHeight + 4 }
+            : { maxHeight, top: placement.anchorHeight + 4, bottom: 'auto' }}
           aria-label={t('overlay.aria', { command: String(state.command) })}
           onKeyDown={onKeyDown}
         >

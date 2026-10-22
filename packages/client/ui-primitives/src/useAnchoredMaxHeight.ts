@@ -1,8 +1,16 @@
 /**
- * Viewport-fit hook for bottom-anchored overlays (slash menu, popupSelect):
- * the element's bottom edge is laid out independent of its height, so it
- * grows upward and only the top edge can collide with the viewport — clamp
- * the design cap to the space between that edge and the viewport top.
+ * Viewport-fit hook for **bottom-anchored** overlays: the element's bottom edge
+ * is laid out independent of its height, so it grows upward and only the top
+ * edge can collide with the viewport — clamp the design cap to the space
+ * between that edge and the viewport top.
+ *
+ * @deprecated 2026-10-22：**不再有生产代码使用**，且它是「浮层溢出」那类
+ * bug 的根源 —— 它把「浮层向上展开」写死成前提。浮层一旦改成向下展开，
+ * 元素底边会随高度一起增长，可用空间算出来恒等于视口高，maxHeight 永远
+ * 等于设计上限（实测菜单因此溢出 327px）。
+ *
+ * 改用 {@link placeOverlay}：它按实际方向计算可用空间，并给出 flip/shift/
+ * 限高三件套。这个 hook 仅保留给「确定向上生长」的静态面板，新代码勿用。
  */
 import { useLayoutEffect, useState } from 'react'
 import type { RefObject } from 'react'

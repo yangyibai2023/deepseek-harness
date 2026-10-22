@@ -24,6 +24,17 @@
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
 }
 
+/* HeightLab（2026-10-22）：非 portal 模式的方向切换。
+ *
+ * portal 模式由 placeOverlay 写 inline 坐标，这里只管非 portal：默认向下
+ * （top: 100%+4px），Menu.tsx 在判定放不下时给卡片加 data-flip-up，改为向上。
+ * 注意 CSS 这条路径无法限高（它没有 JS 测量），所以需要精确几何的浮层
+ * 一律走 portal。 */
+.list[data-flip-up] {
+  top: auto;
+  bottom: calc(100% + 4px);
+}
+
 /* Primary cards grow with their content between compact and readable bounds. */
 .list {
   position: absolute;

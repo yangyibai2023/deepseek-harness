@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import clsx from 'clsx'
 import { IconCheckOutlineRegular, IconChevronRightOutlineRegular } from './icons/index.tsx'
 import { overlayTopMargin } from './overlay-top-margin.ts'
+import { placeOverlay, toRectLike } from './overlayPlacement.ts'
 import { usePointerGrace } from './pointer-grace.ts'
 import { isBehindModal } from './useModalLayer.ts'
 import { observeComposition } from './keyboard-composition.ts'
@@ -115,6 +116,14 @@ function isLabel(entry: MenuEntry): entry is MenuLabel {
 
 /** Unplaced portal list: hidden but laid out at a fixed origin so offsetWidth/offsetHeight are real. */
 const MEASURE_STYLE: CSSProperties = { visibility: 'hidden', left: 0, top: 0 }
+/** 子菜单未定位前的占位（同样先量尺寸再定位，避免首帧闪到屏幕外）。 */
+const SUBMENU_MEASURE_STYLE: CSSProperties = { visibility: 'hidden', left: 0, top: 0 }
+/** 子菜单设计上限（与 `.submenu` 的 CSS max-height 一致）。 */
+const SUBMENU_MAX_HEIGHT = 320
+/** 一级菜单的设计上限（与 MenuView 的 400 同量级，按内容族取最大）。 */
+const MENU_DESIGN_MAX_HEIGHT = 400
+/** 与 `.list { max-width: 360px }` 保持一致。 */
+const MENU_DESIGN_MAX_WIDTH = 360
 
 /**
  * Render an anchored dropdown menu. While the list is open its keys mirror the
@@ -254,6 +263,48 @@ export function Menu({ open, anchor, items = [], children, selectedId, selectedI
     setOpenSubmenuId(id)
   }
   const [fixedPos, setFixedPos] = useState<CSSProperties | null>(null)
+  /* 非 portal 模式的方向标记（2026-10-22）。
+   *
+   * 非 portal 的菜单由 CSS 定位（`.list { top: 100% + 4px }`），没有 JS 坐标。
+   * 但它同样会贴底溢出 —— 这里用同一套 placeOverlay 只取「方向」这一个结论，
+   * 打 `data-flip-up` 让 CSS 把 `top` 换成 `bottom`。
+   *
+   * 限高在这个路径上不可靠（没有 portal 那样跟着重算的定位循环），所以
+   * 需要精确几何的浮层仍然应该用 portal。
+   */
+  const [cssFlipUp, setCssFlipUp] = useState(false)
+  useLayoutEffect(() => {
+    if (!open || portal) { setCssFlipUp(false); return }
+    const place = (): void => {
+      const r = (getAnchorRect !== undefined ? getAnchorRect() : rootRef.current?.getBoundingClientRect()) ?? null
+      if (r === null) return
+      const listEl = listRef.current
+      const placement = placeOverlay({
+        anchor: toRectLike(r),
+        panel: { width: listEl?.offsetWidth ?? 0, height: listEl?.offsetHeight ?? 0 },
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        side: side === 'right' ? 'right' : side === 'top' ? 'top' : 'bottom',
+        align: align === 'end' ? 'end' : 'start',
+        gap: 4,
+        margin: 12,
+        topClearance: overlayTopMargin(12),
+      })
+      setCssFlipUp(placement.side === 'top')
+    }
+    place()
+    window.addEventListener('scroll', place, true)
+    window.addEventListener('resize', place)
+    return () => {
+      window.removeEventListener('scroll', place, true)
+      window.removeEventListener('resize', place)
+    }
+  }, [open, portal, side, align, getAnchorRect])
+  /* 面板限高/限宽（2026-10-22）：placeOverlay 按方向算出可用空间后回传，
+   * 不应用它的话「两侧都放不下」的场景仍会溢出。独立 state：只在真正
+   * 变化时更新，避免 rAF 跟踪里每帧 setState。 */
+  const [fixedSize, setFixedSize] = useState<{ height: number | undefined; width: number | undefined }>({
+    height: undefined, width: undefined,
+  })
   const { arm: armClose, cancel: cancelClose } = usePointerGrace(onClose)
 
   // Portal mode: fixed-position the list from the anchor rect before paint;
@@ -273,28 +324,39 @@ export function Menu({ open, anchor, items = [], children, selectedId, selectedI
       }
       if (r === null) return
       const MARGIN = 12
-      const vw = window.innerWidth
-      const vh = window.innerHeight
       const listEl = listRef.current
       const lw = listEl?.offsetWidth ?? 0
       const lh = listEl?.offsetHeight ?? 0
 
-      let x: number
-      let y: number
-      if (side === 'right') {
-        x = r.right + 4
-        y = r.top
-      } else if (align === 'start') {
-        x = r.left
-        y = side === 'bottom' ? r.bottom + 4 : r.top - lh - 4
-      } else {
-        x = r.right - lw
-        y = side === 'bottom' ? r.bottom + 4 : r.top - lh - 4
-      }
-
-      if (lw > 0) x = Math.min(Math.max(x, MARGIN), vw - lw - MARGIN)
-      if (lh > 0) y = Math.min(Math.max(y, overlayTopMargin(MARGIN)), vh - lh - MARGIN)
-
+      /* HeightLab（2026-10-22 用户要求「整个 App 所有弹出地方都不要溢」）：
+       * 这里原本**只 clamp、从不 flip** —— 面板贴在输入框下方时，clamp 会把
+       * 它硬压回视口，结果不是盖住触发器就是仍探出边界。模型选择器与思考
+       * 程度都在这一条路径上，是用户报的「向下弹出、溢出看不到了」的直接成因。
+       *
+       * 现在统一走 placeOverlay：先判定方向（下方放不下且上方更宽裕就翻），
+       * 再按最终方向限高，最后 shift 进视口。这也是全 App 唯一的方向判定。 */
+      const placement = placeOverlay({
+        anchor: toRectLike(r),
+        panel: { width: lw, height: lh },
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        side: side === 'right' ? 'right' : side === 'top' ? 'top' : 'bottom',
+        align: align === 'end' ? 'end' : 'start',
+        gap: 4,
+        margin: MARGIN,
+        // 顶部安全区沿用原有的 overlayTopMargin（框架顶栏 + 呼吸空间）。
+        topClearance: overlayTopMargin(MARGIN),
+        /* 设计上限：模型选择器这类菜单必须在这里截断，而不是让内容高度
+         * 自由增长 —— 否则「面板 484 高、下方只剩 200」会被判成放不下，
+         * 触发无意义的 flip；同时限高也保证超长列表滚动而不是溢出。 */
+        maxHeight: MENU_DESIGN_MAX_HEIGHT,
+        maxWidth: MENU_DESIGN_MAX_WIDTH,
+      })
+      const x = placement.left
+      const y = placement.top
+      // 限高：横向挂载（子菜单）用 maxHeight，纵向用 maxHeight 截断内容。
+      setFixedSize(prev => (prev.height === placement.maxHeight && prev.width === placement.maxWidth
+        ? prev
+        : { height: placement.maxHeight, width: placement.maxWidth }))
       setFixedPos(current => current?.left === x && current.top === y ? current : { left: x, top: y })
     }
     // First run measures the hidden pre-render (same commit as `open`), so
@@ -460,6 +522,73 @@ export function Menu({ open, anchor, items = [], children, selectedId, selectedI
   // scroll clip would crop it, so only submenu-free menus get the height cap.
   const scrollable = !items.some(entry => !isSeparator(entry) && !isLabel(entry) && entry.submenu !== undefined && entry.submenu.length > 0)
 
+  /* ── 子菜单定位（2026-10-22）───────────────────────────────────────────
+   *
+   * 用户报的原话：「模型选择框里的二级菜单，有时候它们就会向下弹出，导致溢出
+   * 看不到了」。根因在 CSS：`.submenu { right: calc(100% + 10px); top: -4px }`
+   * —— 永远向左弹、永远与父行顶对齐，**完全不做边界判定**。父菜单靠屏幕左缘
+   * 时二级卡片直接弹到视口外；父行贴近底部时整张卡片也探出屏幕。
+   *
+   * 改法：把二级卡片 portal 到 body，用同一套 placeOverlay 判定方向 ——
+   * 右边放不下就翻到左边，垂直方向按可用空间限高并 shift 进视口。
+   * 挂到 body 还顺带解决另一个老问题：原先它会被子菜单的滚动容器裁掉。
+   *
+   * 定位数据由 `submenuPlacement` 保存；父行的矩形在每次打开时重新量
+   * （菜单本身可能刚被父级 placeOverlay 移动过）。 */
+  const [submenuPlacement, setSubmenuPlacement] = useState<CSSProperties | null>(null)
+  const submenuAnchorRef = useRef<HTMLElement | null>(null)
+  const submenuRef = useRef<HTMLDivElement>(null)
+
+  useLayoutEffect(() => {
+    if (openSubmenuId === null) {
+      setSubmenuPlacement(null)
+      return
+    }
+    const place = (): void => {
+      const row = submenuAnchorRef.current
+      const card = submenuRef.current
+      if (row === null || card === null) return
+      const rowRect = row.getBoundingClientRect()
+      const placement = placeOverlay({
+        anchor: toRectLike(rowRect),
+        panel: { width: card.offsetWidth, height: card.offsetHeight },
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        // 子菜单惯例：挂在父行右侧；右侧放不下由算法翻到左侧。
+        side: 'right',
+        align: 'start',
+        gap: 10,
+        margin: 12,
+        topClearance: overlayTopMargin(12),
+        maxHeight: SUBMENU_MAX_HEIGHT,
+        maxWidth: 360,
+      })
+      setSubmenuPlacement(prev => (
+        prev !== null
+        && prev.left === placement.left
+        && prev.top === placement.top
+        && prev.maxHeight === placement.maxHeight
+        && prev.maxWidth === placement.maxWidth
+          ? prev
+          : {
+            left: placement.left,
+            top: placement.top,
+            // 子菜单是 fixed 定位的自绘卡片：宽高上限用 maxHeight/maxWidth。
+            ...(placement.maxHeight === undefined ? {} : { maxHeight: placement.maxHeight }),
+            ...(placement.maxWidth === undefined ? {} : { maxWidth: placement.maxWidth }),
+          }
+      ))
+    }
+    place()
+    // 跟随滚动/尺寸变化（与一级菜单同样的跟踪强度）。
+    const track = (): void => { place() }
+    window.addEventListener('scroll', track, true)
+    window.addEventListener('resize', track)
+    return () => {
+      window.removeEventListener('scroll', track, true)
+      window.removeEventListener('resize', track)
+    }
+  }, [openSubmenuId])
+
   const renderEntry = (entry: MenuEntry) => {
     if (isSeparator(entry)) {
       return <div key={entry.id} className={css.separator} role="separator" />
@@ -474,6 +603,7 @@ export function Menu({ open, anchor, items = [], children, selectedId, selectedI
       <div
         key={entry.id}
         className={css.itemWrap}
+        ref={hasSub && subOpen ? (node) => { submenuAnchorRef.current = node?.querySelector('button') ?? null } : undefined}
         onMouseEnter={hasSub ? () => { openSubmenuNow(entry.id) } : closeSubmenuSoon}
         onMouseLeave={hasSub ? closeSubmenuSoon : undefined}
       >
@@ -503,8 +633,14 @@ export function Menu({ open, anchor, items = [], children, selectedId, selectedI
           {/* Selection marker is a trailing check (figma .Menu_cell) unless the fill mode carries it. */}
           {selected && selection === 'check' && <IconCheckOutlineRegular className={css.check} />}
         </button>
-        {subOpen && entry.submenu !== undefined && (
-          <MenuSurface compact={compact} className={clsx(css.submenu, compact && css.compactList)} role="menu">
+        {subOpen && entry.submenu !== undefined && createPortal(
+          <MenuSurface
+            ref={submenuRef}
+            compact={compact}
+            className={clsx(css.submenu, css.submenuPortal, compact && css.compactList)}
+            style={submenuPlacement ?? SUBMENU_MEASURE_STYLE}
+            role="menu"
+          >
             {/* HeightLab（2026-10-18）：滚动放内层——外层卡片不滚，材质层
                 （.material，absolute）才能始终覆盖可视区；否则滚到底玻璃消失。 */}
             <div className={css.submenuBody}>
@@ -524,7 +660,8 @@ export function Menu({ open, anchor, items = [], children, selectedId, selectedI
                 </button>
               ))}
             </div>
-          </MenuSurface>
+          </MenuSurface>,
+          document.body,
         )}
       </div>
     )
@@ -549,7 +686,14 @@ export function Menu({ open, anchor, items = [], children, selectedId, selectedI
     <MenuSurface compact={compact}
       ref={listRef}
       className={clsx(css.list, listClassName, dense && css.denseList, compact && css.compactList, scrollable && css.scrollable, portal && css.portal, side === 'top' && !portal && css.sideTop, align === 'end' && !portal && css.alignEnd)}
-      style={portal ? fixedPos ?? MEASURE_STYLE : undefined}
+      data-flip-up={(cssFlipUp || side === 'top') && !portal ? '' : undefined}
+      style={portal
+        ? {
+          ...(fixedPos ?? MEASURE_STYLE),
+          ...(fixedSize.height === undefined ? {} : { maxHeight: fixedSize.height }),
+          ...(fixedSize.width === undefined ? {} : { maxWidth: fixedSize.width }),
+        }
+        : undefined}
       role="menu"
       // React portals bubble synthetic events through the REACT tree: without
       // this stop, an item click re-fires the anchor row's own onClick

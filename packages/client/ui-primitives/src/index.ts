@@ -29,6 +29,13 @@ export type { MenuSurfaceProps } from './MenuSurface.tsx'
 export { MenuGroup, observeStickyMenuGroups } from './MenuGroup.tsx'
 export type { MenuItemButtonProps, MenuEntry, MenuItem, MenuSeparator, MenuLabel } from './Menu.tsx'
 export { useAnchoredMaxHeight } from './useAnchoredMaxHeight.ts'
+export { overlayTopMargin } from './overlay-top-margin.ts'
+export {
+  placeOverlay, measureAnchorAbove, toRectLike,
+  OVERLAY_MARGIN,
+  type Placement, type PlacementSide, type PlacementAlign,
+  type PlaceOptions, type RectLike, type ViewportLike,
+} from './overlayPlacement.ts'
 export { useAnchoredPosition } from './useAnchoredPosition.ts'
 export type { AnchoredPositionOptions } from './useAnchoredPosition.ts'
 export { useDismissOnOutsidePointer } from './useDismissOnOutsidePointer.ts'

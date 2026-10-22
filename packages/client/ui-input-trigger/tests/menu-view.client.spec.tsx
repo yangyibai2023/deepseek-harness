@@ -236,7 +236,7 @@ describe('MenuView', () => {
   })
 
   /* HeightLab（2026-10-22）：菜单改为向下展开后，几何全部由
-     `src/client/menuPlacement.ts` 的纯函数决定（该文件有独立的 10 项单测）。
+     公共 `ui-primitives/overlayPlacement.ts` 决定（该文件有 17 项独立单测）。
      这三个用例原先断言「高度 = 元素自身 rect.bottom − 顶部边距」，那是
      *向上展开* 的语义；向下展开后元素底边随高度增长会形成自反馈，所以
      改为断言方向、可用高度与翻转偏移。 */

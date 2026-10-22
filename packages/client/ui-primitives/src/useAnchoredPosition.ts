@@ -12,6 +12,7 @@
 
 import { useLayoutEffect, useState, type CSSProperties, type RefObject } from 'react'
 import { overlayTopMargin } from './overlay-top-margin.ts'
+import { placeOverlay, toRectLike } from './overlayPlacement.ts'
 
 /** Inputs for {@link useAnchoredPosition}. */
 export interface AnchoredPositionOptions {
@@ -53,32 +54,28 @@ export function useAnchoredPosition(options: AnchoredPositionOptions): CSSProper
       const panel = panelRef.current
       const width = panel?.offsetWidth ?? 0
       const height = panel?.offsetHeight ?? 0
-      const topLimit = overlayTopMargin(margin)
-      const bottomLimit = window.innerHeight - margin
 
-      /* HeightLab（2026-10-22）：真正的 flip，而不是只把位置压回视口。
+      /* HeightLab（2026-10-22 用户要求统一）：所有浮层共用一套方向判定。
        *
-       * 原实现只用 clamp：面板放在触发器的 `side` 一侧，溢出就硬压回边界。
-       * 触发器等在屏幕下半部时（Windows 上输入框里的模型选择器就是），
-       * 压回来会让面板盖住触发器、或仍探出视口，用户看到的就是「向下弹出、
-       * 溢出屏幕」。
+       * 这个 hook 原本自己实现了一份 flip，但只比「上下哪边空间大」，
+       * **没有限高** —— 面板比可用空间高时照样溢出。现在委托给
+       * overlayPlacement.placeOverlay，与 Menu portal 模式、@ 菜单、
+       * 子菜单完全同源：先 flip、再按最终方向限高、最后 shift。
        *
-       * 这里按业界通行规则（等价 Floating UI 的 flip + shift）分两步：
-       *   1) flip —— 首选侧放不下、而另一侧放得下时，翻到另一侧；
-       *   2) shift —— 两侧都放不下时，保留首选侧并整体平移进视口。
-       * 只在真有测量值时判定（height/width > 0），首帧量与 jsdom 都不受影响。 */
-      const fitsBelow = height > 0 ? rect.bottom + gap + height <= bottomLimit : true
-      const fitsAbove = height > 0 ? rect.top - gap - height >= topLimit : true
-      let resolved = side
-      if (side === 'bottom' && !fitsBelow && fitsAbove) resolved = 'top'
-      else if (side === 'top' && !fitsAbove && fitsBelow) resolved = 'bottom'
-
-      let left = align === 'end' ? rect.right - width : rect.left
-      let top = resolved === 'top' ? rect.top - gap - height : rect.bottom + gap
-      if (width > 0) left = Math.min(Math.max(left, margin), window.innerWidth - width - margin)
-      if (height > 0) top = Math.min(Math.max(top, topLimit), bottomLimit - height)
+       * 消费点（9 处）无需改动：返回结构仍是 `{ left, top }`。
+       * 限高由调用方按需自行应用（它们各自的 CSS 已有 max-height）。 */
+      const placement = placeOverlay({
+        anchor: toRectLike(rect),
+        panel: { width, height },
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        side,
+        align,
+        gap,
+        margin,
+        topClearance: overlayTopMargin(margin),
+      })
       /* v8 ignore stop */
-      setPosition({ left, top })
+      setPosition({ left: placement.left, top: placement.top })
     }
     // The first run measures the panel in the same commit that opened it, so
     // the clamp uses real dimensions before anything paints.

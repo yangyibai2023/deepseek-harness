@@ -19,7 +19,20 @@ import { IconChevronRightOutlineRegular, ReferenceIconRegular } from '@deepseek-
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import css from './MenuView.module.css'
 import type { MenuViewInjected } from './slots.ts'
-import { MENU_MAX_HEIGHT, resolveMenuPlacement, type MenuPlacement } from './menuPlacement.ts'
+
+/* HeightLab：这几个常量只用于「把公共算法的结果换算成 CSS 的 top/bottom」
+ * 以及与 MenuView.module.css 的间隙保持一致，不再是方向判定本身。 */
+const MENU_MAX_HEIGHT = 400
+const MENU_GAP = 4
+const FALLBACK_MARGIN = 12
+const TOP_MARGIN = 84
+
+interface MenuPlacement {
+  flipUp: boolean
+  offset: number
+  maxHeight: number
+}
+import { placeOverlay, toRectLike } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { MenuKey } from './locales.ts'
 
 /** Full menu props: injected face + the locale seat. */
@@ -103,11 +116,30 @@ export function MenuView({ menu, headers, onPick, onCrumb, onHover, onDismiss, t
     const place = (): void => {
       const rect = measure()
       if (rect === undefined) return
-      /* 具体数值全在纯函数里算（可单测）。这里只负责量 DOM。 */
-      const next = resolveMenuPlacement({
-        anchor: { top: rect.top, bottom: rect.bottom, height: rect.height },
-        viewportHeight: window.innerHeight,
+      /* HeightLab（2026-10-22 用户要求「全 App 统一定位」）：几何交给公共
+       * 算法。原先这里自己写了一份 flip，与 Menu/useAnchoredPosition 各自
+       * 一份，三套阈值与边界各不相同 —— 一处修好另一处仍会犯。
+       *
+       * 锚点钉在输入框卡片底边（height 为 0 的 overlayAnchor），所以：
+       *   · 向下展开：菜单 top 直接贴卡片底边 + 间隙（CSS 的 `top: 100%+4px`）
+       *   · 向上展开：bottom 要抬过整张卡片高度
+       * placeOverlay 给出方向与限高，这里再换算成 CSS 的 top/bottom。 */
+      const p = placeOverlay({
+        anchor: toRectLike(rect),
+        panel: { width: 0, height: 0 },
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        side: 'bottom',
+        align: 'start',
+        gap: MENU_GAP,
+        margin: FALLBACK_MARGIN,
+        topClearance: TOP_MARGIN,
+        maxHeight: MENU_MAX_HEIGHT,
       })
+      const next: MenuPlacement = {
+        flipUp: p.side === 'top',
+        offset: p.side === 'top' ? rect.height + MENU_GAP : 0,
+        maxHeight: p.maxHeight ?? MENU_MAX_HEIGHT,
+      }
       // 只在真的变了才 setState：place() 挂在 scroll/resize 上，高频触发。
       setPlacement(previous => (
         previous.flipUp === next.flipUp
