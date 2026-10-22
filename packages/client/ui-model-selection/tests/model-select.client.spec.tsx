@@ -83,11 +83,14 @@ function mount(overrides: Partial<ModelDirectoryState> = {}, select = vi.fn().mo
   return { select, directory }
 }
 
-/** 打开面板并进入第一个供应商。 */
-function openProvider(): void {
+/**
+ * 打开面板。
+ *
+ * 2026-10-22 三次校准后一级面板直接就是「当前厂商详情」：
+ * 顶部厂商行 + 型号列表 + 思考强度滑块。所有供应商在二级（点厂商行展开）。
+ */
+function openPanel(): void {
   fireEvent.click(screen.getByRole('button', { name: /选择模型|选择模型，当前/ }))
-  const provider = screen.getByRole('menuitem', { name: /DeepSeek/ })
-  fireEvent.click(provider)
 }
 
 describe('ModelSelect 单触发与根层', () => {
@@ -99,23 +102,36 @@ describe('ModelSelect 单触发与根层', () => {
     expect(screen.queryByRole('button', { name: /思考程度，当前/ })).toBeNull()
   })
 
-  it('opens to a provider list, not the old three-row entry menu', () => {
+  it('opens to the current provider detail, with models and the effort slider', () => {
     mount()
     fireEvent.click(screen.getByRole('button', { name: /选择模型/ }))
     expect(screen.getByRole('menu')).toBeTruthy()
-    // 根层直接是供应商（DeepSeek 出现在菜单里）
-    expect(screen.getByRole('menuitem', { name: /DeepSeek/ })).toBeTruthy()
+    // 一级：顶部是当前厂商行（DeepSeek），下面直接是型号
+    expect(screen.getByRole('button', { name: /切换厂商，当前 DeepSeek/ })).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: /DeepSeek-V4-Flash/ })).toBeTruthy()
+    expect(screen.getByRole('slider')).toBeTruthy()
     // 旧入口行已不存在
     expect(screen.queryByRole('menuitem', { name: /^模式/ })).toBeNull()
     expect(screen.queryByRole('menuitem', { name: /^推理等级/ })).toBeNull()
   })
 
-  it('marks the provider holding the current model', () => {
+  it('shows the current provider at the top of the panel', () => {
     mount()
     fireEvent.click(screen.getByRole('button', { name: /选择模型/ }))
-    const row = screen.getByRole('menuitem', { name: /DeepSeek/ })
-    // 当前型号属于该供应商 → 行内有勾选图标（svg），而非右箭头
-    expect(row.querySelector('svg')).not.toBeNull()
+    const header = screen.getByRole('button', { name: /切换厂商，当前 DeepSeek/ })
+    expect(header.textContent).toContain('DeepSeek')
+    // 点它才展开「所有供应商」
+    fireEvent.click(header)
+    expect(screen.getByRole('menu', { name: '选择厂商' })).toBeTruthy()
+  })
+
+  it('lists every provider only after the header is opened', () => {
+    mount()
+    fireEvent.click(screen.getByRole('button', { name: /选择模型/ }))
+    fireEvent.click(screen.getByRole('button', { name: /切换厂商，当前 DeepSeek/ }))
+    const picker = screen.getByRole('menu', { name: '选择厂商' })
+    expect(picker).toBeTruthy()
+    expect(picker.querySelectorAll('[role="menuitem"]').length).toBeGreaterThan(0)
   })
 
   it('keeps showing the previous providers while a refresh loads', () => {
@@ -126,35 +142,41 @@ describe('ModelSelect 单触发与根层', () => {
     expect(screen.getByRole('menuitem', { name: /DeepSeek/ })).toBeTruthy()
   })
 
-  it('shows the loading label when there is nothing to show yet', () => {
+  it('renders an empty panel without crashing when the catalog is empty', () => {
     mount({ status: 'loading', groups: [] })
     fireEvent.click(screen.getByRole('button', { name: /选择模型/ }))
-    expect(screen.getByRole('menu').textContent).toContain(t('status.loading'))
+    // 没有厂商时：厂商行留空、无型号、无滑块，但面板不崩
+    expect(screen.getByRole('menu')).toBeTruthy()
+    expect(screen.queryByRole('slider')).toBeNull()
   })
 })
 
 describe('ModelSelect drill-down', () => {
   it('replaces the list in place instead of opening a side submenu', () => {
     mount()
-    openProvider()
+    openPanel()
     // 型号列表出现
     expect(screen.getByRole('menuitem', { name: /DeepSeek-V4-Flash/ })).toBeTruthy()
     // 没有任何侧边子菜单卡片
     expect(document.querySelector('[class*="submenuPortal"]')).toBeNull()
   })
 
-  it('goes back to the provider list from the drill header', () => {
+  it('returns to the provider detail after choosing another provider', () => {
     mount()
-    openProvider()
-    // 返回按钮：drill 头部的 button（不是 menuitem）
-    const back = screen.getByRole('button', { name: /返回供应商/ })
-    fireEvent.click(back)
-    expect(screen.getByRole('menuitem', { name: /DeepSeek/ })).toBeTruthy()
+    openPanel()
+    fireEvent.click(screen.getByRole('button', { name: /切换厂商，当前 DeepSeek/ }))
+    const picker = screen.getByRole('menu', { name: '选择厂商' })
+    // 选当前这个供应商 → 二级收起，回到详情（型号列表仍在）
+    const same = Array.from(picker.querySelectorAll('[role="menuitem"]'))
+      .find(item => (item.textContent ?? '').includes('DeepSeek'))
+    fireEvent.click(same!)
+    expect(screen.queryByRole('menu', { name: '选择厂商' })).toBeNull()
+    expect(screen.getByRole('menuitem', { name: /DeepSeek-V4-Flash/ })).toBeTruthy()
   })
 
   it('submits the full selection when a model row is picked', async () => {
     const { select } = mount()
-    openProvider()
+    openPanel()
     fireEvent.click(screen.getByRole('menuitem', { name: /DeepSeek-V4-Flash/ }))
     await waitFor(() => {
       expect(select).toHaveBeenCalledWith({
@@ -169,7 +191,7 @@ describe('ModelSelect drill-down', () => {
 describe('ModelSelect 思考强度滑块', () => {
   it('renders a slider with the effort levels as its value range', () => {
     mount()
-    openProvider()
+    openPanel()
     const slider = screen.getByRole('slider')
     expect(slider.getAttribute('aria-label')).toBe(t('menu.effort') === '推理等级' ? '思考强度' : t('menu.effort'))
     expect(slider.getAttribute('aria-valuetext')).toBe('High')
@@ -178,7 +200,7 @@ describe('ModelSelect 思考强度滑块', () => {
 
   it('arrow keys move the effort and submit it', async () => {
     const { select } = mount()
-    openProvider()
+    openPanel()
     const slider = screen.getByRole('slider')
     fireEvent.keyDown(slider, { key: 'ArrowRight' })
     await waitFor(() => {
@@ -188,7 +210,7 @@ describe('ModelSelect 思考强度滑块', () => {
 
   it('Home jumps to the first level', async () => {
     const { select } = mount()
-    openProvider()
+    openPanel()
     fireEvent.keyDown(screen.getByRole('slider'), { key: 'Home' })
     await waitFor(() => {
       expect(select).toHaveBeenCalledWith(expect.objectContaining({ reasoningEffort: 'off' }))
@@ -200,7 +222,7 @@ describe('ModelSelect 失败与表面', () => {
   it('announces a rejected selection through a toast', async () => {
     const select = vi.fn().mockResolvedValue({ ok: false, error: new RemoteError('session/model-unavailable', 'nope', { provider: 'deepseek-official', model: 'deepseek-v4-flash' }) })
     mount({}, select)
-    openProvider()
+    openPanel()
     fireEvent.click(screen.getByRole('menuitem', { name: /DeepSeek-V4-Flash/ }))
     await waitFor(() => { expect(screen.getByRole('alert')).toBeTruthy() })
   })
@@ -217,7 +239,7 @@ describe('ModelSelect 失败与表面', () => {
     let resolve: (value: unknown) => void = () => {}
     const select = vi.fn().mockReturnValue(new Promise((r) => { resolve = r }))
     mount({}, select)
-    openProvider()
+    openPanel()
     fireEvent.click(screen.getByRole('menuitem', { name: /DeepSeek-V4-Flash/ }))
     // 未 settle 前菜单仍在
     expect(screen.getByRole('menu')).toBeTruthy()

@@ -1,9 +1,9 @@
-/* 思考强度滑块（2026-10-22，照 ZCode 的彩色渐变形态）。 */
+/* 思考强度滑块（2026-10-22，照 ZCode 的彩色渐变 + 流动形态）。 */
 
 .root {
   display: flex;
   align-items: center;
-  padding: 4px 2px 2px;
+  padding: 2px 0;
 }
 
 .disabled {
@@ -11,32 +11,63 @@
   pointer-events: none;
 }
 
-/* 轨道是可交互元素：承载指针事件与键盘焦点。
- * 高度给足 28px —— 圆点 20px，加上下留白，点击热区才够大。 */
+/* 交互轨道：承载指针与键盘焦点。高度 28px 保证点击热区够大。 */
 .track {
   position: relative;
   flex: 1;
   height: 28px;
-  display: flex;
-  align-items: center;
   cursor: pointer;
   border-radius: var(--dsw-radius-sm);
   outline: none;
+  /* 圆点与轨道的公共几何。 */
+  --hl-rail-h: 18px;
+  --hl-rail-inset: 8px;
 }
 
 .track:focus-visible {
   box-shadow: 0 0 0 2px var(--dsw-alias-border-focus, var(--dsw-alias-border-l2));
 }
 
-/* 渐变轨道：绿 → 青 → 蓝，与截图一致。
- * 高度 18px、圆角胶囊，视觉上是「一条实心彩色带」。 */
-.rail {
+/* ── 底层：恒定浅灰（未选中的部分） ─────────────────────────────── */
+
+.railBase {
   position: absolute;
-  inset: 0 8px;
-  height: 18px;
+  left: var(--hl-rail-inset);
+  right: var(--hl-rail-inset);
   top: 50%;
+  height: var(--hl-rail-h);
   transform: translateY(-50%);
   border-radius: 999px;
+  background: var(--dsw-alias-bg-skeleton, rgb(0 0 0 / 8%));
+}
+
+/* ── 上层：完整渐变，按档位裁切揭示 ──────────────────────────────
+ *
+ * 用 clip-path 而不是改 width：
+ *   渐变必须**始终按整条轨道的宽度**计算，只裁掉右侧未达的部分。
+ *   如果改父级 width，渐变会跟着父级重排（最高档出现「左蓝右绿」的
+ *   错误顺序，实测踩到）。
+ *   clip-path 的百分比基于元素自身（= 轨道全宽），语义正确且能做过渡。 */
+
+.railFill {
+  position: absolute;
+  left: var(--hl-rail-inset);
+  right: var(--hl-rail-inset);
+  top: 50%;
+  height: var(--hl-rail-h);
+  transform: translateY(-50%);
+  border-radius: 999px;
+  overflow: hidden;
+  /* --hl-reveal: 0~1，由 TSX 内联给出。0 时完全裁掉（全灰）。 */
+  clip-path: inset(0 calc(100% - var(--hl-reveal, 1) * 100%) 0 0 round 999px);
+  transition: clip-path 220ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* 渐变本体：绿 → 青 → 蓝，铺满父级（父级是全宽轨道，只被 clip-path 裁切）。 */
+.railFlow {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
   background: linear-gradient(
     90deg,
     #16a34a 0%,
@@ -45,29 +76,93 @@
     #2563eb 80%,
     #1d4ed8 100%
   );
-  /* 极轻的内阴影，让色带有一点厚度而不显得扁平。 */
+  background-size: 100% 100%;
   box-shadow: inset 0 1px 2px rgb(255 255 255 / 18%);
 }
 
-/* 档位站点：半透明白点，落在色带上，标出「有哪几档」。 */
+/* 最高档：流动动效。
+ *
+ * 不能用 `background-position` 平移 —— 渐变只有一条，平移到边界外会露出
+ * 空白或被平铺镜像，视觉上出现「蓝→绿」回跳（实测踩到）。
+ * 正确做法：渐变主体不动，叠加一条半透明白色高光横向扫过，
+ * 观感就是「颜色在流」，且不会破坏渐变本身的顺序。 */
+.track[data-at-max] .railFlow::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    100deg,
+    transparent 35%,
+    rgb(255 255 255 / 28%) 50%,
+    transparent 65%
+  );
+  animation: hl-effort-sheen 2.4s ease-in-out infinite;
+}
+
+@keyframes hl-effort-sheen {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
+}
+
+/* 流动时叠加的漂浮光点：制造「能量在流」的观感。 */
+.sparkles {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.sparkles i {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 85%);
+  filter: blur(0.3px);
+  animation: hl-effort-sparkle 2.6s linear infinite;
+}
+
+.sparkles i:nth-child(1) { top: 30%; animation-delay: 0s; }
+.sparkles i:nth-child(2) { top: 62%; animation-delay: 0.5s; }
+.sparkles i:nth-child(3) { top: 44%; animation-delay: 1.05s; }
+.sparkles i:nth-child(4) { top: 72%; animation-delay: 1.6s; }
+.sparkles i:nth-child(5) { top: 38%; animation-delay: 2.1s; }
+
+@keyframes hl-effort-sparkle {
+  from { left: -4%; opacity: 0; }
+  15% { opacity: 0.9; }
+  85% { opacity: 0.9; }
+  to { left: 104%; opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .railFill { transition: none; }
+  .track[data-at-max] .railFlow { animation: none; }
+  .sparkles { display: none; }
+}
+
+/* ── 档位站点 ───────────────────────────────────────────────── */
+
 .tick {
   position: absolute;
   width: 3px;
   height: 3px;
   border-radius: 999px;
-  background: rgb(255 255 255 / 55%);
+  background: var(--dsw-alias-label-quaternary, rgb(0 0 0 / 18%));
   transform: translate(-50%, -50%);
   top: 50%;
   pointer-events: none;
 }
 
-.tick[data-active] {
-  background: rgb(255 255 255 / 95%);
-  width: 4px;
-  height: 4px;
+/* 已越过的站点用白色（落在彩色带上是白点，落在灰轨上是深色点）。 */
+.tick[data-passed] {
+  background: rgb(255 255 255 / 70%);
 }
 
-/* 圆点：白色实心 + 投影，浮在色带之上。 */
+/* ── 圆点 ───────────────────────────────────────────────────── */
+
 .thumb {
   position: absolute;
   width: 20px;
@@ -80,19 +175,12 @@
   transform: translate(-50%, -50%);
   top: 50%;
   pointer-events: none;
-  transition: left 140ms cubic-bezier(0.32, 0.72, 0, 1);
+  transition: left 200ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-/* 拖动中不做位移动画，否则圆点会滞后于手指。 */
 .track:active .thumb {
   transition: none;
   box-shadow:
     0 2px 6px rgb(0 0 0 / 26%),
     0 0 0 0.5px rgb(0 0 0 / 6%);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .thumb {
-    transition: none;
-  }
 }

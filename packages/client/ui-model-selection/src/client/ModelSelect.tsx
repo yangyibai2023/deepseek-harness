@@ -489,6 +489,10 @@ export function ModelSelect(
         }}
       >
         <span className={css.triggerLabel}>{triggerModelLabel}</span>
+        {/* 用户要求：虽然只有一个按钮，右侧仍要显示当前思考程度。 */}
+        {effortLabel !== undefined && (
+          <span className={css.triggerEffort}>{effortLabel}</span>
+        )}
         <IconChevronDownOutlineRegular className={clsx(css.chevron, modelOpen && css.chevronOpen)} />
       </button>
 
@@ -505,15 +509,26 @@ export function ModelSelect(
           const choice = choices.find(entry => entry.model.id === modelId)
           if (choice !== undefined) chooseText(choice.selection)
         }}
+        onPickProvider={(providerId) => {
+          // 切厂商 = 落到该厂商的第一个型号（否则面板没有模型可显示）。
+          const first = providers.find(entry => entry.id === providerId)?.models[0]
+          const choice = first === undefined
+            ? undefined
+            : choices.find(entry => entry.model.id === first.id)
+          if (choice !== undefined) chooseText(choice.selection)
+        }}
         effort={reasoning === undefined || effortChoices.length === 0
           ? undefined
           : {
             options: effortChoices.map(level => ({ key: level.key, label: level.label })),
             value: effortChoices.find(level => level.effort === effectiveEffort)?.key ?? effortChoices[0]?.key,
             label: effortLabel ?? '',
+            // 档位序号驱动滑块配色：0 = 关闭/最低（全灰），最大 = 全彩流动。
+            index: Math.max(0, effortChoices.findIndex(level => level.effort === effectiveEffort)),
           }}
         onPickEffort={(key) => { chooseEffort(effortChoices.find(entry => entry.key === key)?.effort) }}
         effortTitle="思考强度"
+        effortCurrent={effortLabel ?? ''}
         manageLabel="管理模型"
         locked={locked}
       />
