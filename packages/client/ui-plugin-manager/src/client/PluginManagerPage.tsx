@@ -113,6 +113,45 @@ const HIGHLIGHT_MS = 2_400
  */
 const PLUGIN_INSTALL_UI_ENABLED = false
 
+/* ── HeightLab（2026-10-22 用户拍板）──────────────────────────────────────
+ *
+ * 这一页分三段，用户对三段的期望各不相同：
+ *
+ *   · 「内置插件配置」(`basicCards`，来自 ledger.items) —— **保留**。
+ *     这些是可调项的配置入口（子智能体 / 网页搜索 / Agent 循环 / 终端…），
+ *     隐藏它们等于让用户失去所有可调开关。
+ *   · 「实验性插件」(`extensions` / `more`，DSH 官方 OPTIONAL_BUNDLES)
+ *     —— **全部展示**。用户原话：「可能 dsh 有很多好的功能，我们 mac 隐藏了？」
+ *     这些是上游随包提供的实验能力，让用户自己决定开不开。
+ *   · 「已安装插件」(`mine`，非 official 的 profile 依赖) —— **隐藏我们的预装**。
+ *     这些是我们封装好的（ds-bot / 市场 / genui / knowledge / modlens /
+ *     node-flow / video-downloader / agent-canvas / better-sidebar），属于
+ *     产品内部组件，不该出现在用户可管理列表里；但**开关仍需保留**：
+ *     预装插件若带可调项，走上面「内置插件配置」那一段。
+ *
+ * 判据按**模块名/scope 前缀**，不按 entryId —— 上游改名时前缀更稳
+ * （与 ui-settings-plugin-inventory 的同名清单保持一致的语义）。
+ */
+const SHIPPED_PACKAGE_PREFIXES: readonly string[] = [
+  '@heightlab/',
+  '@changfenhuang/',
+  '@liustack/',
+  '@omdsh-dev/',
+  '@dsh-external/',
+  'ds-bot',
+  'dshmarket',
+  'dsh-knowledge',
+  'dsh-better-sidebar',
+  'dsh-video-downloader',
+  'dsh-node-flow',
+  'dsh-agent-canvas',
+]
+
+/** Whether a profile dependency is one we ship preinstalled (hidden from `mine`). */
+function isShippedPackage(name: string): boolean {
+  return SHIPPED_PACKAGE_PREFIXES.some(prefix => name.startsWith(prefix))
+}
+
 /** Built-in profile bundles stay out of this page even when the profile declares them as dependencies. */
 const BUILTIN_PROFILE_BUNDLES = new Set([
   '@deepseek-ai/dsh-base',
@@ -1450,10 +1489,38 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
   // Plugins section's Plugin list tab.
   const listed = state.packages.filter(pkg => !BUILTIN_PROFILE_BUNDLES.has(pkg.name)
     && (pkg.installed || pkg.official || pkg.error !== undefined))
-  const mine = listed.filter(pkg => !pkg.official)
+  /* 已安装插件段只留**用户自己装的**；我们预装的一律不进列表（见 SHIPPED_PACKAGE_PREFIXES）。
+   * 预装里带可调项的由「内置插件配置」提供，所以不会丢能力。 */
+  const mine = listed.filter(pkg => !pkg.official && !isShippedPackage(pkg.name))
+
   const official = listed.filter(pkg => pkg.official)
   const extensions = orderPackages(official.filter(pkg => !MORE_BUNDLES.includes(pkg.name)), EXTENSION_BUNDLES)
   const more = [...extensions, ...orderPackages(official.filter(pkg => MORE_BUNDLES.includes(pkg.name)), MORE_BUNDLES)]
+  /* 诊断（2026-10-22）：用户反馈「Win 的实验性插件比 Mac 多」，但两边产品里的
+   * 11 个 OPTIONAL_BUNDLES 都在、代码里也没有平台分支 —— 差异只可能来自运行时
+   * 的 bundle 状态。把这一页实际看到的清单落进宿主日志（每次打开本页一行），
+   * 下次对比两台机器就能定论，不用再猜。
+   * 只写包名/可用性/开关，不涉及任何用户内容。 */
+  useEffect(() => {
+    if (state.status !== 'ready') return
+    const snapshot = {
+      hlPluginDiag: true,
+      at: Date.now(),
+      counts: { basic: ledger.items.length, official: official.length, mine: mine.length },
+      official: official.map(pkg => ({
+        name: pkg.name,
+        availability: pkg.availability,
+        enabled: pkg.enabled,
+        installed: pkg.installed,
+      })),
+      mine: mine.map(pkg => pkg.name),
+    }
+    void fetch('/hl/boot-marker', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(snapshot),
+    }).catch(() => { /* 非致命 */ })
+  }, [state.status, ledger.items.length, official, mine])
   const loaded = state.status === 'ready' || state.status === 'error'
   const refreshing = state.refreshStatus === 'refreshing'
   const openPkg = view.kind === 'package' || view.kind === 'row' ? listed.find(pkg => pkg.name === view.name) : undefined

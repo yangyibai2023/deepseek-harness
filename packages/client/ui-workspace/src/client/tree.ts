@@ -433,6 +433,31 @@ function sessionNode(
  * @param view - local expansion arrays.
  * @returns group sections in render order.
  */
+/* ── HeightLab：团队/个人模式隔离辅助（2026-10-22）─────────────────────── */
+
+/** The team workspace ds-bot creates under `$DSH_HOME`; its sessions belong to team mode only. */
+const TEAM_WORKSPACE_MARKER = '-dsh-home-bot-workspace'
+
+/** Whether one workspace is the team (ds-bot) workspace. */
+function isTeamWorkspace(workspace: { readonly path?: string | undefined }): boolean {
+  return workspace.path !== undefined && workspace.path.includes(TEAM_WORKSPACE_MARKER)
+}
+
+/**
+ * Whether the UI is currently in **team** mode.
+ *
+ * ds-bot records the chosen surface in localStorage (`ds-bot:surface`, seeded to
+ * `'agent'` for personal mode on first run); `'team'` means the team surface.
+ * Read at render time so a mode switch re-derives the tree on the next snapshot.
+ */
+function isTeamSurface(): boolean {
+  try {
+    return globalThis.localStorage?.getItem('ds-bot:surface') === 'team'
+  } catch {
+    return false
+  }
+}
+
 export function deriveGroups(
   list: SessionListState,
   workspaces: readonly WorkspaceView[],
@@ -440,15 +465,28 @@ export function deriveGroups(
   statuses: SessionStatuses,
   view: TreeView,
 ): GroupNode[] {
+  /* HeightLab（2026-10-22 用户要求，重申 2026-10-19 的双模式隔离）：
+   *
+   * 个人模式的左栏**不显示团队模式的会话**。根因是两者写进同一个
+   * `$DSH_HOME/sessions` 根：团队会话落在
+   * `--<home>-dsh-home-bot-workspace--/` 那个 workspace 下，于是被这里
+   * 一并列出来。数据层不动（团队模式仍要读它），只在**个人模式的投影**
+   * 里剔除，所以切回团队模式一切照旧。
+   *
+   * 判据：workspace 路径里含 `-dsh-home-bot-workspace`（ds-bot 的固定
+   * workspace 名）。个人模式下也只用一层前缀匹配，不会误伤普通目录。 */
+  const visibleWorkspaces = isTeamSurface()
+    ? workspaces
+    : workspaces.filter(workspace => !isTeamWorkspace(workspace))
   const archived = new Set(rowState.archivedSessionIds)
   const pinned = new Set(rowState.pinnedSessionIds)
   const expandedGroups = new Set(view.expandedGroups)
   const current = mainSessionId(list)
   const currentGroup = current === undefined
     ? undefined
-    : owningGroupKey(workspaces, current)
+    : owningGroupKey(visibleWorkspaces, current)
   const groups: GroupNode[] = []
-  for (const g of groupByWorkspace(list, workspaces, archived, rowState.archivedFilter, view.ungroupedOrder)) {
+  for (const g of groupByWorkspace(list, visibleWorkspaces, archived, rowState.archivedFilter, view.ungroupedOrder)) {
     const expanded = expandedGroups.has(g.key)
     groups.push({
       key: g.key,

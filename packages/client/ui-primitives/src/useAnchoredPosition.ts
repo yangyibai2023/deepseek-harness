@@ -53,10 +53,30 @@ export function useAnchoredPosition(options: AnchoredPositionOptions): CSSProper
       const panel = panelRef.current
       const width = panel?.offsetWidth ?? 0
       const height = panel?.offsetHeight ?? 0
+      const topLimit = overlayTopMargin(margin)
+      const bottomLimit = window.innerHeight - margin
+
+      /* HeightLab（2026-10-22）：真正的 flip，而不是只把位置压回视口。
+       *
+       * 原实现只用 clamp：面板放在触发器的 `side` 一侧，溢出就硬压回边界。
+       * 触发器等在屏幕下半部时（Windows 上输入框里的模型选择器就是），
+       * 压回来会让面板盖住触发器、或仍探出视口，用户看到的就是「向下弹出、
+       * 溢出屏幕」。
+       *
+       * 这里按业界通行规则（等价 Floating UI 的 flip + shift）分两步：
+       *   1) flip —— 首选侧放不下、而另一侧放得下时，翻到另一侧；
+       *   2) shift —— 两侧都放不下时，保留首选侧并整体平移进视口。
+       * 只在真有测量值时判定（height/width > 0），首帧量与 jsdom 都不受影响。 */
+      const fitsBelow = height > 0 ? rect.bottom + gap + height <= bottomLimit : true
+      const fitsAbove = height > 0 ? rect.top - gap - height >= topLimit : true
+      let resolved = side
+      if (side === 'bottom' && !fitsBelow && fitsAbove) resolved = 'top'
+      else if (side === 'top' && !fitsAbove && fitsBelow) resolved = 'bottom'
+
       let left = align === 'end' ? rect.right - width : rect.left
-      let top = side === 'top' ? rect.top - gap - height : rect.bottom + gap
+      let top = resolved === 'top' ? rect.top - gap - height : rect.bottom + gap
       if (width > 0) left = Math.min(Math.max(left, margin), window.innerWidth - width - margin)
-      if (height > 0) top = Math.min(Math.max(top, overlayTopMargin(margin)), window.innerHeight - height - margin)
+      if (height > 0) top = Math.min(Math.max(top, topLimit), bottomLimit - height)
       /* v8 ignore stop */
       setPosition({ left, top })
     }

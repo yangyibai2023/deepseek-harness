@@ -172,7 +172,32 @@ export function apply(ctx: ClientContext): void {
     inject: (): TaskManagerInjected => ({
       ...detail,
       // The page has no creation form: a new reminder starts in a Session.
-      onNewTask: () => { ctx.uiWorkspace.startSession() },
+      /* HeightLab（2026-10-22 用户实测「点新建就跳回主页」）：
+       *
+       * 原实现只调 startSession() —— 那是上游的设计（新建空白会话，让用户在
+       * 对话里描述任务），但页面给的是「新建自动化任务」按钮，用户以为会打开
+       * 一个表单，于是看到「跳回主页」像是坏了。
+       *
+       * 修法：保留上游路径，但在会话里**预填一段引导**（走我们已有的
+       * hl:fill-draft 契约，与模板/技能中心同一个注入方式），用户落地即看到
+       * 该写什么，不用猜。
+       *
+       * 注入要等输入框挂载：startSession 之后下一帧派发，失败再退一次延迟重试。 */
+      onNewTask: () => {
+        ctx.uiWorkspace.startSession()
+        const prompt = [
+          '帮我创建一个自动化任务。',
+          '',
+          '任务内容：',
+          '运行时间（如每天 9:00 / 每周一 / 每 2 小时）：',
+          '期望结果：',
+        ].join('\n')
+        const fill = (): void => {
+          window.dispatchEvent(new CustomEvent('hl:fill-draft', { detail: { text: prompt } }))
+        }
+        window.setTimeout(fill, 0)
+        window.setTimeout(fill, 400)
+      },
     }),
   }, TaskManagerPage))
   ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({

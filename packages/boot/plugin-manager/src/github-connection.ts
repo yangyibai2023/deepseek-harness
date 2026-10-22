@@ -1,6 +1,31 @@
 /** Bounded GitHub repository checks using the installer's Git configuration and environment. */
 import { mkdir, mkdtemp, open } from 'node:fs/promises'
 import { join } from 'node:path'
+import { accessSync, constants } from 'node:fs'
+import { delimiter, join as joinPath } from 'node:path'
+
+/**
+ * Whether `name` is an executable reachable on PATH — a pure filesystem probe.
+ *
+ * Never spawns the binary: on macOS, spawning a missing `git` makes the system
+ * pop its Xcode Command Line Tools installer, which is exactly what we must avoid.
+ */
+function hasExecutable(name: string): boolean {
+  const dirs = (process.env.PATH ?? '').split(delimiter).filter(dir => dir !== '')
+  const exts = process.platform === 'win32'
+    ? (process.env.PATHEXT ?? '.EXE;.CMD;.BAT;.COM').split(';')
+    : ['']
+  for (const dir of dirs) {
+    for (const ext of exts) {
+      try {
+        accessSync(joinPath(dir, name + ext), constants.X_OK)
+        return true
+      } catch { /* 继续找 */ }
+    }
+  }
+  return false
+}
+
 import { execa } from 'execa'
 import { scrubbedParentEnv } from '@deepseek-ai/dsh-subprocess'
 import { classifyInstallFailure } from './install-failure.ts'
@@ -31,6 +56,21 @@ export async function checkGithubConnection(
   if (spec.kind !== 'git') return undefined
   const host = spec.host.toLowerCase().replace(/:.*$/, '')
   if (host !== 'github.com' && !host.endsWith('.github.com')) return undefined
+  /* HeightLab（2026-10-22 用户明确要求「不弹，而不是弹友好提示」）：
+   *
+   * 这台机器没有 git 时，`execa('git', ...)` 会触发 macOS 的 **Xcode 命令行
+   * 工具安装框**（系统级弹窗，我们无法拦截、无法替换文案）。用户实测在
+   * 0.4.4 与 0.4.7 都见到过。
+   *
+   * 既然 git 根本不存在，这次检查必然失败且失败得毫无信息量（pnpm 随后同样
+   * 会失败）。所以直接**跳过检查**：不 spawn 任何进程 = 不会弹框。
+   * 真正安装失败时由 pnpm 的错误信息呈现，那条路径是我们自己的 UI。
+   *
+   * 只读 PATH 查找，不执行 git。 */
+  if (!hasExecutable('git')) {
+    await mkdir(join(dir, '.plugin-manager', 'logs'), { recursive: true, mode: 0o700 }).catch(() => {})
+    return undefined
+  }
   const repository = spec.spec.replace(/#.*$/s, '')
     .replace(/^github:/i, 'https://github.com/')
     .replace(/^gist:/i, 'https://gist.github.com/')
