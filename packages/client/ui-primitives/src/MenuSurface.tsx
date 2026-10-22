@@ -34,7 +34,9 @@ export const MenuSurface = forwardRef<HTMLDivElement, MenuSurfaceProps>(function
   return <>
     <div {...props} ref={ref} data-menu-material="translucent"
       className={clsx(css.surface, compact && css.compact, className)} style={{ ...style, ...anchorStyle }}>
-      <div aria-hidden="true" className={css.material} />
+      {/* data 标记：调用方若需要不透明面板（浮层压在内容上、透明会看不清字），
+          可以在自己的 CSS 里覆盖这一层的背景，而不必改 MenuSurface 本身。 */}
+      <div aria-hidden="true" data-menu-material-layer="" className={css.material} />
       {children}
     </div>
     {createPortal(

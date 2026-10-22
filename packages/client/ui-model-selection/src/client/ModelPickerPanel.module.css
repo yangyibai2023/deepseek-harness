@@ -3,6 +3,9 @@
 .panel {
   position: fixed;
   z-index: 1100;
+  /* 一级面板与二级保持同一观感：实心背景（用户实测半透明时背景模板透出来、
+   * 字看不清）。--dsw-alias-bg-base 是主题的实心底色，亮/暗色都齐。 */
+  background: var(--dsw-alias-bg-base, #fff);
   box-sizing: border-box;
   min-width: 240px;
   max-width: 340px;
@@ -195,7 +198,9 @@
   padding: 4px;
   box-sizing: border-box;
   border-radius: var(--dsw-radius-lg, 12px);
-  background: var(--dsw-specific-menu, var(--dsw-menu-surface-fill));
+  /* 2026-10-22 用户实测：原先 0.58 的半透明太透，背后模板缩略图透出来、
+   * 字看不清。二级列表是覆盖在内容上的浮层，不需要玻璃质感 —— 用实心底色。 */
+  background: var(--dsw-alias-bg-base, #fff);
   box-shadow: var(--dsw-elevation-prominent);
   --dsw-elevation-stroke-color: var(--dsw-alias-border-l1);
   --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
@@ -230,4 +235,12 @@
   font-size: 13px;
   font-weight: 600;
   line-height: 18px;
+}
+
+/* MenuSurface 的材质层（z-index:-1）才是真正的背景。
+ * 半透明（--dsw-menu-surface-fill = rgba 0.58）+ backdrop-filter 让下方的
+ * 模板缩略图透上来，字读不清。这里改成实心底色并关掉模糊。 */
+.panel [data-menu-material-layer] {
+  background: var(--dsw-alias-bg-base, #fff);
+  backdrop-filter: none;
 }
