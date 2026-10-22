@@ -102,33 +102,46 @@ export function ModelPickerPanel({
 
   if (!open) return null
 
-  /* 二级厂商浮层的位置：以一级面板的厂商行为锚点，用同一套 placeOverlay
-   * 决定朝上还是朝下，并按可用空间限高。贴底时翻到锚点上方。 */
+  /* 二级厂商浮层的位置（2026-10-22 用户第三次校正）。
+   *
+   * ZCode 的实际做法是**弹在一级面板的右侧并排**，不是翻到上方叠在一起。
+   * 我上一版用了 placeOverlay 的垂直 flip，结果面板被顶到上方、还与一级重叠，
+   * 用户直接说「太丑了，而且重叠了」。
+   *
+   * 正确做法：横向挂载（side='right'）。placeOverlay 会：
+   *   · 右侧放不下 → 自动翻到左侧（这就是用户说的「智能检测向左或向右弹」）
+   *   · 垂直方向 顶对齐 → 底对齐 → 才 shift（不会飞到屏幕外）
+   *   · 按可用空间限高
+   *
+   * 这里返回视口绝对坐标（浮层是 position:fixed 挂在 body 下）。
+   */
   const providerMenuStyle = ((): CSSProperties => {
     const host = panelRef.current
     if (host === null) return {}
     const anchor = host.querySelector('button[aria-haspopup="menu"]')
     if (anchor === null) return {}
-    const ar = anchor.getBoundingClientRect()
-    const viewport = { width: window.innerWidth, height: window.innerHeight }
+    const hostRect = host.getBoundingClientRect()
     const placement = placeOverlay({
-      // 面板宽度 = 一级面板宽度（两者同宽，视觉上是同一张卡片展开）。
-      anchor: { top: ar.top, bottom: ar.bottom, left: ar.left, right: ar.right, width: ar.width, height: ar.height },
+      anchor: {
+        top: hostRect.top, bottom: hostRect.bottom,
+        left: hostRect.left, right: hostRect.right,
+        width: hostRect.width, height: hostRect.height,
+      },
       panel: { width: host.offsetWidth, height: 0 },
-      viewport,
-      side: 'bottom',
+      viewport: { width: window.innerWidth, height: window.innerHeight },
+      // 与一级面板同宽，挂在它的右侧（放不下自动翻左）。
+      side: 'right',
       align: 'start',
-      gap: 2,
+      gap: 6,
       margin: 12,
-      maxHeight: 320,
+      maxHeight: 360,
     })
     return {
-      // 相对厂商行的偏移：placeOverlay 给的是视口坐标，这里换算成相对定位。
-      top: placement.side === 'bottom' ? ar.height + 2 : 'auto',
-      bottom: placement.side === 'bottom' ? 'auto' : ar.height + 2,
-      left: 0,
-      right: 0,
-      maxHeight: placement.maxHeight ?? 320,
+      position: 'fixed',
+      left: placement.left,
+      top: placement.top,
+      width: host.offsetWidth,
+      maxHeight: placement.maxHeight ?? 360,
     }
   })()
 

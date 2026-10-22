@@ -187,19 +187,19 @@
   background: var(--dsw-alias-interactive-bg-hover);
 }
 
+/* 二级厂商列表：与一级面板**并排**弹出（左右侧由 placeOverlay 智能判定）。
+ * 坐标全部由 TSX 以 position:fixed 给出，这里只负责外观。 */
 .providerMenu {
-  position: absolute;
-  top: calc(100% + 2px);
-  left: 0;
-  right: 0;
-  z-index: 2;
-  max-height: 320px;
+  z-index: 1200;
   overflow-y: auto;
   padding: 4px;
+  box-sizing: border-box;
   border-radius: var(--dsw-radius-lg, 12px);
   background: var(--dsw-specific-menu, var(--dsw-menu-surface-fill));
   box-shadow: var(--dsw-elevation-prominent);
   --dsw-elevation-stroke-color: var(--dsw-alias-border-l1);
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
 }
 
 /* ── 思考强度块：浅灰底 + 内嵌滑块（照截图的分组卡片观感）─────── */
