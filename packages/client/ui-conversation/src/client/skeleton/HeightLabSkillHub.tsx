@@ -13,7 +13,20 @@ import { SKILL_BODIES } from './HeightLabSkillBodies.ts'
 import css from './HeightLabSkillHub.module.css'
 
 type UserSkill = { name: string; description: string; updatedAt: number }
-type Tab = 'official' | 'mine' | 'create'
+type Tab = 'market' | 'official' | 'mine' | 'create'
+
+/** 在线市场的一条结果（与 /hl/skills/market 返回一致）。 */
+interface MarketSkill {
+  slug: string
+  namespace?: string
+  name: string
+  description: string
+  installs?: number
+  downloads?: number
+  version?: string
+  category?: string
+  homepage?: string
+}
 
 function loadUserSkills(): Promise<UserSkill[]> {
   return fetch('/hl/skills', { cache: 'no-store' })
@@ -28,6 +41,12 @@ export function HeightLabSkillHub({ onClose, embedded }: { onClose: () => void; 
   const [form, setForm] = useState({ name: '', description: '', steps: '' })
   const [creating, setCreating] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
+  /* 在线市场（2026-10-22）：原来「官方技能市场」栏只是 13 个编译期硬编码，
+   * 用户无法从这里装新技能。现在接 /hl/skills/market（skillhub.cn 同源），
+   * 与 Agent 侧 capability_search 搜到的是同一批。 */
+  const [marketQuery, setMarketQuery] = useState('')
+  const [market, setMarket] = useState<MarketSkill[] | null>(null)
+  const [marketBusy, setMarketBusy] = useState(false)
 
   const refreshMine = useCallback((): void => {
     loadUserSkills().then(list => setMine(list))
@@ -76,6 +95,38 @@ export function HeightLabSkillHub({ onClose, embedded }: { onClose: () => void; 
       .catch(() => { /* 下次刷新可见 */ })
   }
 
+  const searchMarket = useCallback((query: string) => {
+    const q = query.trim()
+    if (q === '') { setMarket([]); return }
+    setMarketBusy(true)
+    fetch(`/hl/skills/market?q=${encodeURIComponent(q)}&limit=40`)
+      .then(r => r.json())
+      .then((d) => {
+        if (d?.ok) setMarket(d.results as MarketSkill[])
+        else setNotice(d?.error === 'MARKET_UNAVAILABLE' ? '技能市场暂时连不上，稍后再试' : null)
+      })
+      .catch(() => { setNotice('技能市场暂时连不上，稍后再试') })
+      .finally(() => { setMarketBusy(false) })
+  }, [])
+
+  /* 从市场装一个技能：走与 Agent 完全相同的审批链路。
+   * 页面上点「安装」= 用户已经明确同意，所以这里直接带 confirm。
+   * 真正的写盘仍由 capability_install 完成（同一个 store，路径围栏一致）。 */
+  const installFromMarket = useCallback((skill: MarketSkill) => {
+    setNotice(`正在安装 ${skill.name}…`)
+    fetch('/hl/skills/install', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ slug: skill.slug, namespace: skill.namespace, name: skill.name, version: skill.version }),
+    })
+      .then(r => r.json())
+      .then((d) => {
+        setNotice(d?.ok ? `已安装 ${skill.name}，可直接使用` : `安装失败：${d?.error ?? '未知原因'}`)
+        if (d?.ok) refreshMine()
+      })
+      .catch(() => { setNotice('安装失败：宿主不可达') })
+  }, [])
+
   const official = Object.entries(SKILL_BODIES).map(([id, s]) => ({
     id,
     name: s.dir,
@@ -96,7 +147,8 @@ export function HeightLabSkillHub({ onClose, embedded }: { onClose: () => void; 
       </div>
       <div className={css.skillHubTabs}>
         {([
-          ['official', `官方技能市场（${official.length}）`],
+          ['market', '技能市场'],
+          ['official', `官方精选（${official.length}）`],
           ['mine', `我的技能（${mine?.length ?? 0}）`],
           ['create', '创建技能'],
         ] as Array<[Tab, string]>).map(([id, label]) => (
@@ -112,6 +164,48 @@ export function HeightLabSkillHub({ onClose, embedded }: { onClose: () => void; 
         ))}
       </div>
       <div className={css.skillHubBody}>
+        {tab === 'market' && (
+          <div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              <input
+                value={marketQuery}
+                onChange={event => setMarketQuery(event.target.value)}
+                onKeyDown={(event) => { if (event.key === 'Enter') searchMarket(marketQuery) }}
+                placeholder="搜索在线技能（如 pdf、表格、爬虫）"
+                style={{ flex: 1, height: 34, padding: '0 12px', borderRadius: 10, border: '1px solid var(--dsw-alias-border-l2)', background: 'var(--dsw-specific-input-major)', color: 'inherit', fontSize: 13 }}
+              />
+              <button type="button" className={css.skillHubAction} disabled={marketBusy} onClick={() => searchMarket(marketQuery)}>
+                {marketBusy ? '搜索中…' : '搜索'}
+              </button>
+            </div>
+            {market !== null && market.length === 0 && !marketBusy && (
+              <div style={{ fontSize: 12.5, color: 'var(--dsw-alias-label-tertiary)' }}>
+                输入关键词后回车搜索。技能来自 skillhub.cn，与对话里让 AI 自己搜的是同一批。
+              </div>
+            )}
+            <div className={css.skillHubColumns}>
+              {(market ?? []).map(skill => (
+                <div key={skill.slug} className={css.skillHubCard}>
+                  <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 2 }}>{skill.name}</div>
+                  <div style={{ fontSize: 11, color: 'var(--dsw-alias-label-tertiary)', marginBottom: 6 }}>
+                    {skill.category ?? '技能'}{skill.installs !== undefined && skill.installs > 0 ? ` · ${skill.installs.toLocaleString('en-US')} 次安装` : ''}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--dsw-alias-label-secondary)', marginBottom: 8, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                    {skill.description || '（无描述）'}
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button type="button" className={css.skillHubAction} onClick={() => installFromMarket(skill)}>
+                      安装
+                    </button>
+                    <button type="button" className={css.skillHubAction} onClick={() => useInChat(`请用 capability_search 查一下 ${skill.name} 这个技能，然后告诉我它能做什么`)}>
+                      问问 AI
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         {tab === 'official' && (
           <div className={css.skillHubColumns}>
             {official.map(skill => (
