@@ -1,6 +1,14 @@
 .menu {
   position: absolute;
-  bottom: calc(100% + 4px);
+  /* HeightLab（2026-10-22）：默认**向下**展开。
+   *
+   * 原来固定 `bottom: calc(100% + 4px)`（永远向上）。首页空态下输入框在屏幕
+   * 中部，241px 高的菜单被顶到 y≈84，紧贴大标题、离输入框很远，用户以为
+   * 「@ 什么也没弹」。向下展开时紧贴输入框下沿，视觉关系清楚。
+   *
+   * 仍然保留向上兜底：`data-flip-up` 由 MenuView 在「下方放不下」时设置。 */
+  top: calc(100% + 4px);
+  bottom: auto;
   /* The overlay anchor is exactly the composer card's width; both insets pin
      the menu edge to edge with border and padding kept inside. */
   left: 0;
@@ -30,6 +38,11 @@
 
 /* The hint covers content, not the scrollbar rail, and disappears once the
    viewport reaches the final row. */
+.menu[data-flip-up] {
+  top: auto;
+  bottom: calc(100% + 4px);
+}
+
 .menu[data-overflow-below]::after {
   content: '';
   position: absolute;

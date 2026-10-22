@@ -53,14 +53,19 @@
   width: 100%;
   max-width: var(--dsh-composer-card-max-width);
   padding-top: 8px;
-  /* Input stroke: the light neutral (l2, one step above the menus' l1),
-     drawn as the elevation hairline so it costs no layout; the shadow is the
-     soft elevation tier. Fill: the input surface token (elevated in dark). */
+  /* HeightLab（2026-10-22 用户拍板）：输入框周边必须**绝对干净**。
+   *
+   * 原来用 `--dsw-elevation-soft`，它 = 0.5px 描边 + 4px/16px 0.03 光晕 +
+   * 0 0 24px 0.03 光晕。两条光晕叠成一圈 24px 宽的灰雾，用户实测「周边有各种
+   * 阴影乱七八糟」。
+   *
+   * 只保留 0.5px 描边：白卡在浅灰页面上本身就有足够对比，描边保证边缘清晰，
+   * 没有任何光晕溢出到卡片之外 —— 输入框成为一个完整、不被任何东西覆盖的形状。 */
   border: 0;
   --dsw-elevation-stroke-color: var(--dsw-alias-border-l2);
   border-radius: var(--dsw-radius-panel);
   background: var(--dsw-specific-input-major);
-  box-shadow: var(--dsw-elevation-soft);
+  box-shadow: var(--dsw-elevation-stroke);
   /* The draft text follows the Settings font-size preference (the textarea,
      mirror, and backdrop all inherit from here, so the three layers stay in
      step); the line height keeps the default 10px leading via the shared px
@@ -118,7 +123,16 @@
    themselves against the card (bottom: 100% + gap); closed entries render null. */
 .overlayAnchor {
   position: absolute;
-  inset: 0 0 auto;
+  /* HeightLab（2026-10-22）：锚点钉在卡片**底边**。
+   *
+   * 上游把它放在卡片**顶边**（`inset: 0 0 auto`），因为 @/斜杠菜单是向上
+   * 展开的（`bottom: calc(100% + 4px)`）。我们把菜单改成向下优先后，同一个
+   * 锚点会让菜单从卡片内部画起（实测 menuTop 277 vs 卡片底 381），看起来像
+   * 浮在输入框中间。
+   *
+   * 改钉底边：向下展开时紧贴卡片下沿；需要翻转时由 `[data-flip-up]`
+   * 把它翻到锚点上方，正好回到原来的视觉位置。 */
+  inset: auto 0 0;
   height: 0;
 }
 

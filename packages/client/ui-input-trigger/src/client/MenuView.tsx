@@ -33,6 +33,8 @@ const MAX_HEIGHT = 400
  * header instead of sliding under it.
  */
 const TOP_MARGIN = 84
+/** 翻转判定时与视口边缘留的余量（与菜单 portal 的 margin 同量级）。 */
+const FALLBACK_MARGIN = 12
 
 /** DOM id of one option row (the aria-activedescendant target). */
 function optionId(source: string, index: number): string {
@@ -56,6 +58,9 @@ export function MenuView({ menu, headers, onPick, onCrumb, onHover, onDismiss, t
   const listRef = useRef<HTMLDivElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
   const [hasOverflowBelow, setHasOverflowBelow] = useState(false)
+  /* HeightLab（2026-10-22）：菜单默认向下展开，下方放不下时翻到上方。
+   * 判定放在 layout effect 里（首帧就定方向，不闪）。 */
+  const [flipUp, setFlipUp] = useState(false)
   // The list is bottom-anchored above the composer; clamp the design cap to
   // the space above it, re-measured on every store update (the anchor moves
   // when the composer grows).
@@ -68,6 +73,20 @@ export function MenuView({ menu, headers, onPick, onCrumb, onHover, onDismiss, t
   useLayoutEffect(() => {
     updateOverflowHint()
   }, [state, maxHeight, updateOverflowHint])
+  useLayoutEffect(() => {
+    const anchor = listRef.current?.parentElement
+    if (anchor === null || anchor === undefined) return
+    const decide = (): void => {
+      const rect = anchor.getBoundingClientRect()
+      const below = window.innerHeight - rect.bottom - FALLBACK_MARGIN
+      const above = rect.top - FALLBACK_MARGIN
+      // 下方放不下整块、而上方更宽裕时才翻上去。
+      setFlipUp(below < Math.min(MAX_HEIGHT, 200) && above > below)
+    }
+    decide()
+    window.addEventListener('resize', decide)
+    return () => { window.removeEventListener('resize', decide) }
+  }, [state])
   const highlight = state.open ? state.highlight : null
   // Focus stays in the textarea (combobox pattern), so the browser never
   // scrolls the active option into view on keyboard moves — do it here.
@@ -99,6 +118,7 @@ export function MenuView({ menu, headers, onPick, onCrumb, onHover, onDismiss, t
       className={css.menu}
       style={{ maxHeight }}
       data-trigger-menu=""
+      data-flip-up={flipUp || undefined}
       data-overflow-below={hasOverflowBelow || undefined}
     >
       {state.groups.map((group) => {
