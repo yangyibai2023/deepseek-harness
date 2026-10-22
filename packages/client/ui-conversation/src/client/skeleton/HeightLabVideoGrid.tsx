@@ -105,8 +105,29 @@ export function HeightLabVideoGrid() {
       onClick={() => { openTemplatePanel(item) }}
     >
       <span className={css.cover}>
-        <img className={css.coverImg} src={item.cover} alt="" loading="lazy" draggable={false}
-          style={{ objectPosition: item.pos }} />
+        {/* 2026-10-22 用户报「模板图片不加载 / 要等一会儿才出来」：
+            封面原先直连 yunj.video CDN —— 单张约 1 秒、只缓存 1 小时、且没有
+            CORS 头，偶发失败时 <img> 直接变破图图标（不会重试）。现在封面随包
+            分发（apps/web/public/skill-catalog/thumbs/，116 张 6.3MB），首屏零
+            网络等待；本地缺图时回退远程，两次都失败才隐藏、留占位底色。 */}
+        <img
+          className={css.coverImg}
+          src={item.cover}
+          alt=""
+          loading="lazy"
+          draggable={false}
+          style={{ objectPosition: item.pos }}
+          onError={(event) => {
+            const img = event.currentTarget
+            const fallback = (item as { coverFallback?: string }).coverFallback
+            if (fallback !== undefined && img.dataset.fallback !== '1') {
+              img.dataset.fallback = '1'
+              img.src = fallback
+              return
+            }
+            img.style.visibility = 'hidden'
+          }}
+        />
         {/* 2026-10-21 用户拍板：hover 显示两个按钮
             · 「聊天」——把模板作为 skill 写进上方输入框（点发送即执行）
             · 「面板」——打开右侧该模板的操作面板（= 原整卡点击行为）
