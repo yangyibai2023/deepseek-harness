@@ -235,26 +235,46 @@ describe('MenuView', () => {
     expect(scrollIntoView.mock.instances.at(-1)).toBe(options[1])
   })
 
-  it('caps the list height at the design maximum when the composer sits low enough', () => {
-    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({ bottom: 800 } as DOMRect)
+  /* HeightLab（2026-10-22）：菜单改为向下展开后，几何全部由
+     `src/client/menuPlacement.ts` 的纯函数决定（该文件有独立的 10 项单测）。
+     这三个用例原先断言「高度 = 元素自身 rect.bottom − 顶部边距」，那是
+     *向上展开* 的语义；向下展开后元素底边随高度增长会形成自反馈，所以
+     改为断言方向、可用高度与翻转偏移。 */
+
+  it('caps the list height at the design maximum when there is room below', () => {
+    // 锚点贴顶：下方空间充足 → 向下展开、用满 400px。
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+      top: 20, bottom: 120, height: 100, width: 600, left: 0, right: 600, x: 0, y: 20,
+    } as DOMRect)
     mount(openState())
     expect(menuShell().style.maxHeight).toBe('400px')
+    expect(menuShell().hasAttribute('data-flip-up')).toBe(false)
   })
 
-  it('clamps the list height to the space above the composer minus the header-clearing margin', () => {
-    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({ bottom: 200 } as DOMRect)
+  it('flips above the composer when there is no room below', () => {
+    // 锚点贴底：下方只剩几像素，上方充裕 → 翻上去。
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+      top: 600, bottom: 700, height: 100, width: 600, left: 0, right: 600, x: 0, y: 600,
+    } as DOMRect)
+    vi.stubGlobal('innerHeight', 720)
     mount(openState())
-    expect(menuShell().style.maxHeight).toBe('116px')
+    expect(menuShell().hasAttribute('data-flip-up')).toBe(true)
+    // 翻上去时用实测 bottom（卡片高 100 + 间隙 4），而不是 CSS 的 100%+4。
+    expect(menuShell().style.bottom).toBe('104px')
   })
 
-  it('re-fits the height when the window resizes', () => {
+  it('re-fits the placement when the window resizes', () => {
     const rect = vi.spyOn(Element.prototype, 'getBoundingClientRect')
-    rect.mockReturnValue({ bottom: 800 } as DOMRect)
+    rect.mockReturnValue({
+      top: 20, bottom: 120, height: 100, width: 600, left: 0, right: 600, x: 0, y: 20,
+    } as DOMRect)
     mount(openState())
-    expect(menuShell().style.maxHeight).toBe('400px')
-    rect.mockReturnValue({ bottom: 100 } as DOMRect)
+    expect(menuShell().hasAttribute('data-flip-up')).toBe(false)
+    rect.mockReturnValue({
+      top: 600, bottom: 700, height: 100, width: 600, left: 0, right: 600, x: 0, y: 600,
+    } as DOMRect)
     act(() => { window.dispatchEvent(new Event('resize')) })
-    expect(menuShell().style.maxHeight).toBe('16px')
+    expect(menuShell().hasAttribute('data-flip-up')).toBe(true)
   })
 
   it('shows the bottom overflow hint until the list reaches its final row', () => {

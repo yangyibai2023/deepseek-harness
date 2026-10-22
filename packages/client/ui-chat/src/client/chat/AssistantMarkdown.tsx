@@ -163,6 +163,35 @@ export const AssistantMarkdown = memo(function AssistantMarkdown({
   // 「点击后能在右侧边栏直接预览或播放」）；远程图片保持原 lightbox 行为。
   const onMediaClickCapture = (event: ReactMouseEvent<HTMLDivElement>): void => {
     const target = event.target instanceof Element ? event.target : null
+    /* HeightLab（2026-10-22）：回复里的「打开我的技能」链接直达技能中心。
+     *
+     * 场景：模型刚把一套流程沉淀成 skill，回复末尾要告诉用户去哪儿用。
+     * 纯文字「插件·技能 → 我的技能」用户还得自己找三层入口；这里让链接
+     * 直接打开那个页面，并停在「我的技能」标签。
+     *
+     * 链接写成**同源绝对 URL**（`<origin>/#hl-skills`）而不是纯锚点：
+     * markdown 渲染器的 URL 白名单只放行 http/https/mailto，纯 `#…` 会被
+     * 判成相对 URL 后整条链接被剥掉（实测模型写了链接、界面上只剩文字）。
+     * 同源绝对 URL 天然过白名单，这里再拦下来做页内动作，不发真实导航。
+     *
+     * 两种形态都认：模型可能照注入文案写 `#hl-skills`，也可能因同源补全
+     * 写成完整 URL。 */
+    const skillLink = target?.closest('a[href]') ?? null
+    const skillHref = skillLink?.getAttribute('href') ?? null
+    if (skillHref !== null && /(^|\/)#hl-skills$/u.test(skillHref)) {
+      event.preventDefault()
+      event.stopPropagation()
+      /* 三重写入，缺一不可（实测 2026-10-22）：
+       *   __hlPendingHub      —— ConversationRoot 挂载后消费，决定打开覆盖层
+       *   __hlPendingSkillTab —— SkillHub 挂载后消费，决定落在「我的技能」
+       *   hl:open-skill 事件  —— 组件已在挂载时直接生效（事件先于挂载会丢，
+       *                          所以上面两个 pending 标记才是可靠通道） */
+      ;(window as unknown as { __hlPendingHub?: string | null }).__hlPendingHub = 'skill-hub'
+      ;(window as unknown as { __hlPendingSkillTab?: string | null }).__hlPendingSkillTab = 'mine'
+      window.dispatchEvent(new CustomEvent('hl:open-hub', { detail: { page: 'skill-hub' } }))
+      window.dispatchEvent(new CustomEvent('hl:open-skill', { detail: { tab: 'mine', refresh: true } }))
+      return
+    }
     const img = target?.closest('img') ?? null
     if (img === null) return
     const src = img.getAttribute('src') ?? ''

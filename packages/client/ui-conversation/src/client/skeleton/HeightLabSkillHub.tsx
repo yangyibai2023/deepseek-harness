@@ -53,6 +53,38 @@ export function HeightLabSkillHub({ onClose, embedded }: { onClose: () => void; 
   }, [])
   useEffect(() => { refreshMine() }, [refreshMine])
 
+  /* HeightLab（2026-10-22）：让外部能直接落到「我的技能」页。
+   *
+   * 场景：模型刚沉淀完一个技能，回复里要告诉用户「已存到 插件·技能 → 我的技能」，
+   * 并给一个可点链接直达。只给文字，用户还得自己找三层入口。
+   *
+   * 这里必须处理**两种时序**，否则链接会「打开技能中心但停在官方精选」：
+   *   ① 本组件已挂载 → 直接监听 hl:open-skill 生效；
+   *   ② 本组件尚未挂载（页面刚开、或当前不在技能页）→ 事件先于挂载到达，
+   *      监听器还没注册，事件丢掉。调用方同时写入 `window.__hlPendingSkillTab`，
+   *      我们在挂载时消费一次。
+   *
+   * `refreshMine` 必须重跑：新写的 SKILL.md 是刚落盘的，组件缓存的列表还是旧的。
+   * 消费后立刻清标记（与 ConversationRoot 消费 __hlPendingHub 同一条纪律：
+   * 不清就会在下次挂载时被再消费一次，表现为「关掉后又被弹回去」）。 */
+  useEffect(() => {
+    const applyTab = (tab?: Tab, refresh?: boolean): void => {
+      setTab(tab ?? 'mine')
+      if (refresh !== false) refreshMine()
+    }
+    const onOpenSkill = (event: Event): void => {
+      const detail = (event as CustomEvent<{ tab?: Tab; refresh?: boolean }>).detail
+      applyTab(detail?.tab, detail?.refresh)
+    }
+    window.addEventListener('hl:open-skill', onOpenSkill)
+    const pending = (window as unknown as { __hlPendingSkillTab?: Tab | null }).__hlPendingSkillTab
+    if (pending !== undefined && pending !== null) {
+      ;(window as unknown as { __hlPendingSkillTab?: Tab | null }).__hlPendingSkillTab = null
+      applyTab(pending, true)
+    }
+    return () => { window.removeEventListener('hl:open-skill', onOpenSkill) }
+  }, [refreshMine])
+
   const useSkillPrompt = (name: string): string =>
     `请加载技能「${name}」（技能目录下 ${name}/SKILL.md，可用 skill 工具读取），严格按其流程执行我的任务：\n`
 

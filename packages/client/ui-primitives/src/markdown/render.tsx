@@ -551,7 +551,13 @@ function MarkdownAnchor({ href, glyph, children }: {
   readonly children: ReactNode[]
 }): ReactNode {
   const { openExternalLink } = useMarkdownDelegate()
-  const external = ['http:', 'https:'].includes(new URL(href).protocol)
+  /* `href` may be a page-local anchor (`#hl-skills`), which `new URL()` rejects
+   * without a base — it is not external, so it keeps the plain anchor path and
+   * the owning view's click handler takes over. */
+  const protocol = ((): string | undefined => {
+    try { return new URL(href).protocol } catch { return undefined }
+  })()
+  const external = protocol === 'http:' || protocol === 'https:'
   const open = external ? openExternalLink : undefined
   return (
     <a

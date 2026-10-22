@@ -15,26 +15,15 @@
 import { MenuSurface } from '@deepseek-ai/dsh-client-ui-primitives'
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import clsx from 'clsx'
-import { IconChevronRightOutlineRegular, ReferenceIconRegular, useAnchoredMaxHeight } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconChevronRightOutlineRegular, ReferenceIconRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import css from './MenuView.module.css'
 import type { MenuViewInjected } from './slots.ts'
+import { MENU_MAX_HEIGHT, resolveMenuPlacement, type MenuPlacement } from './menuPlacement.ts'
 import type { MenuKey } from './locales.ts'
 
 /** Full menu props: injected face + the locale seat. */
 export type MenuViewProps = MenuViewInjected & PropsLocale<'slash.menu'>
-
-/** Height cap that fits the two headings and eight built-in command rows. */
-const MAX_HEIGHT = 400
-
-/**
- * Viewport top margin: the conversation header's 76px block (title row plus
- * view tabs, ui-conversation) plus 8px of air, so a tall list stops below the
- * header instead of sliding under it.
- */
-const TOP_MARGIN = 84
-/** 翻转判定时与视口边缘留的余量（与菜单 portal 的 margin 同量级）。 */
-const FALLBACK_MARGIN = 12
 
 /** DOM id of one option row (the aria-activedescendant target). */
 function optionId(source: string, index: number): string {
@@ -58,13 +47,25 @@ export function MenuView({ menu, headers, onPick, onCrumb, onHover, onDismiss, t
   const listRef = useRef<HTMLDivElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
   const [hasOverflowBelow, setHasOverflowBelow] = useState(false)
-  /* HeightLab（2026-10-22）：菜单默认向下展开，下方放不下时翻到上方。
-   * 判定放在 layout effect 里（首帧就定方向，不闪）。 */
-  const [flipUp, setFlipUp] = useState(false)
-  // The list is bottom-anchored above the composer; clamp the design cap to
-  // the space above it, re-measured on every store update (the anchor moves
-  // when the composer grows).
-  const maxHeight = useAnchoredMaxHeight(listRef, MAX_HEIGHT, state, TOP_MARGIN)
+  /* HeightLab（2026-10-22）：菜单的几何全由锚点决定，一次测量同时出三个量。
+   *
+   * 为什么不再用 `useAnchoredMaxHeight`：那个 hook 假定浮层**向上**展开
+   * （底边固定、向上生长），所以它用「元素自己的 rect.bottom − 顶部边距」
+   * 算可用高度。菜单改成向下展开后这个假设失效了 —— 元素底边会随高度
+   * 一起增长，形成自反馈，maxHeight 永远等于设计上限 400，于是菜单
+   * 从 y=655 一路长到 1055，overlay 327px（实测）。
+   *
+   * 这里直接按方向取真实可用空间：
+   *   向下 → 视口底 − 锚点底边 − 间隙
+   *   向上 → 锚点顶边 − 视口顶边距 − 间隙
+   *
+   * `flipOffset` 只在向上时用：锚点（overlayAnchor）钉在输入框卡片**底边**
+   * 且高度为 0，CSS 的 `bottom: calc(100% + 4px)` 只等于「卡片底边再往上
+   * 4px」，会盖住输入框 —— 必须再加一个卡片高度把菜单抬到卡片顶边之上。
+   * 卡片高度是动态的（多行输入会变高），只能在这里量。 */
+  const [placement, setPlacement] = useState<MenuPlacement>({
+    flipUp: false, offset: 0, maxHeight: MENU_MAX_HEIGHT,
+  })
   const updateOverflowHint = useCallback(() => {
     const viewport = viewportRef.current
     setHasOverflowBelow(viewport !== null
@@ -72,21 +73,60 @@ export function MenuView({ menu, headers, onPick, onCrumb, onHover, onDismiss, t
   }, [])
   useLayoutEffect(() => {
     updateOverflowHint()
-  }, [state, maxHeight, updateOverflowHint])
+  }, [state, placement.maxHeight, updateOverflowHint])
   useLayoutEffect(() => {
-    const anchor = listRef.current?.parentElement
-    if (anchor === null || anchor === undefined) return
-    const decide = (): void => {
-      const rect = anchor.getBoundingClientRect()
-      const below = window.innerHeight - rect.bottom - FALLBACK_MARGIN
-      const above = rect.top - FALLBACK_MARGIN
-      // 下方放不下整块、而上方更宽裕时才翻上去。
-      setFlipUp(below < Math.min(MAX_HEIGHT, 200) && above > below)
+    /* 锚点取**最近的带尺寸祖先**，而且必须从菜单的父节点开始找。
+     *
+     * 实测 DOM：输入框卡片 (bcgota_card, 高 108px)
+     *   └ overlayAnchor (inset:auto 0 0, height:0)
+     *      └ <div> ← listRef.parentElement，零尺寸
+     *         └ 菜单面板 ← listRef
+     *
+     * 两个必须避开的坑（都实测踩过）：
+     *   ① 从 listRef **自己**开始找 → 菜单本身有尺寸，直接返回自己的 rect，
+     *      而菜单位置又由这次计算决定 —— 形成自反馈：第一次算出「下方不够、
+     *      翻上去」，翻上去后菜单 rect 变了，再算又得出不同结论，菜单被推到
+     *      top=-320（完全在视口外）。
+     *   ② 用 listRef.parentElement → 零尺寸包装层，rect 全 0，于是「下方
+     *      空间」恒等于整个视口高，永远不翻转。
+     *
+     * 所以从父节点起找「第一个 height>0 且 width>0」的祖先。 */
+    const measure = (): DOMRect | undefined => {
+      let node: HTMLElement | null = listRef.current?.parentElement ?? null
+      while (node !== null) {
+        const rect = node.getBoundingClientRect()
+        if (rect.height > 0 && rect.width > 0) return rect
+        node = node.parentElement
+      }
+      return undefined
     }
-    decide()
-    window.addEventListener('resize', decide)
-    return () => { window.removeEventListener('resize', decide) }
+    const place = (): void => {
+      const rect = measure()
+      if (rect === undefined) return
+      /* 具体数值全在纯函数里算（可单测）。这里只负责量 DOM。 */
+      const next = resolveMenuPlacement({
+        anchor: { top: rect.top, bottom: rect.bottom, height: rect.height },
+        viewportHeight: window.innerHeight,
+      })
+      // 只在真的变了才 setState：place() 挂在 scroll/resize 上，高频触发。
+      setPlacement(previous => (
+        previous.flipUp === next.flipUp
+        && previous.offset === next.offset
+        && previous.maxHeight === next.maxHeight
+          ? previous
+          : next
+      ))
+    }
+    place()
+    window.addEventListener('resize', place)
+    // 输入框随内容长高/收起、或页面滚动时锚点会移动。
+    window.addEventListener('scroll', place, true)
+    return () => {
+      window.removeEventListener('resize', place)
+      window.removeEventListener('scroll', place, true)
+    }
   }, [state])
+  const maxHeight = placement.maxHeight
   const highlight = state.open ? state.highlight : null
   // Focus stays in the textarea (combobox pattern), so the browser never
   // scrolls the active option into view on keyboard moves — do it here.
@@ -116,9 +156,12 @@ export function MenuView({ menu, headers, onPick, onCrumb, onHover, onDismiss, t
     <MenuSurface
       ref={listRef}
       className={css.menu}
-      style={{ maxHeight }}
+      style={placement.flipUp && placement.offset > 0
+        // 翻上去时用实测的 bottom 距离（锚点在卡片底边，需抬过整张卡片）。
+        ? { maxHeight, top: 'auto', bottom: placement.offset }
+        : { maxHeight }}
       data-trigger-menu=""
-      data-flip-up={flipUp || undefined}
+      data-flip-up={placement.flipUp || undefined}
       data-overflow-below={hasOverflowBelow || undefined}
     >
       {state.groups.map((group) => {
