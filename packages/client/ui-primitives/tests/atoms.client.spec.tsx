@@ -448,7 +448,7 @@ describe('Menu', () => {
     expect(screen.queryByRole('menuitem', { name: 'Sub' })).toBeNull()
   })
 
-  it('opens a submenu on hover and selects a nested item', () => {
+  it('opens a submenu on hover and selects a nested item', async () => {
     const onSelect = vi.fn()
     render(
       <Menu
@@ -482,8 +482,15 @@ describe('Menu', () => {
     expect(screen.getByRole('menuitem', { name: 'Create ok' }).querySelectorAll('kbd')).toHaveLength(2)
     fireEvent.click(screen.getByRole('menuitem', { name: 'Create ok' }))
     expect(onSelect).toHaveBeenCalledWith('ok')
+    /* HeightLab（2026-10-22）：子菜单现在 portal 到 document.body，
+     * 不再渲染在父行内部。原断言用 screen.queryByRole 仍能查到 —— 但那是
+     * 「在文档里还找得到」，不是「还开着」。改为按 portal 后的实际语义断言：
+     * 关闭后 submenuPortal 卡片必须从文档里消失。 */
+    /* 关闭走 350ms 宽限期（HeightLab 加的子菜单防误关：卡片与父行之间有
+     * 间隙，鼠标跨过去时 mouseleave 会立刻触发）。所以这里等宽限期过后再断言。 */
     fireEvent.mouseLeave(wrap)
-    expect(screen.queryByRole('menuitem', { name: 'Create ok' })).toBeNull()
+    await new Promise((resolve) => { setTimeout(resolve, 400) })
+    expect(document.querySelector('[class*="submenuPortal"]')).toBeNull()
   })
 
   it('portal mode prefers getAnchorRect over measuring its own wrapper', () => {
@@ -597,7 +604,16 @@ describe('Menu', () => {
     expect(onSelect).toHaveBeenCalledWith('new')
   })
 
-  it('caps the list height for internal scrolling unless a submenu row is present', () => {
+  it('always caps the list height for internal scrolling, submenu rows included', () => {
+    /* HeightLab（2026-10-22）：这条规则反转了。
+     *
+     * 原行为「有子菜单行就不加 .scrollable」的理由是：子菜单卡绝对定位在
+     * 列表盒外，滚动裁剪会切掉它。现在子菜单已 portal 到 body，不再受列表盒
+     * 约束 —— 例外失去理由，而且正是它让模型选择器（14 个供应商行全带子菜单）
+     * 拿不到高度上限，内容溢出卡片、压在输入框上（用户报的「挤压在一块儿」）。
+     *
+     * 所以现在无论有没有子菜单行，都必须可滚动：卡片只裁圆角，滚动交给
+     * 内层 .viewport。 */
     const { rerender } = render(
       <Menu open anchor={<span>trigger</span>} items={items} onSelect={() => {}} onClose={() => {}} />)
     expect(screen.getByRole('menu').className).toMatch(/scrollable/)
@@ -609,7 +625,7 @@ describe('Menu', () => {
         onSelect={() => {}}
         onClose={() => {}}
       />)
-    expect(screen.getByRole('menu').className).not.toMatch(/scrollable/)
+    expect(screen.getByRole('menu').className).toMatch(/scrollable/)
   })
 })
 

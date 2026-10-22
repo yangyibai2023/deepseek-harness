@@ -518,9 +518,13 @@ export function Menu({ open, anchor, items = [], children, selectedId, selectedI
     if (!open) cancelClose()
   }, [open, cancelClose])
 
-  // The submenu card is absolutely positioned outside the list box; the
-  // scroll clip would crop it, so only submenu-free menus get the height cap.
-  const scrollable = !items.some(entry => !isSeparator(entry) && !isLabel(entry) && entry.submenu !== undefined && entry.submenu.length > 0)
+  /* 高度上限对所有菜单生效（2026-10-22）。
+   *
+   * 原先「有子菜单就跳过 .scrollable」的理由是：子菜单卡绝对定位在列表盒
+   * 外面，滚动裁剪会把它切掉。现在子菜单已 portal 到 body（见下方定位段），
+   * 不再受列表盒约束 —— 这个例外没有存在理由了，留着反而让模型选择器
+   * （14 个供应商行全带子菜单）拿不到高度上限，内容溢出卡片之外。 */
+  const scrollable = true
 
   /* ── 子菜单定位（2026-10-22）───────────────────────────────────────────
    *

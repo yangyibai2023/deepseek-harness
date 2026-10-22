@@ -43,6 +43,18 @@
   z-index: 100;
   min-width: 144px;
   max-width: 360px;
+  /* HeightLab（2026-10-22 用户实测「挤压在一块儿」）：
+   *
+   * 卡片有 max-height（portal 模式由 placeOverlay 按方向算出并 inline 设置），
+   * 但**没有 overflow 裁剪** —— 盒子被压到 400px，内容却继续向外溢出显示，
+   * 于是视觉上还是 484px 高、底部几项压在输入框上。
+   *
+   * 现在卡片只裁圆角，滚动交给内层 .viewport（与 .submenu 同一套做法：
+   * 材质层 .material 是 absolute inset:0，卡片一滚材质会跟着滚走，
+   * 下半屏玻璃消失）。flex 是让 .viewport 能收缩的前提。 */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 /* Portal mode: fixed in the viewport, coordinates supplied inline from the
@@ -80,7 +92,12 @@
 .viewport {
   display: flex;
   flex-direction: column;
+  /* flex:1 而且是可收缩的 —— 卡片被 inline max-height 限住时，viewport
+   * 必须跟着缩到剩余空间并自己滚动；只写 min-height:0 不够（它不会主动
+   * 占满剩余高度，内容仍按自然高度渲染、溢出到卡片外）。 */
+  flex: 1 1 auto;
   min-height: 0;
+  overflow-y: auto;
 }
 
 .scrollable .viewport {

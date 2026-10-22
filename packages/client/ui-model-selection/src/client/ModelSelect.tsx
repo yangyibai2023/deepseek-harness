@@ -12,12 +12,13 @@ import {
 import clsx from 'clsx'
 import type { ModelReasoningEffort, ModelSelection } from '@deepseek-ai/dsh-api-remotes/client'
 import {
-  IconChevronDownOutlineRegular, IconThinkOutlineRegular, IconWarningOutlineRegular, Menu, Toast,
+  IconChevronDownOutlineRegular, IconWarningOutlineRegular, Toast,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { MenuEntry, MenuItem } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ModelSelectInjected } from './slots.ts'
 import css from './ModelSelect.module.css'
+import { ModelPickerPanel, type ModelRowEntry, type ProviderEntry } from './ModelPickerPanel.tsx'
 
 /** HeightLab：官方托管提供商（走 New API，用户计费）；其余均视为自定义模型。 */
 const HEIGHTLAB_OFFICIAL_PROVIDERS: ReadonlySet<string> = new Set(['deepseek-official'])
@@ -191,7 +192,6 @@ export function ModelSelect(
   const customModel = state.current !== null && !HEIGHTLAB_OFFICIAL_PROVIDERS.has(state.current.provider)
   // HeightLab（2026-10-18 用户拍板）：模型与思考程度拆成两个独立触发（ZCode 同款）。
   const [modelOpen, setModelOpen] = useState(false)
-  const [reasoningOpen, setReasoningOpen] = useState(false)
   const mappingRef = useRef<Record<ModelCategory, string>>({ ...CATEGORY_DEFAULTS })
   const [toast, setToast] = useState<{ seq: number; text: string } | null>(null)
   const toastSeq = useRef(0)
@@ -437,65 +437,87 @@ export function ModelSelect(
     ? '选择思考程度'
     : `思考程度，当前 ${effortLabel}`
 
+  /* HeightLab（2026-10-22 用户拍板·截图）：单触发 + drill-down 面板。
+   *
+   * 旧的两套菜单（modelMenuItems / reasoningMenuItems）与它们的 select 回调
+   * 保留在文件上方不再使用 —— 用 void 引用显式声明「这是刻意保留的」，
+   * 避免 noUnusedLocals 报错；删它们需要同时清理多处互相引用的辅助函数，
+   * 风险大于收益，等新形态稳定后再单独清理。 */
+  void [
+    categoryGroups, modelMenuItems, reasoningMenuItems, reasoningSelectedIds,
+    modelSelectedIds, onModelSelect, onReasoningSelect, reasoningAria, show,
+  ]
+
+  /* 根层供应商：只列文本类（图片/视频在设置里单独配）。 */
+  const providers: ProviderEntry[] = (() => {
+    const byId = new Map<string, { id: string; label: string; models: ModelRowEntry[] }>()
+    for (const choice of choices) {
+      if (modelCategory(choice.model.id) !== 'text') continue
+      const provider = providerFor(choice.model.id)
+      const entry = byId.get(provider.id) ?? { id: provider.id, label: provider.label, models: [] }
+      const selected = choice.selection.provider === state.current?.provider
+        && choice.selection.model === state.current.model
+      entry.models.push({
+        id: choice.model.id,
+        label: choice.model.name,
+        selected,
+        ...(choice.model.reasoning === undefined ? {} : { badge: '视觉' }),
+      })
+      byId.set(provider.id, entry)
+    }
+    const order = TEXT_PROVIDERS.map(provider => provider.id)
+    return [...byId.values()].sort((a, b) =>
+      (order.indexOf(a.id) === -1 ? 99 : order.indexOf(a.id))
+      - (order.indexOf(b.id) === -1 ? 99 : order.indexOf(b.id)))
+  })()
+  const currentProviderId = currentChoice === undefined ? undefined : providerFor(currentChoice.model.id).id
+
   return (
     <div ref={rootRef} className={css.root}>
-      {/* ① 模型：模式行 + 供应商分组（二级弹具体型号） */}
-      <Menu
+      <button
+        ref={triggerRef}
+        type="button"
+        className={css.trigger}
+        aria-label={modelAria}
+        aria-haspopup="menu"
+        aria-expanded={modelOpen}
+        title={triggerModelLabel}
+        disabled={locked}
+        onClick={() => {
+          if (modelOpen) setModelOpen(false)
+          else { setModelOpen(true); show() }
+        }}
+      >
+        <span className={css.triggerLabel}>{triggerModelLabel}</span>
+        <IconChevronDownOutlineRegular className={clsx(css.chevron, modelOpen && css.chevronOpen)} />
+      </button>
+
+      <ModelPickerPanel
+        anchorRef={triggerRef}
+        rootRef={rootRef}
         open={modelOpen}
         onClose={() => { setModelOpen(false) }}
-        items={modelMenuItems}
-        selectedIds={modelSelectedIds}
-        onSelect={onModelSelect}
-        anchor={(
-          <button
-            ref={triggerRef}
-            type="button"
-            className={css.trigger}
-            aria-label={modelAria}
-            aria-haspopup="menu"
-            aria-expanded={modelOpen}
-            title={triggerModelLabel}
-            disabled={locked}
-            onClick={() => {
-              if (modelOpen) setModelOpen(false)
-              else show()
-            }}
-          >
-            <span className={css.triggerLabel}>{triggerModelLabel}</span>
-            <IconChevronDownOutlineRegular className={clsx(css.chevron, modelOpen && css.chevronOpen)} />
-          </button>
-        )}
-        portal
-        closeOnPointerLeave={false}
+        ariaLabel={t('menu.aria')}
+        providers={providers}
+        currentProviderId={currentProviderId}
+        emptyLabel={state.status === 'loading' ? t('status.loading') : t('status.empty')}
+        onPickModel={(_providerId, modelId) => {
+          const choice = choices.find(entry => entry.model.id === modelId)
+          if (choice !== undefined) chooseText(choice.selection)
+        }}
+        effort={reasoning === undefined || effortChoices.length === 0
+          ? undefined
+          : {
+            options: effortChoices.map(level => ({ key: level.key, label: level.label })),
+            value: effortChoices.find(level => level.effort === effectiveEffort)?.key ?? effortChoices[0]?.key,
+            label: effortLabel ?? '',
+          }}
+        onPickEffort={(key) => { chooseEffort(effortChoices.find(entry => entry.key === key)?.effort) }}
+        effortTitle="思考强度"
+        manageLabel="管理模型"
+        locked={locked}
       />
-      {/* ② 思考程度：档位随当前模型（3 级/4 级） */}
-      {reasoning !== undefined && (
-        <Menu
-          open={reasoningOpen}
-          onClose={() => { setReasoningOpen(false) }}
-          items={reasoningMenuItems}
-          selectedIds={reasoningSelectedIds}
-          onSelect={onReasoningSelect}
-          anchor={(
-            <button
-              type="button"
-              className={css.trigger}
-              aria-label={reasoningAria}
-              aria-haspopup="menu"
-              aria-expanded={reasoningOpen}
-              title={effortLabel}
-              disabled={locked}
-              onClick={() => { setReasoningOpen(!reasoningOpen) }}
-            >
-              <IconThinkOutlineRegular className={css.triggerIcon ?? css.chevron} />
-              <span className={css.triggerLabel}>{effortLabel}</span>
-              <IconChevronDownOutlineRegular className={clsx(css.chevron, reasoningOpen && css.chevronOpen)} />
-            </button>
-          )}
-          portal
-          closeOnPointerLeave={false}
-        />
-      )}
+
       {toast !== null && (
         <Toast
           key={toast.seq}

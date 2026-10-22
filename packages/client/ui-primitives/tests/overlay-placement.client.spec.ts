@@ -154,6 +154,24 @@ describe('横向方向（二级菜单 / 子菜单）', () => {
     expect(p.top).toBeGreaterThanOrEqual(12)
     expect(p.top + (p.maxHeight ?? 400)).toBeLessThanOrEqual(VH - 12 + 1)
   })
+
+  it('父行在底部时，子菜单底对齐父行而不是飞到屏幕上方', () => {
+    // 用户实测：模型选择器最后一项「其他」展开时子菜单「弹到别的地方」。
+    // 父行 y=690..714（列表最末行），卡片 320 高：顶对齐会到 1010，
+    // 硬 shift 会把它推到 y=388（离父行 300px 远）。
+    const anchor = rect(690, 24, 100, 200)
+    const p = place(anchor, 'right', { width: 260, height: 320 })
+    // 底对齐：卡片底边贴父行底边
+    expect(p.top).toBe(anchor.bottom - 320)
+    // 且紧邻父行（垂直方向仍在同一屏段，不飞到顶部）
+    expect(Math.abs((p.top + 320) - anchor.bottom)).toBeLessThanOrEqual(1)
+  })
+
+  it('父行在中部时子菜单顶对齐父行', () => {
+    const anchor = rect(300, 24, 100, 200)
+    const p = place(anchor, 'right', { width: 260, height: 200 })
+    expect(p.top).toBe(anchor.top)
+  })
 })
 
 describe('对齐方式', () => {

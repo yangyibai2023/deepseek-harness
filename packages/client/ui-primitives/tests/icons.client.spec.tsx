@@ -124,15 +124,17 @@ describe('product icon set', () => {
 })
 
 describe('FishLogo', () => {
-  it('renders the fish path in currentColor at the native ratio', () => {
+  it('renders the HeightLab logo path in currentColor at its square ratio', () => {
+    /* HeightLab 品牌化（用户批准）：FishLogo 已换成自绘的 HeightLab logo
+     * （描摹自 assets/heightlab-logo.png），viewBox 是 100×100 正方形，
+     * 不再是上游的 23.16×17.04 鱼形。所以尺寸断言跟着品牌走。 */
     const { container } = render(<primitives.FishLogo />)
     const svg = container.querySelector('svg')!
     expect(svg.getAttribute('width')).toBe('24')
-    expect(Number(svg.getAttribute('height'))).toBeCloseTo(17.66, 1)
-    expect(svg.getAttribute('viewBox')).toBe('0 0 23.16 17.04')
-    expect(container.querySelectorAll('path')).toHaveLength(1)
+    expect(Number(svg.getAttribute('height'))).toBeCloseTo(24, 1)
+    expect(svg.getAttribute('viewBox')).toBe('0 0 100 100')
+    expect(container.querySelector('path')).not.toBeNull()
     expect(container.innerHTML).toContain('currentColor')
-    expect(container.innerHTML).not.toContain('M0 0L23.16')
   })
 })
 

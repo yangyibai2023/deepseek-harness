@@ -237,11 +237,33 @@ export function placeOverlay(options: PlaceOptions): Placement {
   let top: number
   if (isVertical(resolvedSide)) {
     top = resolvedSide === 'bottom' ? anchor.bottom + gap : anchor.top - gap - finalHeight
+    top = clampAxis(top, finalHeight, topLimit, bottomLimit)
   } else {
-    // 横向挂载时，垂直方向与锚点顶对齐（子菜单惯例），再做 shift。
-    top = anchor.top
+    /* 横向挂载（子菜单 / 侧边卡片）的垂直位置。
+     *
+     * 不能只做「顶对齐 + 硬 shift」：父行在列表底部时（模型选择器的
+     * 「其他」就是最后一项），`anchor.top + 高度` 会超出视口，硬 shift
+     * 把卡片顶到屏幕上方很远的地方 —— 用户的反馈正是「这个其他它还是
+     * 弹到别的地方去了」。
+     *
+     * 正确的三段式（与 Floating UI 的 flip/shift 一致）：
+     *   ① 顶对齐父行（子菜单惯例）
+     *   ② 放不下 → 底对齐父行（卡片底边贴父行底边，仍紧邻它）
+     *   ③ 还是放不下（卡片比视口还高）→ 才 shift 进视口
+     */
+    const topAligned = anchor.top
+    const bottomAligned = anchor.bottom - finalHeight
+    if (finalHeight > 0 && topAligned + finalHeight > bottomLimit) {
+      if (bottomAligned >= topLimit) {
+        top = bottomAligned
+      } else {
+        // 卡片比可用空间高：优先保住顶部（露出标题比露出尾巴有用）。
+        top = clampAxis(topAligned, finalHeight, topLimit, bottomLimit)
+      }
+    } else {
+      top = clampAxis(topAligned, finalHeight, topLimit, bottomLimit)
+    }
   }
-  top = clampAxis(top, finalHeight, topLimit, bottomLimit)
 
   /* ── 阶段 ④：横向坐标 + 对齐翻转 + shift ─────────────────────────── */
 
