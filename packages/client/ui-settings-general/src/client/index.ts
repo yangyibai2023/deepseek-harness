@@ -47,6 +47,15 @@ import type { SettingsDocumentActionInjected } from './SettingsDocumentAction.ts
 import { SettingsDocumentStore } from './settings-document-store.ts'
 import { en, zh, type SettingsKey } from './locales.ts'
 
+/**
+ * 数字人功能总开关（2026-10-22）。
+ *
+ * `true` = 已下线（设置页不显示「形象与声音」，talking_head_production 工具不注册）。
+ * 改回 `false` 即完整恢复，无需改其它代码。备份见
+ * ~/.heightlab/backups/digital-human-retire-20261022-233245/
+ */
+const HEIGHTLAB_RETIRE_DIGITAL_HUMAN = true
+
 export type {
   CloseLabelProps, HeaderContentProps, TriggerContentProps,
 } from './chrome.tsx'
@@ -313,13 +322,28 @@ export function apply(ctx: ClientContext): void {
     label: () => '记忆',
   }, GlobalMemorySection))
 
-  // 形象与声音 section（avatars + voices 合并页）。
-  ctx.slots.inject('settings.section', () => ctx.slots.register({
-    name: 'settings.section',
-    id: 'heightlab-voice-avatar',
-    order: 110,
-    label: () => '形象与声音',
-  }, HeightLabVoiceAvatar))
+  /* 数字人功能下线（2026-10-22 用户要求）。
+   *
+   * 用户原话：「数字人功能下线（做好记录和备份，保持可回滚），相关 agent 提示词
+   * 也要改；『声音与形象』改成对话中自动沉淀 + 用 DSH 原生快捷命令调用」。
+   *
+   * 做法：**代码保留、只摘挂载点**。这样回滚只是把开关改回 false，不需要
+   * 从 git 里捞文件。备份与回滚说明见
+   * ~/.heightlab/backups/digital-human-retire-20261022-233245/RESTORE.md
+   *
+   * 为什么不再在设置里手动建形象/声音：这两件事现在由对话自动完成 ——
+   * 用户发一张人物图、或一段音频，assetDeposit 自动沉淀进资产库；之后在输入框
+   * 用 `@` 就能调用（见 heightlab-asset-reference 的「我的资产」源），
+   * 或输入 `/形象` `/声音` 这类 skill 命令。设置页里再放一套手动 CRUD 是
+   * 重复入口，且容易与对话产出的资产库不一致。 */
+  if (!HEIGHTLAB_RETIRE_DIGITAL_HUMAN) {
+    ctx.slots.inject('settings.section', () => ctx.slots.register({
+      name: 'settings.section',
+      id: 'heightlab-voice-avatar',
+      order: 110,
+      label: () => '形象与声音',
+    }, HeightLabVoiceAvatar))
+  }
 
   // 关于（版本号/检查更新/软件介绍）。
   ctx.slots.inject('settings.section', () => ctx.slots.register({
