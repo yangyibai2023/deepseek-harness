@@ -155,6 +155,13 @@ function AvatarThumb({ item, onOpen }: { item: AvatarItem; onOpen: (item: Avatar
   )
 }
 
+/**
+ * HeightLab（2026-10-22 用户拍板）：数字人能力暂时下线，形象/声音不再需要手动
+ * 创建——改为「对话中自动沉淀」。这里把新建入口关掉（列表与删除保留，
+ * 历史资产仍可管理）。需要恢复手动创建时把下面改成 true。
+ */
+const SHOW_MANUAL_CREATE = false
+
 export function HeightLabAvatars() {
   const [items, setItems] = useState<AvatarItem[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -300,9 +307,9 @@ export function HeightLabAvatars() {
           <div style={{ opacity: 0.7, fontSize: 13 }}>我的数字人形象（新建后可直接在对话中使用）</div>
         </div>
         {/* HeightLab：新建形象用原生描边按钮，不用蓝色主按钮。 */}
-        <button type="button" style={buttonStyle} onClick={() => { setCreateOpen(true); setCreateError(null) }}>
+        {SHOW_MANUAL_CREATE && <button type="button" style={buttonStyle} onClick={() => { setCreateOpen(true); setCreateError(null) }}>
           新建形象
-        </button>
+        </button>}
       </div>
       {error && <div style={{ opacity: 0.8, fontSize: 13, color: '#d64545' }}>{error}</div>}
       {!error && items.length === 0 && (
