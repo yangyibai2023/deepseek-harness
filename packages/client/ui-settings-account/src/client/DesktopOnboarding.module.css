@@ -176,7 +176,8 @@
 .card::after {
   padding: 2px;
   background: conic-gradient(from var(--dsh-onboarding-border-angle), var(--card-border-stops));
-  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  /* hl-dark-ok：mask 里的 #fff 是遮罩的「不透明」占位，不产生可见颜色。 */
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); /* hl-dark-ok */
   mask-composite: exclude;
   opacity: 0;
 }

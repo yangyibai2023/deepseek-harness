@@ -43,7 +43,8 @@
 .taskName {
   font-size: 12px;
   line-height: 16px;
-  color: #FFFFFF;
+  /* hl-dark-ok：角标底色恒为强调色，白字固定。 */
+  color: #FFFFFF; /* hl-dark-ok */
   overflow-wrap: break-word;
 }
 

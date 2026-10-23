@@ -75,7 +75,7 @@
   padding: 2px;
   border: 1px solid var(--dsw-alias-border-l3, rgba(0, 0, 0, 0.12));
   border-radius: 999px;
-  background: #fff;
+  background: var(--dsw-alias-surface-primary, #fff);
 }
 
 .segment {
@@ -87,7 +87,7 @@
   border: none;
   border-radius: 999px;
   background: transparent;
-  color: #000;
+  color: var(--dsw-alias-label-primary, #000);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -96,8 +96,9 @@
 }
 
 .segmentActive {
-  background: #000;
-  color: #fff;
+  background: var(--dsw-alias-label-primary, #000);
+  /* hl-dark-ok：选中段是深底浅字，白字压在 label-primary 底上，两主题都成立。 */
+  color: var(--dsw-alias-bg-base, #fff); /* hl-dark-ok */
 }
 
 /* HeightLab：空间自适应（JS 测量）——空间不够时切换为纯图标 */

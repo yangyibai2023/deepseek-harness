@@ -375,7 +375,8 @@
 .hoverTitle {
   font-size: 14px;
   line-height: 20px;
-  color: #FFFFFF;
+  /* hl-dark-ok：hover 预览恒为深色背景，白字固定。 */
+  color: #FFFFFF; /* hl-dark-ok */
   overflow-wrap: break-word;
 }
 

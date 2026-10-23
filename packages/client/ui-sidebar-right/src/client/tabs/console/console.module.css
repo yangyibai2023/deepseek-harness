@@ -15,7 +15,7 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   font-size: 12px;
-  color: #1a1a1a;
+  color: var(--dsw-alias-label-primary, #1a1a1a);
 }
 .head {
   display: flex;
@@ -30,7 +30,7 @@
 }
 .headHint {
   font-size: 11px;
-  color: #888;
+  color: var(--dsw-alias-label-secondary, #888);
   line-height: 1.5;
 }
 .sectionTitle {
@@ -87,11 +87,11 @@
 .field select,
 .field input[type='text'] {
   padding: 7px 8px;
-  border: 1px solid #d9d9d9;
+  border: 1px solid var(--dsw-alias-border-l3, #d9d9d9);
   border-radius: 8px;
-  background: #fff;
+  background: var(--dsw-alias-surface-primary, #fff);
   font-size: 12px;
-  color: #1a1a1a;
+  color: var(--dsw-alias-label-primary, #1a1a1a);
   outline: none;
 }
 .field select:focus,
@@ -107,7 +107,7 @@
   padding: 10px;
   border: 1.5px dashed #b9b9b9;
   border-radius: 10px;
-  background: #fafafa;
+  background: var(--dsw-alias-bg-layer-2, #fafafa);
 }
 .slotLabel {
   font-weight: 600;
@@ -118,7 +118,8 @@
 .badge {
   font-size: 10px;
   font-weight: 600;
-  color: #fff;
+  /* hl-dark-ok：深色徽章上的白字，语义色不随主题变。 */
+  color: #fff; /* hl-dark-ok */
   background: #1a1a1a;
   border-radius: 4px;
   padding: 1px 5px;
@@ -130,12 +131,12 @@
 .slotButton {
   margin-top: 2px;
   padding: 7px 10px;
-  border: 1px solid #d9d9d9;
+  border: 1px solid var(--dsw-alias-border-l3, #d9d9d9);
   border-radius: 8px;
-  background: #fff;
+  background: var(--dsw-alias-surface-primary, #fff);
   text-align: center;
   cursor: pointer;
-  color: #1a1a1a;
+  color: var(--dsw-alias-label-primary, #1a1a1a);
   font-size: 12px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -163,7 +164,8 @@
   border: none;
   border-radius: 8px;
   background: #1a1a1a;
-  color: #fff;
+  /* hl-dark-ok：深色主按钮上的白字，两主题都成立。 */
+  color: #fff; /* hl-dark-ok */
   font-size: 13px;
   font-weight: 600;
 }
@@ -186,19 +188,19 @@
   background: transparent;
   padding: 0;
   font-size: 11px;
-  color: #888;
+  color: var(--dsw-alias-label-secondary, #888);
   cursor: pointer;
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 .libLink:hover {
-  color: #1a1a1a;
+  color: var(--dsw-alias-label-primary, #1a1a1a);
 }
 .counter {
   font-size: 10px;
   font-weight: 600;
-  color: #888;
-  background: #f0f0f0;
+  color: var(--dsw-alias-label-secondary, #888);
+  background: var(--dsw-alias-interactive-bg-hover, #f0f0f0);
   border-radius: 8px;
   padding: 1px 6px;
 }
@@ -211,13 +213,13 @@
   min-height: 76px;
   border: 1.5px dashed #c4c4c4;
   border-radius: 10px;
-  background: #fafafa;
+  background: var(--dsw-alias-bg-layer-2, #fafafa);
   cursor: pointer;
   transition: border-color 0.15s ease, background 0.15s ease;
 }
 .uploadBox:hover {
-  border-color: #1a1a1a;
-  background: #f4f4f4;
+  border-color: var(--dsw-alias-label-primary, #1a1a1a);
+  background: var(--dsw-alias-interactive-bg-hover, #f4f4f4);
 }
 .uploadPlus {
   font-size: 22px;
@@ -226,7 +228,7 @@
   color: #999;
 }
 .uploadBox:hover .uploadPlus {
-  color: #1a1a1a;
+  color: var(--dsw-alias-label-primary, #1a1a1a);
 }
 .uploadText {
   font-size: 12px;
@@ -239,7 +241,7 @@
 }
 .thumbBox {
   position: relative;
-  border: 1px solid #e2e2e2;
+  border: 1px solid var(--dsw-alias-border-l3, #e2e2e2);
   border-radius: 10px;
   overflow: hidden;
   background: #000;
@@ -260,7 +262,8 @@
   border: none;
   border-radius: 50%;
   background: rgba(26, 26, 26, 0.72);
-  color: #fff;
+  /* hl-dark-ok：压在图片上的圆形按钮，白图标固定。 */
+  color: #fff; /* hl-dark-ok */
   font-size: 14px;
   line-height: 1;
   cursor: pointer;
@@ -283,7 +286,8 @@
   bottom: 0;
   padding: 14px 8px 5px;
   font-size: 10px;
-  color: #fff;
+  /* hl-dark-ok：图片底部渐变遮罩上的白字。 */
+  color: #fff; /* hl-dark-ok */
   background: linear-gradient(transparent, rgba(0, 0, 0, 0.6));
   overflow: hidden;
   text-overflow: ellipsis;
@@ -297,10 +301,10 @@
 .imgCell {
   position: relative;
   aspect-ratio: 1 / 1;
-  border: 1px solid #e2e2e2;
+  border: 1px solid var(--dsw-alias-border-l3, #e2e2e2);
   border-radius: 8px;
   overflow: hidden;
-  background: #fafafa;
+  background: var(--dsw-alias-bg-layer-2, #fafafa);
 }
 .imgCellImg {
   display: block;
@@ -317,7 +321,8 @@
   border: none;
   border-radius: 50%;
   background: rgba(26, 26, 26, 0.72);
-  color: #fff;
+  /* hl-dark-ok：压在图片上的圆形按钮，白图标固定。 */
+  color: #fff; /* hl-dark-ok */
   font-size: 12px;
   line-height: 1;
   cursor: pointer;
@@ -349,7 +354,7 @@
   aspect-ratio: 1 / 1;
   border: 1.5px dashed #c4c4c4;
   border-radius: 8px;
-  background: #fafafa;
+  background: var(--dsw-alias-bg-layer-2, #fafafa);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -357,8 +362,8 @@
   transition: border-color 0.15s ease, background 0.15s ease;
 }
 .addTile:hover {
-  border-color: #1a1a1a;
-  background: #f0f0f0;
+  border-color: var(--dsw-alias-label-primary, #1a1a1a);
+  background: var(--dsw-alias-interactive-bg-hover, #f0f0f0);
 }
 .addTilePlus {
   font-size: 20px;
@@ -366,14 +371,14 @@
   color: #999;
 }
 .addTile:hover .addTilePlus {
-  color: #1a1a1a;
+  color: var(--dsw-alias-label-primary, #1a1a1a);
 }
 
 /* ── 2026-09-19 改版：生成参数默认折叠（摘要行随选择实时更新） ── */
 .paramsDetails {
-  border: 1px solid #ececec;
+  border: 1px solid var(--dsw-alias-border-l2, #ececec);
   border-radius: 10px;
-  background: #fcfcfc;
+  background: var(--dsw-alias-bg-layer-2, #fcfcfc);
 }
 .paramsSummary {
   display: flex;
@@ -427,7 +432,7 @@
   padding: 7px 8px;
   border: 1px solid #ececec;
   border-radius: 10px;
-  background: #fafafa;
+  background: var(--dsw-alias-bg-layer-2, #fafafa);
 }
 .progressStages {
   display: flex;
@@ -453,20 +458,21 @@
   align-items: center;
   justify-content: center;
   font-size: 10px;
-  background: #fff;
+  background: var(--dsw-alias-surface-primary, #fff);
 }
 .stageDone .stageDot {
   background: #1a1a1a;
   border-color: #1a1a1a;
-  color: #fff;
+  /* hl-dark-ok：深色进度圆点上的白勾。 */
+  color: #fff; /* hl-dark-ok */
 }
 .stageActive .stageDot {
   border-color: #1a1a1a;
-  color: #1a1a1a;
+  color: var(--dsw-alias-label-primary, #1a1a1a);
   animation: hlPulse 1.4s ease-in-out infinite;
 }
 .stageActive {
-  color: #1a1a1a;
+  color: var(--dsw-alias-label-primary, #1a1a1a);
   font-weight: 600;
 }
 @keyframes hlPulse {
@@ -487,12 +493,12 @@
 .slotButton {
   flex: 1;
   padding: 7px 10px;
-  border: 1px solid #d9d9d9;
+  border: 1px solid var(--dsw-alias-border-l3, #d9d9d9);
   border-radius: 8px;
-  background: #fff;
+  background: var(--dsw-alias-surface-primary, #fff);
   text-align: center;
   cursor: pointer;
-  color: #1a1a1a;
+  color: var(--dsw-alias-label-primary, #1a1a1a);
   font-size: 12px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -503,9 +509,9 @@
 }
 .slotLibrary {
   padding: 7px 10px;
-  border: 1px solid #d9d9d9;
+  border: 1px solid var(--dsw-alias-border-l3, #d9d9d9);
   border-radius: 8px;
-  background: #f4f4f4;
+  background: var(--dsw-alias-interactive-bg-hover, #f4f4f4);
   cursor: pointer;
   font-size: 12px;
   color: #444;
@@ -513,7 +519,7 @@
 }
 .slotLibrary:hover {
   border-color: #1a1a1a;
-  color: #1a1a1a;
+  color: var(--dsw-alias-label-primary, #1a1a1a);
 }
 .fileInput {
   display: none;
@@ -522,10 +528,10 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  border: 1px solid #e2e2e2;
+  border: 1px solid var(--dsw-alias-border-l3, #e2e2e2);
   border-radius: 8px;
   padding: 6px;
-  background: #fff;
+  background: var(--dsw-alias-surface-primary, #fff);
   max-height: 180px;
   overflow-y: auto;
 }
@@ -546,10 +552,10 @@
   cursor: pointer;
   text-align: left;
   font-size: 12px;
-  color: #1a1a1a;
+  color: var(--dsw-alias-label-primary, #1a1a1a);
 }
 .assetItem:hover {
-  background: #f2f2f2;
+  background: var(--dsw-alias-interactive-bg-hover, #f2f2f2);
 }
 .assetName {
   font-weight: 500;
@@ -582,7 +588,7 @@
   max-height: 70vh;
   display: flex;
   flex-direction: column;
-  background: #fff;
+  background: var(--dsw-alias-bg-layer-1, #fff);
   border-radius: 12px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.22);
   overflow: hidden;
@@ -603,8 +609,8 @@
   height: 24px;
   border: none;
   border-radius: 50%;
-  background: #f2f2f2;
-  color: #444;
+  background: var(--dsw-alias-interactive-bg-hover, #f2f2f2);
+  color: var(--dsw-alias-label-secondary, #444);
   font-size: 15px;
   line-height: 1;
   cursor: pointer;
@@ -630,7 +636,7 @@
   padding: 0 0 5px;
   border: 1px solid #e6e6e6;
   border-radius: 9px;
-  background: #fff;
+  background: var(--dsw-alias-surface-primary, #fff);
   cursor: pointer;
   overflow: hidden;
   text-align: left;
@@ -643,7 +649,7 @@
   width: 100%;
   aspect-ratio: 1 / 1;
   object-fit: cover;
-  background: #f6f6f6;
+  background: var(--dsw-alias-bg-layer-2, #f6f6f6);
 }
 .modalVoiceTile {
   display: flex;
@@ -652,13 +658,13 @@
   width: 100%;
   aspect-ratio: 1 / 1;
   font-size: 22px;
-  color: #666;
-  background: #f6f6f6;
+  color: var(--dsw-alias-label-secondary, #666);
+  background: var(--dsw-alias-bg-layer-2, #f6f6f6);
 }
 .modalCellName {
   font-size: 11px;
   font-weight: 500;
-  color: #1a1a1a;
+  color: var(--dsw-alias-label-primary, #1a1a1a);
   padding: 0 6px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -695,7 +701,7 @@
   padding: 7px 9px;
   border: 1.5px solid #e2e2e2;
   border-radius: 9px;
-  background: #fafafa;
+  background: var(--dsw-alias-bg-layer-2, #fafafa);
   cursor: pointer;
   text-align: left;
   transition: border-color 0.15s ease, background 0.15s ease;
@@ -705,12 +711,12 @@
 }
 .modeBtnActive {
   border-color: #1a1a1a;
-  background: #fff;
+  background: var(--dsw-alias-surface-primary, #fff);
 }
 .modeName {
   font-size: 12px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--dsw-alias-label-primary, #1a1a1a);
 }
 .modeDesc {
   font-size: 10px;

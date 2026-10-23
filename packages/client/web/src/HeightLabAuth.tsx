@@ -69,15 +69,16 @@ body[data-hl-auth='out'] [data-dsh-panel-host] {
   color: var(--dsw-alias-label-primary, #111);
   border: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.14));
 }
-.hl-auth-btn-ghost:hover:not(:disabled) { border-color: rgba(0, 0, 0, 0.32); }
+.hl-auth-btn-ghost:hover:not(:disabled) { border-color: var(--dsw-alias-border-l3, rgba(0, 0, 0, 0.32)); }
 #hl-invite-code {
-  background: #fff;
+  /* 2026-10-23：原来写死 #fff，暗色下登录框是一片白。改用语义面 token。 */
+  background: var(--dsw-alias-surface-primary, #fff);
 }
 #hl-invite-code:focus {
-  border-color: #0f1115;
-  box-shadow: 0 0 0 3px rgba(15, 17, 21, 0.08);
+  border-color: var(--dsw-alias-label-primary, #0f1115);
+  box-shadow: 0 0 0 3px var(--dsw-alias-border-l2, rgba(15, 17, 21, 0.08));
 }
-#hl-invite-code::placeholder { color: rgba(0, 0, 0, 0.28); }
+#hl-invite-code::placeholder { color: var(--dsw-alias-label-tertiary, rgba(0, 0, 0, 0.28)); }
 `
 
 function ensureAuthCss(): void {
@@ -349,7 +350,7 @@ const inputStyle: React.CSSProperties = {
   padding: '12px 14px',
   borderRadius: '12px',
   border: '1px solid var(--dsw-alias-border-l2, rgba(0,0,0,0.1))',
-  background: '#fff',
+  background: 'var(--dsw-alias-surface-primary, #fff)',
   color: 'var(--dsw-alias-label-primary, #111)',
   fontSize: 14,
   outline: 'none',

@@ -181,8 +181,9 @@
   height: 34px;
   border: none;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.16);
-  color: #fff;
+  /* hl-dark-ok：半透明白底 + 白图标，压在深色消息流上，两主题都成立。 */
+  background: rgba(255, 255, 255, 0.16); /* hl-dark-ok */
+  color: #fff; /* hl-dark-ok */
   cursor: pointer;
 }
 

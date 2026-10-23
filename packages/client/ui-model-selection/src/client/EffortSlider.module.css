@@ -168,7 +168,8 @@
   width: 20px;
   height: 20px;
   border-radius: 999px;
-  background: #fff;
+  /* hl-dark-ok：白色滑块压在彩色渐变轨道上，两主题都成立。 */
+  background: #fff; /* hl-dark-ok */
   box-shadow:
     0 1px 3px rgb(0 0 0 / 22%),
     0 0 0 0.5px rgb(0 0 0 / 6%);

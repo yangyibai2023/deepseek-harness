@@ -84,7 +84,7 @@
   align-items: stretch;
   gap: 4px;
   text-align: left;
-  background: #fff;
+  background: var(--dsw-alias-bg-layer-1, #fff);
   border: 1px solid rgba(17, 17, 17, 0.06);
   border-radius: 14px;
   padding: 8px 8px 8px;
@@ -114,7 +114,8 @@
 .coverLabel {
   font-size: 20px;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.92);
+  /* hl-dark-ok：压在有图封面上方的标题字，两主题都需白字。 */
+  color: rgba(255, 255, 255, 0.92); /* hl-dark-ok */
   letter-spacing: 2px;
   user-select: none;
 }
@@ -133,7 +134,8 @@
   top: 8px;
   right: 8px;
   font-size: 11px;
-  color: #fff;
+  /* hl-dark-ok：角标压在图封面上。 */
+  color: #fff; /* hl-dark-ok */
   background: rgba(17, 17, 17, 0.55);
   padding: 3px 9px;
   border-radius: 999px;
@@ -172,7 +174,8 @@
   width: 40px;
   height: 40px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.9);
+  /* hl-dark-ok：播放圆点压在图封面上。 */
+  background: rgba(255, 255, 255, 0.9); /* hl-dark-ok */
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
 }
 
@@ -196,7 +199,8 @@
 .promptPill {
   font-size: 12px;
   line-height: 1;
-  color: #fff;
+  /* hl-dark-ok：hover 胶囊压在图封面上。 */
+  color: #fff; /* hl-dark-ok */
   background: rgba(17, 17, 17, 0.65);
   padding: 7px 14px;
   border-radius: 999px;
@@ -214,12 +218,13 @@
 
 /* 「面板」为主操作（进入工作台），用实底强调；「聊天」为次操作。 */
 .promptPillPrimary {
-  background: rgba(255, 255, 255, 0.94);
-  color: #111;
+  /* hl-dark-ok：主操作胶囊压在封面图上，白底深字两主题都成立。 */
+  background: rgba(255, 255, 255, 0.94); /* hl-dark-ok */
+  color: #111; /* hl-dark-ok */
 }
 
 .promptPillPrimary:hover {
-  background: #fff;
+  background: var(--dsw-alias-bg-base, #fff);
 }
 
 /* 占位卡：视觉弱化一档、不可点不抬升。 */
@@ -237,7 +242,8 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: rgba(255, 255, 255, 0.05);
+  /* hl-dark-ok：占位卡的极淡白罩，叠在封面图上，两主题都成立。 */
+  background: rgba(255, 255, 255, 0.05); /* hl-dark-ok */
 }
 
 .title {
@@ -289,7 +295,7 @@
   width: min(760px, 92vw);
   max-height: 82vh;
   border-radius: 16px;
-  background: #fff;
+  background: var(--dsw-alias-bg-layer-1, #fff);
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.28);
   overflow: hidden;
 }
@@ -349,8 +355,9 @@
 .previewUse {
   border: none;
   border-radius: 999px;
-  background: #111;
-  color: #fff;
+  background: var(--dsw-alias-label-primary, #111);
+  /* hl-dark-ok：深底浅字的主按钮，白字压在 label-primary 上，两主题都成立。 */
+  color: var(--dsw-alias-bg-base, #fff); /* hl-dark-ok */
   font-size: 13px;
   font-weight: 600;
   padding: 9px 22px;
@@ -359,4 +366,95 @@
 
 .previewUse:hover {
   opacity: 0.88;
+}
+
+/* ══ 暗色模式 ══════════════════════════════════════════════════════════════
+ * 2026-10-23：这个文件此前**完全没有**暗色适配，于是暗色下整片模板区仍是
+ * 白卡 + 浅灰字（用户截图实测）。上面用的是硬编码 `#fff` / `#111` / `#8a9097`，
+ * 这些值在浅色下是设计定稿，不动；这里只在暗色下逐项覆盖。
+ *
+ * 取值一律走 DSH 的 alias token（而不是另写一套十六进制），这样主题包升级时
+ * 自动跟随：bg-layer-1 = 卡片面、bg-base = 页面底、label-* = 三级文字、
+ * border-l1 = 细分割线。
+ * ══════════════════════════════════════════════════════════════════════════ */
+body[data-ds-dark-theme] .categories {
+  background: var(--dsw-alias-bg-base, #151517);
+  box-shadow:
+    0 -8px 0 0 var(--dsw-alias-bg-base, #151517),
+    0 8px 0 0 var(--dsw-alias-bg-base, #151517);
+}
+
+body[data-ds-dark-theme] .chip {
+  color: var(--dsw-alias-label-secondary, #cfd3d6);
+}
+
+body[data-ds-dark-theme] .chip:hover {
+  color: var(--dsw-alias-label-primary, #f9fafb);
+}
+
+body[data-ds-dark-theme] .chipActive {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--dsw-alias-label-primary, #f9fafb);
+}
+
+body[data-ds-dark-theme] .card {
+  background: var(--dsw-alias-bg-layer-1, #232324);
+  border-color: var(--dsw-alias-border-l1, rgba(255, 255, 255, 0.06));
+}
+
+body[data-ds-dark-theme] .card:hover {
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+body[data-ds-dark-theme] .cardSoon:hover {
+  border-color: var(--dsw-alias-border-l1, rgba(255, 255, 255, 0.06));
+}
+
+body[data-ds-dark-theme] .cardSoon .cover::after {
+  /* 占位卡的"弱化"遮罩：浅色下压暗，暗色下要反过来提亮一点，否则整块糊成一团。 */
+  background: rgba(0, 0, 0, 0.35);
+}
+
+body[data-ds-dark-theme] .title {
+  color: var(--dsw-alias-label-primary, #f9fafb);
+}
+
+body[data-ds-dark-theme] .desc {
+  color: var(--dsw-alias-label-secondary, #cfd3d6);
+}
+
+body[data-ds-dark-theme] .author,
+body[data-ds-dark-theme] .empty {
+  color: var(--dsw-alias-label-tertiary, #a0a4a8);
+}
+
+/* 提示词预览弹层：白色面板在暗色下必须换深色，否则像一张纸糊在深色页上。 */
+body[data-ds-dark-theme] .previewModal {
+  background: var(--dsw-alias-bg-layer-1, #232324);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.72);
+}
+
+body[data-ds-dark-theme] .previewHead,
+body[data-ds-dark-theme] .previewActions {
+  border-color: var(--dsw-alias-border-l1, rgba(255, 255, 255, 0.08));
+}
+
+body[data-ds-dark-theme] .previewTitle {
+  color: var(--dsw-alias-label-primary, #f9fafb);
+}
+
+body[data-ds-dark-theme] .previewSkill,
+body[data-ds-dark-theme] .previewClose {
+  color: var(--dsw-alias-label-secondary, #cfd3d6);
+}
+
+body[data-ds-dark-theme] .previewBody {
+  color: var(--dsw-alias-label-secondary, #cfd3d6);
+}
+
+/* 「使用」主按钮：浅色下是黑底白字；暗色下反转为浅底深字，保持对比度。 */
+body[data-ds-dark-theme] .previewUse {
+  background: var(--dsw-alias-label-primary, #f9fafb);
+  color: #111;
 }

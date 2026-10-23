@@ -124,7 +124,8 @@
 /* HeightLab：深色胶囊触发器上的白色箭头。 */
 .chevronOnDark {
   flex: none;
-  color: #fff;
+  /* hl-dark-ok：设计上就是深底白箭头，两主题都成立。 */
+  color: #fff; /* hl-dark-ok */
 }
 
 /* Menu rows carry the name over its description: the id alone never said what

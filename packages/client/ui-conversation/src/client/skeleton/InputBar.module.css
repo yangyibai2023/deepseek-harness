@@ -416,7 +416,7 @@
   background: var(--dsw-alias-label-primary);
   /* Static white, not the foreground token: the arrow stays white on the dark
      fill in both themes (design 34:10465). */
-  color: #fff;
+  color: #fff; /* hl-dark-ok */
   cursor: pointer;
   transition: background-color 100ms ease;
 }

@@ -60,9 +60,11 @@
 }
 
 .skillHubTabButton[data-active='true'] {
-  background: #1a1a1a;
-  border-color: #1a1a1a;
-  color: #fff;
+  background: var(--dsw-alias-label-primary, #1a1a1a);
+  border-color: var(--dsw-alias-label-primary, #1a1a1a);
+  /* hl-dark-ok：选中页签是「深底浅字」，明暗两侧都用前景/背景的反差，
+     这里的白色是压在 label-primary 底上的前景色，两主题都成立。 */
+  color: var(--dsw-alias-bg-base, #fff); /* hl-dark-ok */
 }
 
 .skillHubBody {
@@ -91,16 +93,16 @@
   align-self: flex-start;
   padding: 5px 14px;
   border-radius: 6px;
-  border: 1px solid #d9d9d9;
-  background: #fff;
-  color: #1a1a1a;
+  border: 1px solid var(--dsw-alias-border-l3, #d9d9d9);
+  background: var(--dsw-alias-surface-primary, #fff);
+  color: var(--dsw-alias-label-primary, #1a1a1a);
   font-size: 12px;
   cursor: pointer;
 }
 
 .skillHubAction[data-danger='1'] {
-  color: #cf1322;
-  border-color: #ffa39e;
+  color: var(--dsw-alias-label-error, #cf1322);
+  border-color: var(--dsw-alias-danger, #ffa39e);
 }
 
 .skillHubCreate {

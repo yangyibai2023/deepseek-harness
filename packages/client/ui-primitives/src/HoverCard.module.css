@@ -34,7 +34,8 @@
 }
 
 .copied {
-  color: #FFFFFF;
+  /* hl-dark-ok：HoverCard 浮层恒为深色（--dsw-hovercard-bg），故白字固定。 */
+  color: #FFFFFF; /* hl-dark-ok */
   font-size: 14px;
   line-height: 20px;
   text-align: center;

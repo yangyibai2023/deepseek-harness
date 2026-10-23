@@ -278,6 +278,31 @@ body {
   --dsw-specific-sidebar-nav-item-hover: var(--dsw-static-neutral-bluish-75);
   --dsw-specific-tip: var(--dsw-static-neutral-bluish-60);
 
+  /* ── 补齐被引用却从未定义的 alias（2026-10-23）────────────────────────
+   * 15 个 `--dsw-alias-*` 在很多组件里以 `var(--x, <浅色兜底>)` 的形式使用，
+   * 但主题里从来没定义过它们 —— 于是**兜底值永远生效**，暗色下这些位置就
+   * 固化成白底/浅灰线/深字（用户截图里模板卡、技能中心、终端面板不变色
+   * 就是这个原因）。
+   *
+   * 之前没人发现，是因为这类 bug 只在暗色下可见，而 `var()` 未定义不算
+   * 语法错误、构建也不报。这里按语义映射到已有的真实 token，组件侧
+   * 不必再逐个改。暗色侧见下方同名块。 */
+  --dsw-alias-surface-primary: var(--dsw-alias-bg-layer-1);
+  --dsw-alias-separator: var(--dsw-alias-border-l2);
+  --dsw-alias-separator-primary: var(--dsw-alias-border-l3);
+  --dsw-alias-separator-secondary: var(--dsw-alias-border-l1);
+  --dsw-alias-bg-l1: var(--dsw-alias-bg-layer-1);
+  --dsw-alias-bg-l2: var(--dsw-alias-bg-layer-2);
+  --dsw-alias-bg-layer-4: var(--dsw-alias-bg-layer-3);
+  --dsw-alias-fill-l1: var(--dsw-alias-bg-layer-2);
+  --dsw-alias-fill-l2: var(--dsw-alias-bg-layer-3);
+  --dsw-alias-fill-tertiary: var(--dsw-alias-interactive-bg-hover);
+  --dsw-alias-fill-tsp-secondary: var(--dsw-alias-bg-overlay);
+  --dsw-alias-label-quaternary: var(--dsw-alias-label-tertiary);
+  --dsw-alias-label-error: var(--dsw-alias-state-error-primary);
+  --dsw-alias-danger: var(--dsw-alias-state-error-primary);
+  --dsw-alias-border-focus: var(--dsw-alias-border-l3);
+
   background-color: var(--dsw-alias-bg-base);
 }
 
