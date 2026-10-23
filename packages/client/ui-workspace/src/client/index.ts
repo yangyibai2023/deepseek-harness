@@ -144,6 +144,10 @@ export function apply(ctx: Context): void {
       void uiWorkspace.openWorkspace(target, (sessionId) => {
         try {
           localStorage.setItem('hl-console-mode', 'replication')
+          // 时间戳供侧栏判定"这次复刻模式是不是当前的"（2026-10-23）。
+          // 没有它时旧值会被当成过期，见 ui-sidebar-right 的
+          // replicationModeFresh。
+          localStorage.setItem('hl-console-mode-at', String(Date.now()))
         } catch { /* 非致命 */ }
         // HeightLab V29：恢复旧监听的完整职责——EmptyHero/ConversationContent/
         // TemplateDock 三处复刻判定都靠 hl:mode-change 事件刷新（左侧引导
@@ -513,6 +517,7 @@ export function apply(ctx: Context): void {
       void uiWorkspace.openWorkspace(resolved, (sessionId) => {
         try {
           localStorage.setItem('hl-console-mode', 'replication')
+          localStorage.setItem('hl-console-mode-at', String(Date.now()))
         } catch { /* 存储不可用时跳过 */ }
         window.dispatchEvent(new CustomEvent('hl:replication-session-open', { detail: { sessionId } }))
       })

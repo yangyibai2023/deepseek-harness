@@ -193,6 +193,30 @@ export function apply(ctx: ClientContext): void {
     const bootAt = Date.now()
     const inBootWindow = (source: string): boolean =>
       (source === 'store-create' || source === 'session-switched') && Date.now() - bootAt < 3000
+
+    /**
+     * `hl-console-mode === 'replication'` 是否"新鲜"到可以据此自动弹面板。
+     *
+     * 2026-10-23：这个键是跨会话的全局开关，正常情况下应在退出创作时清掉，
+     * 但实测会残留（切会话/异常退出/localStorage 被旧版本写脏）。残留时
+     * 用户打开任何无关对话都会被弹创作台并挤走左侧栏 —— 用户明确反馈
+     * 「这个对话和视频没有关系，也没有使用过创作台，它不应该自动弹出」。
+     *
+     * 判据：只在写入后 10 分钟内的复刻模式算作"用户当前正在创作"。
+     * 写入方（ui-workspace / HeightLabTemplateDock）会同步写
+     * `hl-console-mode-at` 时间戳；没有时间戳的旧数据一律视为过期。
+     */
+    const REPLICATION_MODE_TTL_MS = 10 * 60 * 1000
+    const replicationModeFresh = (): boolean => {
+      try {
+        const at = Number(localStorage.getItem('hl-console-mode-at') ?? '0')
+        if (!Number.isFinite(at) || at <= 0) return false
+        return Date.now() - at < REPLICATION_MODE_TTL_MS
+      } catch {
+        return false
+      }
+    }
+
     let expandLoopRunning = false
     const openConsoleRetrying = (expand: boolean): void => {
       if (expand && expandLoopRunning) return
@@ -237,20 +261,45 @@ export function apply(ctx: ClientContext): void {
     }
     // HeightLab V29：目标会话的复刻判定与带回（两级判定共用）。打开动作走
     // openConsoleRetrying 幂等轮询（铁律 17）。普通会话探到双 null 不打扰。
+    //
+    // 2026-10-23 修复「无关的对话也自动弹出创作台」（Windows 用户实测，
+    // 且会连带把左侧栏挤掉、侧栏按钮消失，属严重体验事故）：
+    //
+    // 原实现先查 localStorage 里的 `hl-replication-sessions` 注册表，命中就
+    // 无条件展开右栏。但这个注册表是**跨会话的全局缓存**，只在少数路径清理；
+    // 一旦用户在某次创作里进过复刻模式，之后**打开任何历史对话**都可能被
+    // 判定成复刻会话 → 右栏强制展开 + 左栏被挤走。
+    //
+    // 修法：注册表**不再单独构成证据**。它只用来省一次网络请求，且必须与该
+    // 会话自己的服务端状态一致才采信；否则一律以 `/hl/console-state` 为准。
+    // 服务端状态是 per-session 文件，不会串会话。
     const ensureReplicationConsole = (sid: string, source: string): void => {
-      let rep: unknown[] = []
-      try { rep = JSON.parse(localStorage.getItem('hl-replication-sessions') ?? '[]') as unknown[] } catch { /* 忽略 */ }
-      if (Array.isArray(rep) && rep.includes(sid)) {
-        diag('registry-hit', { sid, source })
-        openConsoleRetrying(true)
-        return
-      }
-      diag('probe-start', { sid, source })
+      let cached = false
+      try {
+        const rep = JSON.parse(localStorage.getItem('hl-replication-sessions') ?? '[]') as unknown[]
+        cached = Array.isArray(rep) && rep.includes(sid)
+      } catch { /* 忽略 */ }
+      diag('probe-start', { sid, source, cached })
       void fetch(`/hl/console-state?session=${encodeURIComponent(sid)}`)
         .then(res => res.json() as Promise<{ workflow?: unknown; draft?: unknown }>)
         .then((state) => {
-          if ((state?.workflow ?? null) === null && (state?.draft ?? null) === null) {
-            diag('probe-miss', { sid, source })
+          const hasState =
+            (state?.workflow ?? null) !== null || (state?.draft ?? null) !== null
+          if (!hasState) {
+            // 服务端明确说这个会话没有创作状态 —— 不管本地注册表怎么说，
+            // 都不能自动弹面板。顺手把这条脏记录摘掉，避免下次又命中。
+            diag('probe-miss', { sid, source, cached })
+            if (cached) {
+              try {
+                const list = JSON.parse(localStorage.getItem('hl-replication-sessions') ?? '[]') as unknown[]
+                if (Array.isArray(list)) {
+                  localStorage.setItem(
+                    'hl-replication-sessions',
+                    JSON.stringify(list.filter((id) => id !== sid).slice(-50)),
+                  )
+                }
+              } catch { /* 非致命 */ }
+            }
             return
           }
           try {
@@ -318,7 +367,14 @@ export function apply(ctx: ClientContext): void {
           // 时机上，且走幂等重试（V26c 教训：openTab 在 surface 未挂载时抛错
           // 被吞，单发延迟不可靠）。seed 已带首 tab，本开启是双保险——但
           // 双保险自己必须可靠（宪法铁律 17）。
-          if (localStorage.getItem('hl-console-mode') === 'replication') {
+          //
+          // 2026-10-23：加时效约束。`hl-console-mode` 是个**跨会话的全局开关**，
+          // 用户上一次创作结束后它可能一直留着 'replication'；此时哪怕新开
+          // 一个跟视频无关的会话，也会因为读到这个陈旧值而自动弹创作台。
+          // 只在「刚进过复刻模式」的短窗口内认它（由 setReplicationMode 写入
+          // 时间戳），窗口外视为过期。
+          if (localStorage.getItem('hl-console-mode') === 'replication'
+            && replicationModeFresh()) {
             openConsoleRetrying(false)
           }
           // HeightLab V29 + V48 启动门禁：切入会话的复刻带回挂在本时机；
