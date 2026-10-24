@@ -161,37 +161,66 @@ export function HeightLabAccount() {
   const [accountStatus, setAccountStatus] = useState<string | null>(null)
 
   const signOut = (): void => {
-    try {
-      void fetch('/hl/signout', { method: 'POST' }).catch(() => { /* ignore */ })
+    const clearLocal = (): void => {
       localStorage.removeItem('heightlab-token')
       localStorage.removeItem('heightlab-account-token')
       localStorage.removeItem('heightlab-pkce-verifier')
-    } catch { /* ignore */ }
+    }
     // HeightLab：登出会触发壳重启宿主（无用户模式，隔离用户数据）。盲目
     // reload 会撞上宿主重启窗口闪"无法连接"错误页。正确状态机：
     // ① 先等宿主"死"一次（fetch 失败=重启已开始；若 10s 内一直 200 说明
     //   本轮无重启，直接 reload 清状态）；② 再等连续两次 200（稳定恢复）
-    //   才 reload。禁止按固定时限盲 reload——冷 provisioning 实测可达
+    // 才 reload。禁止按固定时限盲 reload——冷 provisioning 实测可达
     //   8-9 分钟（2026-10-12），壳会先切 splash 并在就绪后接管导航，
     //   这里只是无壳导航时的兜底。
-    let sawDown = false
-    let stableHits = 0
-    const poll = (): void => {
-      fetch('/hl/app-info', { cache: 'no-store' })
-        .then((r) => {
-          if (!r.ok) { sawDown = true; stableHits = 0; setTimeout(poll, 500); return }
-          if (!sawDown) {
-            // 宿主一直活着（本轮无重启）：稳定 200 达标即刷新进入登录页。
+    const startRestartPoll = (): void => {
+      let sawDown = false
+      let stableHits = 0
+      const poll = (): void => {
+        fetch('/hl/app-info', { cache: 'no-store' })
+          .then((r) => {
+            if (!r.ok) { sawDown = true; stableHits = 0; setTimeout(poll, 500); return }
+            if (!sawDown) {
+              // 宿主一直活着（本轮无重启）：稳定 200 达标即刷新进入登录页。
+              stableHits += 1
+              if (stableHits >= 4) { window.location.reload() } else { setTimeout(poll, 500) }
+              return
+            }
             stableHits += 1
-            if (stableHits >= 4) { window.location.reload() } else { setTimeout(poll, 500) }
-            return
-          }
-          stableHits += 1
-          if (stableHits >= 2) { window.location.reload() } else { setTimeout(poll, 500) }
-        })
-        .catch(() => { sawDown = true; stableHits = 0; setTimeout(poll, 500) })
+            if (stableHits >= 2) { window.location.reload() } else { setTimeout(poll, 500) }
+          })
+          .catch(() => { sawDown = true; stableHits = 0; setTimeout(poll, 500) })
+      }
+      setTimeout(poll, 600)
     }
-    setTimeout(poll, 600)
+    // HeightLab 2026-10-24：彻底注销。仅清本地不够——WebView 里 Logto 域的
+    // SSO 会话 cookie 还活着，下次点「登录」/oidc/auth 直接 303 回调，免密
+    // 复用旧账号（用户实测）。宿主 /hl/signout 现在带回 endUrl（Logto
+    // RP-initiated logout）；拿到就先去终结 SSO 会话，壳在登出后重启宿主、
+    // 就绪后接管导航，会把 WebView 从 Logto 页带回登录门。拿不到（旧宿主/
+    // 请求被打断）退回原有 reload 状态机。
+    let settled = false
+    const fallback = (): void => {
+      if (settled) return
+      settled = true
+      clearLocal()
+      startRestartPoll()
+    }
+    fetch('/hl/signout', { method: 'POST' })
+      .then(r => r.json().catch(() => null))
+      .then((data: { endUrl?: unknown } | null) => {
+        if (settled) return
+        const endUrl = typeof data?.endUrl === 'string' && data.endUrl.startsWith('https://')
+          ? data.endUrl
+          : null
+        if (endUrl === null) { fallback(); return }
+        settled = true
+        clearLocal()
+        window.location.replace(endUrl)
+      })
+      .catch(fallback)
+    // 兜底：响应迟迟不来（宿主重启打断请求）也不能卡在原地。
+    setTimeout(fallback, 3000)
   }
 
   const refresh = (): void => {

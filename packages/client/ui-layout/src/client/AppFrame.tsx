@@ -174,11 +174,15 @@ export function AppFrame({
     ? 0
     : layoutInfo.sidebar === 0 ? SIDEBAR_DEFAULT : layoutInfo.sidebar
   const rightbarPreference = layoutInfo.rightbar ?? viewport * RIGHTBAR_DEFAULT_RATIO
-  // Desktop reopen controls occupy the frame's shell.leading seat (macOS) or
-  // the Windows caption row; neither platform keeps an icon rail.
   const darwin = document.documentElement.dataset.platform === 'darwin'
-  const collapsedWidth = darwin
-    || document.documentElement.hasAttribute('data-windows-titlebar') ? 0 : SIDEBAR_COLLAPSED
+  /* HeightLab 2026-10-24（0.4.15）：两平台 Tauri 壳都不承接「折叠后重开控件」
+   * ——mac 壳不设 data-platform（无 shell.leading 座），Windows 自绘标题栏
+   * 只有窗口三键。上游把 data-windows-titlebar 折叠宽度设为 0 的前提是
+   * Electron caption row 里有侧栏开关，对 Tauri 壳不成立：Windows 折叠后
+   * 整列消失且无法展开（用户实测）。统一保留 56px 图标 rail，与 Mac 形态
+   * 一致；rail 顶部鲸鱼标即展开开关。frame 的 36px padding-top 已保证
+   * rail 落在自绘标题栏之下。 */
+  const collapsedWidth = SIDEBAR_COLLAPSED
   // Opening on a narrow frame collapses the left sidebar. Eligibility must
   // include that space before the occupant's first shown report arrives.
   const normal = computeColumns(viewport, !layoutInfo.rightbarShown && narrow ? 0 : sidebarPreference, rightbarPreference, collapsedWidth)
