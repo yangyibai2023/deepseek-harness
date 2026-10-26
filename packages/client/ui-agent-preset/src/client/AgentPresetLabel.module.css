@@ -8,7 +8,9 @@
   padding: 0 2px 0 0;
   height: 22px;
   border-radius: var(--dsw-radius-xs);
-  background: var(--dsw-alias-fill-tsp-secondary);
+  /* 2026-10-27（1024-A8，用户拍板）：去掉灰色底——会话 header 的 agent-preset
+   * 标签（如「Colin 指挥官」）只保留文字与图标，融入标题行。 */
+  background: transparent;
   font-size: 12px;
   line-height: 22px;
   color: var(--dsw-alias-label-tertiary);

@@ -63,8 +63,15 @@ export function ConversationSessionHeader({
   // HeightLab（2026-10-17 用户拍板）：隐藏「轨迹」页签——轨迹改回对话流内嵌
   // 竖线步骤条；注册保留，改 false 即恢复页签。
   const HIDE_TRAJECTORY_TAB: boolean = true
+  /* 2026-10-27（1024-A9，用户拍板）：会话 header 的「对话/画布/剪辑台」页签
+   * 全部隐藏——对话是主体不需要页签；画布与剪辑台各自有右侧边栏/一级入口
+   * （右侧边栏的剪辑台入口保持不变）。回滚：把 HIDE_HEADER_VIEW_TABS 改回
+   * false 即恢复全部页签。 */
+  const HIDE_HEADER_VIEW_TABS: boolean = true
   const allTabs = useConversationViews(value => value)
-  const tabs = HIDE_TRAJECTORY_TAB ? allTabs.filter(viewTab => viewTab.id !== 'trajectory') : allTabs
+  const tabs = HIDE_HEADER_VIEW_TABS
+    ? []
+    : HIDE_TRAJECTORY_TAB ? allTabs.filter(viewTab => viewTab.id !== 'trajectory') : allTabs
   const selectedId = useStore(s => s.view)
   const active = resolveActiveView(tabs, selectedId)
   const ancestry = useSessions(s => deriveAncestry(s, sessionId), equalBreadcrumbs)
