@@ -193,12 +193,12 @@ export function HeightLabAccount() {
       }
       setTimeout(poll, 600)
     }
-    // HeightLab 2026-10-24：彻底注销。仅清本地不够——WebView 里 Logto 域的
-    // SSO 会话 cookie 还活着，下次点「登录」/oidc/auth 直接 303 回调，免密
-    // 复用旧账号（用户实测）。宿主 /hl/signout 现在带回 endUrl（Logto
-    // RP-initiated logout）；拿到就先去终结 SSO 会话，壳在登出后重启宿主、
-    // 就绪后接管导航，会把 WebView 从 Logto 页带回登录门。拿不到（旧宿主/
-    // 请求被打断）退回原有 reload 状态机。
+    // HeightLab 2026-10-24→27（第 0 批，用户否决三段式）：彻底注销仍必须有——
+    // WebView 里 Logto 域的 SSO cookie 活着，下次登录会免密复用旧账号。但
+    // **主窗口不再导航去 Logto**（用户实测：破图登录页 → 英文已退出页 → 我们的
+    // 登录页，三段连环）。0.4.18 起注销由壳的隐藏窗口完成（壳读 pending-
+    // logoff-url 后台加载 session/end），前端只清本地 + 走原 reload 状态机，
+    // 立即进入干净的登录页。endUrl 仍由 /hl/signout 返回（bridge 落盘给壳）。
     let settled = false
     const fallback = (): void => {
       if (settled) return
@@ -208,16 +208,7 @@ export function HeightLabAccount() {
     }
     fetch('/hl/signout', { method: 'POST' })
       .then(r => r.json().catch(() => null))
-      .then((data: { endUrl?: unknown } | null) => {
-        if (settled) return
-        const endUrl = typeof data?.endUrl === 'string' && data.endUrl.startsWith('https://')
-          ? data.endUrl
-          : null
-        if (endUrl === null) { fallback(); return }
-        settled = true
-        clearLocal()
-        window.location.replace(endUrl)
-      })
+      .then(() => { fallback() })
       .catch(fallback)
     // 兜底：响应迟迟不来（宿主重启打断请求）也不能卡在原地。
     setTimeout(fallback, 3000)
