@@ -104,6 +104,10 @@ function AnnouncementCenter({
  */
 const DISPLAY_CREDITS_PER_CNY = 5000 / 299
 
+/** 2026-10-27（1024-A7 用户拍板）：「更多能力」按钮全部隐藏，暂不启用；
+ *  后期可能启用——改回 true 即整体恢复（渲染代码保留在原位）。 */
+const SHOW_MORE_PLUGINS = false
+
 /** HeightLab：账户余额（/hl/balance 的形状，只取展示需要的字段）。 */
 interface BalanceInfo {
   balance: number
@@ -671,8 +675,10 @@ export function HeightLabAccountFoot({ wide, openSettings }: HeightLabAccountFoo
           <div className={css.accountActions}>
             {/* HeightLab（2026-10-19）：更多能力（原 ds-bot 的 Connect plugins），
                 在通知左侧，同尺寸同间距的纯图标按钮。
-                用户当日晚间补充：**只在团队模式显示**——个人模式不需要这个入口。 */}
-            {teamSurface && (
+                2026-10-27（1024-A7，用户拍板）：**全部隐藏**（含团队模式），
+                暂不启用、后期可能启用。回滚：把 SHOW_MORE_PLUGINS 改回 true，
+                或直接还原 {teamSurface && …} 条件渲染即可，代码保留。 */}
+            {SHOW_MORE_PLUGINS && teamSurface && (
               <Tooltip label="更多能力" side="top" delayMs={300}>
                 <button
                   type="button"
