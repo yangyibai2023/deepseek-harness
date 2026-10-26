@@ -315,12 +315,12 @@ export function HlModeSwitcher() {
         >
           个人
         </button>
+        {/* 2026-10-27（1024-A6，用户拍板）：悬浮不再显示组织名（曾显示
+            「极光物语」，暴露内部组织信息且无必要）。固定为「OPC 团队模式」。 */}
         <button
           type="button"
           className={clsx(css.hlModeSeg, teamActive && css.hlModeSegActive)}
           aria-pressed={teamActive}
-          {/* 2026-10-27（1024-A6，用户拍板）：悬浮不再显示组织名（曾显示
-              「极光物语」，暴露内部组织信息且无必要）。固定为「OPC 团队模式」。 */}
           title="OPC 团队模式"
           onClick={() => { void choose('enterprise') }}
         >
