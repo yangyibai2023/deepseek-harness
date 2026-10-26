@@ -296,6 +296,20 @@ export function apply(ctx: Context): void {
       const surface = intent ?? (() => {
         try { return localStorage.getItem('ds-bot:surface') } catch { return null }
       })()
+      /* 2026-10-26（1024-A1 终审，用户实测「创作台自己关闭」+ 返回主页布局破坏
+       * 双事故同源）：无 intent 的轮询分支会在「dsh.sessions.current 写入滞后」
+       * 窗口读到旧会话，触发 openSession 把屏幕切回去——复刻新会话打开 ~4s
+       * 后创作台随之关闭（5s 轮询节拍完全吻合，埋点栈 openSession←async sync
+       * 实锤）。复刻模式鲜活期（10min 口径）：轮询分支不做导航纠偏；用户点击
+       * 切换（带 intent）不受限。 */
+      if (intent === undefined) {
+        try {
+          if (localStorage.getItem('hl-console-mode') === 'replication') {
+            const at = Number(localStorage.getItem('hl-console-mode-at') ?? '0')
+            if (Number.isFinite(at) && at > 0 && Date.now() - at < 10 * 60 * 1000) return
+          }
+        } catch { /* 忽略 */ }
+      }
       const team = intent !== undefined ? intent === 'team' : surface === 'bot'
       // 无论当前是哪个模式，都先解析并发布团队工作区 id：个人模式的工作区列表
       // 需要它来隐藏团队行（融合开关关闭时），不能等切到团队才发布。

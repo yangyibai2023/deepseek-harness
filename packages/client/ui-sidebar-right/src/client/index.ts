@@ -466,18 +466,13 @@ export function apply(ctx: ClientContext): void {
     window.addEventListener('hl:session-switched', onSessionSwitched)
     const injected: Omit<SidebarRightInjected, 'keyedHooks' | 'occurrence' | 'closeTab' | 'measureRoom'> = {
       syncPresentation({ shown, track, fullscreen }) {
-        if (shown) { layout.openRightbar(track, fullscreen); return }
-        /* 2026-10-26（A1 最后一环）：会话切换时旧 seat 卸载的清理 effect 会
-         * 无条件上报 shown:false → 收起栏体。无头实测复刻流程时间线：创作台
-         * 展开（+230ms）→ 旧会话迟到广播（+3.8s）→ 17ms 后栏体收起——就是
-         * 卸载清理在复刻新会话的 seat 尚未稳定时抢先收栏。复刻模式鲜活期
-         * （replicationModeFresh，同 10 分钟口径）忽略 shown:false：只影响
-         * "自动收起"，用户手动关闭走 closeIn/toggleExpanded 不同路，不受限。 */
-        if (replicationModeFresh()) {
-          diag('sync-presentation-hold', { shown })
-          return
-        }
-        layout.closeRightbar()
+        /* 2026-10-26 回滚说明：曾在此加"复刻鲜活期忽略 shown:false"的 hold
+         * 分支，实测（用户）造成返回主页后右侧留下空白轨道（主页不该有右栏，
+         * 被拦掉的 shown:false 正是主页回收轨道的唯一信号）——已回滚。A1 的
+         * 有效修复是下面 onSessionSwitched 的两层（hold + 15s 登记），它们只
+         * 阻止"关控制台 tab"，不碰栏体几何。 */
+        if (shown) layout.openRightbar(track, fullscreen)
+        else layout.closeRightbar()
       },
       reportAutoFullscreen: (value) => { autoFullscreen = value },
       splitPane: (paneId) => { controller.split(paneId) },
