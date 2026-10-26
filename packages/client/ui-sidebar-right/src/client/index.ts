@@ -289,7 +289,16 @@ export function apply(ctx: ClientContext): void {
             // 服务端明确说这个会话没有创作状态 —— 不管本地注册表怎么说，
             // 都不能自动弹面板。顺手把这条脏记录摘掉，避免下次又命中。
             diag('probe-miss', { sid, source, cached })
-            if (cached) {
+            /* 2026-10-26（A1 配套）：刚进复刻模式紧随创建的新会话，服务端
+             * 尚无创作状态是正常的（用户还没开始填）——此时不能摘注册表，
+             * 否则下一次 session-switched 又判成非复刻会话把控制台关掉。 */
+            let justEnteredReplication = false
+            try {
+              const at = Number(localStorage.getItem('hl-console-mode-at') ?? '0')
+              justEnteredReplication = localStorage.getItem('hl-console-mode') === 'replication'
+                && Number.isFinite(at) && at > 0 && Date.now() - at < 15_000
+            } catch { /* 忽略 */ }
+            if (cached && !justEnteredReplication) {
               try {
                 const list = JSON.parse(localStorage.getItem('hl-replication-sessions') ?? '[]') as unknown[]
                 if (Array.isArray(list)) {
@@ -342,10 +351,62 @@ export function apply(ctx: ClientContext): void {
     const onSessionSwitched = (event: Event): void => {
       const sid = (event as CustomEvent<{ sessionId?: unknown }>).detail?.sessionId
       if (typeof sid !== 'string' || sid === '') return
+      /* 2026-10-26（1024 优化 A1，用户实测「爆款复刻的创作台自己关闭」）：
+       * 该事件由 ConversationSessionHeader 的 useEffect 派发——**每个渲染出来的
+       * 会话 header 都会广播自己的 ID**，不只是用户真正导航到的那个。无头实测
+       * 事件链：start-replication → 新会话 ab96 广播 → 创作台展开 → 740ms 后
+       * **旧会话 2eff 的 header 重新挂载又广播一次** → 这里当成"切回旧会话"
+       * → 关控制台。那不是导航，是 UI 重渲染的回声。
+       *
+       * 权威真源是 controller.mounted（上游定义的 on-screen Session）：广播的
+       * ID 与它不一致即为过时回声，直接忽略。 */
+      const onScreen = controller.mounted.getSnapshot()
+      if (onScreen !== undefined && onScreen !== sid) {
+        diag('session-switched-stale', { sid, onScreen })
+        return
+      }
       diag('session-switched', { sid })
       let rep: unknown[] = []
       try { rep = JSON.parse(localStorage.getItem('hl-replication-sessions') ?? '[]') as unknown[] } catch { /* 忽略 */ }
-      if (!(Array.isArray(rep) && rep.includes(sid))) {
+      /* 「爆款复刻」= 进复刻模式 → 新建会话 → 切入。切入时新会话**还没登记进**
+       * 注册表（登记发生在后面的服务端探针命中之后），这里会被判成"非复刻会话"。
+       * 修法：复刻模式**刚刚**（15s 窄窗口）被进入时，这个紧随其后的新会话
+       * 就是复刻目标——不关控制台、顺手登记注册表让后续判定一致。窄窗口而
+       * 非 10 分钟 TTL：避免 10 分钟内切到任何旧会话都被当成复刻会话。 */
+      let justEnteredReplication = false
+      try {
+        const at = Number(localStorage.getItem('hl-console-mode-at') ?? '0')
+        justEnteredReplication = localStorage.getItem('hl-console-mode') === 'replication'
+          && Number.isFinite(at) && at > 0 && Date.now() - at < 15_000
+      } catch { /* 忽略 */ }
+      const registered = Array.isArray(rep) && rep.includes(sid)
+      /* 2026-10-26 追凶补充：复刻模式下，恢复中的旧会话 header 会**迟到广播**
+        （无头实测：新会话创作台展开 4s 后旧会话 8218 广播到达）。此刻 mounted
+        可能仍是旧会话（React 未提交新选择），"onScreen 校验"拦不住。而创作台
+        的关闭只有这一处会误触发，因此收敛为：复刻模式鲜活（fresh TTL 10 分钟，
+        与既有 replicationModeFresh 同口径）期间，**本监听器不做任何关闭动作**
+        ——只是不关，不主动开，故不会重现 2026-10-23 的"无关对话自动弹面板"
+        事故（那是 openConsole 的问题，此处不碰 openConsole）。用户手动关闭
+        （hl:close-console → onCloseConsole）不受影响。 */
+      if (replicationModeFresh()) {
+        diag('session-switched-replication-hold', { sid })
+        if (!registered) {
+          try {
+            const list = Array.isArray(rep) ? rep : []
+            list.push(sid)
+            localStorage.setItem('hl-replication-sessions', JSON.stringify(list.slice(-50)))
+          } catch { /* 非致命 */ }
+        }
+        return
+      }
+      if (!registered && justEnteredReplication) {
+        diag('session-switched-adopt', { sid })
+        try {
+          const list = Array.isArray(rep) ? rep : []
+          list.push(sid)
+          localStorage.setItem('hl-replication-sessions', JSON.stringify(list.slice(-50)))
+        } catch { /* 非致命 */ }
+      } else if (!registered) {
         try { controller.closeIn(sid as SessionId, CONSOLE_ID as TabId) } catch { /* 无 tab 时静默 */ }
         try { localStorage.removeItem('hl-console-mode') } catch { /* 忽略 */ }
         window.dispatchEvent(new CustomEvent('hl:mode-change', { detail: { mode: '' } }))
@@ -405,8 +466,18 @@ export function apply(ctx: ClientContext): void {
     window.addEventListener('hl:session-switched', onSessionSwitched)
     const injected: Omit<SidebarRightInjected, 'keyedHooks' | 'occurrence' | 'closeTab' | 'measureRoom'> = {
       syncPresentation({ shown, track, fullscreen }) {
-        if (shown) layout.openRightbar(track, fullscreen)
-        else layout.closeRightbar()
+        if (shown) { layout.openRightbar(track, fullscreen); return }
+        /* 2026-10-26（A1 最后一环）：会话切换时旧 seat 卸载的清理 effect 会
+         * 无条件上报 shown:false → 收起栏体。无头实测复刻流程时间线：创作台
+         * 展开（+230ms）→ 旧会话迟到广播（+3.8s）→ 17ms 后栏体收起——就是
+         * 卸载清理在复刻新会话的 seat 尚未稳定时抢先收栏。复刻模式鲜活期
+         * （replicationModeFresh，同 10 分钟口径）忽略 shown:false：只影响
+         * "自动收起"，用户手动关闭走 closeIn/toggleExpanded 不同路，不受限。 */
+        if (replicationModeFresh()) {
+          diag('sync-presentation-hold', { shown })
+          return
+        }
+        layout.closeRightbar()
       },
       reportAutoFullscreen: (value) => { autoFullscreen = value },
       splitPane: (paneId) => { controller.split(paneId) },
