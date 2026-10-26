@@ -63,15 +63,11 @@ export function ConversationSessionHeader({
   // HeightLab（2026-10-17 用户拍板）：隐藏「轨迹」页签——轨迹改回对话流内嵌
   // 竖线步骤条；注册保留，改 false 即恢复页签。
   const HIDE_TRAJECTORY_TAB: boolean = true
-  /* 2026-10-27（1024-A9，用户拍板）：会话 header 的「对话/画布/剪辑台」页签
-   * 全部隐藏——对话是主体不需要页签；画布与剪辑台各自有右侧边栏/一级入口
-   * （右侧边栏的剪辑台入口保持不变）。回滚：把 HIDE_HEADER_VIEW_TABS 改回
-   * false 即恢复全部页签。 */
-  const HIDE_HEADER_VIEW_TABS: boolean = true
+  /* 2026-10-27（1024-A9 复核）：只隐藏「剪辑台」入口按钮——对话/画布页签保留。
+   * 此前误把全部 viewTabs 清空（对话/画布也消失），用户复核纠正。 */
+  const HIDE_FILM_STRIP_BUTTON: boolean = true
   const allTabs = useConversationViews(value => value)
-  const tabs = HIDE_HEADER_VIEW_TABS
-    ? []
-    : HIDE_TRAJECTORY_TAB ? allTabs.filter(viewTab => viewTab.id !== 'trajectory') : allTabs
+  const tabs = HIDE_TRAJECTORY_TAB ? allTabs.filter(viewTab => viewTab.id !== 'trajectory') : allTabs
   const selectedId = useStore(s => s.view)
   const active = resolveActiveView(tabs, selectedId)
   const ancestry = useSessions(s => deriveAncestry(s, sessionId), equalBreadcrumbs)
@@ -182,15 +178,20 @@ export function ConversationSessionHeader({
           {/* HeightLab（2026-10-20 用户拍板）：剪辑不再占一个视图标签。
               「剪辑台」是**右侧边栏**的一个标签（better-sidebar），主区保持当前
               对话不变——两者并排，和 OpenFilm 原生一致。这里只放一个入口按钮，
-              点了就在右栏开剪辑台；已有同名标签时聚焦它。 */}
-          <button
-            type="button"
-            className={css.tab}
-            title="在右侧打开剪辑台"
-            onClick={() => { window.dispatchEvent(new CustomEvent('hl:film-open-sidebar')) }}
-          >
-            剪辑台
-          </button>
+              点了就在右栏开剪辑台；已有同名标签时聚焦它。
+              2026-10-27（1024-A9 复核，用户拍板）：**此入口按钮隐藏**——用户
+              只要对话/画布页签；剪辑台入口保留在一级菜单与右侧边栏。回滚：
+              把 HIDE_FILM_STRIP_BUTTON 改回 false。 */}
+          {!HIDE_FILM_STRIP_BUTTON && (
+            <button
+              type="button"
+              className={css.tab}
+              title="在右侧打开剪辑台"
+              onClick={() => { window.dispatchEvent(new CustomEvent('hl:film-open-sidebar')) }}
+            >
+              剪辑台
+            </button>
+          )}
         </div>
       )}
     </>
