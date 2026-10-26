@@ -296,10 +296,16 @@ export function ContextMeter({ useProjection, t }: ContextMeterProps) {
               </button>
             </div>
             <div className={css.balanceValue}>
+              {/* 2026-10-27（1024-A3）：口径统一到账户面板——
+                  展示积分 = balance/creditsPerCny × DISPLAY_CREDITS_PER_CNY(5000/299)。
+                  此前这里显示原始 quota（token 计数，万级数字），与头像面板的
+                  换算积分不一致（用户实测两处对不上）。cny 同源，保持一致。 */}
               {balance === null
                 ? '—'
                 : <>
-                  <strong>{formatCredits(balance.balance)}</strong>
+                  <strong>{balance.cny !== null
+                    ? (Math.round(balance.cny * (5000 / 299) * 100) / 100).toString()
+                    : formatCredits(balance.balance)}</strong>
                   {' 积分'}
                   {balance.cny !== null && (
                     <span className={css.balanceCny}>{` ≈ ¥${balance.cny.toFixed(2)}`}</span>
