@@ -167,7 +167,15 @@ async function runGroup(
     const call = group[index]!
     callSeqs[index] = appendToolCall(session, turn, step, call.block)
     started++
-    const prepared = await ctx.tools[TOOL_RUNTIME_SCHEDULER].prepare(call.exec)
+    const scheduler = ctx.tools[TOOL_RUNTIME_SCHEDULER]
+    if (scheduler === undefined) {
+      /* 2026-10-28（Windows 用户机实测 "reading 'prepare'" 崩溃）：调度器服务
+       * 未挂上时不再抛裸 TypeError——改为带诊断信息的显式错误（包含当前
+       * tools 注册表的键列表），让下一轮诊断能直接看到缺了什么。 */
+      const available = Object.getOwnPropertySymbols(ctx.tools).map(sym => String(sym.description ?? sym)).join(', ')
+      throw new Error(`tool runtime scheduler is not available on this context (tools keys: ${available || 'none'})`)
+    }
+    const prepared = await scheduler.prepare(call.exec)
     throwSchedulerFailure()
     switch (prepared.kind) {
       case 'dispatch': {
