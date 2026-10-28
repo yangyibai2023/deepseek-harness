@@ -14,7 +14,24 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { createToolResultMessage, type ToolCallBlock } from '@deepseek-ai/dsh-llm'
 import type { Session, SessionSeq, UserMessage } from '@deepseek-ai/dsh-session'
-import { TOOL_ABORTED_BEFORE_DISPATCH, TOOL_RUNTIME_SCHEDULER, type ToolExecutionInput, type ToolExecutionMode, type ToolExecutionResult, type ToolRunContext } from '@deepseek-ai/dsh-tools'
+import { TOOL_ABORTED_BEFORE_DISPATCH, TOOL_RUNTIME_SCHEDULER, type ToolExecutionInput, type ToolExecutionMode, type ToolExecutionResult, type ToolRuntimeScheduler, type ToolRunContext } from '@deepseek-ai/dsh-tools'
+
+/**
+ * 2026-10-28（Windows 用户机实测）：调度器查找按**符号描述包含匹配**。
+ *
+ * 用户机报 "reading 'prepare'" 且守卫列出注册表键 `@当前模型/dsh-tools.scheduler`
+ * ——键在，但与 import 来的常量不是同一个 Symbol 实例（Windows 打包链路上有
+ * 补丁改写了其中一份编译产物的符号描述字符串；Symbol 按**实例身份**比较，
+ * 描述相同也不相等）。描述包含 'dsh-tools.scheduler' 的匹配对实例差异免疫。
+ */
+function schedulerOf(tools: object): ToolRuntimeScheduler | undefined {
+  const exact = (tools as Record<symbol, unknown>)[TOOL_RUNTIME_SCHEDULER] as ToolRuntimeScheduler | undefined
+  if (exact !== undefined) return exact
+  const key = Object.getOwnPropertySymbols(tools).find(
+    sym => (sym.description ?? '').includes('dsh-tools.scheduler'),
+  )
+  return key === undefined ? undefined : (tools as Record<symbol, ToolRuntimeScheduler>)[key]
+}
 import { assertNever } from '@deepseek-ai/dsh-util-values'
 
 /** One tool call after argument parsing, ready to schedule. */
@@ -149,9 +166,9 @@ async function runGroup(
       const slot = slots[committed]
       if (slot === undefined) break
       const call = group[committed]
-      const result = slot.needsPost
-        ? await ctx.tools[TOOL_RUNTIME_SCHEDULER].finalize(slot.exec, slot.result)
-        : ctx.tools[TOOL_RUNTIME_SCHEDULER].finish(slot.exec, slot.result)
+      const result = (slot.needsPost
+        ? await schedulerOf(ctx.tools)?.finalize(slot.exec, slot.result)
+        : schedulerOf(ctx.tools)!.finish(slot.exec, slot.result))!
       // oxlint-disable-next-line typescript/no-non-null-assertion -- bounded index
       appendToolResult(session, turn, step, call!.block, result, callSeqs[committed]!)
       for (const context of result.additionalContexts ?? []) acceptContext(context)
@@ -167,7 +184,7 @@ async function runGroup(
     const call = group[index]!
     callSeqs[index] = appendToolCall(session, turn, step, call.block)
     started++
-    const scheduler = ctx.tools[TOOL_RUNTIME_SCHEDULER]
+    const scheduler = schedulerOf(ctx.tools)
     if (scheduler === undefined) {
       /* 2026-10-28（Windows 用户机实测 "reading 'prepare'" 崩溃）：调度器服务
        * 未挂上时不再抛裸 TypeError——改为带诊断信息的显式错误（包含当前
@@ -179,7 +196,7 @@ async function runGroup(
     throwSchedulerFailure()
     switch (prepared.kind) {
       case 'dispatch': {
-        const promise = ctx.tools[TOOL_RUNTIME_SCHEDULER].dispatch(prepared.exec).then(
+        const promise = scheduler!.dispatch(prepared.exec).then(
           (outcome) => {
             slots[index] = { exec: prepared.exec, result: outcome.result, needsPost: outcome.kind === 'post-result' }
             return index
