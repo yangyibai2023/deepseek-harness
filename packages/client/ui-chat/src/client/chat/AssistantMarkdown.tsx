@@ -58,6 +58,11 @@ function heightlabMediaUrl(raw: string, cwd: string | undefined): string | undef
   if (value === '') return undefined
   if (/^https?:\/\//iu.test(value)) return value
   if (/^\/hl\//iu.test(value)) return new URL(value, document.baseURI).href
+  /* 2026-10-29（Windows 用户机实测生图「图片无法预览」）：Windows 盘符绝对
+   * 路径（C:\Users\…\hl-image-….png）此前不被任何分支识别——它不以 / 开头，
+   * 被 joinWorkspacePath 按 POSIX 拼到 cwd 下后 404。Windows 生图的落盘路径
+   * 由宿主给出，直接归一（正反斜杠与盘符形态）传给 local-media。 */
+  if (/^[A-Za-z]:[\\/]/u.test(value)) return `/hl/local-media?path=${encodeURIComponent(value.replace(/\\/gu, '/'))}`
   let abs: string
   if (value.startsWith('/')) abs = value
   else if (cwd !== undefined && cwd !== '') abs = joinWorkspacePath(cwd, value)
@@ -69,7 +74,7 @@ function heightlabMediaUrl(raw: string, cwd: string | undefined): string | undef
 function localPathFromMediaSrc(src: string): string | undefined {
   try {
     const path = new URL(src, document.baseURI).searchParams.get('path')
-    if (path !== null && path.startsWith('/')) return path
+    if (path !== null && (path.startsWith('/') || /^[A-Za-z]:[\\/]/u.test(path))) return path
   } catch { /* 相对 src 解析失败按非本地处理 */ }
   return undefined
 }
@@ -77,7 +82,7 @@ function localPathFromMediaSrc(src: string): string | undefined {
 /** 保存到工作区用的引用：http(s) 与 /hl/ 原样，本地路径解析为绝对路径。 */
 function heightlabDownloadRef(raw: string, cwd: string | undefined): string {
   const value = raw.trim()
-  if (/^https?:\/\//iu.test(value) || /^\/hl\//iu.test(value)) return value
+  if (/^https?:\/\//iu.test(value) || /^\/hl\//iu.test(value) || /^[A-Za-z]:[\\/]/u.test(value)) return value
   if (value.startsWith('/')) return value
   if (cwd !== undefined && cwd !== '') return joinWorkspacePath(cwd, value)
   return value
