@@ -181,9 +181,27 @@ export function HlModeSwitcher() {
     // 让用户能手动回看团队对话；个人页的默认工作目录仍由隔离 effect 守住）。
     const onRequestTeam = (): void => { void switchDsBotSurface('bot') }
     window.addEventListener('hl:request-team-surface', onRequestTeam)
+    // C 组应用工具层（2026-10-30）：Agent 工具 heightlab_set_app_mode 的执行
+    // 通道——走与用户点击完全相同的 enter() 路径（含 ds-bot surface 联动）。
+    // 注意本 effect 依赖为空：组织 ID 读 localStorage（enter 的持久化值），
+    // 不读 state（那会是挂载初值的陈旧闭包）；无组织记录时不切（保持个人）。
+    const onModeRequest = (event: Event): void => {
+      const mode = (event as CustomEvent<{ mode?: unknown }>).detail?.mode
+      if (mode !== 'personal' && mode !== 'team') return
+      if (mode === 'personal') {
+        enter('personal', '')
+        return
+      }
+      let orgId = ''
+      try { orgId = window.localStorage.getItem(LS_ORG) ?? '' } catch { /* 隐私模式 */ }
+      if (orgId === '') return
+      enter('enterprise', orgId)
+    }
+    window.addEventListener('hl:mode-change-request', onModeRequest)
     return () => {
       window.clearInterval(id)
       window.removeEventListener('hl:request-team-surface', onRequestTeam)
+      window.removeEventListener('hl:mode-change-request', onModeRequest)
     }
   }, [])
 

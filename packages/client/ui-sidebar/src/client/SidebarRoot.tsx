@@ -185,6 +185,20 @@ export function SidebarRoot({
     return () => { window.removeEventListener('hl:open-panel', onOpenPanel) }
   }, [selectPanel])
 
+  // HeightLab C 组（2026-10-30）：Agent 工具 heightlab_new_chat 的执行通道
+  // ——与「新会话」按钮完全同款（清控制台模式标记 + 清 hub/面板 + startSession）。
+  useEffect(() => {
+    const onNewChat = (): void => {
+      window.localStorage.removeItem('hl-console-mode')
+      window.dispatchEvent(new CustomEvent('hl:mode-change', { detail: { mode: '' } }))
+      setActiveHub(null)
+      selectPanel(null)
+      startSession()
+    }
+    window.addEventListener('hl:new-chat-request', onNewChat)
+    return () => { window.removeEventListener('hl:new-chat-request', onNewChat) }
+  }, [selectPanel, startSession])
+
   useEffect(() => {
     if (!pointerInside) return
     const onMove = (event: PointerEvent): void => {
