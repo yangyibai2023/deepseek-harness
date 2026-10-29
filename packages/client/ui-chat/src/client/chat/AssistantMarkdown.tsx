@@ -62,7 +62,15 @@ function heightlabMediaUrl(raw: string, cwd: string | undefined): string | undef
    * 路径（C:\Users\…\hl-image-….png）此前不被任何分支识别——它不以 / 开头，
    * 被 joinWorkspacePath 按 POSIX 拼到 cwd 下后 404。Windows 生图的落盘路径
    * 由宿主给出，直接归一（正反斜杠与盘符形态）传给 local-media。 */
-  if (/^[A-Za-z]:[\\/]/u.test(value)) return `/hl/local-media?path=${encodeURIComponent(value.replace(/\\/gu, '/'))}`
+  if (/^[A-Za-z]:[\\/]/u.test(value)) {
+    // 2026-10-29（0.4.23，Windows 生图预览第二层根因）：CommonMark 把链接
+    // 目标里的 `\.` 当转义吃掉——`C:\x\.heightlab\…` 解析成 `x.heightlab\…`，
+    // 本函数拿到的是已损坏路径。`.heightlab` 前缺分隔符时补回，历史消息同样受益。
+    const repaired = /[\\/]\.heightlab/u.test(value) || !value.includes('.heightlab')
+      ? value
+      : value.replace(/([^\\/])(\.heightlab)/u, '$1\\$2')
+    return `/hl/local-media?path=${encodeURIComponent(repaired.replace(/\\/gu, '/'))}`
+  }
   let abs: string
   if (value.startsWith('/')) abs = value
   else if (cwd !== undefined && cwd !== '') abs = joinWorkspacePath(cwd, value)

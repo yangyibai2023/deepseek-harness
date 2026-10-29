@@ -215,9 +215,6 @@ export function HlModeSwitcher() {
 
   if (!loaded || degraded) return null
 
-  const effectiveOrgId = orgs.some(o => o.id === sel.orgId) ? sel.orgId : (orgs[0]?.id ?? '')
-  const enterpriseName = orgs.find(o => o.id === effectiveOrgId)?.name ?? ''
-
   const enter = (nextMode: HlMode, orgId: string) => {
     setSel({ mode: nextMode, orgId })
     try {
