@@ -175,6 +175,17 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* HeightLab（B1 方案②）：思考实时尾部——折叠行内的单行淡色摘要，溢出省略。 */
+.runningTail {
+  min-width: 0;
+  max-width: 44ch;
+  overflow: hidden;
+  color: color-mix(in srgb, currentColor 62%, transparent);
+  font-size: calc(var(--dsh-content-font-size, 14px) - 3px);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .runningIcon {
   position: relative;
   display: inline-flex;
