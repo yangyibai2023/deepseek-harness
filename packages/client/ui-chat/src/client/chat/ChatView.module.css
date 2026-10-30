@@ -175,18 +175,24 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* HeightLab（B1 方案② V2）：思考实时行——独立单行折叠态，随流式持续滚动更新；
-   左缘渐隐制造「滚动中」观感，整行只读且不响应指针。 */
+/* HeightLab（B1 方案② V3，2026-10-31 用户反馈定稿）：
+   ① 灰色（不继承「高能研究中」的蓝色）
+   ② 固定行高 + 占位常驻——运行期间该行高度恒定，页面零抖动（B1_NOJITTER） */
 .runningTailLine {
+  height: 20px;
   overflow: hidden;
-  color: color-mix(in srgb, currentColor 60%, transparent);
+  color: color-mix(in srgb, var(--dsw-alias-text-secondary, #71717a) 92%, transparent);
   font-size: calc(var(--dsh-content-font-size, 14px) - 2px);
-  line-height: calc(20px + var(--dsh-content-font-delta, 0px));
+  line-height: 20px;
   white-space: nowrap;
   text-align: left;
   -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 2.5em);
   mask-image: linear-gradient(90deg, transparent 0, #000 2.5em);
   pointer-events: none;
+}
+
+.runningTailLine:not([data-active]) {
+  visibility: hidden;
 }
 
 .runningIcon {

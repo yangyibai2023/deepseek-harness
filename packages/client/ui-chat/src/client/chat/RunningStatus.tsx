@@ -34,7 +34,8 @@ export const RunningStatus = memo(function RunningStatus({ startTime, t }: Runni
   })
   return (
     <div className={css.running} data-chat-running>
-      {tail !== '' && <div className={css.runningTailLine} aria-hidden="true">{tail}</div>}
+      {/* B1_NOJITTER：占位常驻（空时 hidden），运行期间行高恒定，页面零抖动 */}
+      <div className={css.runningTailLine} data-active={tail !== '' || undefined} data-b1="v3" aria-hidden="true">{tail}</div>
       <span className={a11yCss.visuallyHidden} role="status" aria-live="polite" aria-atomic="true">{t('chat.deepDiving')}</span>
       <span className={css.runningDivider} aria-hidden="true" />
       <span className={css.runningContent}>
