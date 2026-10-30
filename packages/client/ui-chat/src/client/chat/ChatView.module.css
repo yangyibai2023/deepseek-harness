@@ -175,11 +175,9 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* HeightLab（B1 方案② V3，2026-10-31 用户反馈定稿）：
-   ① 灰色（不继承「高能研究中」的蓝色）
-   ② 固定行高 + 占位常驻——运行期间该行高度恒定，页面零抖动（B1_NOJITTER） */
+/* HeightLab（B1 V4，2026-10-31 用户定稿）：有思考才出现的灰色单行，
+   左缘渐隐滚动观感；页面抖动另查（用户实测与本行无关）。 */
 .runningTailLine {
-  height: 20px;
   overflow: hidden;
   color: color-mix(in srgb, var(--dsw-alias-text-secondary, #71717a) 92%, transparent);
   font-size: calc(var(--dsh-content-font-size, 14px) - 2px);
@@ -189,10 +187,6 @@
   -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 2.5em);
   mask-image: linear-gradient(90deg, transparent 0, #000 2.5em);
   pointer-events: none;
-}
-
-.runningTailLine:not([data-active]) {
-  visibility: hidden;
 }
 
 .runningIcon {
