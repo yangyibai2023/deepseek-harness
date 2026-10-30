@@ -161,10 +161,16 @@ export function HeightLabAccount() {
   const [accountStatus, setAccountStatus] = useState<string | null>(null)
 
   const signOut = (): void => {
+    /* 2026-10-30（用户实测「退出登录死循环」）：原来只清 heightlab-token，
+     * 留着的 heightlab-refresh-token 会被 AuthGate 当成仍登入 → 校验 400 →
+     * 清态 → 又被读回 → 无限在「退出/登录」之间反复。refresh/邀请码等全部清。 */
     const clearLocal = (): void => {
       localStorage.removeItem('heightlab-token')
+      localStorage.removeItem('heightlab-refresh-token')
       localStorage.removeItem('heightlab-account-token')
       localStorage.removeItem('heightlab-pkce-verifier')
+      localStorage.removeItem('heightlab-invite-code')
+      localStorage.removeItem('heightlab-invite-mode')
     }
     // HeightLab：登出会触发壳重启宿主（无用户模式，隔离用户数据）。盲目
     // reload 会撞上宿主重启窗口闪"无法连接"错误页。正确状态机：

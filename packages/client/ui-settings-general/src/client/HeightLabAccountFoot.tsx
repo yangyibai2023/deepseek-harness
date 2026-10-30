@@ -8,6 +8,7 @@
  * 窗口事件（SettingsRoot 监听）。
  */
 import { useCallback, useEffect, useLayoutEffect, useState } from 'react'
+import { PlanUpgrade } from './PlanUpgrade.tsx'
 import type { ReactNode } from 'react'
 import clsx from 'clsx'
 import { IconCloseOutlineRegular, IconSettingsOutlineMedium, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -382,7 +383,7 @@ function AccountMenu({
             cursor: 'pointer',
           }}
         >
-          充值
+          升级套餐
         </button>
       </div>
 
@@ -422,6 +423,7 @@ function AccountMenu({
 export function HeightLabAccountFoot({ wide, openSettings }: HeightLabAccountFootProps) {
   // HeightLab：账户入口弹出「账户 / 设置」原生菜单（设置齿轮不再单独占位）。
   const [accountMenuOpen, setAccountMenuOpen] = useState(false)
+  const [planUpgradeOpen, setPlanUpgradeOpen] = useState(false)
   const [account, setAccount] = useState<{ name?: string; username?: string; email?: string; avatar?: string } | null>(null)
   const [noticeOpen, setNoticeOpen] = useState(false)
   const [notices, setNotices] = useState<AnnouncementItem[]>([])
@@ -606,12 +608,13 @@ export function HeightLabAccountFoot({ wide, openSettings }: HeightLabAccountFoo
             onClose={() => { setAccountMenuOpen(false) }}
             onOpenSettings={() => { openSettings() }}
             onRecharge={() => {
-              // 充值入口复用设置里的账户分区（它已有完整充值流程与支付回流）。
-              window.dispatchEvent(new CustomEvent('hl:open-settings-section', { detail: { section: 'heightlab-account' } }))
+              // 2026-10-30 支付专项：改为打开「升级套餐」页（档位/支付宝收银台）。
+              setPlanUpgradeOpen(true)
             }}
             onSignOut={signOut}
             signingOut={signingOut}
           />
+          {planUpgradeOpen && <PlanUpgrade close={() => { setPlanUpgradeOpen(false) }} />}
           <button
             type="button"
             data-hl-account-trigger=""
