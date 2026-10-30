@@ -15,8 +15,8 @@ interface RunningStatusProps {
 
 /**
  * Show live elapsed time after the current Turn's content without announcing ticks.
- * HeightLab（B1 方案②）：思考流式输出期间，在同一行内追加实时滚动的思考尾部
- * （带新鲜度兜底），用户不展开也能看到当前阶段；不增加新元素，只是这行的升级。
+ * HeightLab（B1 方案② V2）：思考内容以独立一行（.runningTailLine）显示在用时行
+ * 上方，折叠态单行持续滚动更新；用时行本身保持原样（用户 2026-10-30 拍板）。
  * @param props - Current Turn start time and localized copy.
  * @returns the blue running indicator; mount only while the Session is running.
  */
@@ -34,12 +34,12 @@ export const RunningStatus = memo(function RunningStatus({ startTime, t }: Runni
   })
   return (
     <div className={css.running} data-chat-running>
+      {tail !== '' && <div className={css.runningTailLine} aria-hidden="true">{tail}</div>}
       <span className={a11yCss.visuallyHidden} role="status" aria-live="polite" aria-atomic="true">{t('chat.deepDiving')}</span>
       <span className={css.runningDivider} aria-hidden="true" />
       <span className={css.runningContent}>
         <RunningWhaleTail />
         <TextShimmer active className={css.runningText}>{label}</TextShimmer>
-        {tail !== '' && <span className={css.runningTail} aria-hidden="true">{tail}</span>}
       </span>
     </div>
   )

@@ -175,15 +175,18 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* HeightLab（B1 方案②）：思考实时尾部——折叠行内的单行淡色摘要，溢出省略。 */
-.runningTail {
-  min-width: 0;
-  max-width: 44ch;
+/* HeightLab（B1 方案② V2）：思考实时行——独立单行折叠态，随流式持续滚动更新；
+   左缘渐隐制造「滚动中」观感，整行只读且不响应指针。 */
+.runningTailLine {
   overflow: hidden;
-  color: color-mix(in srgb, currentColor 62%, transparent);
-  font-size: calc(var(--dsh-content-font-size, 14px) - 3px);
-  text-overflow: ellipsis;
+  color: color-mix(in srgb, currentColor 60%, transparent);
+  font-size: calc(var(--dsh-content-font-size, 14px) - 2px);
+  line-height: calc(20px + var(--dsh-content-font-delta, 0px));
   white-space: nowrap;
+  text-align: left;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 2.5em);
+  mask-image: linear-gradient(90deg, transparent 0, #000 2.5em);
+  pointer-events: none;
 }
 
 .runningIcon {

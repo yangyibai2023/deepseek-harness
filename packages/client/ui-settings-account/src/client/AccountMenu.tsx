@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   Toast, Menu, IconEllipsisOutlineMedium, IconPaperPlaneOutlineMedium, IconSettingsOutlineMedium, IconUserOutlineMedium,
+  IconCheckCircleOutlineMedium,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { AccountSectionInjected } from './AccountSection.tsx'
@@ -11,6 +12,7 @@ import { LogoutIcon } from './LogoutIcon.tsx'
 import { AccountAvatar } from './AccountAvatar.tsx'
 import { AccountNoticeCard } from './AccountNotice.tsx'
 import css from './AccountMenu.module.css'
+import { PlanUpgrade } from './PlanUpgrade.tsx'
 
 /** Account launcher composed by the settings shell. */
 export type AccountMenuProps = PropsRuntime<'settings.launcher'> & PropsLocale<'settings.account'> & InjectFace<AccountSectionInjected>
@@ -54,7 +56,9 @@ export function AccountMenu({
   }
   // The plugin's start publishes `loginFailed` before it rejects, so the dialog owns the report.
   const beginSignIn = (): void => { setOpen(false); void start().catch(() => undefined) }
+  const [planOpen, setPlanOpen] = useState(false)
   return <div ref={anchor} className={css.root}>
+    {planOpen && <PlanUpgrade close={() => { setPlanOpen(false) }} />}
     {signInNotice > 0 && <Toast key={signInNotice} text={t('modelSignInRequired')} onDone={() => { setSignInNotice(0) }} />}
     {expiryNotice && <Toast text={t('sessionExpired')} onDone={() => { setExpiryNotice(false) }} />}
     {signedIn && account.notice && <AccountNoticeCard key={account.notice.orderId} notice={account.notice}
@@ -69,6 +73,7 @@ export function AccountMenu({
         {wide && <span className={css.label}>{signedIn ? label : t('more')}</span>}
       </button>}
       items={[
+        ...(signedIn ? [{ id: 'plan', label: '升级套餐', icon: <IconCheckCircleOutlineMedium size={16} /> }] : []),
         { id: 'settings', label: t('settings'), icon: <IconSettingsOutlineMedium size={16} />,
           ...(settingsShortcut === undefined ? {} : { shortcut: settingsShortcut }) },
         { id: 'contact', label: t('contactUs'), icon: <IconPaperPlaneOutlineMedium size={16} /> },
@@ -77,7 +82,8 @@ export function AccountMenu({
       ]}
       onClose={() => { setOpen(false) }}
       onSelect={(id) => {
-        if (id === 'settings') { setOpen(false); trigger.current?.focus(); openSettings() }
+        if (id === 'plan') { setOpen(false); setPlanOpen(true) }
+        else if (id === 'settings') { setOpen(false); trigger.current?.focus(); openSettings() }
         else if (id === 'contact') { setOpen(false); contactUs() }
         else if (id === 'signin') beginSignIn()
         else void requestSignOut()

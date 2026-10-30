@@ -1,10 +1,11 @@
 /** Assistant reasoning disclosure, independent of Tool-call presentation. */
-import { memo, useMemo } from 'react'
+import { memo, useEffect, useMemo } from 'react'
 import { DisclosureRow, IconThinkOutlineRegular, TextShimmer } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ChatViewSlotProps, UseDisclosure, UsePresentation } from '../contract/slots.ts'
 import a11yCss from './accessibility.module.css'
 import css from './ReasoningRow.module.css'
+import { publishReasoningTail } from './ReasoningLiveTail.ts'
 
 const THINK_ICON = <IconThinkOutlineRegular size={14} />
 
@@ -53,6 +54,12 @@ export const ReasoningRow = memo(function ReasoningRow({ text, running, usePrese
   t: ChatViewSlotProps['t']
 } & Pick<PropsRenderSlots<'conversation.chat.reasoning.body'>, 'renderSlot'>) {
   const { expanded, toggle } = useDisclosure()
+  // HeightLab（B1 方案② V2）：个人聊天面的思考流式文本经由此组件渲染——
+  // 把实时尾部广播给 RunningStatus 的独立滚动行（折叠时本行保持挂载）。
+  useEffect(() => {
+    publishReasoningTail(running ? text : '')
+    return () => { publishReasoningTail('') }
+  }, [text, running])
   const summaryText = running ? latestCompletedParagraphFirstLine(text) : firstLine(text)
   const summary = useMemo(() => summaryText.replaceAll('**', ''), [summaryText])
   const preview = usePresentation(policy => !expanded && summary !== ''
