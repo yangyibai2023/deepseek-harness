@@ -42,8 +42,11 @@ interface CreditsOverview {
   totalUnits?: number
   displayTotalUnits?: number
   planUnits?: number
+  displayPlanUnits?: number
   boosterUnits?: number
+  displayBoosterUnits?: number
   rewardUnits?: number
+  displayRewardUnits?: number
   buckets: CreditBucketView[]
   latestExpiry: number | null
   ledger: LedgerRow[]
@@ -172,12 +175,12 @@ export function PlanCreditsSection(): React.ReactElement {
         <div style={{ display: 'flex', gap: 24, marginTop: 6 }}>
           <div>
             <div style={{ fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' }}>套餐基础积分</div>
-            <div style={{ fontSize: 16, fontWeight: 600, marginTop: 2 }}>{formatUnits(data?.planUnits ?? 0)}</div>
+            <div style={{ fontSize: 16, fontWeight: 600, marginTop: 2 }}>{formatUnits(data?.displayPlanUnits ?? 0)}</div>
           </div>
           <div>
             <div style={{ fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' }}>加油包与奖励积分</div>
             <div style={{ fontSize: 16, fontWeight: 600, marginTop: 2 }}>
-              {formatUnits((data?.boosterUnits ?? 0) + (data?.rewardUnits ?? 0))}
+              {formatUnits((data?.displayBoosterUnits ?? 0) + (data?.displayRewardUnits ?? 0))}
             </div>
           </div>
         </div>
