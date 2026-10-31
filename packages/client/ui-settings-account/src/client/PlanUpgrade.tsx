@@ -65,19 +65,24 @@ function formatCny(amount: number): string {
   return `¥${amount.toLocaleString('zh-CN')}`
 }
 
+/** 2026-11-01：个人/团队页签开关——团队档位上线后改 true 恢复。 */
+const SHOW_TEAM_TAB = false
+
 export interface PlanUpgradeProps {
   readonly close: () => void
 }
 
 export function PlanUpgrade({ close }: PlanUpgradeProps) {
   const [catalog, setCatalog] = useState<PlanCatalogResponse['plans']>()
-  const [cycle, setCycle] = useState<PlanCycle>('monthly')
+  const [cycle, setCycle] = useState<PlanCycle>('yearly')
   const [busyTier, setBusyTier] = useState<string>()
   const [error, setError] = useState<string>()
   // 支付前协议（2026-11-01）：默认勾选，取消勾选则购买按钮置灰；点协议名看全文。
   const [agreementAccepted, setAgreementAccepted] = useState(true)
   const [agreementOpen, setAgreementOpen] = useState(false)
   const [tab, setTab] = useState<'personal' | 'team'>('personal')
+  void tab
+  void setTab
 
   useEffect(() => {
     const controller = new AbortController()
@@ -133,8 +138,8 @@ export function PlanUpgrade({ close }: PlanUpgradeProps) {
   }, [cycle])
 
   const cycleOptions = useMemo(() => ([
-    { id: 'monthly' as const, label: '连续包月' },
-    { id: 'yearly' as const, label: '连续包年', badge: tiers[0]?.prices.yearly.badge },
+    { id: 'monthly' as const, label: '按月付费' },
+    { id: 'yearly' as const, label: '按年付费', badge: tiers[0]?.prices.yearly.badge },
   ]), [tiers])
 
   return (
@@ -145,14 +150,18 @@ export function PlanUpgrade({ close }: PlanUpgradeProps) {
           <button type="button" className={css.close} aria-label="关闭" onClick={close}>×</button>
         </header>
 
-        <div className={css.tabs} role="tablist">
-          <button type="button" role="tab" aria-selected={tab === 'personal'}
-            className={tab === 'personal' ? css.tabActive : css.tab}
-            onClick={() => { setTab('personal') }}>个人套餐</button>
-          <button type="button" role="tab" aria-selected={tab === 'team'}
-            className={tab === 'team' ? css.tabActive : css.tabDisabled}
-            onClick={() => { setTab('team') }}>团队套餐</button>
-        </div>
+        {/* 2026-11-01：个人/团队页签暂不展示（当前只有个人档位）；恢复=SHOW_TEAM_TAB 改 true */}
+        {SHOW_TEAM_TAB && (
+          <div className={css.tabs} role="tablist">
+            <button type="button" role="tab" aria-selected={tab === 'personal'}
+              className={tab === 'personal' ? css.tabActive : css.tab}
+              onClick={() => { setTab('personal') }}>个人套餐</button>
+            <button type="button" role="tab" aria-selected={tab === 'team'}
+              className={tab === 'team' ? css.tabActive : css.tabDisabled}
+              onClick={() => { setTab('team') }}>团队套餐</button>
+          </div>
+
+        )}
 
         {tab === 'team'
           ? (
@@ -210,22 +219,22 @@ export function PlanUpgrade({ close }: PlanUpgradeProps) {
               </div>
             </>
           )}
+        {/* 支付协议（2026-11-01 复测）：页面最下方居中、灰色弱化，点击看全文 */}
+        <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 12, color: 'var(--dsw-alias-label-tertiary, rgba(127,127,127,0.85))', cursor: 'pointer', userSelect: 'none', flexWrap: 'wrap' }}>
+          <input type="checkbox" checked={agreementAccepted} onChange={(event) => { setAgreementAccepted(event.target.checked) }} style={{ margin: 0, cursor: 'pointer' }} />
+          <span>
+            我已阅读并同意
+            <a
+              role="button"
+              tabIndex={0}
+              onClick={(event) => { event.preventDefault(); setAgreementOpen(true) }}
+              onKeyDown={(event) => { if (event.key === 'Enter') setAgreementOpen(true) }}
+              style={{ color: 'var(--dsw-alias-label-tertiary, rgba(127,127,127,0.85))', textDecoration: 'underline', cursor: 'pointer' }}
+            >《{MEMBER_AGREEMENT_TITLE}》</a>
+          </span>
+        </label>
+        {agreementOpen && <AgreementModal close={() => { setAgreementOpen(false) }} />}
       </div>
-      {/* 支付协议（2026-11-01 复测）：页面最下方居中、灰色弱化，点击看全文 */}
-      <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 12, color: 'var(--dsw-alias-label-tertiary, rgba(127,127,127,0.85))', cursor: 'pointer', userSelect: 'none', flexWrap: 'wrap' }}>
-        <input type="checkbox" checked={agreementAccepted} onChange={(event) => { setAgreementAccepted(event.target.checked) }} style={{ margin: 0, cursor: 'pointer' }} />
-        <span>
-          我已阅读并同意
-          <a
-            role="button"
-            tabIndex={0}
-            onClick={(event) => { event.preventDefault(); setAgreementOpen(true) }}
-            onKeyDown={(event) => { if (event.key === 'Enter') setAgreementOpen(true) }}
-            style={{ color: 'var(--dsw-alias-label-tertiary, rgba(127,127,127,0.85))', textDecoration: 'underline', cursor: 'pointer' }}
-          >《{MEMBER_AGREEMENT_TITLE}》</a>
-        </span>
-      </label>
-      {agreementOpen && <AgreementModal close={() => { setAgreementOpen(false) }} />}
     </div>
   )
 }
