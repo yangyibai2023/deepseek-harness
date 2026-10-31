@@ -29,6 +29,7 @@ import { createSettingsShellStore } from './shell-store.ts'
 import { SettingsRoot } from './SettingsRoot.tsx'
 import { HeightLabAccountFoot } from './HeightLabAccountFoot.tsx'
 import { HeightLabAccount } from './HeightLabAccount.tsx'
+import { PlanCreditsSection } from './PlanCreditsSection.tsx'
 import { HeightLabVoiceAvatar } from './HeightLabVoiceAvatar.tsx'
 import { HeightLabAbout } from './HeightLabAbout.tsx'
 import { DesktopUpdateBadge } from './DesktopUpdateIndicator.tsx'
@@ -296,10 +297,18 @@ export function apply(ctx: ClientContext): void {
   ctx.slots.inject('settings.section', () => ctx.slots.register({
     name: 'settings.section',
     id: 'heightlab-account',
-    // 紧跟通用设置（0）之后，排在原生 模型(10)/插件(15)/智能体预设(20) 之前
+    // 2026-11-01：个人资料独立成菜单（余额/套餐/积分已拆往「套餐与积分」）
     order: 5,
-    label: () => '账户',
+    label: () => '个人资料',
   }, HeightLabAccount))
+
+  // 套餐与积分（2026-11-01）：当前套餐 + 积分总览/明细 + 加油包购买（对标 WorkBuddy）。
+  ctx.slots.inject('settings.section', () => ctx.slots.register({
+    name: 'settings.section',
+    id: 'heightlab-plan-credits',
+    order: 6,
+    label: () => '套餐与积分',
+  } as never, PlanCreditsSection))
 
   // HeightLab（2026-10-19 用户拍板）：ds-bot 的「用量」很好用，复制一份到全局
   // 设置，作为个人模式也能看的用量监测。团队设置里的「用量」保留不动——两处
@@ -307,8 +316,8 @@ export function apply(ctx: ClientContext): void {
   ctx.slots.inject('settings.section', () => ctx.slots.register({
     name: 'settings.section',
     id: 'heightlab-usage',
-    // 紧跟「账户」之后：余额与消耗放在一起看。
-    order: 6,
+    // 2026-11-01：让位给「套餐与积分」（order 6），顺延一位。
+    order: 7,
     label: () => '用量',
   }, GlobalUsageSection))
 
@@ -318,7 +327,7 @@ export function apply(ctx: ClientContext): void {
   ctx.slots.inject('settings.section', () => ctx.slots.register({
     name: 'settings.section',
     id: 'heightlab-memory',
-    order: 7,
+    order: 8,
     label: () => '记忆',
   }, GlobalMemorySection))
 

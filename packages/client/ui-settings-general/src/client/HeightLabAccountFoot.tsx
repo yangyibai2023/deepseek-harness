@@ -9,6 +9,7 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useState } from 'react'
 import { PlanUpgrade } from './PlanUpgrade.tsx'
+import { TierBadge } from './TierBadge.tsx'
 import type { ReactNode } from 'react'
 import clsx from 'clsx'
 import { IconCloseOutlineRegular, IconSettingsOutlineMedium, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -103,7 +104,6 @@ function AnnouncementCenter({
  * 与设置里账户分区（HeightLabAccount.tsx）用的是同一个常数——两处必须一致，
  * 否则同一个用户会在两处看到不同的分数。
  */
-const DISPLAY_CREDITS_PER_CNY = 5000 / 299
 
 /** 2026-10-27（1024-A7 用户拍板）：「更多能力」按钮全部隐藏，暂不启用；
  *  后期可能启用——改回 true 即整体恢复（渲染代码保留在原位）。 */
@@ -135,6 +135,7 @@ function AccountMenu({
   account,
   balance,
   balanceLoading,
+  creditsInfo,
   onClose,
   onOpenSettings,
   onRecharge,
@@ -145,12 +146,17 @@ function AccountMenu({
   account: { name?: string; username?: string; email?: string; avatar?: string } | null
   balance: BalanceInfo | null
   balanceLoading: boolean
+  creditsInfo: { tierLabel: string; canBuyBooster: boolean; totalUnits?: number } | null
   onClose: () => void
   onOpenSettings: () => void
   onRecharge: () => void
   onSignOut: () => void
   signingOut: boolean
 }) {
+  // 2026-11-01：未购套餐时加油包灰置（悬浮提示），会员可点进设置购买。
+  const canBuyBooster = creditsInfo?.canBuyBooster === true
+  void balance
+  void balanceLoading
   useEffect(() => {
     if (!open) return
     const onKeyDown = (e: KeyboardEvent): void => {
@@ -226,14 +232,6 @@ function AccountMenu({
    * 这里沿用同一口径，否则面板会显示一个七位数的天文数字（实测踩到）。
    * 2026-10-19 上线审计 P1-10：换算率缺失时**不再回退原始值**——那会把
    * 内部单位当人民币，放大 7 万倍且让低余额提醒永不触发。改为显示「—」。 */
-  const credits = ((): number | null => {
-    if (balance === null) return null
-    const perCny = balance.creditsPerCny
-    if (typeof perCny !== 'number' || !(perCny > 0)) return null
-    const cny = balance.balance / perCny
-    return Math.round(cny * DISPLAY_CREDITS_PER_CNY * 100) / 100
-  })()
-
   const itemStyle: React.CSSProperties = {
     display: 'flex',
     alignItems: 'center',
@@ -352,10 +350,17 @@ function AccountMenu({
           background: 'var(--dsw-alias-bg-layer-2)',
         }}
       >
-        <div style={{ minWidth: 0 }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' }}>套餐</div>
+          <div style={{ marginTop: 4 }}>
+            <TierBadge tierLabel={creditsInfo?.tierLabel ?? '体验版'} />
+          </div>
+        </div>
+        <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' }}>积分余额</div>
           <div
             style={{
+              marginTop: 2,
               fontSize: 16,
               fontWeight: 600,
               lineHeight: '22px',
@@ -363,27 +368,48 @@ function AccountMenu({
               fontVariantNumeric: 'tabular-nums',
             }}
           >
-            {balanceLoading || credits === null ? '—' : credits.toLocaleString('zh-CN')}
+            {balanceLoading || creditsInfo === null ? '—' : creditsInfo.totalUnits !== undefined ? creditsInfo.totalUnits.toLocaleString('zh-CN') : '—'}
           </div>
         </div>
+      </div>
+      {/* ②b 升级套餐 / 购买加油包（2026-11-01 对标 WorkBuddy 双按钮） */}
+      <div style={{ display: 'flex', gap: 8, margin: '0 4px 6px' }}>
         <button
           type="button"
           onClick={() => { onClose(); onRecharge() }}
           style={{
-            flexShrink: 0,
-            height: 28,
-            padding: '0 12px',
+            flex: 1,
+            height: 30,
             border: 0,
             borderRadius: 8,
             background: 'var(--dsw-alias-label-primary)',
             color: 'var(--dsw-specific-input-major)',
             fontFamily: 'inherit',
             fontSize: 12.5,
-            fontWeight: 500,
+            fontWeight: 600,
             cursor: 'pointer',
           }}
         >
           升级套餐
+        </button>
+        <button
+          type="button"
+          title={canBuyBooster ? undefined : '成为标准或旗舰会员后才能单独购买加油包'}
+          onClick={() => { if (canBuyBooster) { onClose(); onOpenSettings() } }}
+          style={{
+            flex: 1,
+            height: 30,
+            borderRadius: 8,
+            border: '1px solid var(--dsw-alias-border-l2)',
+            background: 'transparent',
+            color: canBuyBooster ? 'var(--dsw-alias-label-primary)' : 'var(--dsw-alias-label-tertiary)',
+            fontFamily: 'inherit',
+            fontSize: 12.5,
+            fontWeight: 500,
+            cursor: canBuyBooster ? 'pointer' : 'not-allowed',
+          }}
+        >
+          购买加油包
         </button>
       </div>
 
@@ -432,6 +458,24 @@ export function HeightLabAccountFoot({ wide, openSettings }: HeightLabAccountFoo
   // 能力入口用不到（能力/插件都在设置与侧栏面板里）。这里跟随 ds-bot 的
   // surface（它自己切换或我们的「个人|团队」切换都会写这个键）。
   const [teamSurface, setTeamSurface] = useState(readTeamSurface)
+  // 套餐与积分（2026-11-01）：/hl/credits 桥代理；弹框展示会员档与总积分。
+  const [creditsOverview, setCreditsOverview] = useState<{ tierLabel: string; canBuyBooster: boolean; totalUnits?: number } | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    fetch('/hl/credits')
+      .then(r => r.ok ? r.json() : null)
+      .then((data: { tierLabel?: string; canBuyBooster?: boolean; totalUnits?: number } | null) => {
+        if (cancelled || data === null) return
+        const next: { tierLabel: string; canBuyBooster: boolean; totalUnits?: number } = {
+          tierLabel: typeof data.tierLabel === 'string' ? data.tierLabel : '体验版',
+          canBuyBooster: data.canBuyBooster === true,
+        }
+        if (typeof data.totalUnits === 'number') next.totalUnits = data.totalUnits
+        setCreditsOverview(next)
+      })
+      .catch(() => { /* 弹框回落体验版/— */ })
+    return () => { cancelled = true }
+  }, [accountMenuOpen])
   useEffect(() => {
     const id = window.setInterval(() => {
       const next = readTeamSurface()
@@ -605,6 +649,7 @@ export function HeightLabAccountFoot({ wide, openSettings }: HeightLabAccountFoo
             account={account}
             balance={balance}
             balanceLoading={balanceLoading}
+            creditsInfo={creditsOverview}
             onClose={() => { setAccountMenuOpen(false) }}
             onOpenSettings={() => { openSettings() }}
             onRecharge={() => {

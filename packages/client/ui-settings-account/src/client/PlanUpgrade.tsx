@@ -10,6 +10,8 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import css from './PlanUpgrade.module.css'
+import { AgreementModal } from './AgreementModal.tsx'
+import { MEMBER_AGREEMENT_TITLE } from './MemberAgreement.ts'
 
 type PlanCycle = 'monthly' | 'yearly'
 
@@ -72,6 +74,9 @@ export function PlanUpgrade({ close }: PlanUpgradeProps) {
   const [cycle, setCycle] = useState<PlanCycle>('monthly')
   const [busyTier, setBusyTier] = useState<string>()
   const [error, setError] = useState<string>()
+  // 支付前协议（2026-11-01）：默认勾选，取消勾选则购买按钮置灰；点协议名看全文。
+  const [agreementAccepted, setAgreementAccepted] = useState(true)
+  const [agreementOpen, setAgreementOpen] = useState(false)
   const [tab, setTab] = useState<'personal' | 'team'>('personal')
 
   useEffect(() => {
@@ -174,6 +179,20 @@ export function PlanUpgrade({ close }: PlanUpgradeProps) {
               </div>
 
               {error !== undefined && <p className={css.error} role="alert">下单失败：{error}</p>}
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--dsw-alias-label-secondary, rgba(0,0,0,0.6))', cursor: 'pointer', userSelect: 'none' }}>
+                <input type="checkbox" checked={agreementAccepted} onChange={(event) => { setAgreementAccepted(event.target.checked) }} style={{ margin: 0, cursor: 'pointer' }} />
+                <span>
+                  我已阅读并同意
+                  <a
+                    role="button"
+                    tabIndex={0}
+                    onClick={(event) => { event.preventDefault(); setAgreementOpen(true) }}
+                    onKeyDown={(event) => { if (event.key === 'Enter') setAgreementOpen(true) }}
+                    style={{ color: 'var(--dsw-alias-label-primary, #111)', textDecoration: 'underline', cursor: 'pointer', marginLeft: 2 }}
+                  >《{MEMBER_AGREEMENT_TITLE}》</a>
+                </span>
+              </label>
+              {agreementOpen && <AgreementModal close={() => { setAgreementOpen(false) }} />}
 
               <div className={css.cards}>
                 {tiers.length === 0 && error === undefined && <p className={css.loading}>套餐加载中…</p>}
@@ -195,7 +214,7 @@ export function PlanUpgrade({ close }: PlanUpgradeProps) {
                         {tier.features.map(feature => <li key={feature}>{feature}</li>)}
                       </ul>
                       <p className={css.slogan}>{tier.slogan}</p>
-                      <button type="button" className={css.buy} disabled={busy || !tier.purchasable}
+                      <button type="button" className={css.buy} disabled={busy || !tier.purchasable || !agreementAccepted}
                         onClick={() => { void startCheckout(tier) }}>
                         {busy ? '正在下单…' : tier.purchasable ? '升级订阅' : '暂不可购'}
                       </button>
