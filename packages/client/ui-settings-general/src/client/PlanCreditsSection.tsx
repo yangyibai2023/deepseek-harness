@@ -14,6 +14,7 @@ interface CreditBucketView {
   units: number
   unitsInitial: number
   expiresAt: number
+  displayUnits?: number
 }
 
 interface LedgerRow {
@@ -29,6 +30,7 @@ interface BoosterSkuView {
   name: string
   amount: number
   credits: number
+  displayCredits?: number
   tagline: string
 }
 
@@ -38,6 +40,7 @@ interface CreditsOverview {
   canBuyBooster: boolean
   plan: { name?: string; cycle?: string; periodEnd?: number; remainingMs?: number } | null
   totalUnits?: number
+  displayTotalUnits?: number
   planUnits?: number
   boosterUnits?: number
   rewardUnits?: number
@@ -163,7 +166,7 @@ export function PlanCreditsSection(): React.ReactElement {
       {/* 积分总览 */}
       <div style={cardStyle}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-          <span style={bigNumberStyle}>{formatUnits(data?.totalUnits ?? 0)}</span>
+          <span style={bigNumberStyle}>{formatUnits(data?.displayTotalUnits ?? data?.totalUnits ?? 0)}</span>
           <span style={{ fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' }}>总剩余积分</span>
         </div>
         <div style={{ display: 'flex', gap: 24, marginTop: 6 }}>
@@ -211,7 +214,7 @@ export function PlanCreditsSection(): React.ReactElement {
                 <div key={`${bucket.kind}-${bucket.expiresAt}-${bucket.units}`}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
                     <span style={{ fontWeight: 600 }}>{KIND_LABEL[bucket.kind]}</span>
-                    <span>剩余 {formatUnits(bucket.units)}</span>
+                    <span>剩余 {formatUnits(bucket.displayUnits ?? bucket.units)}</span>
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--dsw-alias-label-tertiary)', margin: '2px 0 6px' }}>
                     到期 {formatDate(bucket.expiresAt)}
@@ -273,7 +276,7 @@ export function PlanCreditsSection(): React.ReactElement {
                 <div style={{ fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' }}>{sku.tagline}</div>
                 <div style={{ fontSize: 13, fontWeight: 600 }}>{sku.name}</div>
                 <div style={{ fontSize: 15, fontWeight: 700 }}>¥{sku.amount}</div>
-                <div style={{ fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' }}>{formatUnits(sku.credits)} 积分 · 12 个月有效</div>
+                <div style={{ fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' }}>{formatUnits(sku.displayCredits ?? sku.credits)} 积分 · 12 个月有效</div>
               </div>
             )
           })}

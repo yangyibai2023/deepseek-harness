@@ -138,7 +138,8 @@ function AccountMenu({
   creditsInfo,
   onClose,
   onOpenSettings,
-  onRecharge,
+  onRecharge, // 2026-11-01：升级套餐入口移至「会员等级」行（跳设置-套餐与积分）
+
   onSignOut,
   signingOut,
 }: {
@@ -146,7 +147,7 @@ function AccountMenu({
   account: { name?: string; username?: string; email?: string; avatar?: string } | null
   balance: BalanceInfo | null
   balanceLoading: boolean
-  creditsInfo: { tierLabel: string; canBuyBooster: boolean; totalUnits?: number } | null
+  creditsInfo: { tierLabel: string; canBuyBooster: boolean; totalUnits?: number; displayTotalUnits?: number } | null
   onClose: () => void
   onOpenSettings: () => void
   onRecharge: () => void
@@ -154,7 +155,7 @@ function AccountMenu({
   signingOut: boolean
 }) {
   // 2026-11-01：未购套餐时加油包灰置（悬浮提示），会员可点进设置购买。
-  const canBuyBooster = creditsInfo?.canBuyBooster === true
+  void onRecharge
   void balance
   void balanceLoading
   useEffect(() => {
@@ -337,82 +338,53 @@ function AccountMenu({
         </div>
       </div>
 
-      {/* ② 积分余额 + 充值 */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 8,
-          margin: '0 4px 6px',
-          padding: '9px 10px',
-          borderRadius: 10,
-          background: 'var(--dsw-alias-bg-layer-2)',
-        }}
+      {/* ② 会员等级 / 积分余额 / 个人资料——三行独立可点（2026-11-01 对标千问办公：
+          每行点开设置并定位到对应一级菜单）。 */}
+      <button
+        type="button"
+        style={itemStyle}
+        onMouseEnter={hoverIn}
+        onMouseLeave={hoverOut}
+        onClick={() => { onClose(); window.dispatchEvent(new CustomEvent('hl:open-settings-section', { detail: { section: 'heightlab-plan-credits' } })) }}
       >
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' }}>套餐</div>
-          <div style={{ marginTop: 4 }}>
-            <TierBadge tierLabel={creditsInfo?.tierLabel ?? '体验版'} />
-          </div>
-        </div>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' }}>积分余额</div>
-          <div
-            style={{
-              marginTop: 2,
-              fontSize: 16,
-              fontWeight: 600,
-              lineHeight: '22px',
-              color: 'var(--dsw-alias-label-primary)',
-              fontVariantNumeric: 'tabular-nums',
-            }}
-          >
-            {balanceLoading || creditsInfo === null ? '—' : creditsInfo.totalUnits !== undefined ? creditsInfo.totalUnits.toLocaleString('zh-CN') : '—'}
-          </div>
-        </div>
-      </div>
-      {/* ②b 升级套餐 / 购买加油包（2026-11-01 对标 WorkBuddy 双按钮） */}
-      <div style={{ display: 'flex', gap: 8, margin: '0 4px 6px' }}>
-        <button
-          type="button"
-          onClick={() => { onClose(); onRecharge() }}
-          style={{
-            flex: 1,
-            height: 30,
-            border: 0,
-            borderRadius: 8,
-            background: 'var(--dsw-alias-label-primary)',
-            color: 'var(--dsw-specific-input-major)',
-            fontFamily: 'inherit',
-            fontSize: 12.5,
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
-        >
-          升级套餐
-        </button>
-        <button
-          type="button"
-          title={canBuyBooster ? undefined : '成为标准或旗舰会员后才能单独购买加油包'}
-          onClick={() => { if (canBuyBooster) { onClose(); onOpenSettings() } }}
-          style={{
-            flex: 1,
-            height: 30,
-            borderRadius: 8,
-            border: '1px solid var(--dsw-alias-border-l2)',
-            background: 'transparent',
-            color: canBuyBooster ? 'var(--dsw-alias-label-primary)' : 'var(--dsw-alias-label-tertiary)',
-            fontFamily: 'inherit',
-            fontSize: 12.5,
-            fontWeight: 500,
-            cursor: canBuyBooster ? 'pointer' : 'not-allowed',
-          }}
-        >
-          购买加油包
-        </button>
-      </div>
-
+        <svg viewBox="0 0 16 16" width={16} height={16} fill="none" aria-hidden>
+          <path d="M2.5 11.5 2 5l3.4 2.6L8 3.5l2.6 4.1L14 5l-.5 6.5z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+          <path d="M3.5 13.5h9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+        </svg>
+        <span style={{ flex: 1 }}>会员等级</span>
+        <TierBadge tierLabel={creditsInfo?.tierLabel ?? '体验版'} />
+        <span style={{ color: 'var(--dsw-alias-label-tertiary)', fontSize: 12 }}>›</span>
+      </button>
+      <button
+        type="button"
+        style={itemStyle}
+        onMouseEnter={hoverIn}
+        onMouseLeave={hoverOut}
+        onClick={() => { onClose(); window.dispatchEvent(new CustomEvent('hl:open-settings-section', { detail: { section: 'heightlab-plan-credits' } })) }}
+      >
+        <svg viewBox="0 0 16 16" width={16} height={16} fill="none" aria-hidden>
+          <path d="M8 1.8 9.7 6l4.5.4-3.4 3 1 4.4L8 11.5l-3.8 2.3 1-4.4-3.4-3L6.3 6z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+        </svg>
+        <span style={{ flex: 1 }}>积分余额</span>
+        <span style={{ fontSize: 13, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+          {balanceLoading || creditsInfo === null ? '—' : creditsInfo.displayTotalUnits !== undefined ? creditsInfo.displayTotalUnits.toLocaleString('zh-CN') : '—'}
+        </span>
+        <span style={{ color: 'var(--dsw-alias-label-tertiary)', fontSize: 12 }}>›</span>
+      </button>
+      <button
+        type="button"
+        style={itemStyle}
+        onMouseEnter={hoverIn}
+        onMouseLeave={hoverOut}
+        onClick={() => { onClose(); window.dispatchEvent(new CustomEvent('hl:open-settings-section', { detail: { section: 'heightlab-account' } })) }}
+      >
+        <svg viewBox="0 0 16 16" width={16} height={16} fill="none" aria-hidden>
+          <circle cx="8" cy="5.4" r="2.6" stroke="currentColor" strokeWidth="1.2" />
+          <path d="M2.8 13.4c.8-2.4 2.8-3.6 5.2-3.6s4.4 1.2 5.2 3.6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+        </svg>
+        <span style={{ flex: 1 }}>个人资料</span>
+        <span style={{ color: 'var(--dsw-alias-label-tertiary)', fontSize: 12 }}>›</span>
+      </button>
       <div style={{ height: 1, margin: '2px 6px 4px', background: 'var(--dsw-alias-border-l2)' }} />
 
       {/* ③ 设置 */}
@@ -459,18 +431,20 @@ export function HeightLabAccountFoot({ wide, openSettings }: HeightLabAccountFoo
   // surface（它自己切换或我们的「个人|团队」切换都会写这个键）。
   const [teamSurface, setTeamSurface] = useState(readTeamSurface)
   // 套餐与积分（2026-11-01）：/hl/credits 桥代理；弹框展示会员档与总积分。
-  const [creditsOverview, setCreditsOverview] = useState<{ tierLabel: string; canBuyBooster: boolean; totalUnits?: number } | null>(null)
+  interface CreditsInfo { tierLabel: string; canBuyBooster: boolean; totalUnits?: number; displayTotalUnits?: number }
+  const [creditsOverview, setCreditsOverview] = useState<CreditsInfo | null>(null)
   useEffect(() => {
     let cancelled = false
     fetch('/hl/credits')
       .then(r => r.ok ? r.json() : null)
-      .then((data: { tierLabel?: string; canBuyBooster?: boolean; totalUnits?: number } | null) => {
+      .then((data: { tierLabel?: string; canBuyBooster?: boolean; totalUnits?: number; displayTotalUnits?: number } | null) => {
         if (cancelled || data === null) return
-        const next: { tierLabel: string; canBuyBooster: boolean; totalUnits?: number } = {
+        const next: { tierLabel: string; canBuyBooster: boolean; totalUnits?: number; displayTotalUnits?: number } = {
           tierLabel: typeof data.tierLabel === 'string' ? data.tierLabel : '体验版',
           canBuyBooster: data.canBuyBooster === true,
         }
         if (typeof data.totalUnits === 'number') next.totalUnits = data.totalUnits
+        if (typeof data.displayTotalUnits === 'number') next.displayTotalUnits = data.displayTotalUnits
         setCreditsOverview(next)
       })
       .catch(() => { /* 弹框回落体验版/— */ })

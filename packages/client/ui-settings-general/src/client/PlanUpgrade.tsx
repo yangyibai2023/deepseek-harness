@@ -195,20 +195,6 @@ export function PlanUpgrade({ close }: PlanUpgradeProps) {
               </div>
 
               {error !== undefined && <p className={css.error} role="alert">下单失败：{error}</p>}
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--dsw-alias-label-secondary, rgba(0,0,0,0.6))', cursor: 'pointer', userSelect: 'none' }}>
-                <input type="checkbox" checked={agreementAccepted} onChange={(event) => { setAgreementAccepted(event.target.checked) }} style={{ margin: 0, cursor: 'pointer' }} />
-                <span>
-                  我已阅读并同意
-                  <a
-                    role="button"
-                    tabIndex={0}
-                    onClick={(event) => { event.preventDefault(); setAgreementOpen(true) }}
-                    onKeyDown={(event) => { if (event.key === 'Enter') setAgreementOpen(true) }}
-                    style={{ color: 'var(--dsw-alias-label-primary, #111)', textDecoration: 'underline', cursor: 'pointer', marginLeft: 2 }}
-                  >《{MEMBER_AGREEMENT_TITLE}》</a>
-                </span>
-              </label>
-              {agreementOpen && <AgreementModal close={() => { setAgreementOpen(false) }} />}
 
               <div className={css.cards}>
                 {tiers.length === 0 && error === undefined && <p className={css.loading}>套餐加载中…</p>}
@@ -241,6 +227,21 @@ export function PlanUpgrade({ close }: PlanUpgradeProps) {
             </>
           )}
       </div>
+      {/* 支付协议（2026-11-01 复测）：页面最下方居中、灰色弱化，点击看全文 */}
+      <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 12, color: 'var(--dsw-alias-label-tertiary, rgba(127,127,127,0.85))', cursor: 'pointer', userSelect: 'none', flexWrap: 'wrap' }}>
+        <input type="checkbox" checked={agreementAccepted} onChange={(event) => { setAgreementAccepted(event.target.checked) }} style={{ margin: 0, cursor: 'pointer' }} />
+        <span>
+          我已阅读并同意
+          <a
+            role="button"
+            tabIndex={0}
+            onClick={(event) => { event.preventDefault(); setAgreementOpen(true) }}
+            onKeyDown={(event) => { if (event.key === 'Enter') setAgreementOpen(true) }}
+            style={{ color: 'var(--dsw-alias-label-tertiary, rgba(127,127,127,0.85))', textDecoration: 'underline', cursor: 'pointer' }}
+          >《{MEMBER_AGREEMENT_TITLE}》</a>
+        </span>
+      </label>
+      {agreementOpen && <AgreementModal close={() => { setAgreementOpen(false) }} />}
     </div>
   )
 }
