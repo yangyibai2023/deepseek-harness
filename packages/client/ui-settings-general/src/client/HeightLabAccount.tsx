@@ -31,6 +31,9 @@ interface TopupOrder {
   createdAt?: string
 }
 
+/** 2026-11-01：积分/充值已单列「套餐与积分」菜单——本页默认不再显示余额/充值/记录。 */
+const SHOW_LEGACY_BALANCE = false
+
 const sectionStyle: React.CSSProperties = {
   padding: '16px',
   display: 'flex',
@@ -711,143 +714,148 @@ export function HeightLabAccount() {
         </button>
       </div>
 
-      {/* 余额卡 */}
-      <div style={cardStyle}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 12, opacity: 0.55 }}>当前余额</div>
-            <div style={{ fontSize: 20, fontWeight: 600, marginTop: 2 }}>
-              {balance ? creditsText : (balanceError ?? '加载中…')}
-            </div>
-            <div style={{ fontSize: 12, opacity: 0.55, marginTop: 2 }}>
-              {hasRate ? `≈ ¥${((balance?.balance ?? 0) / (balance?.creditsPerCny ?? 1)).toFixed(2)}` : '余额换算暂不可用'}
-              {balance?.mock ? '（测试数据）' : ''}
-            </div>
-          </div>
-          <button type="button" style={primaryButtonStyle} onClick={() => { setOpen(true); setStatus(null); setCheckoutUrl(null) }}>
-            充值
-          </button>
-        </div>
-      </div>
-
-      {/* 充值记录 */}
-      {orders.length > 0 && (
-        <div style={cardStyle}>
-          <div style={{ fontSize: 12, opacity: 0.55, fontWeight: 500 }}>充值记录</div>
-          {orders.slice(0, 6).map((order) => {
-            const st = orderStatus(order)
-            return (
-              <div
-                key={order.id}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  padding: '8px 4px',
-                  borderTop: '1px solid var(--dsw-alias-border-l1)',
-                }}
-              >
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13 }}>充值 ¥{order.amount}</div>
-                  <div style={{ fontSize: 12, opacity: 0.55, marginTop: 1 }}>
-                    {order.paymentMethod === 'alipay' ? '支付宝' : order.paymentMethod === 'wxpay' ? '微信支付' : order.paymentMethod} · {fmtOrderTime(order.createdAt)}
-                  </div>
-                </div>
-                <span
-                  style={{
-                    fontSize: 12,
-                    color: st.color,
-                    background: `${st.color}1a`,
-                    padding: '2px 8px',
-                    borderRadius: 999,
-                  }}
-                >
-                  {st.label}
-                </span>
-              </div>
-            )
-          })}
-        </div>
-      )}
-
-      <button
-        type="button"
-        style={{ ...ghostButtonStyle, alignSelf: 'flex-start', color: 'var(--dsw-alias-state-error-primary)' }}
-        onClick={signOut}
-      >
-        退出登录
-      </button>
-
-      {open && (
-        <div style={overlayStyle} onClick={() => { if (!busy) { setOpen(false); setCheckoutUrl(null) } }}>
-          <div style={{ ...modalStyle, width: checkoutUrl ? 480 : undefined }} onClick={e => e.stopPropagation()}>
-            <div style={{ fontWeight: 600 }}>充值</div>
-            {!checkoutUrl && (
-              <>
-                {/* 内测专享：月度会员 ¥299/月（原价 ¥599/月 五折） */}
-                <div
-                  style={{
-                    padding: '12px 14px',
-                    borderRadius: '12px',
-                    border: '1px solid var(--dsw-alias-brand-primary)',
-                    background: 'var(--dsw-alias-bg-layer-3)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: 12,
-                  }}
-                >
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 600 }}>内测专享 · 月度会员</div>
-                    <div style={{ fontSize: 12, opacity: 0.65, marginTop: 2 }}>
-                      原价 ¥599/月 · 内测期间五折优惠
-                    </div>
-                  </div>
-                  <div style={{ fontSize: 22, fontWeight: 700 }}>¥299/月</div>
+      {SHOW_LEGACY_BALANCE && (
+        <>
+          {/* 余额卡 */}
+          <div style={cardStyle}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 12, opacity: 0.55 }}>当前余额</div>
+                <div style={{ fontSize: 20, fontWeight: 600, marginTop: 2 }}>
+                  {balance ? creditsText : (balanceError ?? '加载中…')}
                 </div>
                 <div style={{ fontSize: 12, opacity: 0.55, marginTop: 2 }}>
-                  历史订单不影响新充值，可随时创建并支付。
+                  {hasRate ? `≈ ¥${((balance?.balance ?? 0) / (balance?.creditsPerCny ?? 1)).toFixed(2)}` : '余额换算暂不可用'}
+                  {balance?.mock ? '（测试数据）' : ''}
                 </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  {(['alipay', 'wxpay'] as const).map(method => (
-                    <button
-                      key={method}
-                      type="button"
-                      style={{ ...buttonStyle, flex: 1, border: payMethod === method ? '2px solid var(--dsw-alias-brand-primary)' : '1px solid currentColor' }}
-                      onClick={() => setPayMethod(method)}
-                    >
-                      {method === 'alipay' ? '支付宝' : '微信支付'}
-                    </button>
-                  ))}
-                </div>
-                <button
-                  type="button"
-                  style={{ ...primaryButtonStyle, width: '100%', justifyContent: 'center', padding: '10px 0' }}
-                  disabled={busy}
-                  onClick={() => { void recharge(299) }}
-                >
-                  {busy ? '处理中…' : '立即充值 ¥299/月'}
-                </button>
-              </>
-            )}
-            {checkoutUrl && (
-              <iframe
-                src={checkoutUrl}
-                title="支付"
-                style={{ width: '100%', height: 560, border: '1px solid #ddd', borderRadius: 8, background: '#fff' }}
-              />
-            )}
-            {status && <div style={{ opacity: 0.8, fontSize: 13 }}>{status}</div>}
-            {checkoutUrl && (
-              <button type="button" style={buttonStyle} onClick={() => { refresh(); setStatus('余额已刷新') }}>
-                刷新余额
+              </div>
+              <button type="button" style={primaryButtonStyle} onClick={() => { setOpen(true); setStatus(null); setCheckoutUrl(null) }}>
+            充值
               </button>
-            )}
-            <button type="button" style={buttonStyle} disabled={busy} onClick={() => setOpen(false)}>
-              关闭
-            </button>
+            </div>
           </div>
-        </div>
+
+          {/* 充值记录 */}
+          {orders.length > 0 && (
+            <div style={cardStyle}>
+              <div style={{ fontSize: 12, opacity: 0.55, fontWeight: 500 }}>充值记录</div>
+              {orders.slice(0, 6).map((order) => {
+                const st = orderStatus(order)
+                return (
+                  <div
+                    key={order.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      padding: '8px 4px',
+                      borderTop: '1px solid var(--dsw-alias-border-l1)',
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13 }}>充值 ¥{order.amount}</div>
+                      <div style={{ fontSize: 12, opacity: 0.55, marginTop: 1 }}>
+                        {order.paymentMethod === 'alipay' ? '支付宝' : order.paymentMethod === 'wxpay' ? '微信支付' : order.paymentMethod} · {fmtOrderTime(order.createdAt)}
+                      </div>
+                    </div>
+                    <span
+                      style={{
+                        fontSize: 12,
+                        color: st.color,
+                        background: `${st.color}1a`,
+                        padding: '2px 8px',
+                        borderRadius: 999,
+                      }}
+                    >
+                      {st.label}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          <button
+            type="button"
+            style={{ ...ghostButtonStyle, alignSelf: 'flex-start', color: 'var(--dsw-alias-state-error-primary)' }}
+            onClick={signOut}
+          >
+        退出登录
+          </button>
+
+          {open && (
+            <div style={overlayStyle} onClick={() => { if (!busy) { setOpen(false); setCheckoutUrl(null) } }}>
+              <div style={{ ...modalStyle, width: checkoutUrl ? 480 : undefined }} onClick={e => e.stopPropagation()}>
+                <div style={{ fontWeight: 600 }}>充值</div>
+                {!checkoutUrl && (
+                  <>
+                    {/* 内测专享：月度会员 ¥299/月（原价 ¥599/月 五折） */}
+                    <div
+                      style={{
+                        padding: '12px 14px',
+                        borderRadius: '12px',
+                        border: '1px solid var(--dsw-alias-brand-primary)',
+                        background: 'var(--dsw-alias-bg-layer-3)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 12,
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 600 }}>内测专享 · 月度会员</div>
+                        <div style={{ fontSize: 12, opacity: 0.65, marginTop: 2 }}>
+                      原价 ¥599/月 · 内测期间五折优惠
+                        </div>
+                      </div>
+                      <div style={{ fontSize: 22, fontWeight: 700 }}>¥299/月</div>
+                    </div>
+                    <div style={{ fontSize: 12, opacity: 0.55, marginTop: 2 }}>
+                  历史订单不影响新充值，可随时创建并支付。
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      {(['alipay', 'wxpay'] as const).map(method => (
+                        <button
+                          key={method}
+                          type="button"
+                          style={{ ...buttonStyle, flex: 1, border: payMethod === method ? '2px solid var(--dsw-alias-brand-primary)' : '1px solid currentColor' }}
+                          onClick={() => setPayMethod(method)}
+                        >
+                          {method === 'alipay' ? '支付宝' : '微信支付'}
+                        </button>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      style={{ ...primaryButtonStyle, width: '100%', justifyContent: 'center', padding: '10px 0' }}
+                      disabled={busy}
+                      onClick={() => { void recharge(299) }}
+                    >
+                      {busy ? '处理中…' : '立即充值 ¥299/月'}
+                    </button>
+                  </>
+                )}
+                {checkoutUrl && (
+                  <iframe
+                    src={checkoutUrl}
+                    title="支付"
+                    style={{ width: '100%', height: 560, border: '1px solid #ddd', borderRadius: 8, background: '#fff' }}
+                  />
+                )}
+                {status && <div style={{ opacity: 0.8, fontSize: 13 }}>{status}</div>}
+                {checkoutUrl && (
+                  <button type="button" style={buttonStyle} onClick={() => { refresh(); setStatus('余额已刷新') }}>
+                刷新余额
+                  </button>
+                )}
+                <button type="button" style={buttonStyle} disabled={busy} onClick={() => setOpen(false)}>
+              关闭
+                </button>
+              </div>
+            </div>
+          )}
+
+        </>
       )}
 
       {editOpen && (

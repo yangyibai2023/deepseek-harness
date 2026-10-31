@@ -278,8 +278,16 @@ function AccountMenu({
         boxShadow: '0 8px 28px rgba(0,0,0,0.16)',
       }}
     >
-      {/* ① 用户名 */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px 10px' }}>
+      {/* ① 用户名/头像/邮箱（2026-11-01 复测：整块可点 → 设置-个人资料；原单独「个人资料」行已删） */}
+      <button
+        type="button"
+        onClick={() => { onClose(); window.dispatchEvent(new CustomEvent('hl:open-settings-section', { detail: { section: 'heightlab-account' } })) }}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px 10px',
+          border: 0, borderRadius: 10, background: 'transparent', cursor: 'pointer',
+          width: '100%', textAlign: 'left', fontFamily: 'inherit',
+        }}
+      >
         {account?.avatar
           ? (
             <img
@@ -336,7 +344,7 @@ function AccountMenu({
             )
             : null}
         </div>
-      </div>
+      </button>
 
       {/* ② 会员等级 / 积分余额 / 个人资料——三行独立可点（2026-11-01 对标千问办公：
           每行点开设置并定位到对应一级菜单）。 */}
@@ -369,20 +377,6 @@ function AccountMenu({
         <span style={{ fontSize: 13, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
           {balanceLoading || creditsInfo === null ? '—' : creditsInfo.displayTotalUnits !== undefined ? creditsInfo.displayTotalUnits.toLocaleString('zh-CN') : '—'}
         </span>
-        <span style={{ color: 'var(--dsw-alias-label-tertiary)', fontSize: 12 }}>›</span>
-      </button>
-      <button
-        type="button"
-        style={itemStyle}
-        onMouseEnter={hoverIn}
-        onMouseLeave={hoverOut}
-        onClick={() => { onClose(); window.dispatchEvent(new CustomEvent('hl:open-settings-section', { detail: { section: 'heightlab-account' } })) }}
-      >
-        <svg viewBox="0 0 16 16" width={16} height={16} fill="none" aria-hidden>
-          <circle cx="8" cy="5.4" r="2.6" stroke="currentColor" strokeWidth="1.2" />
-          <path d="M2.8 13.4c.8-2.4 2.8-3.6 5.2-3.6s4.4 1.2 5.2 3.6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-        </svg>
-        <span style={{ flex: 1 }}>个人资料</span>
         <span style={{ color: 'var(--dsw-alias-label-tertiary)', fontSize: 12 }}>›</span>
       </button>
       <div style={{ height: 1, margin: '2px 6px 4px', background: 'var(--dsw-alias-border-l2)' }} />
