@@ -181,7 +181,7 @@ function TurnErrorItem({ node, t }: {
     <div className={css.turnErrorRow} role="status" data-turn-verdict={verdict.kind}>
       <StateDot state="error" className={css.turnErrorDot} />
       <div className={css.turnErrorCopy}>
-        <span className={css.turnErrorTitle}>{node.code === 'ACCOUNT_SIGNED_OUT' ? t('message.accountStopped') : t('message.turnError')}</span>
+        <span className={css.turnErrorTitle}>{t(verdict.titleKey)}</span>
         <span className={css.turnErrorMessage}>{heightlabFriendlyErrorText(failureMessage(node.message, node.code, t))}</span>
         {isQuota && (
           <button

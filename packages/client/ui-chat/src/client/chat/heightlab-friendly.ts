@@ -44,6 +44,8 @@ export function heightlabFriendlyErrorText(text: string): string {
   t = t.replace(/.*(?:api key|authentication failed|unauthorized|invalid key).*/i, '服务鉴权失败，请稍后重试或重新登录。')
   t = t.replace(/.*(?:upstream|timed out|timeout|network error).*/i, '上游服务暂时不可用，请稍后重试。')
   t = t.replace(/.*(?:video_url is empty|not a douyin\.com URL|invalid URL).*/i, '链接无效，请检查输入后重试。')
+  t = t.replace(/.*(?:content (?:filter|policy)|sensitive content|内容审核|敏感内容).*/i, '这段内容未通过安全审核，换个表述再试一次。')
+  t = t.replace(/.*(?:可用渠道不存在|no available channel|channel not (?:available|exist)|provider_insufficient_credit).*/i, '该能力暂时不可用，我们正在紧急处理。')
   t = t.replace(/\bError:/gi, '失败：')
   return t
 }

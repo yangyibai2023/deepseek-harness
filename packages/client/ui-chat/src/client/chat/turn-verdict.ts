@@ -36,37 +36,46 @@ export interface TurnVerdict {
   readonly showBanner: boolean
   /** 是否提供「复制排查包」入口。 */
   readonly allowDiagnostics: boolean
+  /** 场景化标题的 locale 键（错误文案体系 2026-11-02）；failed 兜底沿用旧标题。 */
+  readonly titleKey:
+    | 'message.turnError'
+    | 'message.accountStopped'
+    | 'message.turnError.quota'
+    | 'message.turnError.auth'
+    | 'message.turnError.modelUnavailable'
+    | 'message.turnError.rateLimited'
 }
 
 const NONE: TurnVerdict = {
   kind: 'none', recovery: 'none', showInBubble: false, showBanner: false, allowDiagnostics: false,
+  titleKey: 'message.turnError',
 }
 
 /** 判决优先级表：越靠前越优先（只会命中第一个）。 */
 const PRIORITY: readonly { match: (code: string) => boolean; verdict: TurnVerdict }[] = [
   {
     match: code => code === 'ACCOUNT_SIGNED_OUT',
-    verdict: { kind: 'signed-out', recovery: 'sign-in', showInBubble: true, showBanner: false, allowDiagnostics: false },
+    verdict: { kind: 'signed-out', recovery: 'sign-in', showInBubble: true, showBanner: false, allowDiagnostics: false, titleKey: 'message.accountStopped' },
   },
   {
     match: code => code === 'ACCOUNT_SIGN_IN_REQUIRED',
-    verdict: { kind: 'signed-out', recovery: 'sign-in', showInBubble: true, showBanner: false, allowDiagnostics: false },
+    verdict: { kind: 'signed-out', recovery: 'sign-in', showInBubble: true, showBanner: false, allowDiagnostics: false, titleKey: 'message.accountStopped' },
   },
   {
     match: code => code === 'QUOTA' || code === 'ACCOUNT_QUOTA',
-    verdict: { kind: 'quota', recovery: 'recharge', showInBubble: true, showBanner: false, allowDiagnostics: false },
+    verdict: { kind: 'quota', recovery: 'recharge', showInBubble: true, showBanner: false, allowDiagnostics: false, titleKey: 'message.turnError.quota' },
   },
   {
     match: code => code === 'AUTH',
-    verdict: { kind: 'auth', recovery: 'settings', showInBubble: true, showBanner: true, allowDiagnostics: true },
+    verdict: { kind: 'auth', recovery: 'settings', showInBubble: true, showBanner: true, allowDiagnostics: true, titleKey: 'message.turnError.auth' },
   },
   {
     match: code => code === 'MODEL_UNAVAILABLE',
-    verdict: { kind: 'model-unavailable', recovery: 'settings', showInBubble: true, showBanner: true, allowDiagnostics: true },
+    verdict: { kind: 'model-unavailable', recovery: 'settings', showInBubble: true, showBanner: true, allowDiagnostics: true, titleKey: 'message.turnError.modelUnavailable' },
   },
   {
     match: code => code === 'RATE_LIMITED' || code === 'RATE_LIMIT' || code === 'UPSTREAM_RATE_LIMITED',
-    verdict: { kind: 'rate-limited', recovery: 'wait', showInBubble: false, showBanner: true, allowDiagnostics: true },
+    verdict: { kind: 'rate-limited', recovery: 'wait', showInBubble: false, showBanner: true, allowDiagnostics: true, titleKey: 'message.turnError.rateLimited' },
   },
 ]
 
@@ -90,8 +99,8 @@ export function resolveTurnVerdict(args: {
   // 未带码时的文本兜底：限流相关措辞统一走「等待」，不再单独弹错误气泡。
   const text = (args.message ?? '').toLowerCase()
   if (/rate.?limit|too many requests|429|限流|请求过于频繁/u.test(text)) {
-    return { kind: 'rate-limited', recovery: 'wait', showInBubble: false, showBanner: true, allowDiagnostics: true }
+    return { kind: 'rate-limited', recovery: 'wait', showInBubble: false, showBanner: true, allowDiagnostics: true, titleKey: 'message.turnError.rateLimited' }
   }
   // 其余终态失败：气泡一处错误行 + 排查包；不额外叠横幅。
-  return { kind: 'failed', recovery: 'resend', showInBubble: true, showBanner: false, allowDiagnostics: true }
+  return { kind: 'failed', recovery: 'resend', showInBubble: true, showBanner: false, allowDiagnostics: true, titleKey: 'message.turnError' }
 }
