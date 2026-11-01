@@ -23,6 +23,7 @@ interface PlanPrice {
 }
 
 interface PlanTier {
+  credits: { base: number; bonus: number; total: number }
   id: string
   name: string
   audience: string
@@ -44,22 +45,7 @@ interface PlanCatalogResponse {
   plans?: { personal?: PlanTier[]; team?: TeamPlanPlaceholder }
 }
 
-const TOKEN_UNITS: Array<{ threshold: number; label: string }> = [
-  { threshold: 1e8, label: '亿' },
-  { threshold: 1e4, label: '万' },
-]
-
 /** 1.5亿 / 1250万 这类中文额度口径（保留至多一位小数）。 */
-function formatTokens(tokens: number): string {
-  for (const unit of TOKEN_UNITS) {
-    if (tokens >= unit.threshold) {
-      const value = tokens / unit.threshold
-      const text = Number.isInteger(value) ? String(value) : value.toFixed(1)
-      return `${text} ${unit.label}`
-    }
-  }
-  return String(tokens)
-}
 
 function formatCny(amount: number): string {
   return `¥${amount.toLocaleString('zh-CN')}`
@@ -197,12 +183,16 @@ export function PlanUpgrade({ close }: PlanUpgradeProps) {
                   return (
                     <article key={tier.id} className={css.card}>
                       <h2 className={css.cardName}>{tier.name}</h2>
+                      <p className={css.audience}>{tier.credits.total.toLocaleString('zh-CN')} 积分/月，{tier.slogan}</p>
                       <p className={css.price}>
                         {formatCny(price.amount)}
                         <span className={css.per}>/{price.displayCycle}</span>
                       </p>
                       <p className={css.included}>
-                        包含约 <strong>{formatTokens(price.includedTokens)}</strong> Token
+                        每月基础 <strong>{tier.credits.base.toLocaleString('zh-CN')}</strong> 积分
+                      </p>
+                      <p className={css.included}>
+                        每月赠送 <strong>{tier.credits.bonus.toLocaleString('zh-CN')}</strong> 积分
                       </p>
                       <p className={css.audience}>{tier.audience}</p>
                       <ul className={css.features}>
