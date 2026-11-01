@@ -34,6 +34,62 @@ import type { CSSProperties, RefObject } from 'react'
 import { EffortSlider } from './EffortSlider.tsx'
 import css from './ModelPickerPanel.module.css'
 
+/* HeightLab 外显模型倍率（flash=1.00× 锚点；未收录模型不显示角标） */
+const EXTERNAL_MODEL_RATIOS: Record<string, string> = {
+  hy3: '0.00×',
+  'MiniMax-M3': '0.4×',
+  'MiniMax-M3-highspeed': '0.4×',
+  'MiniMax-M3.1-flash': '0.4×',
+  'gpt-6-luna': '0.2×',
+  'claude-sonnet-4-6': '0.32×',
+  'claude-haiku-4-5-20251001': '0.4×',
+  'gpt-5.6-luna': '0.4×',
+  'glm-5.3-flash': '0.8×',
+  'mimo-v2.6-flash': '0.8×',
+  'MiniMax-M3.1': '0.8×',
+  'LongCat-2.0': '0.8×',
+  'LongCat-2.5': '0.8×',
+  'gpt-6-sol': '1.2×',
+  'gpt-6.1-sol': '1.2×',
+  'gpt-5.6-terra': '1.2×',
+  'doubao-seed-2.1-turbo': '1.2×',
+  'qwen3.7-plus': '1.6×',
+  'mimo-v2.6-pro': '1.6×',
+  'deepseek-flash': '1.00×',
+  'deepseek-v4-flash': '1.00×',
+  'deepseek-v4.1-flash': '1.00×',
+  'grok-4.5': '2×',
+  'grok-4.6': '2×',
+  'gpt-5.6-sol': '2.4×',
+  'grok-4.7': '2.4×',
+  'kimi-k2.7': '2.4×',
+  'deepseek-v4-pro': '3×',
+  'glm-5.2': '3.2×',
+  'glm-5.3': '3.2×',
+  'qwen3.7-max': '4×',
+  'claude-sonnet-5': '4×',
+  'claude-sonnet-5.5': '4×',
+  'mimo-v2.5-pro': '1.6×',
+  'gpt-5.4': '3×',
+  'gpt-5.5': '3×',
+  'claude-opus-4-6': '6×',
+  'claude-opus-4-7': '6×',
+  'claude-opus-4-8': '6×',
+  'claude-opus-5': '6×',
+  'claude-opus-5.5': '6×',
+  'qwen3.8-max': '8×',
+  'kimi-k3': '10×',
+  'gpt-5.4-mini': '2×',
+  'kimi-k2.6': '2.4×',
+  'deepseek-v3.2': '3×',
+  'gemini-3-flash': '0.8×',
+  'gemini-3.1-pro': '3.2×',
+  'gemini-3.5-flash': '0.8×',
+  'glm-5.1': '3.2×',
+  'glm-5-turbo': '0.8×',
+}
+
+
 /** 面板首帧先隐藏量尺寸，避免闪到屏幕外（与 Menu portal 同一做法）。 */
 const MEASURE_STYLE = { visibility: 'hidden' as const, left: 0, top: 0 }
 
@@ -221,6 +277,11 @@ export function ModelPickerPanel({
           onClick={() => { if (current !== undefined) onPickModel(current.id, model.id) }}
         >
           <span className={css.modelName}>{model.label}</span>
+          {EXTERNAL_MODEL_RATIOS[model.id] !== undefined && (
+            <span style={{ marginLeft: 'auto', fontSize: 12, color: 'rgba(127,127,127,0.75)', fontVariantNumeric: 'tabular-nums' }}>
+              {EXTERNAL_MODEL_RATIOS[model.id]}
+            </span>
+          )}
           {model.badge !== undefined && <span className={css.badge}>{model.badge}</span>}
           {model.selected && <IconCheckOutlineRegular className={css.check} size={14} />}
         </button>

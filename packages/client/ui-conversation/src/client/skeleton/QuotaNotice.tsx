@@ -16,13 +16,13 @@ import { useCallback, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import css from './QuotaNotice.module.css'
 
-const LOW_CNY_THRESHOLD = 10
+const LOW_CREDITS_THRESHOLD = 1_000
 const POLL_MS = 5 * 60 * 1000
 
 type Phase =
   | { kind: 'hidden' }
-  | { kind: 'empty'; cny: number }
-  | { kind: 'low'; cny: number }
+  | { kind: 'empty'; credits: number }
+  | { kind: 'low'; credits: number }
 
 /**
  * 把 /hl/balance 的原始余额换算成人民币。
@@ -30,10 +30,10 @@ type Phase =
  * 绝不把内部 quota 单位当人民币——否则 ¥10 的余额看起来像 ¥70 万，
  * 低余额提醒永远不会触发。
  */
-function readCny(data: { balance?: number; creditsPerCny?: number } | undefined): number | undefined {
+/** 内部单位 → 展示积分（2026-11-01 新口径：¥1 = 452 积分；1 单位 = 452/71123.7553 积分）。 */
+function readCredits(data: { balance?: number } | undefined): number | undefined {
   if (!data || typeof data.balance !== 'number') return undefined
-  if (typeof data.creditsPerCny !== 'number' || !(data.creditsPerCny > 0)) return undefined
-  return data.balance / data.creditsPerCny
+  return Math.round(data.balance * (452 / (500_000 / 7.03)))
 }
 
 export function QuotaNotice(): ReactNode {
@@ -44,13 +44,13 @@ export function QuotaNotice(): ReactNode {
     fetch('/hl/balance', { cache: 'no-store' })
       .then(r => r.json())
       .then((data: { ok?: boolean; balance?: number; creditsPerCny?: number }) => {
-        const cny = readCny(data)
-        if (!data?.ok || cny === undefined) {
+        const credits = readCredits(data)
+        if (!data?.ok || credits === undefined) {
           setPhase({ kind: 'hidden' })
           return
         }
-        if (cny <= 0.01) setPhase({ kind: 'empty', cny })
-        else if (cny < LOW_CNY_THRESHOLD) setPhase({ kind: 'low', cny })
+        if (credits <= 0) setPhase({ kind: 'empty', credits })
+        else if (credits < LOW_CREDITS_THRESHOLD) setPhase({ kind: 'low', credits })
         else setPhase({ kind: 'hidden' })
       })
       .catch(() => { /* 拉不到就不显示，不干扰对话 */ })
@@ -87,7 +87,7 @@ export function QuotaNotice(): ReactNode {
 
   if (dismissed || phase.kind === 'hidden') return null
   const empty = phase.kind === 'empty'
-  const cnyText = `¥${phase.cny.toFixed(2)}`
+  const cnyText = `${phase.credits.toLocaleString('zh-CN')} 积分`
   const openRecharge = (): void => {
     window.dispatchEvent(new CustomEvent('hl:open-settings-section', { detail: { section: 'heightlab-account' } }))
   }
@@ -96,8 +96,8 @@ export function QuotaNotice(): ReactNode {
       <span className={empty ? `${css.dot} ${css.dotEmpty}` : css.dot} aria-hidden />
       <span className={css.text}>
         {empty
-          ? `额度已用尽，充值后即可继续使用（当前余额 ${cnyText}）`
-          : `额度即将用尽（当前余额 ${cnyText}），建议及时充值`}
+          ? `积分已用尽，充值后即可继续使用（当前剩余 ${cnyText}）`
+          : `积分即将用尽（当前剩余 ${cnyText}），建议及时充值`}
       </span>
       <button type="button" className={css.recharge} onClick={openRecharge}>
         充值

@@ -298,7 +298,7 @@ export const UsagePill = memo(function UsagePill({ useProjection, usePerformance
     <DialogPill
       stat="usage"
       icon={icon}
-      label={joined(totalText, cacheHitText)}
+      label={joined(`用量 ≈${Math.max(1, Math.round(total / 1300)).toLocaleString('zh-CN')} 积分`, cacheHitText)}
       ariaLabel={cacheHitText === null ? totalText : `${totalText} · ${cacheHitText}`}
       title={t('stats.dialog.usageTitle')}
       titleValue={exactCount(total, t)}

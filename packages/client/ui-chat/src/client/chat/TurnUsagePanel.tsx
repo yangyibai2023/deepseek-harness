@@ -34,7 +34,8 @@ export function TurnUsagePanel({ usage, t }: TurnUsagePanelProps) {
   const cacheHit = usage.cacheReadTokens === undefined
     ? null
     : formatCacheHitPercent(usage.cacheReadTokens, usage.totalTokens - usage.outputTokens, 1)
-  const total = formatCompactCount(usage.totalTokens, t)
+  // HeightLab：token → 积分近似换算（基准 1.00× = 1 积分/1,300 tokens；按模型倍率精确换算随模型倍率标注入版）
+  void formatCompactCount
   const routes = usage.routes?.map(route => `${route.provider}/${route.model}`).join(', ') ?? ''
 
   return (
@@ -47,7 +48,7 @@ export function TurnUsagePanel({ usage, t }: TurnUsagePanelProps) {
         onClick={() => { setOpen(!open) }}
       >
         <IconDatabaseOutlineRegular />
-        <span className={css.label}>{t('message.turnUsage.consumed', { total })}</span>
+        <span className={css.label}>用量 ≈{Math.max(1, Math.round(usage.totalTokens / 1300)).toLocaleString('zh-CN')} 积分</span>
       </button>
       {open && createPortal(
         <div

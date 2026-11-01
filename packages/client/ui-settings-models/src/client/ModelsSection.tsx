@@ -21,7 +21,7 @@
  * post-apply reload.
  */
 
-import { useId, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Button, IconPlusOutlineRegular, Modal, SegmentedControl } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
@@ -235,7 +235,44 @@ export function ModelsSection(props: ModelsSectionProps): ReactNode {
     controller === undefined || useSnapshot === undefined || operations === undefined
     || schema === undefined || t === undefined
   ) return null
-  return <Loaded injected={{ controller, useSnapshot, operations, schema, t }} renderSlot={renderSlot} />
+  const injected = { controller, useSnapshot, operations, schema, t }
+  return <TierGated injected={injected} renderSlot={renderSlot} />
+}
+
+/** 体验版/轻量版不开放自定义模型（2026-11-01 防逆向）：内容替换为升级引导。 */
+function TierGated({ injected, renderSlot }: { injected: ModelsSectionFace; renderSlot: ModelsRenderSlot }): ReactNode {
+  const [tier, setTier] = useState<'unknown' | 'paid' | 'entry'>('unknown')
+  useEffect(() => {
+    let cancelled = false
+    fetch('/hl/credits').then(r => r.json()).then((d) => {
+      if (cancelled) return
+      setTier(d.tier === 'free' || d.tier === 'lite' ? 'entry' : 'paid')
+    }).catch(() => { if (!cancelled) setTier('paid') })
+    return () => { cancelled = true }
+  }, [])
+  if (tier === 'unknown') return null
+  if (tier === 'entry') {
+    return (
+      <div style={{ padding: '32px 24px', textAlign: 'center' }}>
+        <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>自定义模型为会员权益</div>
+        <div style={{ fontSize: 13, color: 'rgba(127,127,127,0.9)', marginBottom: 16, lineHeight: 1.7 }}>
+          体验版与轻量版不支持自定义模型。<br />升级标准版或旗舰版即可解锁全部模型配置。
+        </div>
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new CustomEvent('hl:open-settings-section', { detail: { section: 'heightlab-plan-credits' } }))}
+          style={{
+            padding: '9px 26px', borderRadius: 10, border: 'none', cursor: 'pointer',
+            background: 'var(--dsw-alias-button-primary-fill, #111)',
+            color: 'var(--dsw-alias-label-primary-foreground, #fff)', fontSize: 13, fontWeight: 600,
+          }}
+        >
+          升级套餐
+        </button>
+      </div>
+    )
+  }
+  return <Loaded injected={injected} renderSlot={renderSlot} />
 }
 
 function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderSlot: ModelsRenderSlot }): ReactNode {
