@@ -183,16 +183,16 @@ export function PlanUpgrade({ close }: PlanUpgradeProps) {
                   return (
                     <article key={tier.id} className={css.card}>
                       <h2 className={css.cardName}>{tier.name}</h2>
-                      <p className={css.audience}>{tier.credits.total.toLocaleString('zh-CN')} 积分/月，{tier.slogan}</p>
+                      <p className={css.audience}>{(price.displayCycle === '年' ? tier.credits.total * 12 : tier.credits.total).toLocaleString('zh-CN')} 积分/{price.displayCycle}，{tier.slogan}</p>
                       <p className={css.price}>
                         {formatCny(price.amount)}
                         <span className={css.per}>/{price.displayCycle}</span>
                       </p>
                       <p className={css.included}>
-                        每月基础 <strong>{tier.credits.base.toLocaleString('zh-CN')}</strong> 积分
+                        {price.displayCycle === '年' ? '年度基础' : '每月基础'} <strong>{(price.displayCycle === '年' ? tier.credits.base * 12 : tier.credits.base).toLocaleString('zh-CN')}</strong> 积分
                       </p>
                       <p className={css.included}>
-                        每月赠送 <strong>{tier.credits.bonus.toLocaleString('zh-CN')}</strong> 积分
+                        {price.displayCycle === '年' ? '年度赠送' : '每月赠送'} <strong>{(price.displayCycle === '年' ? tier.credits.bonus * 12 : tier.credits.bonus).toLocaleString('zh-CN')}</strong> 积分
                       </p>
                       <p className={css.audience}>{tier.audience}</p>
                       <ul className={css.features}>
