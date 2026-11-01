@@ -22,6 +22,18 @@ interface PlanPrice {
   badge?: string
 }
 
+interface PlanCapacity {
+  images: number
+  videoSeconds: number
+}
+
+interface PlanPresentation {
+  creditMultiple?: string
+  capacityMonthly: PlanCapacity
+  capacityYearly: PlanCapacity
+  features: string[]
+}
+
 interface PlanTier {
   credits: { base: number; bonus: number; total: number }
   id: string
@@ -29,6 +41,7 @@ interface PlanTier {
   audience: string
   slogan: string
   features: string[]
+  presentation?: PlanPresentation
   prices: Record<PlanCycle, PlanPrice>
   purchasable: boolean
 }
@@ -210,9 +223,15 @@ export function PlanUpgrade({ close }: PlanUpgradeProps) {
                       <p className={css.included}>
                         {price.displayCycle === '年' ? '年度赠送' : '每月赠送'} <strong>{(price.displayCycle === '年' ? tier.credits.bonus * 12 : tier.credits.bonus).toLocaleString('zh-CN')}</strong> 积分
                       </p>
+                      <p className={css.included}>
+                        {price.displayCycle === '年' ? '每年约' : '每月约'} <strong>{(price.displayCycle === '年' ? tier.presentation?.capacityYearly.images ?? 0 : tier.presentation?.capacityMonthly.images ?? 0).toLocaleString('zh-CN')}</strong> 张高清图片，或 <strong>{(price.displayCycle === '年' ? tier.presentation?.capacityYearly.videoSeconds ?? 0 : tier.presentation?.capacityMonthly.videoSeconds ?? 0).toLocaleString('zh-CN')}</strong> 秒高清视频
+                      </p>
+                      {tier.presentation?.creditMultiple && (
+                        <p className={css.included}>积分相当于 {tier.presentation.creditMultiple}</p>
+                      )}
                       <p className={css.audience}>{tier.audience}</p>
                       <ul className={css.features}>
-                        {tier.features.map(feature => <li key={feature}>{feature}</li>)}
+                        {(tier.presentation?.features ?? tier.features).map(feature => <li key={feature}>{feature}</li>)}
                       </ul>
                       <p className={css.slogan}>{tier.slogan}</p>
                       <button type="button" className={css.buy} disabled={busy || !tier.purchasable || !agreementAccepted}

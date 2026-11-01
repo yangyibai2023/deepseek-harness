@@ -239,18 +239,39 @@ export function ModelsSection(props: ModelsSectionProps): ReactNode {
   return <TierGated injected={injected} renderSlot={renderSlot} />
 }
 
-/** 体验版/轻量版不开放自定义模型（2026-11-01 防逆向）：内容替换为升级引导。 */
+/** 自定义模型仅旗舰开放（2026-11-02 V6 定稿）：体验/轻量/标准分别给升级引导。 */
 function TierGated({ injected, renderSlot }: { injected: ModelsSectionFace; renderSlot: ModelsRenderSlot }): ReactNode {
-  const [tier, setTier] = useState<'unknown' | 'paid' | 'entry'>('unknown')
+  const [tier, setTier] = useState<'unknown' | 'flagship' | 'standard' | 'entry'>('unknown')
   useEffect(() => {
     let cancelled = false
     fetch('/hl/credits').then(r => r.json()).then((d) => {
       if (cancelled) return
-      setTier(d.tier === 'free' || d.tier === 'lite' ? 'entry' : 'paid')
-    }).catch(() => { if (!cancelled) setTier('paid') })
+      setTier(d.tier === 'flagship' ? 'flagship' : d.tier === 'standard' ? 'standard' : 'entry')
+    }).catch(() => { if (!cancelled) setTier('flagship') })
     return () => { cancelled = true }
   }, [])
   if (tier === 'unknown') return null
+  if (tier === 'standard') {
+    return (
+      <div style={{ padding: '32px 24px', textAlign: 'center' }}>
+        <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>自定义模型为旗舰专属权益</div>
+        <div style={{ fontSize: 13, color: 'rgba(127,127,127,0.9)', marginBottom: 16, lineHeight: 1.7 }}>
+          标准版可使用全部内置模型。<br />升级旗舰版即可接入自带 Key 与私有模型。
+        </div>
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new CustomEvent('hl:open-settings-section', { detail: { section: 'heightlab-plan-credits' } }))}
+          style={{
+            padding: '9px 26px', borderRadius: 10, border: 'none', cursor: 'pointer',
+            background: 'var(--dsw-alias-button-primary-fill, #111)',
+            color: 'var(--dsw-alias-label-primary-foreground, #fff)', fontSize: 13, fontWeight: 600,
+          }}
+        >
+          升级旗舰版
+        </button>
+      </div>
+    )
+  }
   if (tier === 'entry') {
     return (
       <div style={{ padding: '32px 24px', textAlign: 'center' }}>
