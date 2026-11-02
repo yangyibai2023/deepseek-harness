@@ -99,9 +99,12 @@ export function apply(ctx: ClientContext): void {
     },
   })
 
+  // HeightLab（2026-11-02 用户拍板）：设置菜单隐藏「内置插件」模块。
+  // 可回滚：把下面的开关改回 true 即恢复（本包唯一的 section 注入点）。
+  const SHOW_BUILTIN_PLUGINS_SECTION = false
   // This package owns the one Built-in plugins navigation entry and the tab
   // chrome; feature plugins contribute pages without competing for Settings nav rows.
-  ctx.slots.inject('settings.section', () => ctx.slots.register({
+  if (SHOW_BUILTIN_PLUGINS_SECTION) ctx.slots.inject('settings.section', () => ctx.slots.register({
     name: 'settings.section',
     id: 'plugins',
     // HeightLab：插件扩展排到 Agent 管理（20）之后。
