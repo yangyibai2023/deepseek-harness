@@ -154,6 +154,25 @@ export function ModelPickerPanel({
   const position = useAnchoredPosition({
     open, anchorRef, panelRef, side: 'bottom', align: 'start', gap: 4, margin: 12,
   })
+  /* 2026-11-03（0.5.3 用户实测）：一级面板（模型列表）此前不限高——66 个模型
+   * 直接溢出屏幕且 overflow:hidden 导致无法滚动，根本选不了下面的模型。
+   * 二级厂商菜单早有 maxHeight:360 的同款处理，一级面板补齐：
+   *   · 视口高度减去锚点上方空间与边距，至少 200、至多 520；
+   *   · 由 .panel 的 overflow-y:auto 消化滚动。
+   * 2026-11-03 晚（用户二次实测）：改为动态高度——
+   *   · 模型少时，面板刚好包住所有模型（不浪费空间）；
+   *   · 模型多时，面板在视口允许范围内尽量高（用户能感知可滑动）；
+   *   · 估算：供应商头部 ~44px、模型行 ~34px/行、思考强度 ~86px、padding ~8px。
+   * 2026-11-03 深夜（用户三次实测）：高度不再限制视口底部空间，
+   * 让 useAnchoredPosition 自动翻转到上方。面板最大高度固定为 520px，
+   * 模型少时自适应内容高度，模型多时固定 520px（可滚动）。 */
+  const current = providers.find(provider => provider.id === currentProviderId) ?? providers[0]
+  const models = current?.models ?? []
+  const modelCount = models.length
+  // 估算内容高度：供应商头部 + 模型行 + 思考强度 + padding
+  const estimatedHeight = 44 + (modelCount * 34) + 86 + 8
+  // 最大高度固定 520px，模型少时用内容高度（至少 200），模型多时用 520
+  const panelMaxHeight = Math.max(200, Math.min(estimatedHeight, 520))
   useDismissOnOutsidePointer(rootRef, open, (next) => { if (!next) onClose() }, panelRef)
 
   if (!open) return null
@@ -201,14 +220,11 @@ export function ModelPickerPanel({
     }
   })()
 
-  const current = providers.find(provider => provider.id === currentProviderId) ?? providers[0]
-  const models = current?.models ?? []
-
   const panel = (
     <MenuSurface
       ref={panelRef}
       className={css.panel}
-      style={position ?? MEASURE_STYLE}
+      style={{ ...(position ?? MEASURE_STYLE), maxHeight: panelMaxHeight }}
       role="menu"
       aria-label={ariaLabel}
       onClick={(event) => { event.stopPropagation() }}
@@ -222,7 +238,7 @@ export function ModelPickerPanel({
           aria-expanded={pickingProvider}
           aria-label={`切换厂商，当前 ${current?.label ?? ''}`}
           onMouseEnter={() => { setPickingProvider(true) }}
-          onClick={() => { setPickingProvider(prev => !prev) }}
+          onClick={() => { setPickingProvider(true) }}
         >
           <span className={css.dot} aria-hidden="true" />
           <span className={css.providerName}>{current?.label ?? ''}</span>
@@ -265,31 +281,33 @@ export function ModelPickerPanel({
         )}
       </div>
 
-      {/* ── 模型列表 ──────────────────────────────────────────────── */}
-      <div className={css.sectionTitle} role="presentation">模型</div>
-      {models.map(model => (
-        <button
-          key={model.id}
-          type="button"
-          role="menuitem"
-          className={css.modelRow}
-          aria-selected={model.selected}
-          onClick={() => { if (current !== undefined) onPickModel(current.id, model.id) }}
-        >
-          <span className={css.modelName}>{model.label}</span>
-          {EXTERNAL_MODEL_RATIOS[model.id] !== undefined && (
-            <span style={{ marginLeft: 'auto', fontSize: 12, color: 'rgba(127,127,127,0.75)', fontVariantNumeric: 'tabular-nums' }}>
-              {EXTERNAL_MODEL_RATIOS[model.id]}
-            </span>
-          )}
-          {model.badge !== undefined && <span className={css.badge}>{model.badge}</span>}
-          {model.selected && <IconCheckOutlineRegular className={css.check} size={14} />}
-        </button>
-      ))}
+      {/* ── 模型列表（中间可滚动区域）────────────────────────────── */}
+      <div className={css.modelList}>
+        <div className={css.sectionTitle} role="presentation">模型</div>
+        {models.map(model => (
+          <button
+            key={model.id}
+            type="button"
+            role="menuitem"
+            className={css.modelRow}
+            aria-selected={model.selected}
+            onClick={() => { if (current !== undefined) onPickModel(current.id, model.id) }}
+          >
+            <span className={css.modelName}>{model.label}</span>
+            {EXTERNAL_MODEL_RATIOS[model.id] !== undefined && (
+              <span style={{ marginLeft: 'auto', fontSize: 12, color: 'rgba(127,127,127,0.75)', fontVariantNumeric: 'tabular-nums' }}>
+                {EXTERNAL_MODEL_RATIOS[model.id]}
+              </span>
+            )}
+            {model.badge !== undefined && <span className={css.badge}>{model.badge}</span>}
+            {model.selected && <IconCheckOutlineRegular className={css.check} size={14} />}
+          </button>
+        ))}
+      </div>
 
-      {/* ── 思考强度（滑块）────────────────────────────────────────── */}
+      {/* ── 思考强度（固定底部，不随模型列表滚动）────────────────── */}
       {effort !== undefined && effort.options.length > 0 && (
-        <div className={css.effortBlock}>
+        <div className={css.effortBlockFixed}>
           <div className={css.effortHead} role="presentation">
             <span className={css.effortTitle}>{effortTitle}</span>
             <span className={css.effortCurrent}>{effortCurrent}</span>
