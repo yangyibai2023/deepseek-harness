@@ -147,7 +147,7 @@ function AccountMenu({
   account: { name?: string; username?: string; email?: string; avatar?: string } | null
   balance: BalanceInfo | null
   balanceLoading: boolean
-  creditsInfo: { tierLabel: string; canBuyBooster: boolean; totalUnits?: number; displayTotalUnits?: number } | null
+  creditsInfo: { tierLabel?: string | undefined; canBuyBooster: boolean; totalUnits?: number; displayTotalUnits?: number } | null
   onClose: () => void
   onOpenSettings: () => void
   onRecharge: () => void
@@ -360,7 +360,9 @@ function AccountMenu({
           <path d="M3.5 13.5h9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
         </svg>
         <span style={{ flex: 1 }}>会员等级</span>
-        <TierBadge tierLabel={creditsInfo?.tierLabel ?? '体验版'} />
+        {/* FIX-23（0.5.5）：credits 没拿到时传 undefined → TierBadge 未知态灰「—」，
+            不再把「体验版」当兜底（旗舰账号被误显示体验版的事故根因）。 */}
+        <TierBadge tierLabel={creditsInfo?.tierLabel} />
         <span style={{ color: 'var(--dsw-alias-label-tertiary)', fontSize: 12 }}>›</span>
       </button>
       <button
@@ -425,7 +427,9 @@ export function HeightLabAccountFoot({ wide, openSettings }: HeightLabAccountFoo
   // surface（它自己切换或我们的「个人|团队」切换都会写这个键）。
   const [teamSurface, setTeamSurface] = useState(readTeamSurface)
   // 套餐与积分（2026-11-01）：/hl/credits 桥代理；弹框展示会员档与总积分。
-  interface CreditsInfo { tierLabel: string; canBuyBooster: boolean; totalUnits?: number; displayTotalUnits?: number }
+  // FIX-23（0.5.5）：tierLabel 允许 undefined（未知态），不再强转「体验版」——
+  // 404（runtime 过旧）/401（未登录）/网络错一律显示「—」，不冒充真实档位。
+  interface CreditsInfo { tierLabel?: string | undefined; canBuyBooster: boolean; totalUnits?: number; displayTotalUnits?: number }
   const [creditsOverview, setCreditsOverview] = useState<CreditsInfo | null>(null)
   useEffect(() => {
     let cancelled = false
@@ -433,15 +437,15 @@ export function HeightLabAccountFoot({ wide, openSettings }: HeightLabAccountFoo
       .then(r => r.ok ? r.json() : null)
       .then((data: { tierLabel?: string; canBuyBooster?: boolean; totalUnits?: number; displayTotalUnits?: number } | null) => {
         if (cancelled || data === null) return
-        const next: { tierLabel: string; canBuyBooster: boolean; totalUnits?: number; displayTotalUnits?: number } = {
-          tierLabel: typeof data.tierLabel === 'string' ? data.tierLabel : '体验版',
+        const next: { tierLabel?: string | undefined; canBuyBooster: boolean; totalUnits?: number; displayTotalUnits?: number } = {
+          tierLabel: typeof data.tierLabel === 'string' ? data.tierLabel : undefined,
           canBuyBooster: data.canBuyBooster === true,
         }
         if (typeof data.totalUnits === 'number') next.totalUnits = data.totalUnits
         if (typeof data.displayTotalUnits === 'number') next.displayTotalUnits = data.displayTotalUnits
         setCreditsOverview(next)
       })
-      .catch(() => { /* 弹框回落体验版/— */ })
+      .catch(() => { /* 弹框回落未知态「—」（FIX-23） */ })
     return () => { cancelled = true }
   }, [accountMenuOpen])
   useEffect(() => {

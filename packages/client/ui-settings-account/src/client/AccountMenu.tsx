@@ -84,7 +84,10 @@ export function AccountMenu({
     }).catch(() => undefined)
     return () => { cancelled = true }
   }, [open, signedIn])
-  const tierLabel = credits?.tierLabel ?? '体验版'
+  // FIX-23（0.5.5）：credits 没拿到时 tierLabel 传 undefined → TierBadge 未知态灰「—」；
+  // 原来兜底「体验版」是把真实档位冒充查询结果（旗舰账号显示成体验版的事故根因）。
+  const tierLabel = credits?.tierLabel
+  // 加油包可见性维持 fail-closed：未知态按不可购买处理（与 FIX-2「体验版隐藏」一致）。
   const canBuyBooster = credits?.canBuyBooster === true
 
   /** 富卡片弹框（signed-in）：对标 WorkBuddy——头像+名 / 套餐+积分 / 双按钮 / 菜单组。 */

@@ -107,10 +107,28 @@ export function PlanCreditsSection(): React.ReactElement {
   const [busySku, setBusySku] = useState<string | null>(null)
   const [buyError, setBuyError] = useState<string>()
 
+  /* FIX-23（0.5.5）：失败原因分因提示——与 FIX-7a「不显示误导信息」同一哲学。
+   * 404 = 本地桥无 /hl/credits 路由 → runtime 过旧（混装/升级未完成），引导更新；
+   * 401/403 = 登录态失效，引导重新登录；其余 HTTP / 网络错 = 服务暂不可用可重试。 */
   const reload = useCallback((): void => {
-    void fetch('/hl/credits').then(res => res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`)))
+    setLoadError(undefined)
+    void fetch('/hl/credits').then((res) => {
+      if (res.ok) return res.json()
+      if (res.status === 404) {
+        return Promise.reject(new Error('当前应用版本过旧，会员服务不可用；请把 HeightLab 更新到最新版本。'))
+      }
+      if (res.status === 401 || res.status === 403) {
+        return Promise.reject(new Error('登录状态已失效，请重新登录后再查看会员信息。'))
+      }
+      return Promise.reject(new Error(`会员服务暂时不可用（HTTP ${res.status}），请稍后重试。`))
+    })
       .then((json) => { setData(json as CreditsOverview); setLoadError(undefined) })
-      .catch((err) => { setLoadError(err instanceof Error ? err.message : String(err)) })
+      .catch((err) => {
+        const message = err instanceof Error ? err.message : String(err)
+        setLoadError(/failed to fetch|networkerror|load failed/i.test(message)
+          ? '网络连接不可用，请检查网络后重试。'
+          : message)
+      })
   }, [])
   useEffect(() => { reload() }, [reload])
 
@@ -150,7 +168,8 @@ export function PlanCreditsSection(): React.ReactElement {
       {/* 当前套餐卡 */}
       <div style={{ ...cardStyle, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <TierBadge tierLabel={data?.tierLabel ?? '…'} />
+          {/* FIX-23（0.5.5）：tierLabel 未知时传 undefined → TierBadge 灰「—」，不冒充真实档位。 */}
+          <TierBadge tierLabel={data?.tierLabel} />
           {data?.plan?.name !== undefined && data.plan.name !== ''
             ? <span style={{ fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' }}>{data.plan.name}</span>
             : null}
@@ -187,7 +206,20 @@ export function PlanCreditsSection(): React.ReactElement {
         {data?.latestExpiry !== null && data?.latestExpiry !== undefined
           ? <div style={{ fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' }}>最近一批积分到期：{formatDate(data.latestExpiry)}</div>
           : null}
-        {loadError !== undefined && <div style={{ fontSize: 12, color: 'var(--dsw-alias-danger, #c0392b)' }}>加载失败：{loadError}</div>}
+        {loadError !== undefined && (
+          <div style={{ fontSize: 12, color: 'var(--dsw-alias-danger, #c0392b)', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span>{loadError}</span>
+            <button
+              type="button"
+              onClick={reload}
+              style={{
+                padding: '3px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer',
+                border: '1px solid var(--dsw-alias-border-l2)', background: 'transparent',
+                color: 'var(--dsw-alias-label-primary, #111)',
+              }}
+            >重试</button>
+          </div>
+        )}
       </div>
 
       {/* 积分明细（概览 / 消耗） */}
