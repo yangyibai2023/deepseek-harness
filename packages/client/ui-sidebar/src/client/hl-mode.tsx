@@ -241,6 +241,16 @@ export function HlModeSwitcher() {
   }
 
 
+  /* 2026-11-04（用户实测：重启后落在了团队页）：**启动归位个人模式**。
+   * FIX-18 只解决了「新用户默认值」，但 surface/hl.mode 是持久化的——上次
+   * 会话停在团队模式的话，重启仍落团队页。产品语义：个人模式是主页，
+   * 团队是显式切换的工作场景，不跨会话保留（与既有铁律「启动必落新会话页」
+   * 同一逻辑）。挂载时无条件归位：hl.mode=personal + surface=agent。 */
+  useEffect(() => {
+    enter('personal', '')
+    void switchDsBotSurface('agent')
+  }, [])
+
   const personalActive = surface === undefined ? sel.mode === 'personal' : surface === 'agent'
   const teamActive = surface === undefined ? sel.mode === 'enterprise' : surface === 'bot'
 
