@@ -47,3 +47,11 @@ worktrees/
 .agents/worktrees/
 .typert-*/
 native/system/test/bin/
+
+# 2026-11-04 Phase 1 漂移清零：0.2.1 大合并时 git add -A 把 src 内编译产物
+# 扫进仓库（merge 提交 6e72cd296b）。包入口是 lib/（package.json main/exports），
+# src 只应有 .ts。防再次扫入：
+packages/session/session-stats/src/*.js
+packages/session/session-stats/src/*.js.map
+packages/session/session-stats/src/*.d.ts
+packages/session/session-stats/src/*.d.ts.map
