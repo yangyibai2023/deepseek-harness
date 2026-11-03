@@ -328,10 +328,17 @@ export function apply(ctx: Context): void {
       const team = intent !== undefined ? intent === 'team' : surface === 'bot'
       // 无论当前是哪个模式，都先解析并发布团队工作区 id：个人模式的工作区列表
       // 需要它来隐藏团队行（融合开关关闭时），不能等切到团队才发布。
+      /* 2026-11-04（0.5.4 回归修复，用户朋友 Mac 实测）：发布必须**广播事件**。
+       * 原因：WorkspaceBrowser 的 teamId 是非响应式读取 globalThis（渲染时取
+       * 一次），0.5.3 里轮询的 connectWorkspace 副作用恰好触发重渲染、掩盖了
+       * 「id 发布后 UI 不知道」；轮询改为 poll-publish-only（只发布不导航）
+       * 之后，UI 永远不会重算 → 个人模式下团队行永远显示（回归）。
+       * 现在发布时 dispatch hl:team-workspace-id，消费方监听后 setState。 */
       {
         const resolved = await dsBotWorkspaceId()
         if (resolved !== undefined) {
           ;(globalThis as { __hlTeamWorkspaceId?: string }).__hlTeamWorkspaceId = resolved
+          window.dispatchEvent(new CustomEvent('hl:team-workspace-id', { detail: { id: resolved } }))
         }
       }
       if (intent === undefined) {
@@ -384,6 +391,7 @@ export function apply(ctx: Context): void {
         // 发布团队工作区 id：navigation.openSession 用它判断「用户点开的是不是
         // 团队会话」——单一权威，不靠标题匹配。
         ;(globalThis as { __hlTeamWorkspaceId?: string }).__hlTeamWorkspaceId = teamId
+        window.dispatchEvent(new CustomEvent('hl:team-workspace-id', { detail: { id: teamId } }))
         void renameTeamWorkspace(teamId)
         // 团队模式：会话必须落在团队工作区；当前不在就切过去（复用空白会话）。
         const teamEntry = workspaces.list.getSnapshot().items

@@ -182,17 +182,14 @@ export async function openDsBotSettings(): Promise<boolean> {
 }
 
 export function HlModeSwitcher() {
-  const [orgs, setOrgs] = useState<HlOrgEntry[]>([])
   const [sel, setSel] = useState(readHlMode)
   // ds-bot 在场时以它的实际 surface 为准：它自己的切换按钮改了也要同步回来，
   // 否则两个入口会各说各话（轮询成本只是一次 localStorage 读）。
   const [surface, setSurface] = useState<DsBotSurface | undefined>(readDsBotSurface)
   const [loaded, setLoaded] = useState(false)
   const [degraded, setDegraded] = useState(false)
-  const [joinOpen, setJoinOpen] = useState(false)
-  const [code, setCode] = useState('')
-  const [joining, setJoining] = useState(false)
-  const [joinError, setJoinError] = useState('')
+  /* 2026-11-04：无组织提示（替代化石邀请码面板） */
+  const [noOrgNotice, setNoOrgNotice] = useState(false)
 
   useEffect(() => {
     const id = window.setInterval(() => {
@@ -237,7 +234,6 @@ export function HlModeSwitcher() {
       const next = Array.isArray(data?.organizations)
         ? data.organizations.filter(o => o.id !== '')
         : []
-      setOrgs(next)
       setDegraded(data?.degraded === true)
       setLoaded(true)
       return next
@@ -273,75 +269,25 @@ export function HlModeSwitcher() {
     // 先驱动 ds-bot：点它的官方按钮，切完 surface 轮询会把高亮同步过去。
     void switchDsBotSurface(mode === 'enterprise' ? 'bot' : 'agent')
     if (mode === 'personal') {
-      // 邀码面板打开时：直接关闭并切回个人（不再要求先点「取消」）。
-      setJoinOpen(false)
-      setJoinError('')
+      setNoOrgNotice(false)
       enter('personal', '')
       return
     }
     const next = await refreshOrgs()
     if (next.length === 0) {
-      setJoinOpen(true)
-      setJoinError('')
+      /* 2026-11-04（0.5.4 用户朋友 Mac 实测，化石 UI 复活）：无组织用户点
+       * 「OPC 团队」原来会弹出**企业邀请码输入框**——这是极早期的加入方式，
+       * 早已废弃（现在组织归属由云端管理，我们的账号都有组织所以从不触发；
+       * 外部用户账号无组织 → 化石 UI 复活）。改为显示一条友好提示，
+       * 不再提供邀请码输入。 */
+      setNoOrgNotice(true)
       return
     }
     const target = next.some(o => o.id === sel.orgId) ? sel.orgId : (next[0]?.id ?? '')
     enter('enterprise', target)
   }
 
-  const join = async () => {
-    if (code.trim() === '') {
-      setJoinError('请输入企业邀请码')
-      return
-    }
-    setJoining(true)
-    setJoinError('')
-    try {
-      const res = await fetch('/hl/org-join', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ code: code.trim() }),
-        signal: AbortSignal.timeout(10000),
-      })
-      const data = await res.json().catch(() => null) as {
-        ok?: boolean
-        org?: HlOrgEntry
-        message?: string
-      } | null
-      if (!res.ok || data === null || data.ok !== true || !data.org?.id) {
-        // 加入服务可能已成功但响应未送达：以组织归属权威重新拉取为准。
-        const next = await refreshOrgs()
-        if (next.length > 0) {
-          const org = next[0]
-          if (!org) {
-            setJoinError('企业加入后组织归属暂不可读，请稍后重试。')
-            return
-          }
-          enter('enterprise', org.id)
-          setJoinOpen(false)
-          setCode('')
-          return
-        }
-        setJoinError(data?.message ?? '企业加入失败，请检查邀请码后重试。')
-        return
-      }
-      const org = data.org
-      setOrgs((prev) => {
-        const next = prev.filter(o => o.id !== org.id)
-        return [org, ...next]
-      })
-      setSel({ mode: 'enterprise', orgId: org.id })
-      enter('enterprise', org.id)
-      setJoinOpen(false)
-      setCode('')
-    } catch {
-      setJoinError('企业加入服务暂时不可用，请稍后重试。')
-    } finally {
-      setJoining(false)
-    }
-  }
 
-  // 高亮以 ds-bot 的实际 surface 为准（插件不在场时退回组织模式）。
   const personalActive = surface === undefined ? sel.mode === 'personal' : surface === 'agent'
   const teamActive = surface === undefined ? sel.mode === 'enterprise' : surface === 'bot'
 
@@ -371,36 +317,24 @@ export function HlModeSwitcher() {
           OPC 团队
         </button>
       </div>
-      {joinOpen && (
-        <form
-          className={css.hlJoinPanel}
-          onSubmit={(e) => { e.preventDefault(); void join() }}
-        >
-          <label className={css.hlJoinLabel} htmlFor="hl-org-join-code">企业邀请码</label>
-          <input
-            id="hl-org-join-code"
-            className={css.hlJoinInput}
-            value={code}
-            onChange={(e) => { setCode(e.target.value); setJoinError('') }}
-            placeholder="输入邀请码"
-            autoFocus
-          />
-          {joinError !== '' && <div className={css.hlJoinError}>{joinError}</div>}
+      {/* 2026-11-04：化石邀请码面板移除。企业加入改走云端组织管理；
+       * 无组织用户点「OPC 团队」显示提示，不提供邀请码输入。 */}
+      {noOrgNotice && (
+        <div className={css.hlJoinPanel} role="status">
+          <div className={css.hlJoinLabel}>当前账号尚未加入企业团队</div>
+          <div style={{ fontSize: 12, lineHeight: '18px', opacity: 0.7, padding: '4px 0 8px' }}>
+            团队模式需要企业账号。请联系管理员开通，或继续使用个人模式。
+          </div>
           <div className={css.hlJoinActions}>
-            {orgs.length > 0 && (
-              <button
-                type="button"
-                className={css.hlJoinCancel}
-                onClick={() => { setJoinOpen(false); setJoinError('') }}
-              >
-                取消
-              </button>
-            )}
-            <button type="submit" className={css.hlJoinSubmit} disabled={joining}>
-              {joining ? '加入中…' : '加入'}
+            <button
+              type="button"
+              className={css.hlJoinCancel}
+              onClick={() => { setNoOrgNotice(false) }}
+            >
+              知道了
             </button>
           </div>
-        </form>
+        </div>
       )}
     </div>
   )

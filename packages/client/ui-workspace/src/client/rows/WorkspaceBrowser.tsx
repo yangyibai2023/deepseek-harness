@@ -898,7 +898,19 @@ export function WorkspaceBrowser({
     }, 700)
     return () => { window.clearInterval(id) }
   }, [])
-  const teamId = teamWorkspaceId()
+  /* 2026-11-04（0.5.4 回归修复）：teamId 必须是**响应式 state**。
+   * 原来是普通函数调用（渲染时读一次 globalThis），发布方改为「只发布
+   * 不导航」后没有任何重渲染来刷新它 → 个人模式下团队行永远显示。
+   * 现在监听发布方广播的 hl:team-workspace-id 事件即时更新。 */
+  const [teamId, setTeamId] = useState<string | undefined>(() => teamWorkspaceId())
+  useEffect(() => {
+    const onId = (event: Event): void => {
+      const id = (event as CustomEvent<{ id?: unknown }>).detail.id
+      if (typeof id === 'string' && id !== '') setTeamId(id)
+    }
+    window.addEventListener('hl:team-workspace-id', onId)
+    return () => { window.removeEventListener('hl:team-workspace-id', onId) }
+  }, [])
   const hideTeamWorkspace = !fusion && surfaceMode !== 'bot' && teamId !== undefined
   const visibleWorkspaces = useMemo(
     () => (hideTeamWorkspace
