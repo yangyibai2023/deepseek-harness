@@ -310,7 +310,21 @@ function extractVideoUrl(text: string): { url: string; markdown?: string } | nul
     return { url: (md[1] ?? '').trim(), markdown: md[0] }
   }
   const plain = AVATAR_VIDEO_URL.exec(text)?.[0]
-  return plain ? { url: plain } : null
+  if (plain !== undefined) return { url: plain }
+  // 2026-11-03（0.5.3 批 5，T-2 视频黑框）：模型正文常写**裸本地路径**（无协议，
+  // /Users/…/.heightlab/...mp4 或 Windows 盘符）与**无扩展名直链**（metaso 等带
+  // 签名 query 的播放地址）——此前两者都不被识别 → video 标签 src 无效 → 黑框。
+  // ① 裸本地路径（绝对路径以视频扩展名结尾）
+  const localPath = /(?:^|[\s("'<>])(\/[A-Za-z0-9._\-/~]+\.(?:mp4|webm|mov))(?=[\s"'<>)]|$)/i.exec(text)
+  if (localPath !== null && localPath[1] !== undefined) {
+    return { url: localPath[1] }
+  }
+  // ② 无扩展名直链（已知视频服务域，path 足够长且带 query）
+  const signedLink = /https?:\/\/(?:[a-z0-9.-]*metaso\.cn|files\.[a-z0-9.-]+)\/api\/[^\s"'`\])]{12,}/i.exec(text)
+  if (signedLink !== null) {
+    return { url: signedLink[0] }
+  }
+  return null
 }
 
 /** HeightLab：把聊天里的资源保存到当前工作区根目录（宿主 /hl/download）。 */

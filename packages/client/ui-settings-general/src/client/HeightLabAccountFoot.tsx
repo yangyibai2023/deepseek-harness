@@ -564,15 +564,22 @@ export function HeightLabAccountFoot({ wide, openSettings }: HeightLabAccountFoo
   const signOut = useCallback((): void => {
     if (signingOut) return
     setSigningOut(true)
-    fetch('/hl/signout', { method: 'POST' })
+    /* 2026-11-03（0.5.3 批 3，B3+B4 修复）：
+     * 必须等待 /hl/signout 响应完成——它会把 pending-logoff-url 落盘，
+     * 壳的 wait_logto_signout 依赖这个文件来清除 Logto SSO 会话。
+     * 如果立即跳转，/hl/signout 被中断，Logto SSO 会话清除失败，
+     * 下次点击登录会免密复用旧账号（用户实测）。
+     * 等待 /hl/signout 完成通常很快（<100ms），不阻塞体验。 */
+    try {
+      window.localStorage.removeItem('heightlab-token')
+      window.localStorage.removeItem('heightlab-refresh-token')
+      window.localStorage.removeItem('heightlab-account-token')
+    } catch { /* 忽略 */ }
+    void fetch('/hl/signout', { method: 'POST' })
       .catch(() => null)
       .finally(() => {
-        /* 与服务端 /hl/signout 的真退出语义一致：清本地标记后整页重载，
-         * 让壳回到登录页（只清 React state 会让 WS/会话仍带旧身份）。 */
-        try {
-          window.localStorage.removeItem('heightlab-account-token')
-        } catch { /* 忽略 */ }
-        window.location.reload()
+        /* 服务端已完成 pending-logoff-url 落盘，现在可以安全跳转。 */
+        window.location.href = '/'
       })
   }, [signingOut])
 

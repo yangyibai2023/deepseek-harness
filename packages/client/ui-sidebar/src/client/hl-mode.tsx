@@ -87,6 +87,16 @@ const wait = (ms: number): Promise<void> => new Promise((resolve) => {
 export async function switchDsBotSurface(target: DsBotSurface): Promise<boolean> {
   if (!dsBotPresent()) return false
   if (readDsBotSurface() === target) return false
+  // 2026-11-03（0.5.3）：优先走 hub.setSurface API——个人模式下 bt-return
+  // 按钮根本不在 DOM（只在 bot surface 渲染），纯 DOM 点击会落空
+  // （用户实测点 OPC 无反应）。hub 缺 API 时退回 DOM 点击后备。
+  try {
+    const hub = (window as unknown as { dshBot?: { setSurface?: (mode: DsBotSurface) => void } }).dshBot
+    if (hub?.setSurface !== undefined) {
+      hub.setSurface(target)
+      return true
+    }
+  } catch { /* 后备 DOM 路径 */ }
 
   if (target === 'bot') {
     const button = document.querySelector<HTMLButtonElement>('button.bt-return')
@@ -231,7 +241,12 @@ export function HlModeSwitcher() {
     return () => { alive = false }
   }, [])
 
-  if (!loaded || degraded) return null
+  // 2026-11-03（0.5.3）：degraded 不再整体隐藏切換器——云端抖一下用户就丢
+  // 模式切換、团队文件夹"回归"个人区（用户实测 0.5.2 期间）。改为：
+  //   · 首次加载中（!loaded）才隐藏；
+  //   · degraded 时用最近一次成功缓存渲染，OPC 按钮置灰 + title 提示。
+  // 回滚=恢复 return null 一行。
+  if (!loaded) return null
 
   const enter = (nextMode: HlMode, orgId: string) => {
     setSel({ mode: nextMode, orgId })
@@ -336,8 +351,10 @@ export function HlModeSwitcher() {
           type="button"
           className={clsx(css.hlModeSeg, teamActive && css.hlModeSegActive)}
           aria-pressed={teamActive}
-          title="OPC 团队模式"
-          onClick={() => { void choose('enterprise') }}
+          title={degraded ? '组织服务暂时不可用，请稍后重试' : 'OPC 团队模式'}
+          disabled={degraded}
+          style={degraded ? { opacity: 0.45, cursor: 'not-allowed' } : undefined}
+          onClick={() => { if (!degraded) { void choose('enterprise') } }}
         >
           OPC 团队
         </button>

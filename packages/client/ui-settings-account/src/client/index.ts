@@ -226,7 +226,18 @@ export function apply(ctx: Context): void {
     },
     async signOut() {
       const result = await ctx.remote.account.signOut(client())
-      if (result.ok) return
+      if (result.ok) {
+        // 2026-11-03（0.5.3 批 3，B3 免密重登修复）：退出必须把**全部**本地
+        // 凭据清干净——此前只清 account-token，heightlab-token/refresh-token
+        // 留在 localStorage，登录门 hostAcceptsToken 过了宿主会话就会免密
+        // 放行（用户实测：退出后再点登录不输密码直接进）。换账号无从谈起。
+        try {
+          localStorage.removeItem('heightlab-token')
+          localStorage.removeItem('heightlab-refresh-token')
+          localStorage.removeItem('heightlab-account-token')
+        } catch { /* 忽略 */ }
+        return
+      }
       throw result.error
     },
   }

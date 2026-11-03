@@ -307,6 +307,17 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
   if (state.status === 'error' && hasReadySnapshot) setHasReadySnapshot(false)
   const [editing, setEditing] = useState<EditorTarget | undefined>(undefined)
   const [addOpen, setAddOpen] = useState(false)
+  // 2026-11-03（0.5.3 批 S1，S-3）：自定义 provider 仅旗舰。entitlements 是
+  // 服务端唯一真相；加载完成前按 false（安全默认）——入口短暂隐藏可接受。
+  const [entitlements, setEntitlements] = useState<{ customProviders: boolean } | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    fetch('/hl/entitlements').then(r => r.json()).then((d) => {
+      if (cancelled) return
+      setEntitlements({ customProviders: d?.customProviders === true })
+    }).catch(() => { if (!cancelled) setEntitlements({ customProviders: false }) })
+    return () => { cancelled = true }
+  }, [])
   const [addMode, setAddMode] = useState<AddMode>('catalog')
   /** The modes shown since the add card opened; each keeps its panel mounted. */
   const [visited, setVisited] = useState<ReadonlySet<AddMode>>(() => new Set())
@@ -437,7 +448,9 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
   const catalogOffered = configurable.length > 0
   const catalogEnabled = addable.length > 0
   const customOffered = piAi !== undefined
-  const customEnabled = protocols.length > 0
+  // 2026-11-03（0.5.3 批 S1，S-3）：自定义 provider **仅旗舰**可用。
+  // entitlements 未加载时按 false（安全默认）；非旗舰连 tab 都不出现。
+  const customEnabled = protocols.length > 0 && entitlements?.customProviders === true
   const bothOffered = catalogOffered && customOffered
   const mode: AddMode = bothOffered ? addMode : customOffered ? 'custom' : 'catalog'
   const mounted = (candidate: AddMode): boolean => mode === candidate || visited.has(candidate)

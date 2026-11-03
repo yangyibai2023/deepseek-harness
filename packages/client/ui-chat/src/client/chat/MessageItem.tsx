@@ -1,5 +1,5 @@
 import { Fragment, memo, useEffect, useMemo, useState } from 'react'
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import type { PendingSubmission } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { MessageImageSource } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { fileExtension, FileTypeIcon, fileSizeText, JsonBlock, projectUserText, StateDot, TextShimmer, type UserTextReferences } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -175,7 +175,61 @@ function TurnErrorItem({ node, t }: {
   // HeightLab（2026-10-17）：终态错误先过仲裁器，一个回合只出一处判决。
   // 限流/通用失败的实际提示走输入框上方横幅，这里不再重复点亮。
   const verdict = resolveTurnVerdict({ code: node.code, message: node.message })
-  const isQuota = verdict.recovery === 'recharge'
+  // HeightLab 2026-11-03（0.5.3 批 5，B9 二期）：媒体卡片行动按钮——
+  // 不同错误类型给不同行动按钮（充值/重试/查看资产/重新登录），
+  // 不再只有 QUOTA 有「充值」按钮。
+  const renderActionButton = (): ReactNode => {
+    switch (verdict.recovery) {
+      case 'recharge':
+        return (
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent('hl:open-settings-section', { detail: { section: 'heightlab-account' } }))}
+            style={actionButtonStyle}
+          >
+            {t('message.failure.recharge')}
+          </button>
+        )
+      case 'sign-in':
+        return (
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent('hl:navigate-login'))}
+            style={actionButtonStyle}
+          >
+            {t('message.failure.signIn')}
+          </button>
+        )
+      case 'settings':
+        return (
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent('hl:open-settings-section', { detail: { section: 'models' } }))}
+            style={actionButtonStyle}
+          >
+            {t('message.failure.checkSettings')}
+          </button>
+        )
+      case 'resend':
+      case 'wait':
+        return (
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent('hl:retry-turn'))}
+            style={actionButtonStyle}
+          >
+            {t('message.failure.retry')}
+          </button>
+        )
+      default:
+        return null
+    }
+  }
+  const actionButtonStyle: CSSProperties = {
+    marginTop: 6, display: 'inline-block', padding: '5px 14px',
+    borderRadius: 6, border: '1px solid #d9d9d9', background: '#fff',
+    color: '#1a1a1a', fontSize: 12, cursor: 'pointer',
+  }
   if (!verdict.showInBubble) return null
   return (
     <div className={css.turnErrorRow} role="status" data-turn-verdict={verdict.kind}>
@@ -183,19 +237,7 @@ function TurnErrorItem({ node, t }: {
       <div className={css.turnErrorCopy}>
         <span className={css.turnErrorTitle}>{t(verdict.titleKey)}</span>
         <span className={css.turnErrorMessage}>{heightlabFriendlyErrorText(failureMessage(node.message, node.code, t))}</span>
-        {isQuota && (
-          <button
-            type="button"
-            onClick={() => window.dispatchEvent(new CustomEvent('hl:open-settings-section', { detail: { section: 'heightlab-account' } }))}
-            style={{
-              marginTop: 6, display: 'inline-block', padding: '5px 14px',
-              borderRadius: 6, border: '1px solid #d9d9d9', background: '#fff',
-              color: '#1a1a1a', fontSize: 12, cursor: 'pointer',
-            }}
-          >
-            {t('message.failure.recharge')}
-          </button>
-        )}
+        {renderActionButton()}
       </div>
     </div>
   )

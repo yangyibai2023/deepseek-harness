@@ -7,6 +7,14 @@ import type { AccountKey } from './locales.ts'
 import { authorizeUrlWithTheme } from './authorize-url.ts'
 import css from './SignInDialog.module.css'
 
+/**
+ * HeightLab（2026-11-02，0.5.2）：是否允许"自定义 API Key"入口。
+ * 用户拍板：自定义 Key **只有旗舰可用**，其他档位一律不支持。
+ * 运行时由订阅档决定（此处给默认 false = 非旗舰行为；旗舰的真值来自
+ * /hl/entitlements → customProviders）。可回滚：改 true 恢复上游行为。
+ */
+const ALLOW_CUSTOM_API_KEY_ENTRY = false
+
 /** @param props - safe account state, localized copy, and user actions. @returns login dialog. */
 export function SignInDialog({ account, colorScheme, start, cancel, close, useApiKey, t }: {
   account: AccountSnapshot
@@ -78,8 +86,18 @@ export function SignInDialog({ account, colorScheme, start, cancel, close, useAp
       </p>}
     </div>
     <div className={css.actions}>
-      <Button variant="outline" className={css.secondaryButton} disabled={committing || busy}
-        onClick={active ? dismiss : useApiKey}>{t(active ? 'cancel' : 'addApiKey')}</Button>
+      {/* HeightLab（2026-11-02，0.5.2）：自定义 API Key 入口**仅旗舰可见**。
+          非旗舰一律不渲染此按钮 → 用户只能走 HeightLab 账号登录（无法自助填 Key 绕过计费）。
+          服务端另有硬校验（/api/desktop/config 的 entitlements.customProviders），
+          客户端隐藏只是第一层；即便改包，服务端仍会拒绝非旗舰的自定义 provider。
+          可回滚：常量改 true 即恢复上游"任何人可加 Key"的行为。 */}
+      {ALLOW_CUSTOM_API_KEY_ENTRY ? (
+        <Button variant="outline" className={css.secondaryButton} disabled={committing || busy}
+          onClick={active ? dismiss : useApiKey}>{t(active ? 'cancel' : 'addApiKey')}</Button>
+      ) : active ? (
+        <Button variant="outline" className={css.secondaryButton} disabled={committing || busy}
+          onClick={dismiss}>{t('cancel')}</Button>
+      ) : null}
       <Button variant="primary" className={css.primaryButton} disabled={busy || committing || waiting || account.view === undefined}
         aria-label={waiting ? t('waiting') : undefined} onClick={() => { void run(retry) }}>
         {waiting ? <IconLoadingOutlineRegular className={css.spinner} /> : t(expired || error ? 'retry' : 'signIn')}

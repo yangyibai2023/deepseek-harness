@@ -72,6 +72,23 @@ export function AppRoot(props: AppRootProps) {
     }
   }, [settled, phase])
 
+  // 2026-11-03（0.5.3 批 5，B9 二期）：媒体卡片行动按钮事件监听——
+  // 「重新登录」导航到登录页；「重试」触发页面重载（最简实现，后续可改为会话级重发）。
+  useEffect(() => {
+    const onNavigateLogin = (): void => {
+      window.location.href = '/'
+    }
+    const onRetryTurn = (): void => {
+      window.location.reload()
+    }
+    window.addEventListener('hl:navigate-login', onNavigateLogin)
+    window.addEventListener('hl:retry-turn', onRetryTurn)
+    return () => {
+      window.removeEventListener('hl:navigate-login', onNavigateLogin)
+      window.removeEventListener('hl:retry-turn', onRetryTurn)
+    }
+  }, [])
+
   const handleReady = useCallback((
     next: 'signed-in' | 'signed-out',
     errorMessage?: string,

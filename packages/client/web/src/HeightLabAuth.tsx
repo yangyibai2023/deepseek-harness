@@ -169,9 +169,29 @@ async function pushTokenToHost(token: string, refreshToken?: string, accountToke
 }
 
 /** Ask the Host to validate the credential; only a valid login passes. */
+/** 从 JWT 里取 sub（仅解码 payload，不验签——验签由宿主/网关负责）。 */
+function jwtSub(token: string): string | null {
+  try {
+    const part = token.split('.')[1]
+    if (part === undefined || part === '') return null
+    const padded = part.replace(/-/g, '+').replace(/_/g, '/')
+    const json = atob(padded + '='.repeat((4 - (padded.length % 4)) % 4))
+    const payload = JSON.parse(json) as { sub?: unknown }
+    return typeof payload.sub === 'string' && payload.sub !== '' ? payload.sub : null
+  } catch {
+    return null
+  }
+}
+
 async function hostAcceptsToken(token: string): Promise<boolean> {
   try {
     const res = await Promise.race([
+      // 2026-11-02 修复（未登录可直接进软件的 BUG）：
+      // 原实现只看 res.ok。但 /hl/me 是宿主路由，它返回的是**宿主当前会话**，
+      // 与前端传入的 token 无关——只要宿主有会话，假 token 也返回 200
+      // （实测：Bearer invalid-fake-token-xxx → 200）。于是前端把过期/伪造的
+      // 本地 token 当成有效，直接放行进主界面 = 未登录也能用。
+      // 现在必须**回显的 userId 与本地 token 的 sub 一致**才算通过。
       fetch('/hl/me', {
         headers: { authorization: `Bearer ${token}` },
       }),
@@ -181,8 +201,17 @@ async function hostAcceptsToken(token: string): Promise<boolean> {
         window.setTimeout(() => reject(new Error('me timeout')), 8_000)
       }),
     ])
-    return res.ok
-  } catch {
+    if (!res.ok) return false
+    // token 自校验：解析 JWT payload 的 sub，与 /hl/me 回显的 userId 比对。
+    // 拿不到 payload 或对不上 → 视为无效（宁可让用户重登，也不放行）。
+    const expectedSub = jwtSub(token)
+    if (expectedSub === null) return false
+    const body = (await res.json().catch(() => null)) as { userId?: string } | null
+    /* 2026-11-03 调试：记录 hostAcceptsToken 结果 */
+    console.log('[hl/auth] hostAcceptsToken:', { expectedSub, bodyUserId: body?.userId, match: body?.userId === expectedSub })
+    return body?.userId === expectedSub
+  } catch (error) {
+    console.log('[hl/auth] hostAcceptsToken error:', error)
     return false
   }
 }
@@ -317,6 +346,11 @@ async function signInRedirect(mode: InteractionMode): Promise<void> {
     state: Math.random().toString(36).slice(2),
     // Logto 支持 interaction_mode：注册直达注册页，登录直达登录页。
     interaction_mode: mode,
+    /* 2026-11-03（0.5.3 批 3，B3 登出免密重登修复）：
+     * prompt=login 强制 Logto 显示登录页，即使用户已有 SSO 会话。
+     * 没有这个参数，登出后点击登录会复用旧 SSO 会话直接免密进入，
+     * 用户无法切换账号（退出失去意义）。 */
+    prompt: 'login',
   })
   const loginUrl = `${LOGTO_ENDPOINT}/oidc/auth?${params.toString()}`
   // 0.3.17 成熟逻辑：主窗口原地跳转（嵌入式登录，无弹窗）。WKWebView 在同一
@@ -566,7 +600,9 @@ export function HeightLabAuthGate({
     void (async () => {
       try {
         if (code) {
+          console.log('[hl/auth] exchangeCode start, code length:', code.length)
           const auth = await exchangeCode(code)
+          console.log('[hl/auth] exchangeCode result:', auth ? 'success' : 'null')
           if (auth && await hostAcceptsToken(auth.token)) {
             const inviteCode = storedInviteCode()
             const inviteMode = storedInviteMode()
@@ -592,16 +628,15 @@ export function HeightLabAuthGate({
             // 绝不能在旧文档上 finish(signed-in)：10s 空等后挂载真实 UI
             // 会撞上正在重启的 Host，例子页/工作区会永远停在 loading。
             if (pushed.restartExpected) {
-              window.clearTimeout(watchdog)
-              // HeightLab 2026-09-10：绝不在此自导航。restartExpected 只可能由
-              // 桌面壳（Rust）设置——宿主启动时无登录用户（HL_START_USER_EMPTY=1）
-              // 才会为 true，纯浏览器 preview 下该变量不存在、本分支根本不会进。
-              // 登录后宿主按用户重启，3080 会有一段无监听窗口（Windows provision
-              // 同步跑可达数十秒）；此前这里在 deadline 到点无条件
-              // location.replace → 打在无监听窗口上，WebView2 整页显示
-              // ERR_CONNECTION_REFUSED（"拒绝连接"闪 1-3s 后被 Rust watcher 救回）。
-              // 恢复导航统一交 Rust current-user watcher（等 host_http_ok 即 GET /
-              // 含 __ModuleLoader__ 再 navigate，60s 上限），消除自导航/双导航竞态。
+              /* 2026-11-03 修复：restartExpected 时不能清除 watchdog——
+               * 如果壳 watcher 没有导航（如开发版 HOME 不一致），前端会永远卡住。
+               * 让 watchdog 继续运行，12s 后超时显示登录页，用户可重试。
+               * 2026-11-03 深夜修正：restartExpected 时必须调用 finish('signed-in')——
+               * 否则 AppRoot 永远停留在 checking 阶段（粒子页面）。
+               * 壳导航会重启宿主并刷新页面，所以这里先进入主界面没关系。 */
+              console.log('[hl/auth] restartExpected, finishing signed-in and waiting for shell navigation')
+              window.history.replaceState({}, '', window.location.pathname)
+              finish('signed-in')
               return
             }
             // Strip the code from the URL.
