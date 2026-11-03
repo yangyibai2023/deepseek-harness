@@ -10,19 +10,14 @@
  *   模式，「个人」= 经典 Agent 模式（我们原本的页面）。两者绑成同一个入口，
  *   状态以 ds-bot 的实际 surface 为准（它自己的切换按钮改了也会同步回来）。
  *
- * 数据边界：组织归属权威在云端 Logto Organizations，经
- * GET /hl/org-context 与 POST /hl/org-join 访问；本组件只消费结果。
- * 选择持久化 localStorage（hl.mode / hl.mode.orgId）并广播
- * `hl:mode-changed`，品牌槽位插件与模板/专家数据层据此合并企业定制。
+ * 数据边界（2026-11-04 更新）：组织功能已整体取消——只有个人/团队两个模式，
+ * 「OPC 团队」对所有账号无差别直进，不再查询组织归属。
+ * 选择持久化 localStorage（hl.mode / hl.mode.orgId，orgId 恒为空串仅为兼容
+ * 旧读取方）并广播 `hl:mode-changed`，品牌槽位插件与模板/专家数据层据此处理。
  */
 import { useEffect, useState } from 'react'
 import clsx from 'clsx'
 import css from './SidebarRoot.module.css'
-
-export interface HlOrgEntry {
-  id: string
-  name: string
-}
 
 export type HlMode = 'personal' | 'enterprise'
 
@@ -186,10 +181,11 @@ export function HlModeSwitcher() {
   // ds-bot 在场时以它的实际 surface 为准：它自己的切换按钮改了也要同步回来，
   // 否则两个入口会各说各话（轮询成本只是一次 localStorage 读）。
   const [surface, setSurface] = useState<DsBotSurface | undefined>(readDsBotSurface)
-  const [loaded, setLoaded] = useState(false)
-  const [degraded, setDegraded] = useState(false)
-  /* 2026-11-04：无组织提示（替代化石邀请码面板） */
-  const [noOrgNotice, setNoOrgNotice] = useState(false)
+  /* 2026-11-04（用户澄清，覆盖昨晚 Bug B 的错误修法）：**组织功能已整体取消**。
+   * 全世界只有两个模式：个人 / 团队（OPC）。任何账号点「OPC 团队」都直接切换，
+   * 没有组织归属检查、没有邀请码、没有「联系管理员」提示——这些概念全部不存在。
+   * 昨晚把邀请码面板改成「尚未加入企业团队，请联系管理员」提示仍是组织框架内
+   * 的错误修法，本次连同 noOrgNotice/degraded/refreshOrgs 一起移除。 */
 
   useEffect(() => {
     const id = window.setInterval(() => {
@@ -202,8 +198,8 @@ export function HlModeSwitcher() {
     window.addEventListener('hl:request-team-surface', onRequestTeam)
     // C 组应用工具层（2026-10-30）：Agent 工具 heightlab_set_app_mode 的执行
     // 通道——走与用户点击完全相同的 enter() 路径（含 ds-bot surface 联动）。
-    // 注意本 effect 依赖为空：组织 ID 读 localStorage（enter 的持久化值），
-    // 不读 state（那会是挂载初值的陈旧闭包）；无组织记录时不切（保持个人）。
+    // 本 effect 依赖为空：enter 引用的是组件作用域函数（闭包稳定，不读会变的
+    // state）。2026-11-04：移除 orgId 门槛——组织功能已取消，team 直进。
     const onModeRequest = (event: Event): void => {
       const mode = (event as CustomEvent<{ mode?: unknown }>).detail.mode
       if (mode !== 'personal' && mode !== 'team') return
@@ -211,10 +207,7 @@ export function HlModeSwitcher() {
         enter('personal', '')
         return
       }
-      let orgId = ''
-      try { orgId = window.localStorage.getItem(LS_ORG) ?? '' } catch { /* 隐私模式 */ }
-      if (orgId === '') return
-      enter('enterprise', orgId)
+      enter('enterprise', '')
     }
     window.addEventListener('hl:mode-change-request', onModeRequest)
     return () => {
@@ -223,38 +216,6 @@ export function HlModeSwitcher() {
       window.removeEventListener('hl:mode-change-request', onModeRequest)
     }
   }, [])
-
-  const refreshOrgs = async (): Promise<HlOrgEntry[]> => {
-    try {
-      const res = await fetch('/hl/org-context', { signal: AbortSignal.timeout(8000) })
-      const data = await (res.ok ? res.json() : Promise.resolve(null)) as {
-        organizations?: HlOrgEntry[]
-        degraded?: boolean
-      } | null
-      const next = Array.isArray(data?.organizations)
-        ? data.organizations.filter(o => o.id !== '')
-        : []
-      setDegraded(data?.degraded === true)
-      setLoaded(true)
-      return next
-    } catch {
-      setLoaded(true)
-      return []
-    }
-  }
-
-  useEffect(() => {
-    let alive = true
-    void refreshOrgs().then(() => { if (!alive) setLoaded(true) })
-    return () => { alive = false }
-  }, [])
-
-  // 2026-11-03（0.5.3）：degraded 不再整体隐藏切換器——云端抖一下用户就丢
-  // 模式切換、团队文件夹"回归"个人区（用户实测 0.5.2 期间）。改为：
-  //   · 首次加载中（!loaded）才隐藏；
-  //   · degraded 时用最近一次成功缓存渲染，OPC 按钮置灰 + title 提示。
-  // 回滚=恢复 return null 一行。
-  if (!loaded) return null
 
   const enter = (nextMode: HlMode, orgId: string) => {
     setSel({ mode: nextMode, orgId })
@@ -265,26 +226,18 @@ export function HlModeSwitcher() {
     window.dispatchEvent(new CustomEvent('hl:mode-changed', { detail: { mode: nextMode, orgId } }))
   }
 
-  const choose = async (mode: HlMode) => {
+  const choose = (mode: HlMode) => {
     // 先驱动 ds-bot：点它的官方按钮，切完 surface 轮询会把高亮同步过去。
     void switchDsBotSurface(mode === 'enterprise' ? 'bot' : 'agent')
     if (mode === 'personal') {
-      setNoOrgNotice(false)
       enter('personal', '')
       return
     }
-    const next = await refreshOrgs()
-    if (next.length === 0) {
-      /* 2026-11-04（0.5.4 用户朋友 Mac 实测，化石 UI 复活）：无组织用户点
-       * 「OPC 团队」原来会弹出**企业邀请码输入框**——这是极早期的加入方式，
-       * 早已废弃（现在组织归属由云端管理，我们的账号都有组织所以从不触发；
-       * 外部用户账号无组织 → 化石 UI 复活）。改为显示一条友好提示，
-       * 不再提供邀请码输入。 */
-      setNoOrgNotice(true)
-      return
-    }
-    const target = next.some(o => o.id === sel.orgId) ? sel.orgId : (next[0]?.id ?? '')
-    enter('enterprise', target)
+    /* 2026-11-04（用户澄清）：组织功能已整体取消——所有账号点「OPC 团队」
+     * 无差别直进团队模式。原来这里先查 /hl/org-context，空列表就弹邀请码
+     * （0.5.4 前化石 UI）/提示联系管理员（0.5.4 首版错误修法）；我们自己的
+     * 账号有组织数据所以从不触发，任何外部用户一撞就现形。 */
+    enter('enterprise', '')
   }
 
 
@@ -299,7 +252,7 @@ export function HlModeSwitcher() {
           className={clsx(css.hlModeSeg, personalActive && css.hlModeSegActive)}
           aria-pressed={personalActive}
           title="个人模式"
-          onClick={() => { void choose('personal') }}
+          onClick={() => { choose('personal') }}
         >
           个人
         </button>
@@ -309,33 +262,12 @@ export function HlModeSwitcher() {
           type="button"
           className={clsx(css.hlModeSeg, teamActive && css.hlModeSegActive)}
           aria-pressed={teamActive}
-          title={degraded ? '组织服务暂时不可用，请稍后重试' : 'OPC 团队模式'}
-          disabled={degraded}
-          style={degraded ? { opacity: 0.45, cursor: 'not-allowed' } : undefined}
-          onClick={() => { if (!degraded) { void choose('enterprise') } }}
+          title="OPC 团队模式"
+          onClick={() => { choose('enterprise') }}
         >
           OPC 团队
         </button>
       </div>
-      {/* 2026-11-04：化石邀请码面板移除。企业加入改走云端组织管理；
-       * 无组织用户点「OPC 团队」显示提示，不提供邀请码输入。 */}
-      {noOrgNotice && (
-        <div className={css.hlJoinPanel} role="status">
-          <div className={css.hlJoinLabel}>当前账号尚未加入企业团队</div>
-          <div style={{ fontSize: 12, lineHeight: '18px', opacity: 0.7, padding: '4px 0 8px' }}>
-            团队模式需要企业账号。请联系管理员开通，或继续使用个人模式。
-          </div>
-          <div className={css.hlJoinActions}>
-            <button
-              type="button"
-              className={css.hlJoinCancel}
-              onClick={() => { setNoOrgNotice(false) }}
-            >
-              知道了
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
