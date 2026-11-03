@@ -9,6 +9,11 @@
    * 供应商固定顶部 / 模型列表中间可滚 / 思考强度固定底部。
    * 因此 .panel 不再整体 overflow-y:auto，改为中间模型列表单独滚动。 */
   overflow: hidden;
+  /* 2026-11-03 深夜四修（用户四次实测）：JS 算的 maxHeight 若因任何原因失效
+   * （锚点未就绪 / ResizeObserver 抖动 / 旧 bundle），面板就会伸出屏幕外。
+   * 这里加一道**纯 CSS 的视口级硬上限**做兜底：无论 JS 给什么值，
+   * 面板高度都不可能超过「视口 − 2×边距」。 */
+  max-height: calc(100vh - 24px);
   /* 一级面板与二级保持同一观感：实心背景（用户实测半透明时背景模板透出来、
    * 字看不清）。--dsw-alias-bg-base 是主题的实心底色，亮/暗色都齐。 */
   background: var(--dsw-alias-bg-base, #fff);
@@ -269,6 +274,16 @@
   font-size: 13px;
   font-weight: 600;
   line-height: 18px;
+}
+
+/* 2026-11-03：无档位数据时的占位行——与真实滑块同高，保证三段式布局
+ * 在任何加载态下形状恒定（此前整块条件渲染会导致两段/三段来回跳）。 */
+.effortPending {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 28px;
+  height: 28px;
+  opacity: 0.75;
 }
 
 /* MenuSurface 的材质层（z-index:-1）才是真正的背景。

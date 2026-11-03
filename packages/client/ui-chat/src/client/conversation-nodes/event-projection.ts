@@ -154,7 +154,35 @@ export interface DisplayFailure {
 export function displayFailure(failure: unknown): DisplayFailure {
   if (failure === null || typeof failure !== 'object') return { message: String(failure) }
   const record = failure as { code?: unknown; message?: unknown }
-  const code = typeof record.code === 'string' ? record.code : undefined
+  const rawCode = typeof record.code === 'string' ? record.code : undefined
+  const rawMessage = typeof record.message === 'string' ? record.message : ''
+  /* 2026-11-03（0.5.4 FIX-7a，Windows 0.5.1 用户实测）：
+   * 余额耗尽时上游返回的是 `insufficient_quota` / `quota_exceeded` / HTTP 402
+   * 等**未归一化**的错误，`code` 不是精确的 'QUOTA'，于是判决表落到 auth 分支，
+   * 用户看到「登录已过期，请重新登录」，而真实原因是积分不足。
+   * 用户实测：余额 16 积分仍能生成十几张图，最后提示"方案受限/登录过期"。
+   *
+   * 修法：在投影层把余额类错误**统一归一化成 'QUOTA'**，让下游判决表、
+   * 余额提示条（QuotaNotice 监听 hl:turn-failed）都能正确响应。
+   * 判据同时看 code 与 message（上游不同渠道给的形态不一致）。 */
+  const QUOTA_CODE_RE = new RegExp(
+    '^(insufficient[_-]?quota|quota[_-]?exceeded|insufficient[_-]?(balance|credits?)'
+    + '|billing[_-]?(hard[_-]?limit|quota|error)|account[_-]?quota)$',
+    'i',
+  )
+  const QUOTA_TEXT_RE = new RegExp(
+    'insufficient[\\s_-]+(?:quota|balance|credits?)|额度不足|余额不足'
+    + '|credits?\\s+insufficient|quota\\s+exceeded'
+    + '|exceeded\\s+your\\s+(?:current\\s+)?quota|payment\\s+required|insufficient_quota',
+    'i',
+  )
+  const looksQuota = (rawCode !== undefined && QUOTA_CODE_RE.test(rawCode))
+    || QUOTA_TEXT_RE.test(rawMessage)
+    || rawCode === '402'
+  if (looksQuota && rawCode !== 'QUOTA' && rawCode !== 'ACCOUNT_QUOTA') {
+    return { code: 'QUOTA', message: '' }
+  }
+  const code = rawCode
   // Provider AUTH messages may echo a masked or partially preserved credential.
   // Keep the raw diagnostic in the Session log, but never retain it in UI state.
   // HeightLab：QUOTA/MODEL_UNAVAILABLE 同理——原文可能是网关英文或内部术语，

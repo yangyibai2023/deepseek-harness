@@ -244,7 +244,7 @@ function TierGated({ injected, renderSlot }: { injected: ModelsSectionFace; rend
   const [tier, setTier] = useState<'unknown' | 'flagship' | 'standard' | 'entry'>('unknown')
   useEffect(() => {
     let cancelled = false
-    fetch('/hl/credits').then(r => r.json()).then((d) => {
+    fetch('/hl/credits').then(r => r.json()).then((d: { tier?: string }) => {
       if (cancelled) return
       setTier(d.tier === 'flagship' ? 'flagship' : d.tier === 'standard' ? 'standard' : 'entry')
     }).catch(() => { if (!cancelled) setTier('flagship') })
@@ -312,7 +312,7 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
   const [entitlements, setEntitlements] = useState<{ customProviders: boolean } | null>(null)
   useEffect(() => {
     let cancelled = false
-    fetch('/hl/entitlements').then(r => r.json()).then((d) => {
+    fetch('/hl/entitlements').then(r => r.json()).then((d: { customProviders?: boolean } | null) => {
       if (cancelled) return
       setEntitlements({ customProviders: d?.customProviders === true })
     }).catch(() => { if (!cancelled) setEntitlements({ customProviders: false }) })
@@ -748,7 +748,14 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
                 : null}
             </div>
           )
-          : catalogOffered || customOffered
+          // 2026-11-03（0.5.4 FIX-9，用户截图澄清）：「+ 添加模型提供商」按钮
+          // 必须严格旗舰独占——非旗舰完全不渲染（不是置灰，也不是点击提示，
+          // DOM 里都不存在）。此前只做了「选项级」门控（customEnabled 看
+          // entitlements），按钮本身的条件却不看档位，于是非旗舰用户仍看得到
+          // 按钮、点开才发现没有自定义选项（用户说的「第二张截图」现象）。
+          // 用户口径：「只有旗舰版会员才能看到自定义模型的按钮，其他都看不见。」
+          // 注意「模型」设置页本身保留（默认/图片/视频模型下拉 + 官方卡片）。
+          : (entitlements?.customProviders === true) && (catalogOffered || customOffered)
             ? (
               // One entry for both ways to gain a provider; the card behind it
               // splits them. Full width, so it lines up with the rows above.

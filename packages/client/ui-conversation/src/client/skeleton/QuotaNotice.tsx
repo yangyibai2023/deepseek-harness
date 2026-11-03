@@ -16,8 +16,17 @@ import { useCallback, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import css from './QuotaNotice.module.css'
 
-const LOW_CREDITS_THRESHOLD = 1_000
-const POLL_MS = 5 * 60 * 1000
+/* 2026-11-03（0.5.4 FIX-8，用户实测）：阈值 1,000 太晚——按 ¥1=452 积分口径
+ * 只相当于 ¥2.2，用户早就该被提醒了。而且轮询 5 分钟一次，跨过阈值到提醒
+ * 最多延迟 5 分钟，期间可以继续烧。
+ *
+ * 现在改为按「一次典型生成的预估成本」定阈值：
+ *   · 旗舰 2K 视频 203 积分/秒 × 5 秒 ≈ 1,015 积分
+ *   · 标准图片 225 积分/张 × 4 张 = 900 积分
+ *   → 取 5,000 积分（≈¥11）作为提醒线，保证「再做一次任务就可能不够」时就提示。
+ * 同时轮询从 5 分钟缩到 1 分钟，并在 turn 失败时立即刷新（已有）。 */
+const LOW_CREDITS_THRESHOLD = 5_000
+const POLL_MS = 60 * 1000
 
 type Phase =
   | { kind: 'hidden' }
@@ -45,7 +54,7 @@ export function QuotaNotice(): ReactNode {
       .then(r => r.json())
       .then((data: { ok?: boolean; balance?: number; creditsPerCny?: number }) => {
         const credits = readCredits(data)
-        if (!data?.ok || credits === undefined) {
+        if (!data.ok || credits === undefined) {
           setPhase({ kind: 'hidden' })
           return
         }
@@ -71,7 +80,7 @@ export function QuotaNotice(): ReactNode {
      */
     let lastHealAt = 0
     const onTurnFailed = (event: Event): void => {
-      const code = (event as CustomEvent<{ code?: unknown }>).detail?.code
+      const code = (event as CustomEvent<{ code?: unknown }>).detail.code
       if (code === 'AUTH' && Date.now() - lastHealAt > 30_000) {
         lastHealAt = Date.now()
         void fetch('/hl/refresh-model-key', { method: 'POST' }).catch(() => { /* 失败就交给用户重登 */ })
@@ -102,7 +111,7 @@ export function QuotaNotice(): ReactNode {
       <button type="button" className={css.recharge} onClick={openRecharge}>
         充值
       </button>
-      <button type="button" className={css.close} aria-label="关闭提醒" onClick={() => setDismissed(true)}>
+      <button type="button" className={css.close} aria-label="关闭提醒" onClick={() => { setDismissed(true) }}>
         ×
       </button>
     </div>

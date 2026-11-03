@@ -132,7 +132,7 @@ export function apply(ctx: Context): void {
     if (typeof window === 'undefined') return () => {}
     const onStart = (event: Event): void => {
       const detail = (event as CustomEvent<{ workspaceId?: unknown }>).detail
-      const detailWorkspaceId = typeof detail?.workspaceId === 'string' ? detail.workspaceId : undefined
+      const detailWorkspaceId = typeof detail.workspaceId === 'string' ? detail.workspaceId : undefined
       // 0.2.1 适配：SessionListState 不再有 current——取「含已有会话的第一个
       // 工作区」近似旧「当前会话工作区」，复刻入口恒有 HeightLab 工作区。
       const sessionList = sessions.list.getSnapshot()
@@ -262,7 +262,7 @@ export function apply(ctx: Context): void {
         })
         if (!res.ok) return undefined
         const data = await res.json() as { ok?: boolean; value?: { workspaceId?: unknown } }
-        return data?.ok === true && typeof data.value?.workspaceId === 'string'
+        return data.ok === true && typeof data.value?.workspaceId === 'string'
           ? data.value.workspaceId
           : undefined
       } catch {
@@ -290,26 +290,41 @@ export function apply(ctx: Context): void {
       return items.find(item => item.title === '我的工作区')?.workspaceId
         ?? items.find(item => /[\\/]HeightLab$/i.test(item.path))?.workspaceId
     }
+    /* 2026-11-03 诊断埋点（问题定位后撤除）：把判定依据落宿主日志，
+     * 用来区分「索引命中 / cwd 命中 / 查不到」三种情况，避免再靠猜。
+     * 必须定义在 sync 之前——sync 的第一个分支就要用它。 */
+    const diagSync = (stage: string, extra: Record<string, unknown>): void => {
+      try {
+        void fetch('/hl/boot-marker', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ hlSync: true, stage, ...extra }),
+        }).catch(() => { /* 非致命 */ })
+      } catch { /* 非致命 */ }
+    }
     const sync = async (intent?: 'team' | 'personal'): Promise<void> => {
       // 点击切换时以事件意图为准（此刻 ds-bot 的 localStorage 可能还没写入）；
       // 轮询时退回读实际 surface。
       const surface = intent ?? (() => {
         try { return localStorage.getItem('ds-bot:surface') } catch { return null }
       })()
-      /* 2026-10-26（1024-A1 终审，用户实测「创作台自己关闭」+ 返回主页布局破坏
-       * 双事故同源）：无 intent 的轮询分支会在「dsh.sessions.current 写入滞后」
-       * 窗口读到旧会话，触发 openSession 把屏幕切回去——复刻新会话打开 ~4s
-       * 后创作台随之关闭（5s 轮询节拍完全吻合，埋点栈 openSession←async sync
-       * 实锤）。复刻模式鲜活期（10min 口径）：轮询分支不做导航纠偏；用户点击
-       * 切换（带 intent）不受限。 */
-      if (intent === undefined) {
-        try {
-          if (localStorage.getItem('hl-console-mode') === 'replication') {
-            const at = Number(localStorage.getItem('hl-console-mode-at') ?? '0')
-            if (Number.isFinite(at) && at > 0 && Date.now() - at < 10 * 60 * 1000) return
-          }
-        } catch { /* 忽略 */ }
-      }
+      /* 2026-11-03（0.5.3 用户实测「团队模式聊天区一直闪 + 一直向上滑」根治）：
+       *
+       * 5s 轮询分支**绝不允许导航或建会话**。
+       *
+       * 实测证据：团队工作区 8400e2d5 的 sessionIds 只有 3 个，而用户正在看的
+       * 历史会话 4599639a（cwd = bot/workspace，确属团队区）不在索引里；
+       * sessions.list 快照的 byId 也没有它（诊断埋点实测 cwd:null）。
+       * 于是每 5s 轮询都判定「不在团队工作区」→ connectWorkspace →
+       * 找不到可复用 blank → sessions.create() → openSession → 会话视图重挂载
+       * → ds-bot 聊天滚到底。宿主日志实证 store-create 在 4599639a ↔ 7f963ef7
+       * 乒乓 24 轮，用户看到的就是「一直闪、一直往上滑」。
+       *
+       * 结论：定时器不能产生副作用。轮询只做无副作用的事实发布（团队工作区
+       * id），导航一律只由用户显式操作（intent 存在）驱动。
+       * 代价：用户若用 ds-bot 自带的切换按钮换 surface，工作区不跟随——
+       * 高亮仍由 hl-mode 的 600ms 轮询同步，点一次顶部切换即可归位。
+       * 这远好于每 5 秒重建会话。 */
       const team = intent !== undefined ? intent === 'team' : surface === 'bot'
       // 无论当前是哪个模式，都先解析并发布团队工作区 id：个人模式的工作区列表
       // 需要它来隐藏团队行（融合开关关闭时），不能等切到团队才发布。
@@ -319,6 +334,10 @@ export function apply(ctx: Context): void {
           ;(globalThis as { __hlTeamWorkspaceId?: string }).__hlTeamWorkspaceId = resolved
         }
       }
+      if (intent === undefined) {
+        diagSync('poll-publish-only', { surface })
+        return
+      }
       const activeSessionId = (): SessionId | undefined => {
         try {
           const raw = localStorage.getItem('dsh.sessions.current')
@@ -327,6 +346,37 @@ export function apply(ctx: Context): void {
         } catch {
           return undefined
         }
+      }
+      /* 2026-11-03（0.5.3 用户实测双 bug 根因）：判断「当前会话是否属于某工作区」
+       * 不能只用 workspace.sessionIds.includes()。
+       *
+       * 实测数据：团队工作区 8400e2d5 的 sessionIds = [7f963ef7, e5084636, 72732f56]，
+       * 而用户正在看的 Colin 会话 4599639a 的 cwd 明确是
+       * ~/.heightlab/dsh-home/bot/workspace（= 团队工作区路径），却不在 sessionIds 里
+       * （10-21 创建，历史数据未登记）。
+       *
+       * 后果（两个 bug 同源）：
+       *   Bug1 团队模式：5s 轮询读到「不在团队工作区」→ connectWorkspace →
+       *        找不到可复用 blank → sessions.create() 新建会话 → 会话视图重挂载
+       *        → ds-bot 聊天滚到底 → 用户看到「聊天区一直闪 + 一直向上滑」。
+       *        日志实证：store-create 在 4599639a ↔ 7f963ef7 之间乒乓 24 轮。
+       *   Bug2 切回个人：sync('personal') 同样因 sessionIds 不含它而提前 return，
+       *        永远离不开 bot 聊天，回不到个人主页。
+       *
+       * 修法：以 cwd（会话实际所在目录）为权威判定归属——它由会话自身记录，
+       * 不会因工作区索引漏登记而失真。sessionIds 作为补充（新建未落盘时为唯一线索）。 */
+      const belongsToWorkspace = (sessionId: SessionId, workspaceId: string): boolean => {
+        const entry = workspaces.list.getSnapshot().items
+          .find(item => item.workspaceId === workspaceId)
+        if (entry === undefined) return false
+        if (entry.sessionIds.includes(sessionId)) return true
+        // cwd 兜底：会话记录的 cwd 落在该工作区路径下即算归属。
+        const summary = sessions.list.getSnapshot().byId[sessionId]
+        const cwd = summary?.cwd
+        if (typeof cwd !== 'string' || cwd === '' || entry.path === '') return false
+        const norm = (value: string): string => value.replace(/\/+$/, '')
+        const root = norm(entry.path)
+        return norm(cwd) === root || norm(cwd).startsWith(`${root}/`)
       }
       if (team) {
         const teamId = await dsBotWorkspaceId()
@@ -340,7 +390,17 @@ export function apply(ctx: Context): void {
           .find(item => item.workspaceId === teamId)
         if (teamEntry === undefined) return
         const active = activeSessionId()
-        if (active !== undefined && teamEntry.sessionIds.includes(active)) return
+        // 用 cwd 归属判定（见 belongsToWorkspace 注释）：历史会话可能不在
+        // sessionIds 索引里，若只查索引会每 5s 重建会话导致聊天区闪烁上滑。
+        if (active !== undefined && belongsToWorkspace(active, teamEntry.workspaceId)) return
+        diagSync('team-renavigate', {
+          active,
+          teamId: teamEntry.workspaceId,
+          inIds: active !== undefined ? teamEntry.sessionIds.includes(active) : null,
+          cwd: active !== undefined ? (sessions.list.getSnapshot().byId[active]?.cwd ?? null) : null,
+          teamPath: teamEntry.path,
+          idsCount: teamEntry.sessionIds.length,
+        })
         await uiWorkspace.connectWorkspace(teamEntry.workspaceId).then(
           (sessionId) => { uiWorkspace.openSession(sessionId) },
           () => { /* 创建失败交给宿主提示 */ },
@@ -348,17 +408,20 @@ export function apply(ctx: Context): void {
         return
       }
       // 个人模式：绝不停在团队工作区（用户铁律，无条件执行）。
-      // 当前会话属于团队工作区时，直接切回官方默认工作区「我的工作区」——
-      // 团队会话本身不删除，仍可在切回团队模式后继续。
-      const teamId = await dsBotWorkspaceId()
-      if (teamId === undefined) return
+      // 2026-11-03（Bug2：用户实测「切回个人应回主页，却停在和 bot 的聊天」）：
+      // 原实现要求「当前会话证明属于团队区」才导航，但历史团队会话既不在
+      // teamEntry.sessionIds 索引里、sessions.list 快照也没有它（实测 cwd:null），
+      // 判定为假 → 直接 return → 永远离不开 bot 聊天。
+      // 改为正向判据：只要当前会话**不在个人工作区**，就回到个人主页（我的工作区）。
+      // 反方向判定不需要「证明属于团队」，因此对脏索引免疫。
       const personal = pickPersonalWorkspace()
       if (personal === undefined) return
-      const teamEntry = workspaces.list.getSnapshot().items
-        .find(item => item.workspaceId === teamId)
-      if (teamEntry === undefined) return
       const activeId = activeSessionId()
-      if (activeId === undefined || !teamEntry.sessionIds.includes(activeId)) return
+      if (activeId !== undefined && belongsToWorkspace(activeId, personal)) {
+        diagSync('personal-already', { active: activeId })
+        return
+      }
+      diagSync('personal-navigate', { active: activeId ?? null, personal })
       await uiWorkspace.connectWorkspace(personal as never).then(
         (sessionId) => { uiWorkspace.openSession(sessionId) },
         () => { /* 失败不阻塞 */ },
@@ -366,7 +429,7 @@ export function apply(ctx: Context): void {
     }
     const onModeChanged = (event: Event): void => {
       const detail = (event as CustomEvent<{ mode?: unknown }>).detail
-      void sync(detail?.mode === 'enterprise' ? 'team' : 'personal')
+      void sync(detail.mode === 'enterprise' ? 'team' : 'personal')
     }
     // 用户点了团队工作区里的某个会话（navigation.openSession 派发）：把 surface
     // 切到团队页。切换走 hl-mode 的桥接（点 ds-bot 官方按钮），surface 变更后

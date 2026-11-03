@@ -80,19 +80,38 @@ const TEXT_MODEL_IDS = new Set([
   'step-3.7-flash',
 ])
 
-// HeightLab（2026-10-17）：网关实测只有 image2 两档；
-// image-01 / image-01-live 在 /v1/models 中不存在，已下线。
-const IMAGE_MODEL_IDS = new Set(['gpt-image-2', 'gpt-image-2-4k'])
+/* HeightLab（2026-11-03 五修，用户截图实测）：
+ *
+ * 两个真实 bug：
+ *  ① **大小写不一致导致永远匹配不上**——下面用 `modelId.toLowerCase()` 查表，
+ *     但集合里写的是 `gpt-image-2`、`MiniMax-H3` 这种大小写混合的原始 id，
+ *     `'minimax-h3' !== 'MiniMax-H3'` → 视频/图片模型全被判成文本，
+ *     于是出现在**对话**模型选择器里（用户截图：MiniMax H3、gpt-image-2.5-* 都在）。
+ *  ② **图片集合漏了 2.5 两档**——只写了 gpt-image-2 / -4k，
+ *     gpt-image-2.5-flare / -sunburst 从来没被归到 image。
+ *
+ * 修法：集合与查询**统一用小写**（写入时就 toLowerCase），并按计费方式兜底判断——
+ * 任何 `gpt-image-*` 前缀一律视为图片，MiniMax-H3 / seedance* 一律视为视频。
+ * 兜底从「未知即文本」改为「未知即文本」但**加前缀规则**，避免再漏。
+ */
+const IMAGE_MODEL_IDS = new Set([
+  'gpt-image-2', 'gpt-image-2-4k', 'gpt-image-2.5-flare', 'gpt-image-2.5-sunburst',
+].map(id => id.toLowerCase()))
 const VIDEO_MODEL_IDS = new Set([
   'MiniMax-H3', 'doubao-seedance-2-0-fast-260128', 'doubao-seedance-2-0-mini-260615',
   'doubao-seedance-2-0-260128', 'doubao-seedance-2-5-260628',
-])
+].map(id => id.toLowerCase()))
+
+/** 前缀兜底：即使白名单新增模型没登记进集合，也能按命名规则分类。 */
+const IMAGE_PREFIX_RE = /^gpt-image-/i
+const VIDEO_PREFIX_RE = /^(minimax-h\d|doubao-seedance-|seedance-)/i
 
 function modelCategory(modelId: string): ModelCategory {
   const id = modelId.toLowerCase()
+  if (IMAGE_MODEL_IDS.has(id) || IMAGE_PREFIX_RE.test(id)) return 'image'
+  if (VIDEO_MODEL_IDS.has(id) || VIDEO_PREFIX_RE.test(id)) return 'video'
   if (TEXT_MODEL_IDS.has(id)) return 'text'
-  if (IMAGE_MODEL_IDS.has(id)) return 'image'
-  if (VIDEO_MODEL_IDS.has(id)) return 'video'
+  // 未登记的按文本——但前面两道前缀规则已覆盖图片/视频的命名空间。
   return 'text'
 }
 

@@ -177,7 +177,12 @@ export const zh = {
   'message.failure.accountSignInRequired': '请先登录 HeightLab，并确认请求地址支持账号认证。',
   'message.turnError': '本轮运行失败',
   'message.turnError.quota': '积分不足',
-  'message.turnError.auth': '登录或密钥配置有问题',
+  /* 2026-11-03（0.5.4 FIX-16，新用户实测）：原文案「登录或密钥配置有问题」
+   * 是内部视角——用户看到只会以为要重新登录，而真实原因通常是模型配置
+   * 未生效（请求地址错了）。改为**面向用户 + 可操作**的话术：
+   * 说清「可能是暂时性的」，给出「重试」与「检查模型设置」两条路，
+   * 不再暗示用户重新登录（那对配置问题无效，只会让人反复重登）。 */
+  'message.turnError.auth': '模型服务连接异常，请重试；若多次失败，请在设置 → 模型中确认服务地址',
   'message.turnError.modelUnavailable': '当前模型暂时不可用',
   'message.turnError.rateLimited': '请求过于频繁',
   'message.failure.contentFilter': '这段内容未通过安全审核，换个表述再试一次。',
@@ -386,7 +391,7 @@ export const en = {
   'message.failure.viewAssets': 'View assets',
   'message.turnError': 'This turn failed',
   'message.turnError.quota': 'Insufficient credits',
-  'message.turnError.auth': 'Sign-in or API key configuration issue',
+  'message.turnError.auth': 'Could not reach the model service. Retry; if it keeps failing, check the service URL under Settings → Models',
   'message.turnError.modelUnavailable': 'The selected model is temporarily unavailable',
   'message.turnError.rateLimited': 'Too many requests',
   'message.failure.contentFilter': 'This content did not pass safety review. Try rephrasing it.',

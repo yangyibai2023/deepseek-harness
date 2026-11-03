@@ -34,59 +34,57 @@ import type { CSSProperties, RefObject } from 'react'
 import { EffortSlider } from './EffortSlider.tsx'
 import css from './ModelPickerPanel.module.css'
 
-/* HeightLab 外显模型倍率（flash=1.00× 锚点；未收录模型不显示角标） */
-const EXTERNAL_MODEL_RATIOS: Record<string, string> = {
-  hy3: '0.00×',
-  'MiniMax-M3': '0.4×',
-  'MiniMax-M3-highspeed': '0.4×',
-  'MiniMax-M3.1-flash': '0.4×',
-  'gpt-6-luna': '0.2×',
-  'claude-sonnet-4-6': '0.32×',
-  'claude-haiku-4-5-20251001': '0.4×',
-  'gpt-5.6-luna': '0.4×',
-  'glm-5.3-flash': '0.8×',
-  'mimo-v2.6-flash': '0.8×',
-  'MiniMax-M3.1': '0.8×',
-  'LongCat-2.0': '0.8×',
-  'LongCat-2.5': '0.8×',
-  'gpt-6-sol': '1.2×',
-  'gpt-6.1-sol': '1.2×',
-  'gpt-5.6-terra': '1.2×',
-  'doubao-seed-2.1-turbo': '1.2×',
-  'qwen3.7-plus': '1.6×',
-  'mimo-v2.6-pro': '1.6×',
-  'deepseek-flash': '1.00×',
-  'deepseek-v4-flash': '1.00×',
-  'deepseek-v4.1-flash': '1.00×',
-  'grok-4.5': '2×',
-  'grok-4.6': '2×',
-  'gpt-5.6-sol': '2.4×',
-  'grok-4.7': '2.4×',
-  'kimi-k2.7': '2.4×',
-  'deepseek-v4-pro': '3×',
-  'glm-5.2': '3.2×',
-  'glm-5.3': '3.2×',
-  'qwen3.7-max': '4×',
-  'claude-sonnet-5': '4×',
-  'claude-sonnet-5.5': '4×',
-  'mimo-v2.5-pro': '1.6×',
-  'gpt-5.4': '3×',
-  'gpt-5.5': '3×',
-  'claude-opus-4-6': '6×',
-  'claude-opus-4-7': '6×',
-  'claude-opus-4-8': '6×',
-  'claude-opus-5': '6×',
-  'claude-opus-5.5': '6×',
-  'qwen3.8-max': '8×',
-  'kimi-k3': '10×',
-  'gpt-5.4-mini': '2×',
-  'kimi-k2.6': '2.4×',
-  'deepseek-v3.2': '3×',
-  'gemini-3-flash': '0.8×',
-  'gemini-3.1-pro': '3.2×',
-  'gemini-3.5-flash': '0.8×',
-  'glm-5.1': '3.2×',
-  'glm-5-turbo': '0.8×',
+/* 模型倍率（2026-11-03 FIX-5/FIX-6）：改为**服务端下发**，不再硬编码。
+ *
+ * 背景：本文件曾硬编码 50 条倍率表，但——
+ *   · 与真实成本脱节（gpt-5.6-sol 应 3.2× 写成 2.4×）
+ *   · 18 款在售模型完全没有倍率（用户看到的角标时有时无）
+ *   · 22 款无成本依据的模型仍在清单里（贵州折扣子渠道有货但公开价目表无价）
+ *
+ * 现在唯一权威源是服务端 `apps/server/src/services/commercial/modelWhitelist.ts`
+ * （44 款白名单，倍率 = 贵州价目表倍率 ÷ 2.5，可逐条核对），
+ * 客户端通过 `/hl/model-ratios` 拉取并缓存。
+ *
+ * 拉取失败时**不显示任何角标**（fail-closed）——宁可没有数字，也绝不显示错数字。
+ */
+const MODEL_RATIOS_TTL_MS = 60 * 60 * 1000
+let ratioCache: { at: number; ratios: Record<string, number>; unitPrices: Record<string, number> } | null = null
+let ratioInflight: Promise<void> | null = null
+
+/** 拉一次倍率（进程内缓存 1 小时；并发调用合并为一次请求）。 */
+async function loadModelRatios(): Promise<void> {
+  if (ratioCache !== null && Date.now() - ratioCache.at < MODEL_RATIOS_TTL_MS) return
+  if (ratioInflight !== null) return ratioInflight
+  ratioInflight = (async () => {
+    try {
+      const res = await fetch('/hl/model-ratios', { signal: AbortSignal.timeout(8000) })
+      const data = await res.json() as {
+        ok?: boolean
+        ratios?: Record<string, number>
+        unitPrices?: Record<string, number>
+      }
+      if (data.ok === true && data.ratios !== undefined && typeof data.ratios === 'object') {
+        ratioCache = { at: Date.now(), ratios: data.ratios, unitPrices: data.unitPrices ?? {} }
+      }
+    } catch { /* 失败保持无缓存 → 不显示角标 */ }
+    finally { ratioInflight = null }
+  })()
+  return ratioInflight
+}
+
+/** 取展示文案：只展示 token 模型的相对倍率（N×）。
+ *
+ * 2026-11-03（0.5.4 FIX-17，用户实测）：**绝不能展示单价**。
+ * 之前对按张计费的图片模型显示「0.10 元/张」——那是我们的**上游采购成本**，
+ * 属于商业机密。用户看到只会困惑（"为什么这里显示人民币？我的积分怎么算的？"），
+ * 而且直接泄露成本结构。
+ *
+ * 现在：按张/按条模型**不显示任何数字**（它们本来也不该出现在对话选择器里，
+ * 见 modelCategory 的分类修复）。 */
+function ratioLabel(modelId: string): string | undefined {
+  if (ratioCache === null) return undefined
+  const ratio = ratioCache.ratios[modelId]
+  return ratio === undefined ? undefined : `${ratio}×`
 }
 
 
@@ -151,6 +149,16 @@ export function ModelPickerPanel({
     if (!open) setPickingProvider(false)
   }, [open])
 
+  /* 打开时拉一次倍率（服务端下发，FIX-5/FIX-6）。
+   * 拉到后 setRatioReady 触发重渲染，角标才出现；拉不到就不显示角标。 */
+  const [, setRatioReady] = useState(0)
+  useEffect(() => {
+    if (!open) return
+    let alive = true
+    void loadModelRatios().then(() => { if (alive) setRatioReady(n => n + 1) })
+    return () => { alive = false }
+  }, [open])
+
   const position = useAnchoredPosition({
     open, anchorRef, panelRef, side: 'bottom', align: 'start', gap: 4, margin: 12,
   })
@@ -168,11 +176,36 @@ export function ModelPickerPanel({
    * 模型少时自适应内容高度，模型多时固定 520px（可滚动）。 */
   const current = providers.find(provider => provider.id === currentProviderId) ?? providers[0]
   const models = current?.models ?? []
-  const modelCount = models.length
-  // 估算内容高度：供应商头部 + 模型行 + 思考强度 + padding
-  const estimatedHeight = 44 + (modelCount * 34) + 86 + 8
-  // 最大高度固定 520px，模型少时用内容高度（至少 200），模型多时用 520
-  const panelMaxHeight = Math.max(200, Math.min(estimatedHeight, 520))
+  /* 2026-11-03 深夜四修（用户第四次实测「App 里还是溢出屏幕」）：
+   *
+   * 前三修的错误：把 maxHeight 算成「视口 × 0.7，封顶 520」这个**固定值**，
+   * 完全没看锚点在屏幕的哪个位置。当输入框靠近窗口底部（或窗口本身很矮）时，
+   * 锚点下方只剩 200~300px，却给了 520 → 面板必然伸出屏幕外，
+   * 第三段「思考强度」被挤到看不见（用户截图实证）。
+   *
+   * 正确做法：**按锚点两侧的真实可用空间限高**——
+   *   spaceBelow = 视口高 − 锚点底 − 边距
+   *   spaceAbove = 锚点顶 − 边距
+   *   available  = max(spaceBelow, spaceAbove)   ← useAnchoredPosition 会翻到空间大的一侧
+   *   panelMaxHeight = clamp(available, 240, min(视口×0.7, 520))
+   *
+   * 注意：useAnchoredPosition 只返回 { left, top }（见该 hook 的注释：
+   * 「限高由调用方按需自行应用」），所以这里必须自己算，不能指望它。
+   *
+   * 另外 CSS 里有 `max-height: calc(100vh - 24px)` 兜底，防止本计算失效时再次溢出。 */
+  const panelMaxHeight = ((): number => {
+    if (typeof window === 'undefined') return 520
+    const viewportH = window.innerHeight
+    const margin = 12
+    const anchor = anchorRef.current?.getBoundingClientRect()
+    const spaceBelow = anchor === undefined
+      ? viewportH - margin * 2
+      : viewportH - anchor.bottom - margin
+    const spaceAbove = anchor === undefined ? viewportH - margin * 2 : anchor.top - margin
+    const available = Math.max(spaceBelow, spaceAbove)
+    const ceiling = Math.max(240, Math.min(Math.round(viewportH * 0.7), 520))
+    return Math.max(240, Math.min(available, ceiling))
+  })()
   useDismissOnOutsidePointer(rootRef, open, (next) => { if (!next) onClose() }, panelRef)
 
   if (!open) return null
@@ -294,34 +327,55 @@ export function ModelPickerPanel({
             onClick={() => { if (current !== undefined) onPickModel(current.id, model.id) }}
           >
             <span className={css.modelName}>{model.label}</span>
-            {EXTERNAL_MODEL_RATIOS[model.id] !== undefined && (
-              <span style={{ marginLeft: 'auto', fontSize: 12, color: 'rgba(127,127,127,0.75)', fontVariantNumeric: 'tabular-nums' }}>
-                {EXTERNAL_MODEL_RATIOS[model.id]}
-              </span>
-            )}
+            {(() => {
+              // 倍率由服务端下发（FIX-5/FIX-6）；拉不到时不渲染角标，绝不显示错数字。
+              const label = ratioLabel(model.id)
+              return label === undefined
+                ? null
+                : (
+                  <span style={{ marginLeft: 'auto', fontSize: 12, color: 'rgba(127,127,127,0.75)', fontVariantNumeric: 'tabular-nums' }}>
+                    {label}
+                  </span>
+                )
+            })()}
             {model.badge !== undefined && <span className={css.badge}>{model.badge}</span>}
             {model.selected && <IconCheckOutlineRegular className={css.check} size={14} />}
           </button>
         ))}
       </div>
 
-      {/* ── 思考强度（固定底部，不随模型列表滚动）────────────────── */}
-      {effort !== undefined && effort.options.length > 0 && (
-        <div className={css.effortBlockFixed}>
-          <div className={css.effortHead} role="presentation">
-            <span className={css.effortTitle}>{effortTitle}</span>
-            <span className={css.effortCurrent}>{effortCurrent}</span>
-          </div>
-          <EffortSlider
-            options={effort.options}
-            value={effort.value}
-            levelIndex={effort.index}
-            onChange={onPickEffort}
-            disabled={locked}
-            ariaLabel={effortTitle}
-          />
+      {/* ── 思考强度（固定底部，不随模型列表滚动）──────────────────
+       * 2026-11-03（用户实测「三段式时好时坏」根治）：原来整块是条件渲染
+       * （effort === undefined 就不渲染），而 effort 由模型目录的 reasoning
+       * 能力推导——目录尚未加载 / 该型号暂无能力数据时为 undefined。
+       * 于是同一台机器上：目录就绪时是三段式，未就绪时退化成两段（且用户
+       * 感觉「模型列表溢出、不能滑」）。布局必须在任何加载态下都稳定。
+       * 现在改为**永远渲染**第三段：无档位数据时显示禁用的占位行，
+       * 高度与真实滑块一致，形状恒定。 */}
+      <div className={css.effortBlockFixed}>
+        <div className={css.effortHead} role="presentation">
+          <span className={css.effortTitle}>{effortTitle}</span>
+          <span className={css.effortCurrent}>
+            {effort !== undefined ? effortCurrent : '—'}
+          </span>
         </div>
-      )}
+        {effort !== undefined && effort.options.length > 0
+          ? (
+            <EffortSlider
+              options={effort.options}
+              value={effort.value}
+              levelIndex={effort.index}
+              onChange={onPickEffort}
+              disabled={locked}
+              ariaLabel={effortTitle}
+            />
+          )
+          : (
+            <div className={css.effortPending} role="presentation">
+              当前模型暂无思考强度设置
+            </div>
+          )}
+      </div>
     </MenuSurface>
   )
 

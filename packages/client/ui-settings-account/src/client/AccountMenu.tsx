@@ -22,8 +22,8 @@ interface CreditsOverview {
   plan?: { name?: string } | null
 }
 
-/** 未购套餐时加油包灰置的悬浮提示（用户定稿文案）。 */
-const BOOSTER_LOCK_HINT = '成为标准或旗舰会员后才能单独购买加油包'
+/* 2026-11-03（0.5.4 FIX-2）：原 BOOSTER_LOCK_HINT 随「体验版隐藏加油包」一起移除
+ * （体验版现在完全看不见按钮，不再需要「成为会员后才能购买」的置灰提示）。 */
 
 /** 数字千分位（余额展示口径与套餐与积分页一致）。 */
 function formatUnits(value: number | undefined): string {
@@ -128,18 +128,22 @@ export function AccountMenu({
               color: 'var(--dsw-alias-label-primary-foreground, #fff)', fontSize: 13, fontWeight: 600,
             }}
           >升级套餐</button>
-          <button
-            type="button"
-            title={canBuyBooster ? undefined : BOOSTER_LOCK_HINT}
-            onClick={() => { if (canBuyBooster) { setOpen(false); openSettings() } }}
-            style={{
-              flex: 1, padding: '8px 0', borderRadius: 10, fontSize: 13, fontWeight: 500,
-              border: '1px solid var(--dsw-alias-border-l2, rgba(0,0,0,0.1))',
-              background: 'transparent',
-              color: canBuyBooster ? 'var(--dsw-alias-label-primary, #111)' : 'var(--dsw-alias-label-tertiary, rgba(127,127,127,0.55))',
-              cursor: canBuyBooster ? 'pointer' : 'not-allowed',
-            }}
-          >购买加油包</button>
+          // 2026-11-03（0.5.4 FIX-2，用户裁决）：只有付费会员（轻量/标准/旗舰）
+          // 才看得见加油包，体验版完全隐藏——不是置灰、不是提示，而是不渲染。
+          // 判据来自服务端 /hl/credits 的 canBuyBooster（tier !== 'free'）。
+          {canBuyBooster && (
+            <button
+              type="button"
+              onClick={() => { setOpen(false); openSettings() }}
+              style={{
+                flex: 1, padding: '8px 0', borderRadius: 10, fontSize: 13, fontWeight: 500,
+                border: '1px solid var(--dsw-alias-border-l2, rgba(0,0,0,0.1))',
+                background: 'transparent',
+                color: 'var(--dsw-alias-label-primary, #111)',
+                cursor: 'pointer',
+              }}
+            >购买加油包</button>
+          )}
         </div>
         <div style={{ borderTop: '1px solid var(--dsw-alias-border-l2, rgba(0,0,0,0.06))', margin: '8px 0 2px' }} />
         {([
@@ -186,7 +190,7 @@ export function AccountMenu({
       anchor={<button ref={trigger} type="button" className={css.trigger} data-collapsed={!wide} data-signed-out={!signedIn} aria-label={t('menu')}
         aria-haspopup="menu" aria-expanded={open} onClick={() => { setOpen(value => !value) }}>
         <IconEllipsisOutlineMedium size={14} />
-        {wide && <span className={css.label}>{t('more')}</span>}
+        {<span className={css.label}>{t('more')}</span>}
       </button>}
       items={[
         { id: 'settings', label: t('settings'), icon: <IconSettingsOutlineMedium size={16} />,
@@ -206,7 +210,8 @@ export function AccountMenu({
           onClick={() => { setOpen(value => !value) }}
           style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', border: 'none', background: 'transparent', cursor: 'pointer', padding: wide ? '6px 8px' : '6px' }}>
           <span className={css.avatar}><AccountAvatar url={profile?.status === 'ready' ? profile.value.avatarUrl : null} /></span>
-          {wide && <span className={css.label}>{signedIn ? label : t('more')}</span>}
+          {/* 本块在 {signedIn && (...)} 内，signedIn 恒真，直接用 label */}
+          <span className={css.label}>{label}</span>
         </button>
         {open && (
           <>

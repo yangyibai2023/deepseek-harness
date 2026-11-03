@@ -63,10 +63,22 @@ export function readDsBotSurface(): DsBotSurface | undefined {
   if (!dsBotPresent()) return undefined
   try {
     const raw = window.localStorage.getItem(DSBOT_SURFACE_KEY)
-    // 未写过时 ds-bot 自己的 readMode() 默认 'bot'。
-    return raw === 'agent' ? 'agent' : 'bot'
+    /* 2026-11-03（0.5.4 FIX-18，用户要求「新用户默认进个人模式」）：
+     *
+     * 原来未写过时返回 'bot'（团队模式），理由是「ds-bot 自己的 readMode()
+     * 默认 'bot'」。但这与 `hl.mode` 的默认值（'personal'）**不一致**，
+     * 后果：全新用户首次启动时顶部「OPC 团队」高亮，直接落进团队模式，
+     * 而产品预期是**个人模式首页**（文案/图片/视频创作台）。
+     *
+     * 现在两边对齐：未写过 → 'agent'（个人）。
+     * ds-bot 自己的 readMode() 若默认 'bot'，会在它初始化时读同一 key；
+     * 若首次启动读到的仍是空，DSH 侧的 surface 由我们的 switchDsBotSurface
+     * 主动切到 agent（见 HlModeSwitcher 的挂载逻辑）。
+     *
+     * 已写过值的用户不受影响（尊重用户选择）。 */
+    return raw === 'agent' ? 'agent' : raw === 'bot' ? 'bot' : 'agent'
   } catch {
-    return 'bot'
+    return 'agent'
   }
 }
 
@@ -196,7 +208,7 @@ export function HlModeSwitcher() {
     // 注意本 effect 依赖为空：组织 ID 读 localStorage（enter 的持久化值），
     // 不读 state（那会是挂载初值的陈旧闭包）；无组织记录时不切（保持个人）。
     const onModeRequest = (event: Event): void => {
-      const mode = (event as CustomEvent<{ mode?: unknown }>).detail?.mode
+      const mode = (event as CustomEvent<{ mode?: unknown }>).detail.mode
       if (mode !== 'personal' && mode !== 'team') return
       if (mode === 'personal') {
         enter('personal', '')
