@@ -403,6 +403,13 @@ export function HeightLabLoginPage({ initialError }: { initialError?: string | n
   const [invite, setInvite] = useState('')
   const [error, setError] = useState<string | null>(initialError ?? null)
   const [busy, setBusy] = useState(false)
+  /* 2026-11-05（0.5.5 用户实测「登录页 logo 破图」）：
+   * 宿主重启窗口内 /heightlab-logo.png 可能瞬时失败 → <img> 画成问号。
+   * logoRetried：已重试过一次；logoBroken：两次都失败 → 用内联 SVG 顶上；
+   * logoNonce：改 src 触发重新请求（绕开缓存里的失败结果）。 */
+  const [logoRetried, setLogoRetried] = useState(false)
+  const [logoBroken, setLogoBroken] = useState(false)
+  const [logoNonce, setLogoNonce] = useState(0)
 
   useEffect(() => {
     fetch('/hl/dev-mode')
@@ -487,14 +494,36 @@ export function HeightLabLoginPage({ initialError }: { initialError?: string | n
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 32 }}>
           {/* HeightLab 2026-08-26：黑色胶囊 PNG（透明底），已随 build:web
               进 public→dist，不再依赖运行时拷贝；内联 potrace SVG 会把
-              负形底色画成黑方块，弃用。 */}
+              负形底色画成黑方块，弃用。
+              2026-11-05（0.5.5 用户实测「登录页 logo 破图」）：宿主重启窗口内
+              该 PNG 可能请求失败/未就绪 —— <img> 会画成破图问号且**永久**留着
+              （原实现没有 onError 兜底）。这里加两级自愈：
+                ① 首次失败 → 加时间戳重试一次（绕开重启期间的瞬时 5xx）；
+                ② 二次仍失败 → 换成**内联 SVG**（零请求，绝不破图）。
+              两道兜底都只是把"错误图标"换成"正确品牌图形"，不影响任何逻辑。 */}
           <img
-            src="/heightlab-logo.png"
+            key={`logo-${logoNonce}`}
+            src={logoNonce === 0 ? '/heightlab-logo.png' : `/heightlab-logo.png?r=${logoNonce}`}
             alt=""
             width={42}
             height={42}
-            style={{ display: 'block', userSelect: 'none', objectFit: 'contain' }}
+            style={{ display: logoBroken ? 'none' : 'block', userSelect: 'none', objectFit: 'contain' }}
+            onError={() => {
+              if (logoRetried) { setLogoBroken(true); return }
+              setLogoRetried(true)
+              // 换 key + 加 cache-busting 查询串，强制重新请求一次。
+              setLogoNonce(n => n + 1)
+            }}
           />
+          {logoBroken && (
+            <svg width={42} height={42} viewBox="0 0 64 64" fill="none" aria-hidden="true"
+              style={{ display: 'block' }}>
+              <rect x="8" y="20" width="48" height="24" rx="12" fill="#1a1a1a" />
+              <ellipse cx="32" cy="32" rx="28" ry="14" stroke="#1a1a1a" strokeWidth="2"
+                fill="none" transform="rotate(-30 32 32)" />
+              <circle cx="44" cy="26" r="3" fill="#ffffff" opacity="0.3" />
+            </svg>
+          )}
           <span style={{ fontSize: 28, fontWeight: 700, letterSpacing: '0.2px' }}>HeightLab</span>
         </div>
 
