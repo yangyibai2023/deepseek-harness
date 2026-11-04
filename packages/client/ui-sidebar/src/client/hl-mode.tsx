@@ -245,10 +245,38 @@ export function HlModeSwitcher() {
    * FIX-18 只解决了「新用户默认值」，但 surface/hl.mode 是持久化的——上次
    * 会话停在团队模式的话，重启仍落团队页。产品语义：个人模式是主页，
    * 团队是显式切换的工作场景，不跨会话保留（与既有铁律「启动必落新会话页」
-   * 同一逻辑）。挂载时无条件归位：hl.mode=personal + surface=agent。 */
+   * 同一逻辑）。挂载时无条件归位：hl.mode=personal + surface=agent。
+   *
+   * 2026-11-05（0.5.5 用户实测「退出后重新登录，登录上之后默认跳到 OPC 团队页」）：
+   * 原实现只在挂载时**试一次** `switchDsBotSurface('agent')`，而该函数开头是
+   * `if (!dsBotPresent()) return false` —— 登录后页面刚重载，ds-bot 插件往往
+   * 还没 register，于是这一枪必然落空，且**没有任何重试**。
+   * 结果：`ds-bot:surface` 里持久化的 'bot'（用户上次停在团队页）一直生效，
+   * 宿主日志实锤 `{"hlSync":true,"stage":"poll-publish-only","surface":"bot"}`
+   * 连续多轮 —— 用户就被送进 OPC 团队页。
+   *
+   * 现在改成**轮询直到成功**：每 500ms 试一次，最多 60 次（30s），
+   * 一旦 ds-bot 就绪且 surface 归位到 agent 就停。用户对团队页的任何显式点击
+   * 会改写 surface，因此下面的循环同时校验"当前是否仍是 bot"——若用户主动切到
+   * 团队，循环立刻让位（不再抢夺）。 */
   useEffect(() => {
     enter('personal', '')
-    void switchDsBotSurface('agent')
+    let tries = 0
+    let stopped = false
+    const settle = (): void => {
+      if (stopped) return
+      tries += 1
+      // 用户主动切到团队：尊重用户，停止归位。
+      if (readDsBotSurface() === 'agent') return
+      void switchDsBotSurface('agent').then((switched) => {
+        if (stopped) return
+        if (switched) return
+        if (tries >= 60) return
+        window.setTimeout(settle, 500)
+      })
+    }
+    settle()
+    return () => { stopped = true }
   }, [])
 
   const personalActive = surface === undefined ? sel.mode === 'personal' : surface === 'agent'
