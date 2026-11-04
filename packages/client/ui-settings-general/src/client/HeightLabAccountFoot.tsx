@@ -579,12 +579,22 @@ export function HeightLabAccountFoot({ wide, openSettings }: HeightLabAccountFoo
       window.localStorage.removeItem('heightlab-refresh-token')
       window.localStorage.removeItem('heightlab-account-token')
     } catch { /* 忽略 */ }
-    void fetch('/hl/signout', { method: 'POST' })
-      .catch(() => null)
-      .finally(() => {
-        /* 服务端已完成 pending-logoff-url 落盘，现在可以安全跳转。 */
-        window.location.href = '/'
-      })
+    /* 2026-11-05（0.5.5 深查 B7）：/hl/signout 失败被吞仍跳转 = pending-logoff-url
+     * 不落盘 = 壳的 wait_logto_signout 无处可去 = Logto SSO 会话没清 =
+     * 下次点登录**免密复用旧账号**（本文件上方注释记录过用户实测）。
+     * 现在失败重试最多 3 次（间隔递增 0.6/1.2/1.8s，覆盖瞬时抖动与服务重启窗口），
+     * 之后再跳转——此时至少给了服务端三次落盘机会。 */
+    void (async () => {
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          const res = await fetch('/hl/signout', { method: 'POST' })
+          if (res.ok) break
+        } catch { /* 网络抖动，继续重试 */ }
+        await new Promise((resolve) => { setTimeout(resolve, 600 * (attempt + 1)) })
+      }
+      /* 无论最终成败都跳转：重试已尽力；卡在这里用户只会更困惑。 */
+      window.location.href = '/'
+    })()
   }, [signingOut])
 
   // HeightLab：通知（铃铛）/ 连接手机（手机设备）占位图标，16px 与齿轮一致。

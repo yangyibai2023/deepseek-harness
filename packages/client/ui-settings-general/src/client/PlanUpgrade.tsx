@@ -138,7 +138,14 @@ export function PlanUpgrade({ close }: PlanUpgradeProps) {
          * 留作下个版本用构建期打包解决；本版保证支付可用。 */
         const tauri = (globalThis as { __TAURI__?: { core?: { invoke?: (cmd: string, args?: unknown) => Promise<unknown> } } }).__TAURI__
         if (typeof tauri?.core?.invoke === 'function') {
-          await tauri.core.invoke('open_payment', { url }).catch(() => {})
+          try {
+            await tauri.core.invoke('open_payment', { url })
+          } catch {
+            /* 2026-11-05（0.5.5 深查 B6）：壳开窗失败（Rust 端报错/窗口创建失败）
+             * 旧代码 .catch(() => {}) 完全吞掉 → 用户点了购买什么都不会发生、
+             * 还留下未支付订单。现在退回系统浏览器打开同一条收款链接。 */
+            window.open(url, '_blank', 'noopener')
+          }
         } else {
           window.open(url, '_blank', 'noopener')
         }

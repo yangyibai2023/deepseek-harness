@@ -2,6 +2,16 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
+    <!-- ── 启动必落个人模式（2026-11-05，0.5.5 用户实测后定稿）────────────
+         产品铁律：个人模式是主页，团队是显式切换的工作场景，不跨会话保留。
+         旧行为：ds-bot 插件初始化时读持久化的 ds-bot:surface（可能= 'bot'）
+         → 先画一帧团队页 → 我们的归位轮询再纠正回个人 → 用户看到闪烁。
+         新行为：在 React / ds-bot 任何代码之前，先把 surface 归一为 agent，
+         ds-bot 一加载读到的就是正确值——团队页那一帧根本不会画出来。
+         零竞态、零闪烁；用户点「OPC 团队」仍正常切换（那是显式操作）。 -->
+    <script>
+      try { localStorage.setItem('ds-bot:surface', 'agent') } catch (e) {}
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" type="image/svg+xml" href="/favicon-dark.svg" media="(prefers-color-scheme: dark)" />

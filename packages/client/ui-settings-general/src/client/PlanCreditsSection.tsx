@@ -145,7 +145,12 @@ export function PlanCreditsSection(): React.ReactElement {
       if (res.ok && body.checkout?.checkoutUrl !== undefined && body.checkout.checkoutUrl !== '') {
         const tauri = (globalThis as { __TAURI__?: { core?: { invoke?: (cmd: string, args?: unknown) => Promise<unknown> } } }).__TAURI__
         if (typeof tauri?.core?.invoke === 'function') {
-          await tauri.core.invoke('open_payment', { url: body.checkout.checkoutUrl }).catch(() => undefined)
+          try {
+            await tauri.core.invoke('open_payment', { url: body.checkout.checkoutUrl })
+          } catch {
+            /* 2026-11-05（0.5.5 深查 B6）：壳开窗失败不再吞掉——退回系统浏览器。 */
+            window.open(body.checkout.checkoutUrl, '_blank', 'noopener')
+          }
         } else {
           window.open(body.checkout.checkoutUrl, '_blank', 'noopener')
         }
