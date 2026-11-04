@@ -1,85 +1,113 @@
 <!doctype html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>HeightLab</title>
-    <style>
-      * { margin: 0; padding: 0; box-sizing: border-box; }
-      html, body { height: 100%; }
-      body {
-        background: #f5f6f7;
-        display: flex; align-items: center; justify-content: center;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-        -webkit-font-smoothing: antialiased;
-      }
-      /* HeightLab 2026-09-20（V30）：启动页去白卡嵌底，内容=官网 v2 口径的
-         headline 打字机（主界面 EmptyHero 同款文案/参数放大版）。
-         文案 SSOT=新官网 v2（宪法铁律 19）；动效参数同官网/EmptyHero
-         （type 95ms / hold 2600ms / delete 42ms / gap 600ms / 初始 500ms）。 */
-      .typewriter {
-        max-width: min(760px, calc(100vw - 96px));
-        text-align: center;
-        font-size: 34px;
-        font-weight: 600;
-        color: #111;
-        letter-spacing: 0.5px;
-        line-height: 1.4;
-        min-height: 1.4em; /* 行高锁定：两句长度不同也不跳行 */
-        animation: hl-splash-fade 0.6s ease both;
-      }
-      .caret {
-        display: inline-block;
-        color: #999;
-        animation: hl-caret 1s steps(1) infinite;
-        margin-left: 2px;
-      }
-      @keyframes hl-caret {
-        0%, 49% { opacity: 1; }
-        50%, 100% { opacity: 0; }
-      }
-      @keyframes hl-splash-fade {
-        from { opacity: 0; transform: translateY(8px); }
-        to { opacity: 1; transform: none; }
-      }
-    </style>
-  </head>
-  <body>
+<head>
+<meta charset="utf-8" />
+<title>HeightLab</title>
+<!--
+  HeightLab 启动/转场页（2026-11-05 用户定稿，0.5.5）
+
+  设计要求（用户原话）：
+    · 「logo 在上面，但是下面的文字只能是一行，不能是两行」
+    · 「原来的文字和动画放在一个层面，就是一个整体，不要再闪一下再出现一个胶囊」
+    · 「胶囊也太丑了」→ 改用真实品牌图 heightlab-logo.png（带轨道环的胶囊体），
+      不再用手绘 SVG 仿制
+    · 「时间慢一点没关系，但不要切来切去，或切到不正确的地方」
+
+  实现要点：
+    1. .stage 包裹 logo/分隔线/文字/进度 —— 四者同一容器、同一次淡入，
+       不存在"先文字后图标"的两段动画；
+    2. .typewriter 三件套锁死单行：white-space:nowrap + 固定宽度 + 居中，
+       最长句（18 全角字）实测文本宽 475px < 容器 820px，永不折行；
+    3. 进度只用扫光条，轨道背景透明 —— 避免出现"第二条静态线"的观感；
+    4. 全部内联样式 + 随包 PNG，零外部依赖，自身不会加载失败。
+-->
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    background: #f5f6f7;
+    display: flex; align-items: center; justify-content: center;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    -webkit-font-smoothing: antialiased; overflow: hidden;
+  }
+
+  /* 一个整体：logo / 分隔线 / 文字 / 进度一起淡入，不分开出现 */
+  .stage {
+    display: flex; flex-direction: column; align-items: center;
+    animation: stage-in .5s cubic-bezier(.22,.61,.36,1) both;
+  }
+  @keyframes stage-in { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }
+
+  /* 大字标（方案 B 的视觉主体） */
+  .mark {
+    width: 108px; height: 108px; object-fit: contain;
+    transform-origin: 50% 50%;
+    animation: mark-breathe 4.2s ease-in-out infinite;
+  }
+  @keyframes mark-breathe {
+    0%, 100% { transform: scale(1); opacity: .97 }
+    50%      { transform: scale(1.03); opacity: 1 }
+  }
+
+  /* 一条极细分隔线（只有一条，不做上下双线） */
+  .rule { width: 40px; height: 1px; background: rgba(0,0,0,.14); margin: 28px 0 24px; }
+
+  /* ── 关键：文字强制单行 ──────────────────────────────────────────────
+     1) white-space: nowrap —— 无论窗口多宽都不折行；
+     2) 固定宽度 + text-align: center —— 打字时文本从中央向两侧展开，
+        容器宽度不随文字变化，避免整体左右抖动；
+     3) font-size 用 clamp 随窗口缩，保证窄窗口下最长一句也放得下一行。
+        最长句「文案、图片、视频，电商内容一站生成」= 18 全角字，
+        2.3vw 在 1200px 窗口 ≈ 27.6px，18×27.6 ≈ 497px，远小于可用宽度。 */
+  .typewriter {
+    width: min(820px, calc(100vw - 120px));
+    text-align: center;
+    white-space: nowrap;
+    font-size: clamp(17px, 2.3vw, 27px);
+    font-weight: 500;
+    color: #1a1a1a;
+    letter-spacing: 0.6px;
+    line-height: 1.5;
+  }
+  .caret { display: inline-block; color: #b8b8b8; margin-left: 2px;
+           animation: caret 1s steps(1) infinite }
+  @keyframes caret { 0%,49%{opacity:1} 50%,100%{opacity:0} }
+
+  /* 进度：只留扫光，轨道背景压到几乎看不见（避免"第二条线"的观感） */
+  .track { margin-top: 34px; width: 108px; height: 1.5px; border-radius: 999px;
+           background: transparent; overflow: visible }
+  .sweep { width: 34%; height: 100%; border-radius: 999px; background: #2a2a2a;
+           animation: sweep 1.35s cubic-bezier(.45,.05,.55,.95) infinite }
+  @keyframes sweep { 0%{transform:translateX(-110%)} 100%{transform:translateX(390%)} }
+</style>
+</head>
+<body>
+  <div class="stage">
+    <img class="mark" src="/heightlab-logo.png" alt="" />
+    <div class="rule"></div>
     <div class="typewriter"><span id="text"></span><span class="caret">▍</span></div>
-    <script>
-      (function () {
-        var phrases = [
-          '从一张产品图，到一支带货视频',
-          '文案、图片、视频，电商内容一站生成'
-        ]
-        var TYPE_MS = 95, HOLD_MS = 2600, DELETE_MS = 42, GAP_MS = 600, START_MS = 500
-        var el = document.getElementById('text')
-        var phrase = 0, chars = 0, deleting = false
-        function step() {
-          var current = phrases[phrase] || ''
-          if (!deleting) {
-            chars += 1
-            el.textContent = current.slice(0, chars)
-            if (chars >= current.length) {
-              deleting = true
-              window.setTimeout(step, HOLD_MS)
-              return
-            }
-            window.setTimeout(step, TYPE_MS)
-          } else {
-            chars -= 1
-            el.textContent = current.slice(0, chars)
-            if (chars <= 0) {
-              deleting = false
-              phrase = (phrase + 1) % phrases.length
-              window.setTimeout(step, GAP_MS)
-              return
-            }
-            window.setTimeout(step, DELETE_MS)
-          }
+    <div class="track"><div class="sweep"></div></div>
+  </div>
+  <script>
+    (function () {
+      var phrases = ['从一张产品图，到一支带货视频', '文案、图片、视频，电商内容一站生成']
+      var TYPE_MS = 95, HOLD_MS = 2600, DELETE_MS = 42, GAP_MS = 600, START_MS = 200
+      var el = document.getElementById('text')
+      var phrase = 0, chars = 0, deleting = false
+      function step() {
+        var cur = phrases[phrase] || ''
+        if (!deleting) {
+          chars += 1; el.textContent = cur.slice(0, chars)
+          if (chars >= cur.length) { deleting = true; window.setTimeout(step, HOLD_MS); return }
+          window.setTimeout(step, TYPE_MS)
+        } else {
+          chars -= 1; el.textContent = cur.slice(0, chars)
+          if (chars <= 0) { deleting = false; phrase = (phrase + 1) % phrases.length; window.setTimeout(step, GAP_MS); return }
+          window.setTimeout(step, DELETE_MS)
         }
-        window.setTimeout(step, START_MS)
-      })()
-    </script>
-  </body>
+      }
+      window.setTimeout(step, START_MS)
+    })()
+  </script>
+</body>
 </html>
