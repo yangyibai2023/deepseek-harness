@@ -15,7 +15,7 @@
  * 选择持久化 localStorage（hl.mode / hl.mode.orgId，orgId 恒为空串仅为兼容
  * 旧读取方）并广播 `hl:mode-changed`，品牌槽位插件与模板/专家数据层据此处理。
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import css from './SidebarRoot.module.css'
 
@@ -178,6 +178,8 @@ export async function openDsBotSettings(): Promise<boolean> {
 
 export function HlModeSwitcher() {
   const [sel, setSel] = useState(readHlMode)
+  /* 2026-11-05（0.5.6）：用户显式切换标志——归位循环看到它立即让位（见下）。 */
+  const userTouchedRef = useRef(false)
   // ds-bot 在场时以它的实际 surface 为准：它自己的切换按钮改了也要同步回来，
   // 否则两个入口会各说各话（轮询成本只是一次 localStorage 读）。
   const [surface, setSurface] = useState<DsBotSurface | undefined>(readDsBotSurface)
@@ -227,6 +229,8 @@ export function HlModeSwitcher() {
   }
 
   const choose = (mode: HlMode) => {
+    // 用户显式切换：立即叫停启动归位循环（0.5.6 抢切换修复）。
+    userTouchedRef.current = true
     // 先驱动 ds-bot：点它的官方按钮，切完 surface 轮询会把高亮同步过去。
     void switchDsBotSurface(mode === 'enterprise' ? 'bot' : 'agent')
     if (mode === 'personal') {
@@ -256,20 +260,25 @@ export function HlModeSwitcher() {
    * 连续多轮 —— 用户就被送进 OPC 团队页。
    *
    * 现在改成**轮询直到成功**：每 500ms 试一次，最多 60 次（30s），
-   * 一旦 ds-bot 就绪且 surface 归位到 agent 就停。用户对团队页的任何显式点击
-   * 会改写 surface，因此下面的循环同时校验"当前是否仍是 bot"——若用户主动切到
-   * 团队，循环立刻让位（不再抢夺）。 */
+   * 一旦 ds-bot 就绪且 surface 归位到 agent 就停。
+   *
+   * 2026-11-05（0.5.6，用户+本机 Playwright 实测抢切换）：上面「循环同时校验
+   * 当前 surface」的让位设计**只对 agent 成立**——用户在窗口期点「OPC 团队」
+   * 后 surface=bot，settle 的判据 `readDsBotSurface() === 'agent'` 不满足，
+   * 下一次 500ms 重试会 `switchDsBotSurface('agent')` **把用户抢回个人模式**。
+   * 修法：用户任何显式模式切换（choose）置 userTouchedRef，settle 每次迭代
+   * 先检查——显式操作永远赢过启动归位。 */
   useEffect(() => {
     enter('personal', '')
     let tries = 0
     let stopped = false
     const settle = (): void => {
-      if (stopped) return
+      if (stopped || userTouchedRef.current) return
       tries += 1
-      // 用户主动切到团队：尊重用户，停止归位。
+      // surface 已是 agent：归位完成，停止。
       if (readDsBotSurface() === 'agent') return
       void switchDsBotSurface('agent').then((switched) => {
-        if (stopped) return
+        if (stopped || userTouchedRef.current) return
         if (switched) return
         if (tries >= 60) return
         window.setTimeout(settle, 500)
