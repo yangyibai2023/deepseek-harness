@@ -67,6 +67,8 @@ interface CatalogFetch {
   readonly abort: AbortController
   /** Settled catalog for synchronous lexicon reads (unset while in flight or on failure). */
   settled?: readonly SkillEntry[]
+  /** Settle 时刻（N14/0.5.7：沉淀发生在会话中途，TTL 到期后 @ 触发时重拉）。 */
+  settledAt?: number
 }
 
 /** Required services: reference source faces plus the tool-row and locale registries. */
@@ -104,9 +106,21 @@ export function apply(ctx: ClientContext): void {
     }
   }
 
+  /* N14（0.5.7）：会话中途沉淀技能后，per-session 目录缓存永远不刷新，
+   * 同会话 @ 提示「不存在」而新会话正常（用户实测）。沉淀没有客户端事件，
+   * 这里用读时 TTL 兜底：@ 触发读到超过 30s 的已结算缓存就重拉一次。 */
+  const CATALOG_TTL_MS = 30_000
   const fetchCatalog = (sessionId: SessionId): CatalogFetch => {
     const existing = fetches.get(sessionId)
-    if (existing !== undefined) return existing
+    if (existing !== undefined) {
+      if (existing.settled !== undefined
+        && existing.settledAt !== undefined
+        && Date.now() - existing.settledAt > CATALOG_TTL_MS) {
+        invalidate(sessionId)
+      } else {
+        return existing
+      }
+    }
     const abort = new AbortController()
     const promise = (async () => {
       if (sessions.binding(sessionId) === undefined) {
@@ -130,6 +144,7 @@ export function apply(ctx: ClientContext): void {
       // Settled snapshot backs the synchronous lexicon reads.
       (skills) => {
         entry.settled = skills
+        entry.settledAt = Date.now()
         notifyLexicon(sessionId)
       },
       // A failed fetch must not poison the key: the next consumer retries.
