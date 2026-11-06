@@ -18,7 +18,7 @@ export const BRAND_SVG: Record<string, BrandMark> = {
 
 /** 无 SVG 品牌的字母徽章（品牌色 + 单字；other=兜底）。 */
 export const BRAND_LETTER: Record<string, { color: string; text: string } | undefined> = {
-  zhipu: { color: '#3859FF', text: 'Z' },
+  zhipu: { color: '#4770FF', text: 'Z' },
   step: { color: '#6C5CE7', text: 'S' },
   other: { color: '#9E9E9E', text: '?' },
 }

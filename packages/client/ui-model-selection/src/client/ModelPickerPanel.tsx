@@ -176,7 +176,7 @@ export function ModelPickerPanel({
   /** 旧语义（点厂商落第一个型号）已并入行点击的 onPickModel 直落路径。 */
   readonly onPickProvider?: (providerId: string) => void
   /** N3（0.5.7 用户拍板）：悬浮供应商=模型列表即时预览切换（点击仍确认）。 */
-  readonly onPreviewProvider?: (providerId: string) => void
+  readonly onPreviewProvider?: (providerId: string | undefined) => void
   readonly previewProviderId?: string | undefined
   /** 当前型号的思考档位；undefined 表示该型号不支持（不显示滑块）。 */
   readonly effort: {
@@ -245,6 +245,19 @@ export function ModelPickerPanel({
     top: number
     left: number
   } | null>(null)
+  const menuCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const cancelMenuClose = (): void => {
+    if (menuCloseTimerRef.current !== null) {
+      window.clearTimeout(menuCloseTimerRef.current)
+      menuCloseTimerRef.current = null
+    }
+  }
+  const scheduleMenuClose = (onPreviewProvider?: (providerId: string | undefined) => void): void => {
+    menuCloseTimerRef.current = window.setTimeout(() => {
+      setPickingProvider(false)
+      onPreviewProvider?.(undefined)
+    }, 150)
+  }
   const showHoverCard = (model: ModelRowEntry, element: HTMLElement): void => {
     const meta = modelMeta(model.id)
     if (meta?.intro === undefined) { setHoverCard(null); return }
@@ -352,7 +365,11 @@ export function ModelPickerPanel({
       style={{ ...(position ?? MEASURE_STYLE), maxHeight: panelMaxHeight }}
       role="menu"
       aria-label={ariaLabel}
-      onClick={(event) => { event.stopPropagation() }}
+      onClick={(event) => {
+        event.stopPropagation()
+        /* N3 v3（用户反馈）：点空白=未做选择 → 预览回退当前，不再停留悬浮过的厂商。 */
+        onPreviewProvider?.(undefined)
+      }}
     >
       {/* ── 一级：当前厂商详情 ───────────────────────────────────────── */}
       <div className={css.providerHeaderWrap}>
@@ -362,7 +379,11 @@ export function ModelPickerPanel({
           aria-haspopup="menu"
           aria-expanded={pickingProvider}
           aria-label={`切换厂商，当前 ${current?.label ?? ''}`}
-          onMouseEnter={() => { setPickingProvider(true) }}
+          onMouseEnter={() => {
+            setPickingProvider(true)
+            cancelMenuClose()
+          }}
+          onMouseLeave={() => { scheduleMenuClose(onPreviewProvider) }}
           onClick={() => { setPickingProvider(true) }}
         >
           {/* N3 v2（用户反馈）：悬浮预览时表头名字/logo 跟随预览供应商。 */}
@@ -377,11 +398,15 @@ export function ModelPickerPanel({
          * （实测 bottom=741 / 视口 720），所以这里同样要 flip + 限高。 */}
         {pickingProvider && (
           <div
+            onMouseEnter={() => { cancelMenuClose() }}
+            onMouseLeave={() => {
+              setPickingProvider(false)
+              onPreviewProvider?.(undefined)
+            }}
             className={css.providerMenu}
             role="menu"
             aria-label="选择厂商"
             style={providerMenuStyle}
-            onMouseLeave={() => { setPickingProvider(false) }}
           >
             {providers.length === 0 && <div className={css.empty} role="presentation">{emptyLabel}</div>}
             {providers.map(provider => (
