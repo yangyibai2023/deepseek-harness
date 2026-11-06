@@ -330,7 +330,7 @@ export function ModelPickerPanel({
           onMouseEnter={() => { setPickingProvider(true) }}
           onClick={() => { setPickingProvider(true) }}
         >
-          <span className={css.dot} aria-hidden="true" />
+          {current !== undefined && <BrandMarkIcon providerId={current.id} size={16} />}
           <span className={css.providerName}>{current?.label ?? ''}</span>
           <span className={css.badge}>API</span>
           <IconChevronRightOutlineRegular className={css.chevron} size={12} />
@@ -380,6 +380,8 @@ export function ModelPickerPanel({
           <HoverCard
             key={model.id}
             openDelayMs={350}
+            variant="preview"
+            widthAnchorRef={rootRef}
             disabled={modelMeta(model.id)?.intro === undefined}
             anchor={(
               <button

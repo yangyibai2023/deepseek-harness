@@ -129,6 +129,7 @@ const TEXT_PROVIDERS: ReadonlyArray<{ id: string; label: string; match: (id: str
   { id: 'doubao', label: '字节跳动 (豆包)', match: id => id.startsWith('doubao-') },
   { id: 'step', label: '阶跃星辰 (Step)', match: id => id.startsWith('step-') },
   { id: 'xiaomi', label: '小米 (MiMo)', match: id => id.startsWith('mimo-') },
+  { id: 'longcat', label: '美团 (LongCat)', match: id => id.toLowerCase().startsWith('longcat-') },
   { id: 'other', label: '其他', match: () => true },
 ]
 
