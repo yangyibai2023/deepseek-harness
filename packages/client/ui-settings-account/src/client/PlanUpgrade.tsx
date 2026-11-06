@@ -125,7 +125,12 @@ export function PlanUpgrade({ close }: PlanUpgradeProps) {
       const url = data.checkout?.checkoutUrl ?? data.checkout?.checkout_url
       if (url !== undefined && url !== '') {
         // 桌面 WebView 内直接打开支付页（微信/支付宝 H5 可拉起 App）。
-        window.open(url, '_blank', 'noopener')
+        // L3-B6（0.5.7）：window.open 被弹窗拦截/失败时返回 null——原实现完全
+        // 吞掉，用户点购买无反应还留下未支付订单。失败必须显性报错。
+        const payWin = window.open(url, '_blank', 'noopener')
+        if (payWin === null) {
+          setError('支付页面未能打开（可能被浏览器拦截）。请在设置中允许弹窗后重试；若已扣款请勿重复支付。')
+        }
       } else {
         setError('下单成功但未返回支付地址，请稍后重试或联系客服。')
       }

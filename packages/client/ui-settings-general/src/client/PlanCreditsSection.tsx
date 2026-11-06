@@ -148,11 +148,19 @@ export function PlanCreditsSection(): React.ReactElement {
           try {
             await tauri.core.invoke('open_payment', { url: body.checkout.checkoutUrl })
           } catch {
-            /* 2026-11-05（0.5.5 深查 B6）：壳开窗失败不再吞掉——退回系统浏览器。 */
-            window.open(body.checkout.checkoutUrl, '_blank', 'noopener')
+            /* 2026-11-05（0.5.5 深查 B6）：壳开窗失败不再吞掉——退回系统浏览器。
+             * L3-B6（0.5.7）：退回仍可能被弹窗拦截（window.open 返回 null），
+             * 必须显性报错，不能让用户以为点了没反应。 */
+            const fallback = window.open(body.checkout.checkoutUrl, '_blank', 'noopener')
+            if (fallback === null) {
+              setBuyError('支付页面未能打开（可能被浏览器拦截）。请允许弹窗后重试；若已扣款请勿重复支付。')
+            }
           }
         } else {
-          window.open(body.checkout.checkoutUrl, '_blank', 'noopener')
+          const fallback = window.open(body.checkout.checkoutUrl, '_blank', 'noopener')
+          if (fallback === null) {
+            setBuyError('支付页面未能打开（可能被浏览器拦截）。请允许弹窗后重试；若已扣款请勿重复支付。')
+          }
         }
       } else {
         setBuyError('下单失败，请稍后重试或联系客服。')

@@ -142,6 +142,7 @@ function AccountMenu({
 
   onSignOut,
   signingOut,
+  signOutError,
 }: {
   open: boolean
   account: { name?: string; username?: string; email?: string; avatar?: string } | null
@@ -153,6 +154,7 @@ function AccountMenu({
   onRecharge: () => void
   onSignOut: () => void
   signingOut: boolean
+  signOutError: string | undefined
 }) {
   // 2026-11-01：未购套餐时加油包灰置（悬浮提示），会员可点进设置购买。
   void onRecharge
@@ -410,6 +412,12 @@ function AccountMenu({
         </svg>
         <span>{signingOut ? '正在退出…' : '退出登录'}</span>
       </button>
+      {/* L4-B7（0.5.7）：退出失败显性化——不再默默跳转导致下次免密进旧账号。 */}
+      {signOutError !== undefined && (
+        <div role="alert" style={{ margin: '4px 12px 10px', padding: '8px 10px', borderRadius: 8, background: 'rgba(255,77,79,0.08)', color: 'var(--dsw-alias-label-danger, #d4380d)', fontSize: 12, lineHeight: 1.5 }}>
+          {signOutError}
+        </div>
+      )}
     </div>
   )
 }
@@ -544,6 +552,7 @@ export function HeightLabAccountFoot({ wide, openSettings }: HeightLabAccountFoo
   const [balance, setBalance] = useState<BalanceInfo | null>(null)
   const [balanceLoading, setBalanceLoading] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
+  const [signOutError, setSignOutError] = useState<string | undefined>(undefined)
 
   const refreshBalance = useCallback((): void => {
     setBalanceLoading(true)
@@ -585,14 +594,22 @@ export function HeightLabAccountFoot({ wide, openSettings }: HeightLabAccountFoo
      * 现在失败重试最多 3 次（间隔递增 0.6/1.2/1.8s，覆盖瞬时抖动与服务重启窗口），
      * 之后再跳转——此时至少给了服务端三次落盘机会。 */
     void (async () => {
+      let signoutOk = false
       for (let attempt = 0; attempt < 3; attempt += 1) {
         try {
           const res = await fetch('/hl/signout', { method: 'POST' })
-          if (res.ok) break
+          if (res.ok) { signoutOk = true; break }
         } catch { /* 网络抖动，继续重试 */ }
         await new Promise((resolve) => { setTimeout(resolve, 600 * (attempt + 1)) })
       }
-      /* 无论最终成败都跳转：重试已尽力；卡在这里用户只会更困惑。 */
+      /* L4-B7（0.5.7）：三次重试全败（如宿主正卡死）时，跳转会因 pending-logoff-url
+       * 未落盘而复用旧账号（账号隔离事故）。此时不跳转，显示错误并保留重试入口——
+       * 用户至少知道退出没成功，而不是以为已退出结果下次免密进了旧账号。 */
+      if (!signoutOk) {
+        setSigningOut(false)
+        setSignOutError('退出登录失败：服务暂时不可用，账号未退出。请稍后重试；多次失败请重启应用后再试。')
+        return
+      }
       window.location.href = '/'
     })()
   }, [signingOut])
@@ -646,6 +663,7 @@ export function HeightLabAccountFoot({ wide, openSettings }: HeightLabAccountFoo
               setPlanUpgradeOpen(true)
             }}
             onSignOut={signOut}
+            signOutError={signOutError}
             signingOut={signingOut}
           />
           {planUpgradeOpen && <PlanUpgrade close={() => { setPlanUpgradeOpen(false) }} />}
