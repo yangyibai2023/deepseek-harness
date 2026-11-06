@@ -528,7 +528,7 @@ export function ModelPickerPanel({
       {hoverCard !== null && createPortal(
         <div
           style={{
-            position: 'fixed', zIndex: 101, width: 244,
+            position: 'fixed', zIndex: 1201, width: 244,
             left: hoverCard.left, top: hoverCard.top,
             padding: '12px 16px', borderRadius: 'var(--dsw-radius-lg, 12px)',
             background: '#2C2C2E', color: '#fff',
