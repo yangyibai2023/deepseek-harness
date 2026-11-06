@@ -262,11 +262,14 @@ export function ModelPickerPanel({
     const meta = modelMeta(model.id)
     if (meta?.intro === undefined) { setHoverCard(null); return }
     const row = element.getBoundingClientRect()
-    const host = rootRef.current?.getBoundingClientRect()
+    /* N3 v5（用户反馈「覆盖了一点」）：参照物必须是**选择器面板**（panelRef），
+     * 不是触发器根（rootRef 在输入框那行，左缘差了几百像素）。卡的右缘 =
+     * 面板左缘 - gap，精确贴边。 */
+    const host = panelRef.current?.getBoundingClientRect()
     const width = 232
     const estHeight = 108
     const gap = 10
-    const hostLeft = host?.left ?? 0
+    const hostLeft = host?.left ?? row.left
     const left = Math.max(8, hostLeft - width - gap)
     /* 与悬浮行垂直居中对齐（用户截图确认的形态），上下视口钳制。 */
     const top = Math.max(8, Math.min(
