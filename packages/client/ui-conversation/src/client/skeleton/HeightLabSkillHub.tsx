@@ -13,7 +13,7 @@ import { SKILL_BODIES } from './HeightLabSkillBodies.ts'
 import css from './HeightLabSkillHub.module.css'
 
 type UserSkill = { name: string; description: string; updatedAt: number }
-type Tab = 'market' | 'official' | 'mine' | 'create'
+type Tab = 'market' | 'official' | 'square' | 'mine' | 'create'
 
 /** 在线市场的一条结果（与 /hl/skills/market 返回一致）。 */
 interface MarketSkill {
@@ -37,6 +37,17 @@ function loadUserSkills(): Promise<UserSkill[]> {
 
 export function HeightLabSkillHub({ onClose, embedded }: { onClose: () => void; embedded?: boolean }): ReactNode {
   const [tab, setTab] = useState<Tab>('official')
+  /* N7b（0.5.7 技能广场）：社区共享——浏览他人发布 / 发布我的 / 一键安装。 */
+  interface SquareRow {
+    id: number
+    owner_name: string
+    name: string
+    description: string
+    installs: number
+    mine: boolean
+  }
+  const [square, setSquare] = useState<SquareRow[] | null>(null)
+  const [squareBusy, setSquareBusy] = useState(false)
   const [mine, setMine] = useState<UserSkill[] | null>(null)
   const [form, setForm] = useState({ name: '', description: '', steps: '' })
   const [creating, setCreating] = useState(false)
@@ -159,6 +170,62 @@ export function HeightLabSkillHub({ onClose, embedded }: { onClose: () => void; 
       .catch(() => { setNotice('安装失败：宿主不可达') })
   }, [])
 
+  /* 广场 API 走云端（/api/market/square，鉴权用户）；安装落盘走宿主 /hl/skills/import。 */
+  const cloudApi = (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && !window.location.hostname.startsWith('127.'))
+    ? `${window.location.protocol}//${window.location.hostname}`
+    : 'https://heightlabai.com'
+  const refreshSquare = useCallback((): void => {
+    setSquareBusy(true)
+    fetch(`${cloudApi}/api/market/square`, { headers: { 'content-type': 'application/json' } })
+      .then(r => r.json())
+      .then((d) => { setSquare(Array.isArray(d?.skills) ? d.skills : []); setSquareBusy(false) })
+      .catch(() => { setSquare([]); setSquareBusy(false) })
+  }, [cloudApi])
+  const installSquare = useCallback((row: { id: number; name: string }): void => {
+    setSquareBusy(true)
+    fetch(`${cloudApi}/api/market/square/${row.id}/install`, { method: 'POST', headers: { 'content-type': 'application/json' } })
+      .then(r => r.json())
+      .then((d) => {
+        if (!d?.ok) throw new Error(d?.error ?? 'failed')
+        return fetch('/hl/skills/import', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ name: d.name ?? row.name, content: d.content }),
+        })
+      })
+      .then(r => r.json())
+      .then((d) => {
+        setSquareBusy(false)
+        setNotice(d?.ok ? `已安装「${row.name}」到我的技能` : `安装失败：${d?.error ?? '未知原因'}`)
+        if (d?.ok) refreshMine()
+      })
+      .catch(() => { setSquareBusy(false); setNotice('安装失败（需登录账号）') })
+  }, [cloudApi])
+  const unpublishSquare = useCallback((row: { id: number; name: string }): void => {
+    setSquareBusy(true)
+    fetch(`${cloudApi}/api/market/square/${row.id}`, { method: 'DELETE' })
+      .then(() => { setSquareBusy(false); setNotice(`已下架「${row.name}」`); refreshSquare() })
+      .catch(() => { setSquareBusy(false) })
+  }, [cloudApi, refreshSquare])
+  const publishMine = useCallback((name: string): void => {
+    fetch(`/hl/skills/content?name=${encodeURIComponent(name)}`)
+      .then(r => r.json())
+      .then((d) => {
+        if (!d?.ok || typeof d.content !== 'string') throw new Error(d?.error ?? 'no content')
+        return fetch(`${cloudApi}/api/market/square`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ name, content: d.content, description: d.description ?? '' }),
+        })
+      })
+      .then(r => r.json())
+      .then((d) => {
+        setNotice(d?.ok ? `「${name}」已发布到广场` : `发布失败：${d?.error ?? '未知原因'}`)
+        if (d?.ok) { refreshSquare() }
+      })
+      .catch((err) => { setNotice(`发布失败：${err instanceof Error ? err.message : '需登录账号'}`) })
+  }, [cloudApi, refreshSquare])
+
   const official = Object.entries(SKILL_BODIES).map(([id, s]) => ({
     id,
     name: s.dir,
@@ -181,6 +248,7 @@ export function HeightLabSkillHub({ onClose, embedded }: { onClose: () => void; 
         {([
           ['market', '技能市场'],
           ['official', `官方精选（${official.length}）`],
+          ['square', '技能广场'],
           ['mine', `我的技能（${mine?.length ?? 0}）`],
           ['create', '创建技能'],
         ] as Array<[Tab, string]>).map(([id, label]) => (
@@ -189,7 +257,7 @@ export function HeightLabSkillHub({ onClose, embedded }: { onClose: () => void; 
             type="button"
             className={css.skillHubTabButton}
             data-active={tab === id}
-            onClick={() => setTab(id)}
+            onClick={() => { setTab(id); if (id === 'square' && square === null) refreshSquare() }}
           >
             {label}
           </button>
@@ -238,6 +306,39 @@ export function HeightLabSkillHub({ onClose, embedded }: { onClose: () => void; 
             </div>
           </div>
         )}
+        {tab === 'square' && (
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <span style={{ fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' }}>
+                社区共享的技能，一键装进「我的技能」；发布需登录账号
+              </span>
+              <button type="button" className={css.skillHubAction} disabled={squareBusy} onClick={refreshSquare}>刷新</button>
+            </div>
+            {(square ?? []).length === 0 && (
+              <div style={{ fontSize: 13, color: 'var(--dsw-alias-label-tertiary)', padding: '24px 0', textAlign: 'center' }}>
+                {squareBusy ? '加载中…' : '广场还没有技能——到「我的技能」把你的沉淀发布出来'}
+              </div>
+            )}
+            {(square ?? []).map(row => (
+              <div key={row.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--dsw-alias-border-l3)' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>
+                    {row.name}
+                    <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--dsw-alias-label-tertiary)', fontWeight: 400 }}>
+                      {row.owner_name} · {row.installs} 次安装{row.mine ? ' · 我发布的' : ''}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--dsw-alias-label-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {row.description || '（无描述）'}
+                  </div>
+                </div>
+                {row.mine
+                  ? <button type="button" className={css.skillHubAction} disabled={squareBusy} onClick={() => unpublishSquare(row)}>下架</button>
+                  : <button type="button" className={css.skillHubAction} disabled={squareBusy} onClick={() => installSquare(row)}>安装</button>}
+              </div>
+            ))}
+          </div>
+        )}
         {tab === 'official' && (
           <div className={css.skillHubColumns}>
             {official.map(skill => (
@@ -272,6 +373,14 @@ export function HeightLabSkillHub({ onClose, embedded }: { onClose: () => void; 
                     onClick={() => useInChat(useSkillPrompt(skill.name))}
                   >
                     使用
+                  </button>
+                  {/* N7b（0.5.7 技能广场）：一键把我的沉淀发布给其他用户。 */}
+                  <button
+                    type="button"
+                    className={css.skillHubAction}
+                    onClick={() => { if (window.confirm(`把技能「${skill.name}」发布到广场？其他登录用户可浏览与安装。`)) publishMine(skill.name) }}
+                  >
+                    发布
                   </button>
                   <button
                     type="button"
