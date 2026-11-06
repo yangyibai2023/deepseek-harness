@@ -57,7 +57,12 @@ export function GlobalMemorySection(_props: PropsRuntime<'settings.section'>) {
 
   useEffect(() => {
     if (bridge !== undefined) return
-    return pollDsBotBridge(setBridge)
+    /* L1-B3（0.5.7）：桥 15s 未挂出 → 结束加载态+显性报错（不再永久"正在加载"）。
+   * 失败文案带重试语义：用户切到团队模式激活 ds-bot 后点重试即可。 */
+    return pollDsBotBridge(setBridge, () => {
+      setLoading(false)
+      setError('未检测到 Bot 服务（记忆页依赖团队模式）。请进入一次团队模式后重试。')
+    })
   }, [bridge])
 
   // roster 是 ds-bot 的**源**对象，`bots` 只在快照里（团队设置页同样用
@@ -126,7 +131,17 @@ export function GlobalMemorySection(_props: PropsRuntime<'settings.section'>) {
         每个 Bot 都有自己的长期记忆：它在这台电脑上记住的用户偏好、事实和约定，
         跨会话保留。这里只读展示它记住了什么；需要修改时点「管理」。
       </div>
-      {error !== undefined && <div className={css.failure} role="alert">{error}</div>}
+      {error !== undefined && (
+        <div className={css.failure} role="alert">
+          {error}
+          {/* L1-B3（0.5.7）：重试按钮——重新进入轮询态，而不是让用户刷新整页。 */}
+          <button
+            type="button"
+            onClick={() => { setError(undefined); setLoading(true); setBridge(undefined) }}
+            style={{ marginLeft: 8 }}
+          >重试</button>
+        </div>
+      )}
       {loading && <div className={css.placeholder}>正在读取记忆……</div>}
       {!loading && bots.length === 0 && (
         <div className={css.placeholder}>团队里还没有 Bot。切到「团队」建一个之后，它的记忆会出现在这里。</div>

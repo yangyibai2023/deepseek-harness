@@ -28,7 +28,11 @@ export function GlobalUsageSection(_props: PropsRuntime<'settings.section'>) {
 
   useEffect(() => {
     if (bridge !== undefined) return
-    return pollDsBotBridge(setBridge)
+    /* L1-B3（0.5.7）：桥 15s 未挂出 → 结束加载态+显性报错（不再永久"正在加载"）。
+   * 失败文案带重试语义：用户切到团队模式激活 ds-bot 后点重试即可。 */
+    return pollDsBotBridge(setBridge, () => {
+      setFailure('未检测到 Bot 服务（用量页依赖团队模式）。请进入一次团队模式后重试。')
+    })
   }, [bridge])
 
   useEffect(() => {
@@ -66,8 +70,13 @@ export function GlobalUsageSection(_props: PropsRuntime<'settings.section'>) {
         这里统计整个 HeightLab 的用量：个人会话、团队 Bot 与后台任务都算在内。
         只给团队用的细分，见「团队设置 → 团队用量」。
       </div>
-      {failure !== undefined && <div className={css.failure} role="alert">{failure}</div>}
-      {bridge === undefined
+      {failure !== undefined && (
+        <div className={css.failure} role="alert">
+          {failure}
+          <button type="button" onClick={() => { setFailure(undefined); setBridge(undefined) }} style={{ marginLeft: 8 }}>重试</button>
+        </div>
+      )}
+      {bridge === undefined && failure === undefined
         ? <div className={css.placeholder}>用量统计正在加载……</div>
         : <div ref={setHost} className={`${css.body} ${css.usageScope}`} />}
     </div>

@@ -49,11 +49,23 @@ export const ensureDsBotStyles = (): void => {
 /**
  * 桥在 ds-bot 客户端 apply 时才挂出；轮询等待，让「先开设置」也能最终拿到。
  * 返回清理函数。
+ * L1-B3（0.5.7）：加 15s 超时回调——ds-bot 未激活（如用户从未进过团队模式）时
+ * 桥永远不会挂出，原实现让设置页永久停在「正在加载……」。超时后 onTimeout 通知
+ * 页面进入失败态（显性报错+重试按钮），不再无限等待。
  */
-export const pollDsBotBridge = (onReady: (bridge: DsBotSettingsBridge) => void): (() => void) => {
+export const pollDsBotBridge = (
+  onReady: (bridge: DsBotSettingsBridge) => void,
+  onTimeout?: () => void,
+  timeoutMs = 15_000,
+): (() => void) => {
+  const startedAt = Date.now()
   const id = window.setInterval(() => {
     const next = readDsBotBridge()
-    if (next !== undefined) onReady(next)
+    if (next !== undefined) { onReady(next); return }
+    if (onTimeout !== undefined && Date.now() - startedAt >= timeoutMs) {
+      window.clearInterval(id)
+      onTimeout()
+    }
   }, 400)
   return () => { window.clearInterval(id) }
 }

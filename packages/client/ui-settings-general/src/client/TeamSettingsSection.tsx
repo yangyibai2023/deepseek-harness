@@ -68,7 +68,11 @@ export function TeamSettingsSection(_props: PropsRuntime<'settings.section'>) {
   // opening settings before it lands still works.
   useEffect(() => {
     if (bridge !== undefined) return
-    return pollDsBotBridge(setBridge)
+    /* L1-B3（0.5.7）：桥 15s 未挂出 → 结束加载态+显性报错（不再永久"正在加载"）。
+   * 失败文案带重试语义：用户切到团队模式激活 ds-bot 后点重试即可。 */
+    return pollDsBotBridge(setBridge, () => {
+      setFailure('未检测到 Bot 服务（团队页依赖团队模式）。请进入一次团队模式后重试。')
+    })
   }, [bridge])
 
   // Mount the active page through the bridge (its own React instance) and
@@ -119,10 +123,15 @@ export function TeamSettingsSection(_props: PropsRuntime<'settings.section'>) {
           </button>
         ))}
       </div>
-      {failure !== undefined && <div className={css.failure} role="alert">{failure}</div>}
+      {failure !== undefined && (
+        <div className={css.failure} role="alert">
+          {failure}
+          <button type="button" onClick={() => { setFailure(undefined); setBridge(undefined) }} style={{ marginLeft: 8 }}>重试</button>
+        </div>
+      )}
       {isAppearance
         ? <TeamAppearanceInline />
-        : bridge === undefined
+        : bridge === undefined && failure === undefined
           ? <div className={css.placeholder}>团队设置正在加载……</div>
           : <div ref={setHost} className={css.body} />}
     </div>

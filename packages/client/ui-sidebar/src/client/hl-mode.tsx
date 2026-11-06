@@ -280,7 +280,18 @@ export function HlModeSwitcher() {
       void switchDsBotSurface('agent').then((switched) => {
         if (stopped || userTouchedRef.current) return
         if (switched) return
-        if (tries >= 60) return
+        /* L1-B5（0.5.7）：归位耗尽不再静默放弃——落宿主日志（/hl/boot-marker
+         * 诊断通道），把「归位失败 30 秒」变成可观测事件，而不是用户机黑盒。 */
+        if (tries >= 60) {
+          try {
+            void fetch('/hl/boot-marker', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ hlSettle: true, stage: 'settle-exhausted', tries, surface: readDsBotSurface() }),
+            }).catch(() => { /* 非致命 */ })
+          } catch { /* 非致命 */ }
+          return
+        }
         window.setTimeout(settle, 500)
       })
     }

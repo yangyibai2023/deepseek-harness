@@ -387,7 +387,21 @@ export function apply(ctx: Context): void {
       }
       if (team) {
         const teamId = await dsBotWorkspaceId()
-        if (teamId === undefined) return
+        /* L1-B2（0.5.7）：「桥还没挂出工作区 id」不再是静默 return——落宿主日志
+         * + 安排短重试（ds-bot apply 是异步的，400ms 后桥通常就绪）。避免半程
+         * 状态：顶部已切团队、会话还留在个人区，用户看到的是「点了没反应」。 */
+        if (teamId === undefined) {
+          try {
+            void fetch('/hl/boot-marker', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ hlSync: true, stage: 'team-id-missing',
+                active: activeSessionId() ?? null }),
+            }).catch(() => { /* 非致命 */ })
+          } catch { /* 非致命 */ }
+          window.setTimeout(() => { void sync('team') }, 400)
+          return
+        }
         // 发布团队工作区 id：navigation.openSession 用它判断「用户点开的是不是
         // 团队会话」——单一权威，不靠标题匹配。
         ;(globalThis as { __hlTeamWorkspaceId?: string }).__hlTeamWorkspaceId = teamId
@@ -396,7 +410,19 @@ export function apply(ctx: Context): void {
         // 团队模式：会话必须落在团队工作区；当前不在就切过去（复用空白会话）。
         const teamEntry = workspaces.list.getSnapshot().items
           .find(item => item.workspaceId === teamId)
-        if (teamEntry === undefined) return
+        /* L1-B2（0.5.7）：团队工作区条目未就绪同样不静默——工作区列表是异步
+         * 建的，短重试一次比「点了没反应」体感好。 */
+        if (teamEntry === undefined) {
+          try {
+            void fetch('/hl/boot-marker', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ hlSync: true, stage: 'team-entry-missing', teamId }),
+            }).catch(() => { /* 非致命 */ })
+          } catch { /* 非致命 */ }
+          window.setTimeout(() => { void sync('team') }, 400)
+          return
+        }
         const active = activeSessionId()
         // 用 cwd 归属判定（见 belongsToWorkspace 注释）：历史会话可能不在
         // sessionIds 索引里，若只查索引会每 5s 重建会话导致聊天区闪烁上滑。
@@ -423,7 +449,18 @@ export function apply(ctx: Context): void {
       // 改为正向判据：只要当前会话**不在个人工作区**，就回到个人主页（我的工作区）。
       // 反方向判定不需要「证明属于团队」，因此对脏索引免疫。
       const personal = pickPersonalWorkspace()
-      if (personal === undefined) return
+      /* L1-B2（0.5.7）：个人工作区未就绪不静默——同样短重试一次。 */
+      if (personal === undefined) {
+        try {
+          void fetch('/hl/boot-marker', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ hlSync: true, stage: 'personal-entry-missing' }),
+          }).catch(() => { /* 非致命 */ })
+        } catch { /* 非致命 */ }
+        window.setTimeout(() => { void sync('personal') }, 400)
+        return
+      }
       const activeId = activeSessionId()
       if (activeId !== undefined && belongsToWorkspace(activeId, personal)) {
         diagSync('personal-already', { active: activeId })
