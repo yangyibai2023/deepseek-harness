@@ -25,7 +25,7 @@ import clsx from 'clsx'
 // IconLibraryStroke16（不同族），折叠后三项观感明显不一致。
 import {
   IconBrowseOutlineRegular, IconNewChatOutlineRegular, IconPlanOutlineRegular,
-  IconSlidersTwoOutlineRegular, IconWorkspaceTreeOutlineRegular, Tooltip,
+  IconWorkspaceTreeOutlineRegular, MenuSurface, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
   // HeightLab V31：创意灵感一级入口暂时隐藏（首页输入框下方的视频模板网格
@@ -153,12 +153,8 @@ export function SidebarRoot({
   })()
   const [labOpen, setLabOpen] = useState(false)
   const labButtonRef = useRef<HTMLButtonElement | null>(null)
-  const [labDockPos, setLabDockPos] = useState<{ left: number; bottom: number }>({ left: 64, bottom: 12 })
-  const openLabDock = (): void => {
-    const rect = labButtonRef.current?.getBoundingClientRect()
-    if (rect !== undefined) setLabDockPos({ left: rect.right + 10, bottom: Math.max(12, window.innerHeight - rect.bottom) })
-    setLabOpen(true)
-  }
+  const [labQuery, setLabQuery] = useState('')
+  const openLabDock = (): void => { setLabQuery(''); setLabOpen(true) }
   /* Dock 条目与旧一级行同款 hub 语义：pending hub + 事件，选中态归 lab 行。 */
   const labItems: readonly { key: string; label: string; Icon: typeof IconPlanOutlineRegular; page: string }[] = [
     { key: 'film-studio', label: '智能剪辑台', Icon: IconBrowseOutlineRegular, page: 'film-studio' },
@@ -417,7 +413,14 @@ export function SidebarRoot({
             onClick={() => { if (labOpen) { setLabOpen(false) } else { openLabDock() } }}
           >
             <span className={css.panelGlyph} aria-hidden="true">
-              <IconSlidersTwoOutlineRegular size={wide ? 16 : 18} />
+              {/* N18（用户拍板）：程序坞式 2×2 圆角方格描边形（Launchpad 语义），
+                1.2 描边/圆角端点与 OutlineRegular 族完全同款；不用彩色。 */}
+              <svg viewBox="0 0 16 16" width={wide ? 16 : 18} height={wide ? 16 : 18} fill="none" aria-hidden>
+                <rect x="2.1" y="2.1" width="4.8" height="4.8" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
+                <rect x="9.1" y="2.1" width="4.8" height="4.8" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
+                <rect x="2.1" y="9.1" width="4.8" height="4.8" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
+                <rect x="9.1" y="9.1" width="4.8" height="4.8" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
+              </svg>
             </span>
             {wide && <span className={clsx(css.panelTitle, css.wide)}>实验室</span>}
           </button>
@@ -447,31 +450,44 @@ export function SidebarRoot({
           {renderSlot('sidebar.settings', { wide })}
         </div>
       </div>
-      {/* N18 实验室 Dock：玻璃抽屉浮层（anchored 到实验室行右侧，抽屉弹出动画）。
-          透明背板负责点外关闭与 Escape——不遮内容（pointer-events 只在层上）。 */}
+      {/* N18 实验室：Launchpad 式居中大面板——dsh 原生 MenuSurface 玻璃
+          （与 @ 弹层同款 material+macOS vibrancy backing），弹出缩放动画。
+          顶栏搜索（Launchpad 同构）+ 工具图标网格；条目=旧一级行同款 hub 语义。 */}
       {labOpen && (
         <>
           <div
-            className={css.labDockBackdrop}
+            className={css.labPadBackdrop}
             onClick={() => setLabOpen(false)}
             onKeyDown={(event) => { if (event.key === 'Escape') setLabOpen(false) }}
             role="button"
             tabIndex={-1}
             aria-label="关闭实验室"
           />
-          <div
-            className={css.labDock}
-            style={{ left: labDockPos.left, bottom: labDockPos.bottom }}
-            role="menu"
-            aria-label="实验室工具"
-          >
-            {labItems.map(({ key, label, Icon, page }) => (
-              <button key={key} type="button" className={css.labDockItem} role="menuitem" onClick={() => openLabItem(page)}>
-                <span className={css.labDockGlyph} aria-hidden="true"><Icon size={26} /></span>
-                <span className={css.labDockLabel}>{label}</span>
-              </button>
-            ))}
-          </div>
+          <MenuSurface className={css.labPad} role="dialog" aria-label="实验室">
+            <div className={css.labPadHead}>
+              <span className={css.labPadTitle}>实验室</span>
+              <input
+                className={css.labPadSearch}
+                value={labQuery}
+                onChange={event => setLabQuery(event.target.value)}
+                placeholder="搜索"
+                autoFocus
+              />
+            </div>
+            <div className={css.labPadGrid}>
+              {labItems
+                .filter(({ label }) => labQuery === '' || label.toLowerCase().includes(labQuery.toLowerCase()))
+                .map(({ key, label, Icon, page }) => (
+                  <button key={key} type="button" className={css.labPadTile} onClick={() => openLabItem(page)}>
+                    <span className={css.labPadGlyph} aria-hidden="true"><Icon size={26} /></span>
+                    <span className={css.labPadLabel}>{label}</span>
+                  </button>
+                ))}
+              {labItems.every(({ label }) => labQuery !== '' && !label.toLowerCase().includes(labQuery.toLowerCase())) && (
+                <div className={css.labPadEmpty}>没有匹配的工具</div>
+              )}
+            </div>
+          </MenuSurface>
         </>
       )}
     </div>
