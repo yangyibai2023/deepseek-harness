@@ -105,8 +105,13 @@ export function apply(ctx: Context): void {
           for (const { event } of change.entries) {
             if (event.type !== 'turn/end' || event.data.reason.kind !== 'error') continue
             const { code } = event.data.reason.error
-            if (quotaNoticeHolds.size > 0 || (code !== 'QUOTA' && code !== 'ACCOUNT_QUOTA')) continue
-            quotaNotice.set({ code, seq: ++quotaNoticeSeq })
+            /* L2（0.5.7）：quota 类照旧；banner 类判决（AUTH/MODEL_UNAVAILABLE/
+             * RATE_LIMITED）经同一宿主呈现——仲裁器 showBanner=true 的消费面。 */
+            const bannerCodes: ReadonlyArray<'AUTH' | 'MODEL_UNAVAILABLE' | 'RATE_LIMITED'> = ['AUTH', 'MODEL_UNAVAILABLE', 'RATE_LIMITED']
+            const isQuota = code === 'QUOTA' || code === 'ACCOUNT_QUOTA'
+            const isBanner = bannerCodes.includes(code as 'AUTH' | 'MODEL_UNAVAILABLE' | 'RATE_LIMITED')
+            if (quotaNoticeHolds.size > 0 || !(isQuota || isBanner)) continue
+            quotaNotice.set({ code: isQuota ? code : code as 'AUTH' | 'MODEL_UNAVAILABLE' | 'RATE_LIMITED', seq: ++quotaNoticeSeq })
           }
         })
         return () => {

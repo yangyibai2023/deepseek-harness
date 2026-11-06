@@ -14,8 +14,17 @@ import type { QuotaNoticeHostProps, QuotaNoticeOwnerProps } from '../contract/sl
 export function QuotaNoticeHost({ useNotice, dismissNotice, keepNoticeOpen, renderSlotChain, t }: QuotaNoticeHostProps) {
   const notice = useNotice(current => current)
   if (notice === null) return null
+  /* L2（0.5.7 verdict 横幅消费）：banner 类判决按 code 取场景化文案（仲裁器
+   * titleKey 同源），quota 类沿用原键。判决种类即通知种类，一处宿主两种呈现。 */
+  const bannerKeys: Partial<Record<string, 'message.turnError.auth' | 'message.turnError.modelUnavailable' | 'message.turnError.rateLimited'>> = {
+    AUTH: 'message.turnError.auth',
+    MODEL_UNAVAILABLE: 'message.turnError.modelUnavailable',
+    RATE_LIMITED: 'message.turnError.rateLimited',
+  }
+  const bannerKey = bannerKeys[notice.code]
+  const message = bannerKey !== undefined ? t(bannerKey) : t('message.failure.quota')
   const owner: QuotaNoticeOwnerProps = {
-    code: notice.code, message: t('message.failure.quota'), dismiss: dismissNotice, keepOpen: keepNoticeOpen,
+    code: notice.code as QuotaNoticeOwnerProps['code'], message, dismiss: dismissNotice, keepOpen: keepNoticeOpen,
   }
   return (
     <Fragment key={`quota-notice-${String(notice.seq)}`}>

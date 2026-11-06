@@ -63,11 +63,16 @@ export interface AssistantActionOwnerProps {
 
 /** Stable quota failure codes retained in the Session log; both raise the frame-wide notice. */
 export type QuotaNoticeCode = 'QUOTA' | 'ACCOUNT_QUOTA'
+/* L2（0.5.7 verdict 横幅消费）：仲裁器 showBanner=true 的三类判决（AUTH/
+ * MODEL_UNAVAILABLE/RATE_LIMITED）此前全仓无呈现面——气泡 showInBubble=false、
+ * 横幅容器不存在，用户只看到「什么都没发生」。复用 frame 级 notice 宿主呈现，
+ * code 即判决 kind，文案在宿主按 code 取 locale 键。 */
+export type BannerNoticeCode = 'AUTH' | 'MODEL_UNAVAILABLE' | 'RATE_LIMITED'
 
 /** The notice on display; `seq` keys remounts so an unretained later notice restarts its transient display. */
 export interface QuotaNoticeState {
   /** Stable failure code retained in the Session log. */
-  code: QuotaNoticeCode
+  code: QuotaNoticeCode | BannerNoticeCode
   /** Per-publication sequence; the host keys its surface by it. */
   seq: number
 }
@@ -89,7 +94,7 @@ export interface ReasoningContentInput extends ReasoningBodyOwnerProps {
 /** Owner currency of one quota notice offered to the frame-wide chain. */
 export interface QuotaNoticeOwnerProps {
   /** Stable failure code retained in the Session log. */
-  code: QuotaNoticeCode
+  code: QuotaNoticeCode | BannerNoticeCode
   /** Provider-neutral notice copy in the active locale. */
   message: string
   /** Take the notice down. */
