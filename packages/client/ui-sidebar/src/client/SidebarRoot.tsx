@@ -25,7 +25,7 @@ import clsx from 'clsx'
 // IconLibraryStroke16（不同族），折叠后三项观感明显不一致。
 import {
   IconBrowseOutlineRegular, IconNewChatOutlineRegular, IconPlanOutlineRegular,
-  IconWorkspaceTreeOutlineRegular, Tooltip,
+  IconSlidersTwoOutlineRegular, IconWorkspaceTreeOutlineRegular, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
   // HeightLab V31：创意灵感一级入口暂时隐藏（首页输入框下方的视频模板网格
@@ -146,6 +146,30 @@ export function SidebarRoot({
   // HeightLab（2026-10-17）：自建 hub 行（视频创作/资产中心）的选中态跟踪——
   // 与原生 panelActive 同款反馈；关闭 hub/新会话/点面板行时清除。
   const [activeHub, setActiveHub] = useState<string | null>(null)
+  /* N18（0.5.7 实验室 Dock）：一级菜单收纳实验性工具入口（首个=智能剪辑台）。
+   * 回滚开关：SHOW_FILM_STUDIO_ROW=1 恢复剪辑台独立一级行。 */
+  const showFilmStudioRow = (() => {
+    try { return window.localStorage.getItem('SHOW_FILM_STUDIO_ROW') === '1' } catch { return false }
+  })()
+  const [labOpen, setLabOpen] = useState(false)
+  const labButtonRef = useRef<HTMLButtonElement | null>(null)
+  const [labDockPos, setLabDockPos] = useState<{ left: number; bottom: number }>({ left: 64, bottom: 12 })
+  const openLabDock = (): void => {
+    const rect = labButtonRef.current?.getBoundingClientRect()
+    if (rect !== undefined) setLabDockPos({ left: rect.right + 10, bottom: Math.max(12, window.innerHeight - rect.bottom) })
+    setLabOpen(true)
+  }
+  /* Dock 条目与旧一级行同款 hub 语义：pending hub + 事件，选中态归 lab 行。 */
+  const labItems: readonly { key: string; label: string; Icon: typeof IconPlanOutlineRegular; page: string }[] = [
+    { key: 'film-studio', label: '智能剪辑台', Icon: IconBrowseOutlineRegular, page: 'film-studio' },
+  ]
+  const openLabItem = (page: string): void => {
+    ;(window as unknown as { __hlPendingHub?: string | null }).__hlPendingHub = page
+    setActiveHub('lab')
+    selectPanel(null)
+    setLabOpen(false)
+    window.dispatchEvent(new CustomEvent('hl:open-hub', { detail: { page } }))
+  }
   const lingerTimer = useRef<number | undefined>(undefined)
   const armLinger = (): void => {
     if (lingerTimer.current !== undefined) return
@@ -312,10 +336,9 @@ export function SidebarRoot({
             // 图标统一到 OutlineRegular（2026-10-17）：「视频创作」用 Plan 型
             // （分镜/计划语义），「资产中心」用 WorkspaceTree 型（目录/资产语义）。
             { key: 'video-studio', label: '视频创作', Icon: IconPlanOutlineRegular, page: 'video-studio' },
-            // HeightLab（2026-10-20 用户拍板）：剪辑台是一级入口，紧邻「视频创作」——
-            // 语义上「先创作、再成片」连成一条线。它是个人模式里的工具视图，不是
-            // 第三套模式，所以不占「个人|团队」那排。
-            { key: 'film-studio', label: '智能剪辑台', Icon: IconBrowseOutlineRegular, page: 'film-studio' },
+            // N18（2026-11-07 用户拍板）：剪辑台一级入口隐藏，收纳进「实验室」Dock
+            //（不删除；回滚开关 = localStorage SHOW_FILM_STUDIO_ROW=1 恢复本行）。
+            ...(showFilmStudioRow ? [{ key: 'film-studio', label: '智能剪辑台', Icon: IconBrowseOutlineRegular, page: 'film-studio' }] : []),
             { key: 'library', label: '资产中心', Icon: IconWorkspaceTreeOutlineRegular, page: 'library' },
           ]
           return (
@@ -382,6 +405,23 @@ export function SidebarRoot({
             renderSlot={renderSlot}
           />
         ))}
+        {/* N18（0.5.7 用户拍板）：一级菜单末位=「实验室」——程序坞式收纳实验工具。
+            图标/字号/间距与 panelRow 完全同款；点击弹出玻璃 Dock。 */}
+        <Tooltip label="实验室" delayMs={500} disabled={wide}>
+          <button
+            ref={labButtonRef}
+            type="button"
+            className={clsx(css.panelRow, labOpen && css.panelActive)}
+            aria-label="实验室"
+            aria-expanded={labOpen}
+            onClick={() => { if (labOpen) { setLabOpen(false) } else { openLabDock() } }}
+          >
+            <span className={css.panelGlyph} aria-hidden="true">
+              <IconSlidersTwoOutlineRegular size={wide ? 16 : 18} />
+            </span>
+            {wide && <span className={clsx(css.panelTitle, css.wide)}>实验室</span>}
+          </button>
+        </Tooltip>
       </nav>
 
       {/* The browsing region fills the column between the controls and the
@@ -407,6 +447,33 @@ export function SidebarRoot({
           {renderSlot('sidebar.settings', { wide })}
         </div>
       </div>
+      {/* N18 实验室 Dock：玻璃抽屉浮层（anchored 到实验室行右侧，抽屉弹出动画）。
+          透明背板负责点外关闭与 Escape——不遮内容（pointer-events 只在层上）。 */}
+      {labOpen && (
+        <>
+          <div
+            className={css.labDockBackdrop}
+            onClick={() => setLabOpen(false)}
+            onKeyDown={(event) => { if (event.key === 'Escape') setLabOpen(false) }}
+            role="button"
+            tabIndex={-1}
+            aria-label="关闭实验室"
+          />
+          <div
+            className={css.labDock}
+            style={{ left: labDockPos.left, bottom: labDockPos.bottom }}
+            role="menu"
+            aria-label="实验室工具"
+          >
+            {labItems.map(({ key, label, Icon, page }) => (
+              <button key={key} type="button" className={css.labDockItem} role="menuitem" onClick={() => openLabItem(page)}>
+                <span className={css.labDockGlyph} aria-hidden="true"><Icon size={26} /></span>
+                <span className={css.labDockLabel}>{label}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   )
 }
