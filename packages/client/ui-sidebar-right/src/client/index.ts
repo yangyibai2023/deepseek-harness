@@ -304,7 +304,7 @@ export function apply(ctx: ClientContext): void {
                 if (Array.isArray(list)) {
                   localStorage.setItem(
                     'hl-replication-sessions',
-                    JSON.stringify(list.filter((id) => id !== sid).slice(-50)),
+                    JSON.stringify(list.filter(id => id !== sid).slice(-50)),
                   )
                 }
               } catch { /* 非致命 */ }
@@ -340,11 +340,11 @@ export function apply(ctx: ClientContext): void {
     // HeightLab V26e：hl:start-replication——新会话 seed 已天生带控制台首
     // tab（contract/seed.ts）；这里只负责右栏若收起则自动展开。
     const onStartReplication = (): void => {
-      window.setTimeout(() => {
-        try {
-          if (!controller.isExpanded()) controller.toggleExpanded()
-        } catch { /* 会话尚未挂载时静默；seed 已带 tab，展开态随会话恢复 */ }
-      }, 600)
+      /* P0-#8（0.5.7 用户实测「爆款复刻面板丢了」）：复用会话路径右栏已 seed
+       * guide tab，原实现只 toggleExpanded 不开创作台 tab → 用户看到的是右栏
+       * 打开但内容是默认页而非复刻工作台。改走 openConsoleRetrying(true)：
+       * 幂等开 tab + DOM 实测展开重试（V40 同款），与新建路径行为一致。 */
+      window.setTimeout(() => { openConsoleRetrying(true) }, 600)
     }
     // HeightLab V29：会话切换事件。V31g：切到「非复刻会话」时同步清理复刻
     // 上下文（0.2.1 适配：按切入会话 closeIn）。

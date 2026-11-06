@@ -602,9 +602,8 @@ export function HeightLabAuthGate({
   useEffect(() => { syncAuthMarker(state) }, [state])
 
   useEffect(() => {
-    try {
-      sessionStorage.removeItem('hl-post-login-reload')
-    } catch { /* 忽略 */ }
+    // L5（0.5.7 死标记清理）：hl-post-login-reload 全仓只剩此一处 remove——
+    // set/get 早已不存在，纯化石，删除。
     const params = new URLSearchParams(window.location.search)
     const code = params.get('code')
     // 诊断触发：URL 带 hl_auto_login=1 时先存 sessionStorage（登录页挂载前
