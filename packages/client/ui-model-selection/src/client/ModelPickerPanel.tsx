@@ -250,11 +250,16 @@ export function ModelPickerPanel({
     if (meta?.intro === undefined) { setHoverCard(null); return }
     const row = element.getBoundingClientRect()
     const host = rootRef.current?.getBoundingClientRect()
-    const width = 244
+    const width = 232
+    const estHeight = 108
     const gap = 10
     const hostLeft = host?.left ?? 0
     const left = Math.max(8, hostLeft - width - gap)
-    const top = Math.max(8, Math.min(row.top, window.innerHeight - 170))
+    /* 与悬浮行垂直居中对齐（用户截图确认的形态），上下视口钳制。 */
+    const top = Math.max(8, Math.min(
+      row.top + row.height / 2 - estHeight / 2,
+      window.innerHeight - estHeight - 8,
+    ))
     setHoverCard({
       name: model.label,
       intro: meta.intro,
@@ -511,7 +516,7 @@ export function ModelPickerPanel({
           <div>{hoverCard.intro}</div>
           {hoverCard.ratio !== undefined && (
             <div style={{ marginTop: 6, color: 'rgba(255,255,255,0.6)' }}>
-              相对倍率 {hoverCard.ratio}（基准 deepseek-flash 1.00×）
+              倍率 {hoverCard.ratio}
             </div>
           )}
         </div>,
