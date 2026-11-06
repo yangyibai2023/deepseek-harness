@@ -39,6 +39,7 @@ export function heightlabFriendlyErrorText(text: string): string {
   // 同样是技术细节，部分替换会留下半截英文，反而更刺眼。
   t = t.replace(/.*\binsufficient[\s_-]+(?:quota|balance|credits?)\b.*/i, '当前余额不足，请充值后继续使用。')
   t = t.replace(/.*(?:额度不足|余额不足|credits? insufficient).*/i, '当前余额不足，请充值后继续使用。')
+  t = t.replace(/.*预扣费(?:额度)?失败.*/i, '当前余额不足，无法完成本次生成。请充值后重试（未成功的任务不会扣费）。')
   t = t.replace(/.*(?:rate limit|too many requests|requests? too frequent).*/i, '请求过于频繁，请稍后重试。')
   t = t.replace(/.*(?:context length|maximum context|input exceeds|token limit).*/i, '内容超出模型可处理范围，请精简后重试。')
   t = t.replace(/.*(?:api key|authentication failed|unauthorized|invalid key).*/i, '服务鉴权失败，请稍后重试或重新登录。')

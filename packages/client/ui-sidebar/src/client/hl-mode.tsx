@@ -231,8 +231,23 @@ export function HlModeSwitcher() {
   const choose = (mode: HlMode) => {
     // 用户显式切换：立即叫停启动归位循环（0.5.6 抢切换修复）。
     userTouchedRef.current = true
-    // 先驱动 ds-bot：点它的官方按钮，切完 surface 轮询会把高亮同步过去。
-    void switchDsBotSurface(mode === 'enterprise' ? 'bot' : 'agent')
+    // L1-B4（0.5.7 核查收窄）：插件未加载的启动窗口内点击 = switchDsBotSurface
+    // 直接 false（hub/DOM/reload 三重兜底都够不着），用户看到「点了没反应」。
+    // 审计评 P1 偏高（窗口只有几秒且再点一次自愈），修法从简：插件不在场时
+    // 轮询等它加载（最多 5s）再切，不引入 reload 之类的重手法。
+    const target = mode === 'enterprise' ? 'bot' : 'agent'
+    if (!dsBotPresent()) {
+      let waited = 0
+      const waitPlugin = (): void => {
+        if (dsBotPresent()) { void switchDsBotSurface(target); return }
+        if (waited >= 5000) return
+        waited += 250
+        window.setTimeout(waitPlugin, 250)
+      }
+      waitPlugin()
+    } else {
+      void switchDsBotSurface(target)
+    }
     if (mode === 'personal') {
       enter('personal', '')
       return

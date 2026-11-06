@@ -173,7 +173,10 @@ export function displayFailure(failure: unknown): DisplayFailure {
   const QUOTA_TEXT_RE = new RegExp(
     'insufficient[\\s_-]+(?:quota|balance|credits?)|额度不足|余额不足'
     + '|credits?\\s+insufficient|quota\\s+exceeded'
-    + '|exceeded\\s+your\\s+(?:current\\s+)?quota|payment\\s+required|insufficient_quota',
+    + '|exceeded\\s+your\\s+(?:current\\s+)?quota|payment\\s+required|insufficient_quota'
+    /* B2（0.5.7 计费链路）：New API 视频预扣 403 的原生措辞是「预扣费额度失败」，
+     * 不含「额度不足」四字 → 之前漏出 QUOTA 判定，用户看到裸 403 且无充值按钮。 */
+    + '|预扣费(?:额度)?失败|用户额度不足',
     'i',
   )
   const looksQuota = (rawCode !== undefined && QUOTA_CODE_RE.test(rawCode))
