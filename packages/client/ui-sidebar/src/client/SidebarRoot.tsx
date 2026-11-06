@@ -16,7 +16,7 @@
  * scrollbar indirection away while it is elsewhere, so a list the user is not
  * pointing at carries no bar.
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 // HeightLab（2026-10-17 用户拍板）：侧栏自建行图标统一到原生 panelRow 的
 // OutlineRegular 系列——基准是「插件·技能」(IconPluginPinwheelOutlineRegular)
@@ -153,8 +153,25 @@ export function SidebarRoot({
   })()
   const [labOpen, setLabOpen] = useState(false)
   const labButtonRef = useRef<HTMLButtonElement | null>(null)
+  const labPanelRef = useRef<HTMLDivElement | null>(null)
+  const [labOrigin, setLabOrigin] = useState<string | undefined>(undefined)
   const [labQuery, setLabQuery] = useState('')
-  const openLabDock = (): void => { setLabQuery(''); setLabOpen(true) }
+  /* macOS 式弹出：transform-origin 实测定到实验室按钮中心——面板「从按钮里
+   * 拧出来」（squish spring ~170ms，见 .labPad keyframes）。 */
+  const openLabDock = (): void => {
+    setLabQuery('')
+    setLabOpen(true)
+  }
+  useLayoutEffect(() => {
+    if (!labOpen) return
+    const btn = labButtonRef.current?.getBoundingClientRect()
+    const panel = labPanelRef.current?.getBoundingClientRect()
+    if (btn !== undefined && panel !== undefined) {
+      const x = Math.round(btn.left + btn.width / 2 - panel.left)
+      const y = Math.round(btn.top + btn.height / 2 - panel.top)
+      setLabOrigin(`${x}px ${y}px`)
+    }
+  }, [labOpen])
   /* Dock 条目与旧一级行同款 hub 语义：pending hub + 事件，选中态归 lab 行。 */
   const labItems: readonly { key: string; label: string; Icon: typeof IconPlanOutlineRegular; page: string }[] = [
     { key: 'film-studio', label: '智能剪辑台', Icon: IconBrowseOutlineRegular, page: 'film-studio' },
@@ -463,7 +480,7 @@ export function SidebarRoot({
             tabIndex={-1}
             aria-label="关闭实验室"
           />
-          <MenuSurface className={css.labPad} role="dialog" aria-label="实验室">
+          <MenuSurface ref={labPanelRef} className={css.labPad} style={{ transformOrigin: labOrigin }} role="dialog" aria-label="实验室">
             <div className={css.labPadHead}>
               <span className={css.labPadTitle}>实验室</span>
               <input
