@@ -480,7 +480,7 @@ export function ModelSelect(
         id: choice.model.id,
         label: choice.model.name,
         selected,
-        ...(choice.model.reasoning === undefined ? {} : { badge: '视觉' }),
+        // N3（0.5.7 用户拍板）：去掉「视觉」占位 badge——能力以能力目录文档表达。
       })
       byId.set(provider.id, entry)
     }
@@ -489,6 +489,9 @@ export function ModelSelect(
       (order.indexOf(a.id) === -1 ? 99 : order.indexOf(a.id))
       - (order.indexOf(b.id) === -1 ? 99 : order.indexOf(b.id)))
   })()
+  const [previewProviderId, setPreviewProviderId] = useState<string | undefined>(undefined)
+  // 面板关闭时清预览，避免下次打开残留悬浮态。
+  useEffect(() => { if (!modelOpen) setPreviewProviderId(undefined) }, [modelOpen])
   const currentProviderId = currentChoice === undefined ? undefined : providerFor(currentChoice.model.id).id
 
   return (
@@ -522,6 +525,8 @@ export function ModelSelect(
         onClose={() => { setModelOpen(false) }}
         ariaLabel={t('menu.aria')}
         providers={providers}
+        onPreviewProvider={setPreviewProviderId}
+        previewProviderId={previewProviderId}
         currentProviderId={currentProviderId}
         emptyLabel={state.status === 'loading' ? t('status.loading') : t('status.empty')}
         onPickModel={(_providerId, modelId) => {

@@ -33,6 +33,8 @@ import {
 import type { CSSProperties, RefObject } from 'react'
 import { EffortSlider } from './EffortSlider.tsx'
 import css from './ModelPickerPanel.module.css'
+import { BRAND_SVG, BRAND_LETTER } from './brands.ts'
+import { HoverCard } from '@deepseek-ai/dsh-client-ui-primitives'
 
 /* 模型倍率（2026-11-03 FIX-5/FIX-6）：改为**服务端下发**，不再硬编码。
  *
@@ -48,7 +50,13 @@ import css from './ModelPickerPanel.module.css'
  * 拉取失败时**不显示任何角标**（fail-closed）——宁可没有数字，也绝不显示错数字。
  */
 const MODEL_RATIOS_TTL_MS = 60 * 60 * 1000
-let ratioCache: { at: number; ratios: Record<string, number>; unitPrices: Record<string, number> } | null = null
+interface RatioModelMeta { intro?: string; recommend?: string }
+let ratioCache: {
+  at: number
+  ratios: Record<string, number>
+  unitPrices: Record<string, number>
+  meta: Record<string, RatioModelMeta>
+} | null = null
 let ratioInflight: Promise<void> | null = null
 
 /** 拉一次倍率（进程内缓存 1 小时；并发调用合并为一次请求）。 */
@@ -60,11 +68,21 @@ async function loadModelRatios(): Promise<void> {
       const res = await fetch('/hl/model-ratios', { signal: AbortSignal.timeout(8000) })
       const data = await res.json() as {
         ok?: boolean
+        models?: Array<{ id?: string; intro?: string; recommend?: string }>
         ratios?: Record<string, number>
         unitPrices?: Record<string, number>
       }
       if (data.ok === true && data.ratios !== undefined && typeof data.ratios === 'object') {
-        ratioCache = { at: Date.now(), ratios: data.ratios, unitPrices: data.unitPrices ?? {} }
+        const meta: Record<string, RatioModelMeta> = {}
+        for (const m of data.models ?? []) {
+          if (typeof m.id === 'string' && (m.intro !== undefined || m.recommend !== undefined)) {
+            meta[m.id] = {
+              ...(m.intro === undefined ? {} : { intro: m.intro }),
+              ...(m.recommend === undefined ? {} : { recommend: m.recommend }),
+            }
+          }
+        }
+        ratioCache = { at: Date.now(), ratios: data.ratios, unitPrices: data.unitPrices ?? {}, meta }
       }
     } catch { /* 失败保持无缓存 → 不显示角标 */ }
     finally { ratioInflight = null }
@@ -87,6 +105,35 @@ function ratioLabel(modelId: string): string | undefined {
   return ratio === undefined ? undefined : `${ratio}×`
 }
 
+/** N3（0.5.7）：模型的介绍与推荐标记（服务端 /hl/model-ratios 下发）。 */
+function modelMeta(modelId: string): RatioModelMeta | undefined {
+  return ratioCache?.meta[modelId]
+}
+
+/** N3：供应商品牌标（SVG 品牌标 or 品牌色字母徽章）。 */
+export function BrandMarkIcon({ providerId, size = 14 }: { providerId: string; size?: number }): ReactNode {
+  const mark = BRAND_SVG[providerId]
+  if (mark !== undefined) {
+    return (
+      <svg viewBox={mark.viewBox} width={size} height={size} aria-hidden="true" style={{ flex: 'none' }}>
+        <path d={mark.path} fill={mark.color} />
+      </svg>
+    )
+  }
+  const letter = BRAND_LETTER[providerId] ?? { color: '#9E9E9E', text: '?' }
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        width: size, height: size, borderRadius: '50%', flex: 'none',
+        background: letter.color, color: '#fff',
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: Math.round(size * 0.58), fontWeight: 700, lineHeight: 1,
+      }}
+    >{letter.text}</span>
+  )
+}
+
 
 /** 面板首帧先隐藏量尺寸，避免闪到屏幕外（与 Menu portal 同一做法）。 */
 const MEASURE_STYLE = { visibility: 'hidden' as const, left: 0, top: 0 }
@@ -102,6 +149,9 @@ export interface ModelRowEntry {
   readonly label: string
   readonly selected: boolean
   readonly badge?: string
+  /** N3（0.5.7）：HoverCard 介绍 + 推荐标记（服务端下发）。 */
+  readonly intro?: string
+  readonly recommend?: string
 }
 
 export interface EffortEntry {
@@ -111,7 +161,7 @@ export interface EffortEntry {
 
 export function ModelPickerPanel({
   anchorRef, rootRef, open, onClose, ariaLabel, providers, currentProviderId,
-  emptyLabel, onPickModel, onPickProvider, effort, onPickEffort, effortTitle,
+  emptyLabel, onPickModel, onPickProvider, onPreviewProvider, previewProviderId, effort, onPickEffort, effortTitle,
   effortCurrent, manageLabel, locked = false,
 }: {
   readonly anchorRef: RefObject<HTMLElement | null>
@@ -125,6 +175,9 @@ export function ModelPickerPanel({
   readonly onPickModel: (providerId: string, modelId: string) => void
   /** 在二级里选了另一个厂商（切过去并把面板回到一级）。 */
   readonly onPickProvider: (providerId: string) => void
+  /** N3（0.5.7 用户拍板）：悬浮供应商=模型列表即时预览切换（点击仍确认）。 */
+  readonly onPreviewProvider?: (providerId: string) => void
+  readonly previewProviderId?: string | undefined
   /** 当前型号的思考档位；undefined 表示该型号不支持（不显示滑块）。 */
   readonly effort: {
     readonly options: readonly EffortEntry[]
@@ -175,7 +228,11 @@ export function ModelPickerPanel({
    * 让 useAnchoredPosition 自动翻转到上方。面板最大高度固定为 520px，
    * 模型少时自适应内容高度，模型多时固定 520px（可滚动）。 */
   const current = providers.find(provider => provider.id === currentProviderId) ?? providers[0]
-  const models = current?.models ?? []
+  /* N3：悬浮供应商=预览切换（模型列表即时跟随；current 仍是已确认供应商）。 */
+  const previewed = onPreviewProvider === undefined
+    ? current
+    : providers.find(provider => provider.id === previewProviderId) ?? current
+  const models = previewed?.models ?? []
   /* 2026-11-03 深夜四修（用户第四次实测「App 里还是溢出屏幕」）：
    *
    * 前三修的错误：把 maxHeight 算成「视口 × 0.7，封顶 520」这个**固定值**，
@@ -300,10 +357,12 @@ export function ModelPickerPanel({
                 aria-selected={provider.id === currentProviderId}
                 onClick={() => {
                   onPickProvider(provider.id)
+                  onPreviewProvider?.(provider.id)
                   setPickingProvider(false)
                 }}
+                onMouseEnter={() => { onPreviewProvider?.(provider.id) }}
               >
-                <span className={css.dot} aria-hidden="true" />
+                <BrandMarkIcon providerId={provider.id} />
                 <span className={css.providerName}>{provider.label}</span>
                 <span className={css.badge}>API</span>
                 {provider.id === currentProviderId && <IconCheckOutlineRegular className={css.check} size={14} />}
@@ -318,29 +377,66 @@ export function ModelPickerPanel({
       <div className={css.modelList}>
         <div className={css.sectionTitle} role="presentation">模型</div>
         {models.map(model => (
-          <button
+          <HoverCard
             key={model.id}
-            type="button"
-            role="menuitem"
-            className={css.modelRow}
-            aria-selected={model.selected}
-            onClick={() => { if (current !== undefined) onPickModel(current.id, model.id) }}
-          >
-            <span className={css.modelName}>{model.label}</span>
-            {(() => {
-              // 倍率由服务端下发（FIX-5/FIX-6）；拉不到时不渲染角标，绝不显示错数字。
-              const label = ratioLabel(model.id)
-              return label === undefined
-                ? null
-                : (
-                  <span style={{ marginLeft: 'auto', fontSize: 12, color: 'rgba(127,127,127,0.75)', fontVariantNumeric: 'tabular-nums' }}>
-                    {label}
-                  </span>
-                )
+            openDelayMs={350}
+            disabled={modelMeta(model.id)?.intro === undefined}
+            anchor={(
+              <button
+                type="button"
+                role="menuitem"
+                className={css.modelRow}
+                aria-selected={model.selected}
+                onClick={() => { if (previewed !== undefined) onPickModel(previewed.id, model.id) }}
+              >
+                <span className={css.modelName}>{model.label}</span>
+                {(() => {
+                  // N3：推荐标记（最热/最省/最强/推荐，稀疏打标）。
+                  const rec = modelMeta(model.id)?.recommend
+                  const recColor: Record<string, string> = {
+                    最热: '#E5533D', 最省: '#1F9D55', 最强: '#7C5CFF', 推荐: '#2B7FFF',
+                  }
+                  return rec === undefined
+                    ? null
+                    : (
+                      <span style={{
+                        marginLeft: 'auto', fontSize: 11, lineHeight: '16px',
+                        padding: '0 6px', borderRadius: 6,
+                        color: recColor[rec] ?? '#666', background: `${recColor[rec] ?? '#666'}1A`,
+                      }}>{rec}</span>
+                    )
+                })()}
+                {(() => {
+                  // 倍率由服务端下发（FIX-5/FIX-6）；拉不到时不渲染角标，绝不显示错数字。
+                  const label = ratioLabel(model.id)
+                  return label === undefined
+                    ? null
+                    : (
+                      <span style={{ marginLeft: modelMeta(model.id)?.recommend === undefined ? 'auto' : 6, fontSize: 12, color: 'rgba(127,127,127,0.75)', fontVariantNumeric: 'tabular-nums' }}>
+                        {label}
+                      </span>
+                    )
+                })()}
+                {model.badge !== undefined && <span className={css.badge}>{model.badge}</span>}
+                {model.selected && <IconCheckOutlineRegular className={css.check} size={14} />}
+              </button>
+            )}
+            content={(() => {
+              const meta = modelMeta(model.id)
+              const ratio = ratioLabel(model.id)
+              return (
+                <div style={{ maxWidth: 280, fontSize: 12, lineHeight: 1.6, color: 'var(--dsw-alias-label-primary)' }}>
+                  <div style={{ fontWeight: 700, marginBottom: 4 }}>{model.label}</div>
+                  <div>{meta?.intro ?? ''}</div>
+                  {ratio !== undefined && (
+                    <div style={{ marginTop: 6, color: 'var(--dsw-alias-label-tertiary)' }}>
+                      相对倍率 {ratio}（基准 deepseek-flash 1.00×）
+                    </div>
+                  )}
+                </div>
+              )
             })()}
-            {model.badge !== undefined && <span className={css.badge}>{model.badge}</span>}
-            {model.selected && <IconCheckOutlineRegular className={css.check} size={14} />}
-          </button>
+          />
         ))}
       </div>
 
