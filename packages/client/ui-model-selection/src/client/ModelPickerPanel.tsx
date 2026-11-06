@@ -243,7 +243,7 @@ export function ModelPickerPanel({
     ratio?: string | undefined
     recommend?: string | undefined
     top: number
-    left: number
+    right: number
   } | null>(null)
   const menuCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const cancelMenuClose = (): void => {
@@ -263,25 +263,23 @@ export function ModelPickerPanel({
     if (meta?.intro === undefined) { setHoverCard(null); return }
     const row = element.getBoundingClientRect()
     /* N3 v5（用户反馈「覆盖了一点」）：参照物必须是**选择器面板**（panelRef），
-     * 不是触发器根（rootRef 在输入框那行，左缘差了几百像素）。卡的右缘 =
-     * 面板左缘 - gap，精确贴边。 */
+    /* N3 v6（用户反馈「覆盖面板左缘」）：**右锚定**——卡右缘钉死在面板左缘
+     * - 10px（与卡自身宽度无关，数学上不可能再压边）；参照物=panelRef。 */
     const host = panelRef.current?.getBoundingClientRect()
-    const width = 232
     const estHeight = 108
-    const gap = 10
-    const hostLeft = host?.left ?? row.left
-    const left = Math.max(8, hostLeft - width - gap)
-    /* 与悬浮行垂直居中对齐（用户截图确认的形态），上下视口钳制。 */
     const top = Math.max(8, Math.min(
       row.top + row.height / 2 - estHeight / 2,
       window.innerHeight - estHeight - 8,
     ))
+    const rightOffset = host === undefined
+      ? Math.max(8, window.innerWidth - row.right)
+      : Math.max(8, window.innerWidth - host.left + 10)
     setHoverCard({
       name: model.label,
       intro: meta.intro,
       ...(ratioLabel(model.id) === undefined ? {} : { ratio: ratioLabel(model.id) }),
       ...(meta.recommend === undefined ? {} : { recommend: meta.recommend }),
-      top, left,
+      top, right: rightOffset,
     })
   }
   /* 2026-11-03 深夜四修（用户第四次实测「App 里还是溢出屏幕」）：
@@ -531,8 +529,9 @@ export function ModelPickerPanel({
       {hoverCard !== null && createPortal(
         <div
           style={{
-            position: 'fixed', zIndex: 1201, width: 244,
-            left: hoverCard.left, top: hoverCard.top,
+            position: 'fixed', zIndex: 1201,
+            width: 244, maxWidth: 244, boxSizing: 'border-box',
+            right: hoverCard.right, left: 'auto', top: hoverCard.top,
             padding: '12px 16px', borderRadius: 'var(--dsw-radius-lg, 12px)',
             background: '#2C2C2E', color: '#fff',
             boxShadow: 'var(--dsw-shadow-lv3, 0 12px 32px rgba(0,0,0,0.3))',
