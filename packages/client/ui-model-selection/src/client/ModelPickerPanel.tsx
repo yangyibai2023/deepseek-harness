@@ -34,7 +34,6 @@ import type { CSSProperties, RefObject } from 'react'
 import { EffortSlider } from './EffortSlider.tsx'
 import css from './ModelPickerPanel.module.css'
 import { BRAND_SVG, BRAND_LETTER } from './brands.ts'
-import { HoverCard } from '@deepseek-ai/dsh-client-ui-primitives'
 
 /* 模型倍率（2026-11-03 FIX-5/FIX-6）：改为**服务端下发**，不再硬编码。
  *
@@ -161,7 +160,7 @@ export interface EffortEntry {
 
 export function ModelPickerPanel({
   anchorRef, rootRef, open, onClose, ariaLabel, providers, currentProviderId,
-  emptyLabel, onPickModel, onPickProvider, onPreviewProvider, previewProviderId, effort, onPickEffort, effortTitle,
+  emptyLabel, onPickModel, onPreviewProvider, previewProviderId, effort, onPickEffort, effortTitle,
   effortCurrent, manageLabel, locked = false,
 }: {
   readonly anchorRef: RefObject<HTMLElement | null>
@@ -174,7 +173,8 @@ export function ModelPickerPanel({
   readonly emptyLabel: ReactNode
   readonly onPickModel: (providerId: string, modelId: string) => void
   /** 在二级里选了另一个厂商（切过去并把面板回到一级）。 */
-  readonly onPickProvider: (providerId: string) => void
+  /** 旧语义（点厂商落第一个型号）已并入行点击的 onPickModel 直落路径。 */
+  readonly onPickProvider?: (providerId: string) => void
   /** N3（0.5.7 用户拍板）：悬浮供应商=模型列表即时预览切换（点击仍确认）。 */
   readonly onPreviewProvider?: (providerId: string) => void
   readonly previewProviderId?: string | undefined
@@ -233,6 +233,36 @@ export function ModelPickerPanel({
     ? current
     : providers.find(provider => provider.id === previewProviderId) ?? current
   const models = previewed?.models ?? []
+  /* N3 v2（用户反馈「黑色长条飞出屏+丑」）：HoverCard 原生 compact 定位是
+   * 「锚点右侧」且无视口钳制——模型行在面板右缘必飞出。改面板内自绘受控卡：
+   * 固定 244px 深色卡（原生 HoverCard compact 同观感），锚在行的左侧
+   * （面板贴屏幕右缘，左侧必有空间），top 随行、视口钳制。 */
+  const [hoverCard, setHoverCard] = useState<{
+    name: string
+    intro: string
+    ratio?: string | undefined
+    recommend?: string | undefined
+    top: number
+    left: number
+  } | null>(null)
+  const showHoverCard = (model: ModelRowEntry, element: HTMLElement): void => {
+    const meta = modelMeta(model.id)
+    if (meta?.intro === undefined) { setHoverCard(null); return }
+    const row = element.getBoundingClientRect()
+    const host = rootRef.current?.getBoundingClientRect()
+    const width = 244
+    const gap = 10
+    const hostLeft = host?.left ?? 0
+    const left = Math.max(8, hostLeft - width - gap)
+    const top = Math.max(8, Math.min(row.top, window.innerHeight - 170))
+    setHoverCard({
+      name: model.label,
+      intro: meta.intro,
+      ...(ratioLabel(model.id) === undefined ? {} : { ratio: ratioLabel(model.id) }),
+      ...(meta.recommend === undefined ? {} : { recommend: meta.recommend }),
+      top, left,
+    })
+  }
   /* 2026-11-03 深夜四修（用户第四次实测「App 里还是溢出屏幕」）：
    *
    * 前三修的错误：把 maxHeight 算成「视口 × 0.7，封顶 520」这个**固定值**，
@@ -330,8 +360,9 @@ export function ModelPickerPanel({
           onMouseEnter={() => { setPickingProvider(true) }}
           onClick={() => { setPickingProvider(true) }}
         >
-          {current !== undefined && <BrandMarkIcon providerId={current.id} size={16} />}
-          <span className={css.providerName}>{current?.label ?? ''}</span>
+          {/* N3 v2（用户反馈）：悬浮预览时表头名字/logo 跟随预览供应商。 */}
+          {previewed !== undefined && <BrandMarkIcon providerId={previewed.id} size={16} />}
+          <span className={css.providerName}>{previewed?.label ?? ''}</span>
           <span className={css.badge}>API</span>
           <IconChevronRightOutlineRegular className={css.chevron} size={12} />
         </button>
@@ -356,7 +387,11 @@ export function ModelPickerPanel({
                 className={css.providerRow}
                 aria-selected={provider.id === currentProviderId}
                 onClick={() => {
-                  onPickProvider(provider.id)
+                  /* N3 v2（用户反馈「点了供应商一级没跟着变」）：供应商行点击改为
+                   * 直落该厂商第一个型号——走与模型行相同的 onPickModel 提交路径，
+                   * 表头/触发器/选中态全链联动，不再依赖 onPickProvider 的旧语义。 */
+                  const first = provider.models[0]
+                  if (first !== undefined) onPickModel(provider.id, first.id)
                   onPreviewProvider?.(provider.id)
                   setPickingProvider(false)
                 }}
@@ -377,68 +412,45 @@ export function ModelPickerPanel({
       <div className={css.modelList}>
         <div className={css.sectionTitle} role="presentation">模型</div>
         {models.map(model => (
-          <HoverCard
+          <button
             key={model.id}
-            openDelayMs={350}
-            variant="preview"
-            widthAnchorRef={rootRef}
-            disabled={modelMeta(model.id)?.intro === undefined}
-            anchor={(
-              <button
-                type="button"
-                role="menuitem"
-                className={css.modelRow}
-                aria-selected={model.selected}
-                onClick={() => { if (previewed !== undefined) onPickModel(previewed.id, model.id) }}
-              >
-                <span className={css.modelName}>{model.label}</span>
-                {(() => {
-                  // N3：推荐标记（最热/最省/最强/推荐，稀疏打标）。
-                  const rec = modelMeta(model.id)?.recommend
-                  const recColor: Record<string, string> = {
-                    最热: '#E5533D', 最省: '#1F9D55', 最强: '#7C5CFF', 推荐: '#2B7FFF',
-                  }
-                  return rec === undefined
-                    ? null
-                    : (
-                      <span style={{
-                        marginLeft: 'auto', fontSize: 11, lineHeight: '16px',
-                        padding: '0 6px', borderRadius: 6,
-                        color: recColor[rec] ?? '#666', background: `${recColor[rec] ?? '#666'}1A`,
-                      }}>{rec}</span>
-                    )
-                })()}
-                {(() => {
-                  // 倍率由服务端下发（FIX-5/FIX-6）；拉不到时不渲染角标，绝不显示错数字。
-                  const label = ratioLabel(model.id)
-                  return label === undefined
-                    ? null
-                    : (
-                      <span style={{ marginLeft: modelMeta(model.id)?.recommend === undefined ? 'auto' : 6, fontSize: 12, color: 'rgba(127,127,127,0.75)', fontVariantNumeric: 'tabular-nums' }}>
-                        {label}
-                      </span>
-                    )
-                })()}
-                {model.badge !== undefined && <span className={css.badge}>{model.badge}</span>}
-                {model.selected && <IconCheckOutlineRegular className={css.check} size={14} />}
-              </button>
-            )}
-            content={(() => {
-              const meta = modelMeta(model.id)
-              const ratio = ratioLabel(model.id)
-              return (
-                <div style={{ maxWidth: 280, fontSize: 12, lineHeight: 1.6, color: 'var(--dsw-alias-label-primary)' }}>
-                  <div style={{ fontWeight: 700, marginBottom: 4 }}>{model.label}</div>
-                  <div>{meta?.intro ?? ''}</div>
-                  {ratio !== undefined && (
-                    <div style={{ marginTop: 6, color: 'var(--dsw-alias-label-tertiary)' }}>
-                      相对倍率 {ratio}（基准 deepseek-flash 1.00×）
-                    </div>
-                  )}
-                </div>
-              )
+            type="button"
+            role="menuitem"
+            className={css.modelRow}
+            aria-selected={model.selected}
+            onMouseEnter={(event) => { showHoverCard(model, event.currentTarget) }}
+            onMouseLeave={() => { setHoverCard(null) }}
+            onClick={() => { if (previewed !== undefined) onPickModel(previewed.id, model.id) }}
+          >
+            <span className={css.modelName}>{model.label}</span>
+            {(() => {
+              const rec = modelMeta(model.id)?.recommend
+              const recColor: Record<string, string> = {
+                最热: '#E5533D', 最省: '#1F9D55', 最强: '#7C5CFF', 推荐: '#2B7FFF',
+              }
+              return rec === undefined
+                ? null
+                : (
+                  <span style={{
+                    marginLeft: 'auto', fontSize: 11, lineHeight: '16px',
+                    padding: '0 6px', borderRadius: 6,
+                    color: recColor[rec] ?? '#666', background: `${recColor[rec] ?? '#666'}1A`,
+                  }}>{rec}</span>
+                )
             })()}
-          />
+            {(() => {
+              const label = ratioLabel(model.id)
+              return label === undefined
+                ? null
+                : (
+                  <span style={{ marginLeft: modelMeta(model.id)?.recommend === undefined ? 'auto' : 6, fontSize: 12, color: 'rgba(127,127,127,0.75)', fontVariantNumeric: 'tabular-nums' }}>
+                    {label}
+                  </span>
+                )
+            })()}
+            {model.badge !== undefined && <span className={css.badge}>{model.badge}</span>}
+            {model.selected && <IconCheckOutlineRegular className={css.check} size={14} />}
+          </button>
         ))}
       </div>
 
@@ -479,5 +491,33 @@ export function ModelPickerPanel({
 
   // ⚠️ 必须 portal 到 body：面板留在 composer 的 DOM 里会被父级 stacking
   // context 困住，右侧被上层元素盖住（用户实测的白条）。
-  return createPortal(panel, document.body)
+  return createPortal(
+    <>
+      {panel}
+      {/* N3 v2：模型介绍卡（受控定位，深色 compact 观感，出现在面板左侧）。 */}
+      {hoverCard !== null && createPortal(
+        <div
+          style={{
+            position: 'fixed', zIndex: 101, width: 244,
+            left: hoverCard.left, top: hoverCard.top,
+            padding: '12px 16px', borderRadius: 'var(--dsw-radius-lg, 12px)',
+            background: '#2C2C2E', color: '#fff',
+            boxShadow: 'var(--dsw-shadow-lv3, 0 12px 32px rgba(0,0,0,0.3))',
+            fontSize: 12, lineHeight: 1.6,
+          }}
+          role="tooltip"
+        >
+          <div style={{ fontWeight: 700, marginBottom: 4 }}>{hoverCard.name}</div>
+          <div>{hoverCard.intro}</div>
+          {hoverCard.ratio !== undefined && (
+            <div style={{ marginTop: 6, color: 'rgba(255,255,255,0.6)' }}>
+              相对倍率 {hoverCard.ratio}（基准 deepseek-flash 1.00×）
+            </div>
+          )}
+        </div>,
+        document.body,
+      )}
+    </>,
+    document.body,
+  )
 }
