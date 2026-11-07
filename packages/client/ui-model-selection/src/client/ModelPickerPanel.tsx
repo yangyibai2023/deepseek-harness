@@ -223,6 +223,8 @@ export function ModelPickerPanel({
    *      位置不变则复用，预览切换不再引起任何移动（第一幕的修法目的保留）。 */
   const providerMenuStyleRef = useRef<CSSProperties | null>(null)
   const providerMenuKeyRef = useRef('')
+  /** O6 第四幕：二级菜单锚点底边冻结（打开时刻的 panel bottom），见下方注释。 */
+  const providerMenuAnchorRef = useRef<{ key: string; bottom: number } | null>(null)
   /* O6-弹跳·第三幕（2026-11-08 用户录屏逐帧实锤）：第二幕修完后「大部分时候
    * 没问题」但仍在弹跳——录屏 f-001 帧有面板+菜单整体瞬移的重影，且光标停驻
    * 不动时预览在两厂商间来回翻转（反馈环）。机制：面板翻到触发器**上方**时
@@ -233,14 +235,33 @@ export function ModelPickerPanel({
    * top **钉在打开时刻**（锚点未动则 top 恒定），maxHeight 同步钉为「钉住的
    * top 到触发器的距离」——内容变高改走列表内部滚动，不再推着面板跑；
    * 下方展开（未翻转）形态 top 本就钉在锚点下方，无需处理。 */
-  const panelTopPinRef = useRef<{ anchorTop: number; top: number } | null>(null)
 
-  // 每次关闭都收起二级浮层：下次打开看到的是当前厂商详情；顶部钉住同步失效
-  //（下次打开按当时锚点重新钉）。
+  /* O6 第四幕（2026-11-08 用户二次实测「还在跳」+ 实测面板 top 494↔324）：
+   * 一级面板本身在**翻转**——placeOverlay 每次按「当前内容高度」重判方向：
+   * 预览切换改变模型行数 → 面板变高 → 下方放不下的判定翻转 → 整块面板从
+   * 触发器下方跳到上方（或反之），二级菜单与介绍卡跟着一起跳 = 用户看到的
+   * 「跳动」。第三幕只钉了上方形态内的 top，没能阻止「形态切换」。
+   *
+   * 终修：**展开方向在打开时判定一次并钉死**（side='bottom'|'top'），此后
+   * 内容高度变化只影响限高与内部滚动，永不翻转；锚点真移动（滚动/窗口
+   * 缩放/输入框长高）时按 |Δanchor.top|>0.5 重新判定一次。
+   *   · bottom 形态：top = 锚点底 + gap（固定），maxHeight = 视口余量
+   *   · top 形态   ：bottom = 锚点顶 - gap（固定），top 随高度上移但
+   *                   maxHeight = 锚点上方余量——面板向上生长，不越出屏幕
+   * 两者都用首次判定时的方向，预览切换不再引起任何跳变。 */
+  const panelSideRef = useRef<'top' | 'bottom' | null>(null)
+  const panelPinRef = useRef<{ anchorTop: number; side: 'top' | 'bottom'; maxHeight: number } | null>(null)
+
+  // 每次关闭都收起二级浮层：下次打开看到的是当前厂商详情；钉住状态同步失效
+  //（下次打开按当时锚点重新判定）。
   useEffect(() => {
     if (!open) {
       setPickingProvider(false)
-      panelTopPinRef.current = null
+      panelSideRef.current = null
+      panelPinRef.current = null
+      providerMenuAnchorRef.current = null
+      providerMenuStyleRef.current = null
+      providerMenuKeyRef.current = ''
     }
   }, [open])
 
@@ -397,30 +418,38 @@ export function ModelPickerPanel({
 
   if (!open) return null
 
-  /* 一级面板的最终定位样式（2026-11-08 O6 第三幕：上方翻转形态钉 top）。
-   * 下方展开：hook 的 top 本就钉在锚点下方（top=锚点底+gap），原样透传；
-   * 上方翻转：hook 的 top=锚点顶-gap-当前高度，随内容高度漂移——改为钉在
-   * 打开时刻的值，maxHeight 同步钉为「钉住的 top 到触发器的距离」（=钉住
-   * 时刻的面板高度）：内容变高走 modelList 内部滚动，不再推着面板跑。
-   * 锚点移动（滚动/缩放）时 |cached.anchorTop-anchor.top| 超阈 → 按当前
-   * placement 重新钉（正确跟随，一次性移动，无环）。 */
+  /* 一级面板的最终定位样式（2026-11-08 O6 第四幕：方向钉死，永不翻转）。
+   * 详见上方 panelSideRef 的注释——方向只在打开时判定一次；此后内容高度
+   * 变化只影响限高与内部滚动，不再触发 placeOverlay 的 flip 重判。 */
   const panelStyle = ((): CSSProperties => {
     if (position === null) return MEASURE_STYLE
     const left = Number(position.left)
-    const top = Number(position.top)
-    if (!Number.isFinite(left) || !Number.isFinite(top)) return MEASURE_STYLE
+    const hookTop = Number(position.top)
+    if (!Number.isFinite(left) || !Number.isFinite(hookTop)) return MEASURE_STYLE
     const anchor = anchorRef.current?.getBoundingClientRect()
-    if (anchor === undefined) return { left, top, maxHeight: panelMaxHeight }
-    if (top < anchor.top - 1) {
-      const cached = panelTopPinRef.current
-      if (cached !== null && Math.abs(cached.anchorTop - anchor.top) < 0.5) {
-        return { left, top: cached.top, maxHeight: Math.max(240, anchor.top - 4 - cached.top) }
-      }
-      panelTopPinRef.current = { anchorTop: anchor.top, top }
-      return { left, top, maxHeight: Math.max(240, anchor.top - 4 - top) }
+    if (anchor === undefined) return { left, top: hookTop, maxHeight: panelMaxHeight }
+    const GAP = 4
+    const MARGIN = 12
+    // 首次（或锚点真移动）→ 按 hook 的 flip 结果定方向并钉住上限。
+    const pin = panelPinRef.current
+    if (pin === null || Math.abs(pin.anchorTop - anchor.top) > 0.5) {
+      const side: 'top' | 'bottom' = hookTop < anchor.top - 1 ? 'top' : 'bottom'
+      const maxHeight = side === 'bottom'
+        ? Math.max(240, window.innerHeight - MARGIN - (anchor.bottom + GAP))
+        : Math.max(240, anchor.top - GAP - MARGIN)
+      panelSideRef.current = side
+      panelPinRef.current = { anchorTop: anchor.top, side, maxHeight: Math.min(panelMaxHeight, maxHeight) }
+      return side === 'bottom'
+        ? { left, top: anchor.bottom + GAP, maxHeight: Math.min(panelMaxHeight, maxHeight) }
+        : { left, top: hookTop, maxHeight: Math.min(panelMaxHeight, maxHeight) }
     }
-    panelTopPinRef.current = null
-    return { left, top, maxHeight: panelMaxHeight }
+    // 已钉住：方向与限高恒定，坐标按钉住的方向算。
+    if (pin.side === 'bottom') {
+      return { left, top: anchor.bottom + GAP, maxHeight: pin.maxHeight }
+    }
+    const host = panelRef.current
+    const contentH = host?.offsetHeight ?? 0
+    return { left, top: Math.max(MARGIN, anchor.top - GAP - contentH), maxHeight: pin.maxHeight }
   })()
 
   /* 二级厂商浮层的位置（2026-10-22 用户第三次校正；2026-11-08 O6 终修）。
@@ -456,8 +485,20 @@ export function ModelPickerPanel({
     const key = `${left},${top},${width}`
     const cached = providerMenuStyleRef.current
     if (cached !== null && providerMenuKeyRef.current === key) return cached
+    /* O6 第四幕（2026-11-08 用户二次实测「还在跳」+ 本次实测 332→302 跳 30px）：
+     * 一级面板在下方形态时底边=锚点底+gap 固定；在**上方翻转**形态时我们钉的
+     * 是 top，底边 = top + 内容高度 —— 而预览切换会改变模型行数 → 高度变 →
+     * 底边动。二级菜单走 placeOverlay 横向挂载的「底对齐」分支
+     * （topAligned+360 超出视口时用 panelBottom-360），于是**菜单跟着面板
+     * 底边上下跳**：692-360=332 → 662-360=302，正是实测的 30px。
+     * 修法：把锚点**底边也冻结**在打开时刻（同一 key 复用），预览切换只改
+     * 内容高度、不改 key（top 已钉死），菜单从此纹丝不动；面板位置/宽度真变
+     * （重开/翻转/滚动/缩放）时 key 变化 → 重新冻结正确跟随。 */
+    const frozen = providerMenuAnchorRef.current
+    const bottom = frozen !== null && frozen.key === key ? frozen.bottom : top + height
+    providerMenuAnchorRef.current = { key, bottom }
     const placement = placeOverlay({
-      anchor: { top, bottom: top + height, left, right: left + width, width, height },
+      anchor: { top, bottom, left, right: left + width, width, height: Math.max(0, bottom - top) },
       panel: { width, height: 0 },
       viewport: { width: window.innerWidth, height: window.innerHeight },
       // 与一级面板同宽，挂在它的右侧（放不下自动翻左）。
