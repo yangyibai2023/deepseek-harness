@@ -113,11 +113,21 @@ export function ConversationContent(props: ConversationContentProps) {
     const scroller = seat?.parentElement ?? null
     if (seat === null || scroller === null) return
     seatObserver.current = new ResizeObserver(() => {
-      scroller.style.setProperty('--dsh-composer-height', `${seat.offsetHeight}px`)
-      scroller.style.setProperty(
-        '--dsh-conversation-viewport-height',
-        `${scroller.clientHeight}px`,
-      )
+      /* ⑩-O6（2026-11-08 抖动修复）：offsetHeight 本身是整数，但 seat 的 CSS
+       * 高度可能是小数（transform 缩放/百分比行高等），ResizeObserver 在
+       * **亚像素变化**时也会触发——思考/流式期间 seat 内数字文本更新会让
+       * 高度在小数区间来回摆（如 152.4 <-> 152.6），每次都重发变量 ->
+       * 滚动体高度跟着变 -> 整页内容上下微移 = 用户看到的「偶尔整页抖动」。
+       * 修法：发布值取整到整数像素（<=1px 的视觉差异不可感知，但断开了
+       * 亚像素振荡链），且与上次发布值相同则跳过写 DOM。 */
+      const composerH = Math.round(seat.offsetHeight)
+      const viewportH = Math.round(scroller.clientHeight)
+      if (
+        scroller.style.getPropertyValue('--dsh-composer-height') === `${composerH}px`
+        && scroller.style.getPropertyValue('--dsh-conversation-viewport-height') === `${viewportH}px`
+      ) return
+      scroller.style.setProperty('--dsh-composer-height', `${composerH}px`)
+      scroller.style.setProperty('--dsh-conversation-viewport-height', `${viewportH}px`)
     })
     seatObserver.current.observe(seat)
     seatObserver.current.observe(scroller)
