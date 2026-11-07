@@ -441,64 +441,68 @@ export function HeightLabMaterialPanel() {
             {notice !== '' && <span style={{ display: 'none' }}>{notice}</span>}
           </div>
 
-          {filtered.length === 0 ? (
-            <div style={{ padding: '48px 0', textAlign: 'center', color: 'var(--dsw-alias-label-tertiary)', fontSize: 13 }}>
+          {/* 2026-11-08（用户拍板）：chips + 工具行**冻结**在顶部不跟随滚动——
+           * 把滚动权从 libraryRight 整体改为只滚这里（libraryScroll）。 */}
+          <div className={css.libraryScroll}>
+            {filtered.length === 0 ? (
+              <div style={{ padding: '48px 0', textAlign: 'center', color: 'var(--dsw-alias-label-tertiary)', fontSize: 13 }}>
               暂无素材，新生成的图片/视频会自动入库，也可点击「扫描」补录
-            </div>
-          ) : viewMode === 'card' ? (
-            <div className={css.libraryCardGrid}>
-              {filtered.map(item => (
-                <div key={item.id} className={css.libraryCard}>
-                  <div className={css.libraryCardThumb}>
-                    {/* 2026-10-20 用户要求：图片和视频都要有缩略图，不要一片空白。
+              </div>
+            ) : viewMode === 'card' ? (
+              <div className={css.libraryCardGrid}>
+                {filtered.map(item => (
+                  <div key={item.id} className={css.libraryCard}>
+                    <div className={css.libraryCardThumb}>
+                      {/* 2026-10-20 用户要求：图片和视频都要有缩略图，不要一片空白。
                         · 图片：直接 <img>
                         · 视频：<video preload="metadata"> + #t=0.1 让它解码首帧
                           （服务端 /file 已支持 Range，否则浏览器不肯出首帧）
                         · 音频/文档/代码：给一个带扩展名的文字标记（比纯类型名好认） */}
-                    {item.exists === false ? (
+                      {item.exists === false ? (
                       /* 源文件被删/移动的记录：给明确失效标，不要再留一片空白 */
-                      <span style={{ fontSize: 11, letterSpacing: 0.4, opacity: 0.55 }}>文件已失效</span>
-                    ) : item.artifact_type === 'image' ? (
-                      <img src={`/ext/artifacts/${item.id}/file`} alt="" loading="lazy" />
-                    ) : item.artifact_type === 'video' ? (
-                      <video
-                        src={`/ext/artifacts/${item.id}/file#t=0.1`}
-                        preload="metadata"
-                        muted
-                        playsInline
-                        aria-label={item.title || item.filename}
-                      />
-                    ) : (
-                      <span style={{ fontSize: 11, letterSpacing: 0.4 }}>
-                        {(item.filename.split('.').pop() || '').toUpperCase().slice(0, 6) || (TYPE_MAP[item.artifact_type] ?? '素材')}
-                      </span>
-                    )}
+                        <span style={{ fontSize: 11, letterSpacing: 0.4, opacity: 0.55 }}>文件已失效</span>
+                      ) : item.artifact_type === 'image' ? (
+                        <img src={`/ext/artifacts/${item.id}/file`} alt="" loading="lazy" />
+                      ) : item.artifact_type === 'video' ? (
+                        <video
+                          src={`/ext/artifacts/${item.id}/file#t=0.1`}
+                          preload="metadata"
+                          muted
+                          playsInline
+                          aria-label={item.title || item.filename}
+                        />
+                      ) : (
+                        <span style={{ fontSize: 11, letterSpacing: 0.4 }}>
+                          {(item.filename.split('.').pop() || '').toUpperCase().slice(0, 6) || (TYPE_MAP[item.artifact_type] ?? '素材')}
+                        </span>
+                      )}
+                    </div>
+                    <span className={css.libraryCardTitle}>{item.title || item.filename}</span>
+                    <span className={css.libraryCardMeta}>
+                      {TYPE_MAP[item.artifact_type] ?? '其他'} · {formatSize(item.size_bytes)}
+                      {item.tags.length > 0 ? ` · ${item.tags.join(' / ')}` : ''}
+                    </span>
+                    <span className={css.libraryCardActions}>{actionButtons(item)}</span>
                   </div>
-                  <span className={css.libraryCardTitle}>{item.title || item.filename}</span>
-                  <span className={css.libraryCardMeta}>
-                    {TYPE_MAP[item.artifact_type] ?? '其他'} · {formatSize(item.size_bytes)}
-                    {item.tags.length > 0 ? ` · ${item.tags.join(' / ')}` : ''}
-                  </span>
-                  <span className={css.libraryCardActions}>{actionButtons(item)}</span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            filtered.map(item => (
-              <div key={item.id} className={css.libraryDocRow}>
-                <span style={{ flex: 1, minWidth: 0 }}>
-                  <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {item.title || item.filename}
-                  </span>
-                  <span style={{ display: 'block', fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' }}>
-                    {TYPE_MAP[item.artifact_type] ?? '其他'} · {formatSize(item.size_bytes)}
-                    {item.tags.length > 0 ? ` · ${item.tags.join(' / ')}` : ''}
-                  </span>
-                </span>
-                {actionButtons(item)}
+                ))}
               </div>
-            ))
-          )}
+            ) : (
+              filtered.map(item => (
+                <div key={item.id} className={css.libraryDocRow}>
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {item.title || item.filename}
+                    </span>
+                    <span style={{ display: 'block', fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' }}>
+                      {TYPE_MAP[item.artifact_type] ?? '其他'} · {formatSize(item.size_bytes)}
+                      {item.tags.length > 0 ? ` · ${item.tags.join(' / ')}` : ''}
+                    </span>
+                  </span>
+                  {actionButtons(item)}
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </div>
 

@@ -245,7 +245,7 @@ export function HeightLabKnowledgePanel() {
         const name = `导入-${stamp.getFullYear()}${String(stamp.getMonth() + 1).padStart(2, '0')}${String(stamp.getDate()).padStart(2, '0')}-${String(stamp.getHours()).padStart(2, '0')}${String(stamp.getMinutes()).padStart(2, '0')}`
         const created = await api<BaseSummary>('/bases', {
           method: 'POST',
-          body: JSON.stringify({ name, description: '拖拽导入', }),
+          body: JSON.stringify({ name, description: '拖拽导入' }),
         })
         await refresh()
         setSelectedBaseId(created.id)
@@ -345,41 +345,6 @@ export function HeightLabKnowledgePanel() {
   return (
     <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       <div className={css.libraryBody}>
-        <div className={css.libraryLeft}>
-          <button
-            type="button"
-            className={css.libraryActionButton}
-            onClick={() => setDialog('newGroup')}
-            style={{ marginBottom: 6 }}
-          >
-            ＋ 新建分组
-          </button>
-          <button
-            type="button"
-            className={selectedGroup === 'all' ? `${css.libraryGroupRow} ${css.libraryGroupRowActive}` : css.libraryGroupRow}
-            onClick={() => setSelectedGroup('all')}
-          >
-            全部
-          </button>
-          {groups.map(group => (
-            <button
-              key={group}
-              type="button"
-              className={selectedGroup === group ? `${css.libraryGroupRow} ${css.libraryGroupRowActive}` : css.libraryGroupRow}
-              onClick={() => setSelectedGroup(group)}
-            >
-              {group}
-            </button>
-          ))}
-          <button
-            type="button"
-            className={selectedGroup === 'none' ? `${css.libraryGroupRow} ${css.libraryGroupRowActive}` : css.libraryGroupRow}
-            onClick={() => setSelectedGroup('none')}
-          >
-            未分组
-          </button>
-        </div>
-
         <div
           className={css.libraryRight}
           onDragOver={(event) => { event.preventDefault(); setDragOver(true) }}
@@ -389,6 +354,34 @@ export function HeightLabKnowledgePanel() {
             void handleDrop(event.dataTransfer.files)
           }}
         >
+          {/* 2026-11-08（与素材管理同款美化）：分组从左侧窄栏改顶部筛选
+           * chips（含每个分组的知识库数量），新建分组挪为行尾操作钮。 */}
+          <div className={css.libraryChips} role="tablist" aria-label="知识库分组">
+            {([
+              ['all', `全部（${bases.length}）`],
+              ...groups.map(g => [g, `${g}（${bases.filter(b => b.group === g).length}）`]),
+              ['none', `未分组（${bases.filter(b => !b.group).length}）`],
+            ] as Array<[string, string]>).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                role="tab"
+                aria-selected={selectedGroup === value}
+                className={selectedGroup === value ? `${css.libraryChip} ${css.libraryChipActive}` : css.libraryChip}
+                onClick={() => setSelectedGroup(value)}
+              >
+                {label}
+              </button>
+            ))}
+            <span style={{ flex: 1 }} />
+            <button
+              type="button"
+              className={css.libraryActionButton}
+              onClick={() => setDialog('newGroup')}
+            >
+              ＋ 新建分组
+            </button>
+          </div>
           {error !== '' && (
             <div style={{ marginBottom: 10, fontSize: 12, color: 'var(--dsw-alias-label-secondary)' }}>{error}</div>
           )}
@@ -402,82 +395,85 @@ export function HeightLabKnowledgePanel() {
             )}
           </div>
 
-          <div
-            className={dragOver ? `${css.libraryDropZone} ${css.libraryDropZoneActive}` : css.libraryDropZone}
-            onDragOver={(event) => { event.preventDefault(); setDragOver(true) }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={(event) => {
-              event.preventDefault()
-              event.stopPropagation()
-              void handleDrop(event.dataTransfer.files)
-            }}
-          >
+          {/* chips + 按钮行冻结，列表区才滚动（与素材管理一致）。 */}
+          <div className={css.libraryScroll}>
+            <div
+              className={dragOver ? `${css.libraryDropZone} ${css.libraryDropZoneActive}` : css.libraryDropZone}
+              onDragOver={(event) => { event.preventDefault(); setDragOver(true) }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(event) => {
+                event.preventDefault()
+                event.stopPropagation()
+                void handleDrop(event.dataTransfer.files)
+              }}
+            >
             将文件拖到这里：自动新建知识库并上传
-          </div>
-
-          {visibleBases.map(base => renderBase(base))}
-
-          {visibleBases.length === 0 && (
-            <div style={{ padding: '48px 0', textAlign: 'center', color: 'var(--dsw-alias-label-tertiary)', fontSize: 13 }}>
-              还没有知识库，点击「新建知识库」或直接拖入文件
             </div>
-          )}
 
-          {selectedBase !== null && (
-            <section style={{ marginTop: 20 }}>
-              <div className={css.librarySectionTitle}>
-                {selectedBase.name} · 文档（{docs.length}）
+            {visibleBases.map(base => renderBase(base))}
+
+            {visibleBases.length === 0 && (
+              <div style={{ padding: '48px 0', textAlign: 'center', color: 'var(--dsw-alias-label-tertiary)', fontSize: 13 }}>
+              还没有知识库，点击「新建知识库」或直接拖入文件
               </div>
-              <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                <button type="button" className={css.libraryActionButton} onClick={() => setDialog('addText')}>＋ 添加文本</button>
-                <button type="button" className={css.libraryActionButton} onClick={() => fileRef.current?.click()}>＋ 上传文件</button>
-                <button type="button" className={css.libraryActionButton} onClick={() => setDialog('addUrl')}>＋ 添加网址</button>
-              </div>
-              {docs.length === 0 ? (
-                <div style={{ padding: '24px 0', color: 'var(--dsw-alias-label-tertiary)', fontSize: 12 }}>
-                  暂无文档，添加后即可在对话中检索使用
+            )}
+
+            {selectedBase !== null && (
+              <section style={{ marginTop: 20 }}>
+                <div className={css.librarySectionTitle}>
+                  {selectedBase.name} · 文档（{docs.length}）
                 </div>
-              ) : (
-                docs.map(doc => (
-                  <div key={doc.id} className={css.libraryDocRow}>
-                    <span style={{ flex: 1, minWidth: 0 }}>
-                      <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.title}</span>
-                      <span style={{ display: 'block', fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' }}>
-                        {doc.sourceType === 'file' ? doc.fileName ?? doc.title : doc.sourceType === 'url' ? doc.url ?? '' : doc.sourceType}
-                        {' · '}{doc.chunkCount} 分块
-                      </span>
-                    </span>
-                    <span style={{ display: 'flex', gap: 6, flexShrink: 0, paddingLeft: 20 }}>
-                      <button
-                        type="button"
-                        className={css.libraryActionButton}
-                        onClick={() => { void openContentEdit(doc) }}
-                        style={{ height: 26, padding: '0 8px', fontSize: 12 }}
-                      >
-                        修改
-                      </button>
-                      <button
-                        type="button"
-                        className={css.libraryActionButton}
-                        onClick={() => openRename(doc)}
-                        style={{ height: 26, padding: '0 8px', fontSize: 12 }}
-                      >
-                        重命名
-                      </button>
-                      <button
-                        type="button"
-                        className={css.libraryActionButton}
-                        onClick={() => { void deleteDoc(doc) }}
-                        style={{ height: 26, padding: '0 8px', fontSize: 12 }}
-                      >
-                        删除
-                      </button>
-                    </span>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                  <button type="button" className={css.libraryActionButton} onClick={() => setDialog('addText')}>＋ 添加文本</button>
+                  <button type="button" className={css.libraryActionButton} onClick={() => fileRef.current?.click()}>＋ 上传文件</button>
+                  <button type="button" className={css.libraryActionButton} onClick={() => setDialog('addUrl')}>＋ 添加网址</button>
+                </div>
+                {docs.length === 0 ? (
+                  <div style={{ padding: '24px 0', color: 'var(--dsw-alias-label-tertiary)', fontSize: 12 }}>
+                  暂无文档，添加后即可在对话中检索使用
                   </div>
-                ))
-              )}
-            </section>
-          )}
+                ) : (
+                  docs.map(doc => (
+                    <div key={doc.id} className={css.libraryDocRow}>
+                      <span style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.title}</span>
+                        <span style={{ display: 'block', fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' }}>
+                          {doc.sourceType === 'file' ? doc.fileName ?? doc.title : doc.sourceType === 'url' ? doc.url ?? '' : doc.sourceType}
+                          {' · '}{doc.chunkCount} 分块
+                        </span>
+                      </span>
+                      <span style={{ display: 'flex', gap: 6, flexShrink: 0, paddingLeft: 20 }}>
+                        <button
+                          type="button"
+                          className={css.libraryActionButton}
+                          onClick={() => { void openContentEdit(doc) }}
+                          style={{ height: 26, padding: '0 8px', fontSize: 12 }}
+                        >
+                        修改
+                        </button>
+                        <button
+                          type="button"
+                          className={css.libraryActionButton}
+                          onClick={() => openRename(doc)}
+                          style={{ height: 26, padding: '0 8px', fontSize: 12 }}
+                        >
+                        重命名
+                        </button>
+                        <button
+                          type="button"
+                          className={css.libraryActionButton}
+                          onClick={() => { void deleteDoc(doc) }}
+                          style={{ height: 26, padding: '0 8px', fontSize: 12 }}
+                        >
+                        删除
+                        </button>
+                      </span>
+                    </div>
+                  ))
+                )}
+              </section>
+            )}
+          </div>
         </div>
       </div>
 
@@ -568,19 +564,19 @@ function NewBaseDialog(props: {
   const [group, setGroup] = useState('')
   return (
     <div className={css.libraryDialogBackdrop} onClick={props.onClose}>
-      <div className={css.libraryDialog} onClick={(event) => event.stopPropagation()}>
+      <div className={css.libraryDialog} onClick={event => event.stopPropagation()}>
         <div className={css.libraryDialogTitle}>新建知识库</div>
         <div style={fieldStyle}>
           <label style={labelStyle}>名称</label>
-          <input className={css.libraryInput} autoFocus placeholder="知识库名称" value={name} onChange={(event) => setName(event.target.value)} />
+          <input className={css.libraryInput} autoFocus placeholder="知识库名称" value={name} onChange={event => setName(event.target.value)} />
         </div>
         <div style={fieldStyle}>
           <label style={labelStyle}>描述</label>
-          <textarea className={css.libraryTextarea} value={description} onChange={(event) => setDescription(event.target.value)} />
+          <textarea className={css.libraryTextarea} value={description} onChange={event => setDescription(event.target.value)} />
         </div>
         <div style={fieldStyle}>
           <label style={labelStyle}>分组</label>
-          <select className={css.libraryInput} value={group} onChange={(event) => setGroup(event.target.value)}>
+          <select className={css.libraryInput} value={group} onChange={event => setGroup(event.target.value)}>
             <option value="">未分组</option>
             {props.groups.map(item => <option key={item} value={item}>{item}</option>)}
           </select>
@@ -611,7 +607,7 @@ function NameDialog(props: {
   const [name, setName] = useState('')
   return (
     <div className={css.libraryDialogBackdrop} onClick={props.onClose}>
-      <div className={css.libraryDialog} onClick={(event) => event.stopPropagation()}>
+      <div className={css.libraryDialog} onClick={event => event.stopPropagation()}>
         <div className={css.libraryDialogTitle}>{props.title}</div>
         <div style={fieldStyle}>
           <label style={labelStyle}>名称</label>
@@ -620,7 +616,7 @@ function NameDialog(props: {
             autoFocus
             placeholder={props.placeholder}
             value={name}
-            onChange={(event) => setName(event.target.value)}
+            onChange={event => setName(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === 'Enter' && name.trim() !== '') props.onOk(name)
             }}
@@ -651,15 +647,15 @@ function AddTextDialog(props: {
   const [content, setContent] = useState('')
   return (
     <div className={css.libraryDialogBackdrop} onClick={props.onClose}>
-      <div className={css.libraryDialog} onClick={(event) => event.stopPropagation()}>
+      <div className={css.libraryDialog} onClick={event => event.stopPropagation()}>
         <div className={css.libraryDialogTitle}>添加文本</div>
         <div style={fieldStyle}>
           <label style={labelStyle}>标题</label>
-          <input className={css.libraryInput} autoFocus placeholder="文档标题" value={title} onChange={(event) => setTitle(event.target.value)} />
+          <input className={css.libraryInput} autoFocus placeholder="文档标题" value={title} onChange={event => setTitle(event.target.value)} />
         </div>
         <div style={fieldStyle}>
           <label style={labelStyle}>内容</label>
-          <textarea className={css.libraryTextarea} value={content} onChange={(event) => setContent(event.target.value)} />
+          <textarea className={css.libraryTextarea} value={content} onChange={event => setContent(event.target.value)} />
         </div>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
           <button type="button" className={css.libraryActionButton} onClick={props.onClose}>取消</button>
@@ -685,11 +681,11 @@ function UrlDialog(props: {
   const [url, setUrl] = useState('')
   return (
     <div className={css.libraryDialogBackdrop} onClick={props.onClose}>
-      <div className={css.libraryDialog} onClick={(event) => event.stopPropagation()}>
+      <div className={css.libraryDialog} onClick={event => event.stopPropagation()}>
         <div className={css.libraryDialogTitle}>添加网址</div>
         <div style={fieldStyle}>
           <label style={labelStyle}>网址</label>
-          <input className={css.libraryInput} autoFocus placeholder="https://example.com" value={url} onChange={(event) => setUrl(event.target.value)} />
+          <input className={css.libraryInput} autoFocus placeholder="https://example.com" value={url} onChange={event => setUrl(event.target.value)} />
         </div>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
           <button type="button" className={css.libraryActionButton} onClick={props.onClose}>取消</button>
@@ -717,7 +713,7 @@ function ContentEditDialog(props: {
   const [content, setContent] = useState(props.initialContent)
   return (
     <div className={css.libraryDialogBackdrop} onClick={props.onClose}>
-      <div className={css.libraryDialog} onClick={(event) => event.stopPropagation()}>
+      <div className={css.libraryDialog} onClick={event => event.stopPropagation()}>
         <div className={css.libraryDialogTitle}>修改文档内容</div>
         <div style={{ fontSize: 12, color: 'var(--dsw-alias-label-tertiary)', marginBottom: 10 }}>
           {props.doc.title} · {props.doc.sourceType}
@@ -730,7 +726,7 @@ function ContentEditDialog(props: {
               placeholder="文档内容"
               autoFocus
               value={content}
-              onChange={(event) => setContent(event.target.value)}
+              onChange={event => setContent(event.target.value)}
               style={{ minHeight: 260 }}
             />
           </div>
@@ -767,11 +763,11 @@ function RenameDialog(props: {
   const [title, setTitle] = useState(props.initialTitle)
   return (
     <div className={css.libraryDialogBackdrop} onClick={props.onClose}>
-      <div className={css.libraryDialog} onClick={(event) => event.stopPropagation()}>
+      <div className={css.libraryDialog} onClick={event => event.stopPropagation()}>
         <div className={css.libraryDialogTitle}>重命名文档</div>
         <div style={fieldStyle}>
           <label style={labelStyle}>标题</label>
-          <input className={css.libraryInput} autoFocus placeholder="文档标题" value={title} onChange={(event) => setTitle(event.target.value)} />
+          <input className={css.libraryInput} autoFocus placeholder="文档标题" value={title} onChange={event => setTitle(event.target.value)} />
         </div>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
           <button type="button" className={css.libraryActionButton} onClick={props.onClose}>取消</button>

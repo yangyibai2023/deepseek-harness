@@ -725,9 +725,17 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  /* 2026-11-08：chips/工具行/素材网格与「素材管理」tab 同一条竖线
-   *（tab 行内距 = clamp(24px, 4vw, 48px)，此处同值；实测对齐 328）。 */
-  padding: 8px 12px 8px clamp(24px, 4vw, 48px);
+  /* 2026-11-08：①chips/工具行/素材网格与「素材管理」tab 同竖线（左内距
+   * = clamp(24px, 4vw, 48px)）；②**左右边距对称**（用户拍板「对称好看」）；
+   * ③本容器不滚——chips+工具行冻结在顶部，只有 .libraryScroll 滚。 */
+  padding: 8px clamp(24px, 4vw, 48px);
+  overflow: hidden;
+}
+
+/* 素材网格的唯一滚动区（chips + 工具行冻结不跟随滚动，用户拍板）。 */
+.libraryScroll {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
 }

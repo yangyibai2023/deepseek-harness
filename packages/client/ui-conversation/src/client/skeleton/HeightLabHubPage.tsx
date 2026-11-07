@@ -288,7 +288,10 @@ const hubPageStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: 32,
-  padding: '0 clamp(24px, 4vw, 48px) 48px',
+  /* 2026-11-08（用户实测「标题介绍与第一组挤在一块」）：header 与本容器是
+   * 兄弟节点，本容器若无 paddingTop，标题副标与「对标复刻」就贴上了——原生
+   * .page 的 gap 32 正好承担这个间距（副标底→组标题顶 = 32）。 */
+  padding: '32px clamp(24px, 4vw, 48px) 48px',
   boxSizing: 'border-box',
 }
 
