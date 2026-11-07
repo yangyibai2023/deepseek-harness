@@ -43,6 +43,25 @@ interface WorkflowProgress {
   detail: string
 }
 
+/** 0.5.7 模块创作台：入口侧（ui-conversation HubPage）按模块算好的模板条目。 */
+export interface ModuleTemplateEntry {
+  id: string
+  name: string
+  tagline: string
+  cover: string
+  coverFallback?: string
+  skill: string
+}
+
+/** 模块创作台的模块元数据 + 模板集（hl:open-module-console detail / sessionStorage）。 */
+export interface ModuleConsoleState {
+  moduleId: string
+  name: string
+  desc: string
+  icon: string
+  templates: ModuleTemplateEntry[]
+}
+
 type VoiceChoice = 'auto' | 'vo' | 'asset' | 'silent' | 'original' | 'origclone'
 type SubtitleChoice = 'auto' | 'burn' | 'none'
 
@@ -115,6 +134,12 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
   const [templateSchema, setTemplateSchema] = useState<TemplateSchema | null>(null)
   const [templateName, setTemplateName] = useState('')
   const [templateValues, setTemplateValues] = useState<Record<string, string>>({})
+  /* 0.5.7 模块创作台（2026-11-08，用户拍板「一个功能驾驭多个模板」）：视频创作
+   * 一级页模块卡进入（hl:start-module -> ui-workspace 建新会话 + 写
+   * sessionStorage）后，控制台先渲染**该模块的模板选择网格**，点模板卡再进
+   * V40 的模板专属工作台——模板列表由入口侧（HubPage，与模板目录同包）算好
+   * 放进 detail/sessionStorage，本包不依赖模板目录。 */
+  const [moduleConsole, setModuleConsole] = useState<ModuleConsoleState | null>(null)
   useEffect(() => {
     try {
       const saved = sessionStorage.getItem('hl-template-console')
@@ -125,6 +150,8 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
           setTemplateName(parsed.template ?? '')
         }
       }
+      const savedModule = sessionStorage.getItem('hl-module-console')
+      if (savedModule !== null) setModuleConsole(JSON.parse(savedModule) as ModuleConsoleState)
     } catch { /* 非致命 */ }
     const onOpen = (e: Event): void => {
       const detail = (e as CustomEvent<{ id?: string; template?: string; skill?: string }>).detail ?? {}
@@ -136,13 +163,36 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
     }
     const onClear = (): void => {
       setTemplateSchema(null)
-      try { sessionStorage.removeItem('hl-template-console') } catch { /* 非致命 */ }
+      setModuleConsole(null)
+      try {
+        sessionStorage.removeItem('hl-template-console')
+        sessionStorage.removeItem('hl-module-console')
+      } catch { /* 非致命 */ }
+    }
+    const onModuleOpen = (e: Event): void => {
+      const detail = (e as CustomEvent<ModuleConsoleState>).detail ?? null
+      if (detail === null || typeof detail.moduleId !== 'string' || detail.moduleId === '') return
+      setModuleConsole(detail)
+      setTemplateSchema(null)
+      try {
+        sessionStorage.setItem('hl-module-console', JSON.stringify(detail))
+        sessionStorage.removeItem('hl-template-console')
+      } catch { /* 非致命 */ }
+    }
+    /* 显式进入爆款复刻（hl:mode-change replication）时收掉模块/模板模式——
+     * ConsoleBody 跨会话不重挂，不收会残留上一个流程的面板。 */
+    const onModeChange = (e: Event): void => {
+      if ((e as CustomEvent<{ mode?: unknown }>).detail?.mode === 'replication') onClear()
     }
     window.addEventListener('hl:open-template-console', onOpen)
     window.addEventListener('hl:open-console', onClear)
+    window.addEventListener('hl:open-module-console', onModuleOpen)
+    window.addEventListener('hl:mode-change', onModeChange)
     return () => {
       window.removeEventListener('hl:open-template-console', onOpen)
       window.removeEventListener('hl:open-console', onClear)
+      window.removeEventListener('hl:open-module-console', onModuleOpen)
+      window.removeEventListener('hl:mode-change', onModeChange)
     }
   }, [])
   const [execution, setExecution] = useState<'step' | 'once'>('step')
@@ -299,6 +349,7 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
       }).catch(() => undefined)
     }, 2000)
     return () => window.clearTimeout(timer)
+  // eslint-disable-next-line @stylistic/max-len -- 依赖数组为字面集合，折行反而更难核对
   }, [sessionId, model, ratio, resolution, seconds, durationMode, voice, subtitle, execution, count, repMode, frameInterval, fields, slots, voiceAsset])
 
   const openPicker = async (slotId: string, kind: string): Promise<void> => {
@@ -443,7 +494,7 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
         void registerAsset(SLOT_KIND[slotId] ?? '其他', file.name, path)
       }
       dirtyRef.current = true
-      setSlots(prev => {
+      setSlots((prev) => {
         // 追加语义：图片槽多次上传累加（不超过 max）；原视频槽 max=1 即替换。
         const spec = VIDEO_REPLICATION_SCHEMA.slots.find(s => s.id === slotId)
         const merged = [...(prev[slotId] ?? []), ...incoming]
@@ -486,7 +537,7 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
         else if (e.path !== undefined) markers.push(`[用户上传了一张图片，本地路径：${e.path}]`)
       }
     }
-    const requirementLines = VIDEO_REPLICATION_SCHEMA.fields.flatMap(f => {
+    const requirementLines = VIDEO_REPLICATION_SCHEMA.fields.flatMap((f) => {
       const value = (fields[f.id] ?? '').trim()
       return value === '' ? [] : [`- ${f.label}：${value}`]
     })
@@ -499,8 +550,8 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
           : voice === 'origclone'
             ? '- 语音：原片音色克隆（2026-09-22 用户拍板模式，用于按原片结构重写文案）——用原片旁白的声线念全部（重写后）文案：①阶段2 用 ffmpeg silencedetect 取原片最长连续旁白段（≥10s 最佳）去噪裁纯人声做样本；②talking_head_production {action:"create_voice", audio_source:<样本>} 提交克隆（免费），克隆训练与其它工作并行、TTS 前 voice_clone_status 轮询到 ready；③节奏=原句时间窗网格：每句 TTS 后用 atempo 精确适配原句时长窗（0.8-1.3 倍以内，超限如实告知），按原句起始时间放置、保留原片句间停顿——全片韵律与原片一致；④逐句响度对齐原句实测 mean_volume；⑤样本 <10s 或 BGM 压制严重时事先告知克隆相似度可能受限；克隆失败/超时回退通用 TTS 并如实说明。字幕与文案以用户重写稿为准。'
             : voice === 'asset' && voiceAsset !== null
-            ? `- 语音：有声（忠实原片表演形态）· 音色使用用户资产声音「${voiceAsset.name}」（${voiceAsset.path}），显式指定，非自动附加`
-            : '- 语音：有声（忠实原片表演形态：原片是演唱就演唱、是口播就口播，不得改成口播）'
+              ? `- 语音：有声（忠实原片表演形态）· 音色使用用户资产声音「${voiceAsset.name}」（${voiceAsset.path}），显式指定，非自动附加`
+              : '- 语音：有声（忠实原片表演形态：原片是演唱就演唱、是口播就口播，不得改成口播）'
     const subtitleLine = subtitle === 'auto'
       ? '- 字幕：智能识别（跟随原片）——以真实抽帧网格图判断原片画面是否带烧录字幕：有 → 同样烧录字幕；无 → 画面不得出现任何字幕文字。'
       : subtitle === 'burn'
@@ -586,7 +637,7 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
             className={css.uploadBox}
             htmlFor="console-file-source-video"
             onDragOver={e => e.preventDefault()}
-            onDrop={e => {
+            onDrop={(e) => {
               e.preventDefault()
               void setFiles('source-video', 'video', e.dataTransfer.files)
             }}>
@@ -629,7 +680,9 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
         <div className={css.imgGrid}>
           {entries.map((e, i) => (
             <div key={`${e.name}-${i}`} className={css.imgCell}>
-              {e.path !== undefined ? <img className={css.imgCellImg} src={mediaUrl(e.path)} alt={e.name} /> : <span className={css.imgNameFallback}>{e.name}</span>}
+              {e.path !== undefined
+                ? <img className={css.imgCellImg} src={mediaUrl(e.path)} alt={e.name} />
+                : <span className={css.imgNameFallback}>{e.name}</span>}
               <button type="button" className={css.imgDelete} title="移除" onClick={() => removeSlotEntry(slotId, i)}>×</button>
             </div>
           ))}
@@ -695,11 +748,49 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
     subtitleSummary,
   ].join(' · ')
 
+  /* 0.5.7 模块创作台：先选模板（用户拍板「一个功能驾驭多个模板」），选中后
+   * 进下方 V40 模板专属工作台；「返回模板集」由模板面板头部的返回钮承担。 */
+  if (moduleConsole !== null && templateSchema === null) {
+    return (
+      <div className={css.console}>
+        <div className={css.head}>
+          <div className={css.schemaTitle}>{moduleConsole.icon} {moduleConsole.name} · 选择模板</div>
+          <div className={css.headHint}>{moduleConsole.desc}——一个功能可驾驭多个模板，点击卡片进入对应创作工作台。</div>
+        </div>
+        {moduleConsole.templates.length === 0
+          ? <div className={css.headHint}>该模块的模板集整理中，可先使用「爆款复刻」。</div>
+          : (
+            <div className={css.moduleGrid}>
+              {moduleConsole.templates.map(t => (
+                <button key={t.id} type="button" className={css.moduleCard}
+                  onClick={() => {
+                    window.dispatchEvent(new CustomEvent('hl:open-template-console', { detail: { id: t.id, template: t.name, skill: t.skill } }))
+                  }}
+                >
+                  <img
+                    className={css.moduleCardCover}
+                    src={t.cover}
+                    alt=""
+                    draggable={false}
+                    onError={(e) => {
+                      if (t.coverFallback !== undefined && e.currentTarget.src !== t.coverFallback) e.currentTarget.src = t.coverFallback
+                    }}
+                  />
+                  <span className={css.moduleCardName}>{t.name}</span>
+                  <span className={css.moduleCardTag}>{t.tagline}</span>
+                </button>
+              ))}
+            </div>
+          )}
+      </div>
+    )
+  }
+
   // V40：模板工作台——按 skill schema 渲染的模板专属面板（替代复刻控制台）。
   if (templateSchema !== null) {
     const taskText = [
       `【模板创作任务】模板：${templateName || templateSchema.title}（skill: ${templateSchema.skill}）`,
-      ...templateSchema.sections.flatMap(sec => sec.fields.flatMap(f => {
+      ...templateSchema.sections.flatMap(sec => sec.fields.flatMap((f) => {
         // V41：素材字段读真实槽位条目（本地路径标记，agent 侧可直接取用）。
         if (f.type === 'images' || f.type === 'video') {
           const entries = slots[`tpl-${f.id}`] ?? []
@@ -717,6 +808,16 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
         onChangeCapture={() => { dirtyRef.current = true }}
         onClickCapture={() => { dirtyRef.current = true }}>
         <div className={css.head}>
+          {moduleConsole !== null && (
+            <button type="button" className={css.moduleBack}
+              onClick={() => {
+                setTemplateSchema(null)
+                try { sessionStorage.removeItem('hl-template-console') } catch { /* 非致命 */ }
+              }}
+            >
+              ← 返回「{moduleConsole.name}」模板集
+            </button>
+          )}
           <div className={css.schemaTitle}>{templateName || templateSchema.title}</div>
           <div className={css.headHint}>{templateSchema.intro}</div>
         </div>
@@ -724,7 +825,7 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
           <div key={sec.title}>
             <div className={css.sectionTitle}>{sec.title}</div>
             <div className={css.grid2}>
-              {sec.fields.map(f => {
+              {sec.fields.map((f) => {
                 const wide = f.wide === true || f.type === 'textarea'
                 const value = templateValues[f.id] ?? ''
                 if (f.type === 'images' || f.type === 'video') {
@@ -751,9 +852,9 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
                     <span>{f.label}</span>
                     {f.type === 'textarea'
                       ? <textarea rows={3} placeholder={f.placeholder ?? ''} value={value}
-                          onChange={e => setTemplateValues(v => ({ ...v, [f.id]: e.target.value }))} />
+                        onChange={e => setTemplateValues(v => ({ ...v, [f.id]: e.target.value }))} />
                       : <input type={f.type === 'number' ? 'number' : 'text'} placeholder={f.placeholder ?? ''} value={value}
-                          onChange={e => setTemplateValues(v => ({ ...v, [f.id]: e.target.value }))} />}
+                        onChange={e => setTemplateValues(v => ({ ...v, [f.id]: e.target.value }))} />}
                   </label>
                 )
               })}
@@ -832,7 +933,7 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
           生成参数区上移到文案下方常驻展示，不再折叠。 */}
       <label className={`${css.field} ${css.fieldWide}`}>
         <span>声音</span>
-        <select value={voice} onChange={e => {
+        <select value={voice} onChange={(e) => {
           const v = e.target.value as VoiceChoice
           setVoice(v)
           if (v === 'asset') void openVoicePicker()

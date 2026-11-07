@@ -29,7 +29,10 @@ export function defaultSeed(tabs: SidebarRightTabRegistry): SidebarRightSeed {
   // 跨组件时序（此前三轮弹出失败全部倒在该时序上）。入口侧只写
   // hl-console-mode 标记；本 seed 在新会话 store 创建的同步时刻读取，
   // 无竞态。普通模式/历史行为不变（registry 只有一个 guide 时仍回 guide）。
-  if (typeof localStorage !== 'undefined' && localStorage.getItem('hl-console-mode') === 'replication') {
+  // 0.5.7 模块创作台（2026-11-08）：hl-console-mode='module'（视频创作一级页
+  // 其余七模块）与 'replication' 共用同一套「新会话天生带创作台首 tab」机制。
+  const consoleMode = typeof localStorage === 'undefined' ? null : localStorage.getItem('hl-console-mode')
+  if (consoleMode === 'replication' || consoleMode === 'module') {
     const definition = tabs.get('heightlab-console')
     if (definition !== undefined) {
       return { kind: 'heightlab-console', title: definition.title(pageAddress('heightlab-console')) }

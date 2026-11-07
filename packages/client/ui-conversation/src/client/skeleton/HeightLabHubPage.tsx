@@ -8,6 +8,7 @@
 
 import { useEffect, useState, type CSSProperties } from 'react'
 import { TEMPLATE_CARDS, TEMPLATE_ORDER, loadTemplateCatalog, templateThumb, type Recommendation, type TemplateCategory } from './HeightLabTemplates.ts'
+import { VIDEO_CATALOG } from './HeightLabVideoCatalog.ts'
 import { TemplatePreview } from './TemplatePreview.tsx'
 import { HeightLabLibraryPage } from './HeightLabLibraryPage.tsx'
 import { HeightLabFilmStudio } from './HeightLabFilmStudio.tsx'
@@ -15,18 +16,79 @@ import css from './ConversationRoot.module.css'
 
 export type HubPage = 'inspiration' | 'library' | 'automation' | 'video-studio' | 'skill-hub' | 'film-studio'
 
-/** HeightLab V24b：视频创作一级页的 8 个模板卡片（第一排流量转化/第二排人设内容）。 */
-type StudioCard = { name: string; desc: string; icon: string; enabled: boolean }
+/** HeightLab V24b：视频创作一级页的 8 个模块卡片（第一排流量转化/第二排人设内容）。
+ * 0.5.7 模块创作台（2026-11-08 用户拍板「一个功能驾驭多个模板」）：8 模块全部
+ * 上线——爆款复刻走专属 FY1 链（hl:start-replication），其余七模块走
+ * hl:start-module（新建会话 + 右栏先选模板再进模板工作台）。 */
+type StudioCard = { name: string; desc: string; icon: string; moduleId: string }
 const STUDIO_CARDS: StudioCard[] = [
-  { name: '爆款复刻', desc: '上传对标视频，AI 拆脚本、分镜与钩子，换品换人换文案重生成', icon: '🔥', enabled: true },
-  { name: '达人带货', desc: '达人形象 + 商品图，按卖点直接生成种草带货视频', icon: '🛍️', enabled: false },
-  { name: '产品评测', desc: '开箱、对比、试用与参数解读的真实体验向测评', icon: '🔍', enabled: false },
-  { name: '直播切片', desc: '直播回放自动切金句高光，加字幕标题二次创作', icon: '📺', enabled: false },
-  { name: 'IP 口播', desc: '固定形象 + 文案生成单人主讲，人设统一、不强制挂品', icon: '🎙️', enabled: false },
-  { name: '知识讲解', desc: '文档知识点转图解讲解、配音与字幕的教程科普', icon: '📚', enabled: false },
-  { name: '情景短剧', desc: '从梗概到分镜的剧情带货与品牌短剧', icon: '🎬', enabled: false },
-  { name: '访谈视频', desc: '双人对谈与圆桌采访，提纲或录音直接转视频', icon: '🎤', enabled: false },
+  { name: '爆款复刻', desc: '上传对标视频，AI 拆脚本、分镜与钩子，换品换人换文案重生成', icon: '🔥', moduleId: 'replication' },
+  { name: '达人带货', desc: '达人形象 + 商品图，按卖点直接生成种草带货视频', icon: '🛍️', moduleId: 'influencer-selling' },
+  { name: '产品评测', desc: '开箱、对比、试用与参数解读的真实体验向测评', icon: '🔍', moduleId: 'product-review' },
+  { name: '直播切片', desc: '直播回放自动切金句高光，加字幕标题二次创作', icon: '📺', moduleId: 'live-clip' },
+  { name: 'IP 口播', desc: '固定形象 + 文案生成单人主讲，人设统一、不强制挂品', icon: '🎙️', moduleId: 'ip-talk' },
+  { name: '知识讲解', desc: '文档知识点转图解讲解、配音与字幕的教程科普', icon: '📚', moduleId: 'knowledge-tutorial' },
+  { name: '情景短剧', desc: '从梗概到分镜的剧情带货与品牌短剧', icon: '🎬', moduleId: 'drama-short' },
+  { name: '访谈视频', desc: '双人对谈与圆桌采访，提纲或录音直接转视频', icon: '🎤', moduleId: 'interview-video' },
 ]
+
+/* 模块 -> 模板目录条目 id 集（2026-11-07 八模块↔120 条目录映射调研落定，家族
+ * 依据见 docs/70-PLANS；同族跨模块允许重叠——主播系同时服务带货与口播）。
+ * 点击时按 id 从 VIDEO_CATALOG 取全条目（含封面/skill）传给控制台。 */
+const MODULE_TEMPLATE_IDS: Record<string, readonly string[]> = {
+  // 达人带货：主播系 + 服装博主/试穿系 + 安利/种草系 + 主理人系
+  'influencer-selling': [
+    'yj-320-adaptive-scene-host', 'yj-320-car-host', 'yj-320-host-product-showcase', 'yj-320-fashion-store-presenter',
+    'yj-320-female-fashion-blogger', 'yj-320-male-fashion-blogger', 'yj-320-male-fashion-first-frame',
+    'yj-320-fashion-beat-change', 'yj-320-garment-product-only', 'skill-test-21-nvzhuang-jiefang-shichuan',
+    'skill-test-19-nvzhuang-dian-shangshen', 'skill-test-18-nvzhuang-bozhu-chuanda', 'skill-test-20-nanzhuang-xingnan-anli',
+    'skill-test-22-chaoliu-nanzhuang-duijing', 'skill-test-31-quanneng-zhongcao-nvzhubo', 'skill-test-14-zhenren-koubei-anli',
+    'skill-test-16-jietou-luren-anli', 'skill-test-39-chenei-suishoupai-tongqin-anli', 'skill-test-32-quanpinlei-wanneng-daihuo',
+    'yj-320-brand-craftsman', 'yj-320-export-factory-owner', 'yj-320-warehouse-owner', 'yj-320-struggling-creator',
+    'yj-320-craftsman-live-clip', 'skill-test-23-pinpai-zhuliren-jiangxin', 'skill-test-09-maican-zhuliren-shuaimai',
+  ],
+  // 产品评测：开箱/对比实测/横评/痛点/用前用后/证言/探店
+  'product-review': [
+    'yj-320-unboxing-review', 'skill-test-10-zhenshi-kaixiang-ceping', 'yj-320-comparison-test',
+    'skill-test-11-yinghe-hengping-shice', 'yj-320-pain-unbox-review', 'yj-320-pain-first-five-shot',
+    'skill-test-35-tongdian-chaixiang-bidan-sanlian', 'skill-test-34-tongdian-baoji-yizhao',
+    'skill-test-12-yongqian-yonghou-fanzhuan', 'yj-320-before-after', 'yj-320-testimonial',
+    'yj-320-store-reviewer', 'skill-test-03-tandian-daka-zhongcao',
+  ],
+  // 直播切片：原生/主理人/高光逼单
+  'live-clip': [
+    'yj-320-live-clip', 'yj-320-craftsman-live-clip', 'skill-test-42-zhibo-qiepian-gaoguang-bidan',
+  ],
+  // IP 口播：口播系 + 一镜到底 + 主播系（与带货主播系有意重叠）
+  'ip-talk': [
+    'skill-test-38-jimeng-zixuan-changjing-koubo', 'skill-test-40-jianshenfang-8miao-baofa-koubo',
+    'yj-320-gym-one-shot', 'yj-320-warehouse-one-take', 'yj-320-adaptive-scene-host',
+    'yj-320-host-product-showcase', 'yj-320-car-host', 'yj-320-fashion-store-presenter',
+  ],
+  // 知识讲解：沉浸式教程 ×2 + YJ-402 图解全家桶（图解=该模块的讲解载体）
+  'knowledge-tutorial': [
+    'yj-320-tutorial-howto', 'skill-test-17-chenjin-shoubashou-jiaocheng',
+    'yj-402-attribute-guide', 'yj-402-benefits-infographic', 'yj-402-brand-closing-banner',
+    'yj-402-components-structure', 'yj-402-feature-matrix', 'yj-402-how-to-use',
+    'yj-402-lifestyle-scene', 'yj-402-materials-story', 'yj-402-multi-angle-showcase',
+    'yj-402-packaging-detail', 'yj-402-routine-context', 'yj-402-white-background-main',
+    'yj-402-wide-hero-banner',
+  ],
+  // 情景短剧：剧情/宫斗/爽剧/微剧场/冲突/抢购/货架
+  'drama-short': [
+    'yj-320-dramatic-short', 'yj-320-palace-drama', 'skill-test-01-gongdou-daihuo-duanju',
+    'skill-test-04-zhongwen-shuangju-daihuo', 'skill-test-05-shenghuo-weijuchang',
+    'skill-test-06-zhalie-chongtu-lanjie', 'yj-320-extreme-conflict', 'yj-320-crowd-rush',
+    'yj-320-supermarket-rush', 'skill-test-07-chaoshi-hongqiang-jianlou',
+    'skill-test-08-hongqiang-jiaqiang-bidan', 'skill-test-37-shangchao-shipai-huojia-qiangjing',
+    'skill-test-25-lingshou-caopanshou-huojia',
+  ],
+  // 访谈视频：街访四条 + 评论区对话体（双人圆桌暂无直接模板，先以模板集上线）
+  'interview-video': [
+    'yj-320-street-interview', 'interview-dialogue-video', 'yj-320-fashion-street-interview',
+    'skill-test-21-nvzhuang-jiefang-shichuan', 'yj-320-comment-reply', 'skill-test-15-pinglunqu-kaigang-huidui',
+  ],
+}
 
 const studioWrapStyle: CSSProperties = {
   maxWidth: 760,
@@ -61,14 +123,6 @@ const studioCardStyle: CSSProperties = {
 const studioIconStyle: CSSProperties = { fontSize: 24, lineHeight: 1.2 }
 const studioNameStyle: CSSProperties = { fontWeight: 600, fontSize: 13, lineHeight: '18px' }
 const studioDescStyle: CSSProperties = { fontSize: 11, lineHeight: '16px', color: '#999' }
-const studioBadgeStyle: CSSProperties = {
-  fontSize: 9,
-  color: '#b8860b',
-  border: '1px solid #e6d9a8',
-  borderRadius: 6,
-  padding: '0 5px',
-}
-
 const PAGE_TITLES: Record<HubPage, string> = {
   'film-studio': '智能剪辑台',
   'skill-hub': '技能中心',
@@ -221,20 +275,34 @@ export function HeightLabHubPage({ page, onClose }: { page: HubPage; onClose: ()
               <button
                 key={card.name}
                 type="button"
-                className={card.enabled ? css.studioCard : `${css.studioCard} ${css.studioCardOff}`}
+                className={css.studioCard}
                 style={studioCardStyle}
-                disabled={!card.enabled}
                 onClick={() => {
-                  if (!card.enabled) return
-                  window.dispatchEvent(new CustomEvent('hl:start-replication'))
+                  if (card.moduleId === 'replication') {
+                    // 爆款复刻：专属 FY1 云镜链（既有通道，0.5.7 已修工作区解析）。
+                    window.dispatchEvent(new CustomEvent('hl:start-replication'))
+                    window.dispatchEvent(new CustomEvent('hl:close-hub'))
+                    return
+                  }
+                  /* 0.5.7 模块创作台：把模块元数据 + 按映射取好的模板条目整包
+                   * 传给 ui-workspace（建新会话）与右栏控制台（模板选择网格）。 */
+                  const templates = (MODULE_TEMPLATE_IDS[card.moduleId] ?? [])
+                    .map(id => VIDEO_CATALOG.find(item => item.id === id))
+                    .filter((item): item is (typeof VIDEO_CATALOG)[number] => item !== undefined)
+                    .map(item => ({
+                      id: item.id, name: item.name, tagline: item.tagline,
+                      cover: item.cover,
+                      ...(item.coverFallback !== undefined ? { coverFallback: item.coverFallback } : {}),
+                      skill: item.skill,
+                    }))
+                  window.dispatchEvent(new CustomEvent('hl:start-module', {
+                    detail: { moduleId: card.moduleId, name: card.name, desc: card.desc, icon: card.icon, templates },
+                  }))
                   window.dispatchEvent(new CustomEvent('hl:close-hub'))
                 }}
               >
                 <span className={css.studioIcon} style={studioIconStyle} aria-hidden="true">{card.icon}</span>
-                <span style={studioNameStyle}>
-                  {card.name}
-                  {!card.enabled ? <span style={{ ...studioBadgeStyle, marginLeft: 6 }}>即将上线</span> : null}
-                </span>
+                <span style={studioNameStyle}>{card.name}</span>
                 <span style={studioDescStyle}>{card.desc}</span>
               </button>
             ))}

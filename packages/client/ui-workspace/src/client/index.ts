@@ -126,6 +126,51 @@ export function apply(ctx: Context): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-workspace: dictionaries')
 
   // ── HeightLab 回植（2026-10-14，自 da30b40951；0.2.1 合并曾丢弃）──────
+  /* 创作入口（爆款复刻 hl:start-replication / 模块创作台 hl:start-module）共用的
+   * 目标工作区解析。0.2.1 适配：SessionListState 不再有 current——按工作区解析。
+   * 2026-11-08（用户实测「从已有对话里点复刻毫无反应，左栏还停在旧对话，右栏
+   * 是上次残留的控制台」）：原 fallback 只用 workspace.sessionIds ∩ sessions.byId
+   * 交集——该索引已被本文件实测证实不可靠（工作区 sessionIds 漏登记当前会话；
+   * 个人工作区同样会出现交集全空）。交集空 => target undefined => **静默 return**
+   * => 不建会话不导航。改三级解析 + 每级留痕（/hl/boot-marker 诊断通道）：
+   *   ① sessionIds ∩ byId（原法；索引健康时最准）
+   *   ② cwd 匹配（byId 摘要 cwd == 工作区 path；与 reuseOrCreateBlank 的空白
+   *     会话判定同源，不依赖 sessionIds 索引）
+   *   ③ 第一个工作区兜底（个人模式恒为「我的工作区」） */
+  const resolveStudioWorkspace = (
+    detailWorkspaceId: string | undefined, source: string,
+  ): WorkspaceId | undefined => {
+    const sessionList = sessions.list.getSnapshot()
+    const wsItems = workspaces.list.getSnapshot().items
+    const byId = sessionList.byId
+    const diag = (stage: string, extra: Record<string, unknown>): void => {
+      try {
+        void fetch('/hl/boot-marker', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ hlStudioEntry: true, source, stage, ...extra }),
+        }).catch(() => { /* 诊断失败不影响主流程 */ })
+      } catch { /* 非致命 */ }
+    }
+    const intersectHit = wsItems.find(item => item.sessionIds.some(id => byId[id] !== undefined))
+    const cwdHit = intersectHit === undefined
+      ? wsItems.find(item => Object.values(byId).some(s => s !== undefined && s.cwd === item.path))
+      : undefined
+    const fallbackItem = intersectHit ?? cwdHit ?? wsItems[0]
+    const target = (detailWorkspaceId ?? fallbackItem?.workspaceId) as WorkspaceId | undefined
+    if (target === undefined) {
+      diag('no-workspace', { wsCount: wsItems.length, sessionCount: Object.keys(byId).length })
+      return undefined
+    }
+    if (detailWorkspaceId === undefined && intersectHit === undefined) {
+      diag('fallback-resolved', {
+        via: cwdHit !== undefined ? 'cwd' : 'first-item',
+        wsCount: wsItems.length,
+      })
+    }
+    return target
+  }
+
   // HeightLab V26e-b：视频创作一级页「爆款复刻」（hl:start-replication）——
   // 新建会话并在导航打开前设置复刻模式标记 + 广播会话就绪（右栏展开消费）。
   ctx.effect(() => {
@@ -133,13 +178,7 @@ export function apply(ctx: Context): void {
     const onStart = (event: Event): void => {
       const detail = (event as CustomEvent<{ workspaceId?: unknown }>).detail
       const detailWorkspaceId = typeof detail.workspaceId === 'string' ? detail.workspaceId : undefined
-      // 0.2.1 适配：SessionListState 不再有 current——取「含已有会话的第一个
-      // 工作区」近似旧「当前会话工作区」，复刻入口恒有 HeightLab 工作区。
-      const sessionList = sessions.list.getSnapshot()
-      const fallbackWorkspaceId = workspaces.list.getSnapshot().items
-        .find(item => item.sessionIds.some(id => sessionList.byId[id] !== undefined))?.workspaceId
-      // 事件里来的 workspaceId 已满足 WorkspaceId 品牌约束（同构字符串），断言收窄。
-      const target = (detailWorkspaceId ?? fallbackWorkspaceId) as WorkspaceId | undefined
+      const target = resolveStudioWorkspace(detailWorkspaceId, 'replication')
       if (target === undefined) return
       void uiWorkspace.openWorkspace(target, (sessionId) => {
         try {
@@ -161,6 +200,65 @@ export function apply(ctx: Context): void {
     window.addEventListener('hl:start-replication', onStart)
     return () => { window.removeEventListener('hl:start-replication', onStart) }
   }, 'ui-workspace: replication entry')
+
+  // HeightLab 0.5.7 模块创作台（2026-11-08 用户拍板「一个功能驾驭多个模板」）：
+  // 视频创作一级页其余七模块（hl:start-module）——与爆款复刻共用「新建会话 +
+  // 创作模式标记 + 右栏消费」链路，模式值='module'；模板集由入口侧（HubPage，
+  // 与模板目录同包）算好随 detail 传入，写 sessionStorage('hl-module-console')
+  // 供 ConsoleBody 渲染模板选择网格。左栏=全新空白会话（默认引导页）。
+  ctx.effect(() => {
+    if (typeof window === 'undefined') return () => {}
+    interface StudioModuleTemplate {
+      id: string
+      name: string
+      tagline: string
+      cover: string
+      coverFallback?: string
+      skill: string
+    }
+    const onStartModule = (event: Event): void => {
+      const detail = (event as CustomEvent<{
+        moduleId?: unknown
+        name?: unknown
+        desc?: unknown
+        icon?: unknown
+        templates?: unknown
+        workspaceId?: unknown
+      }>).detail ?? {}
+      const moduleId = typeof detail.moduleId === 'string' ? detail.moduleId : ''
+      if (moduleId === '') return
+      const templates: StudioModuleTemplate[] = Array.isArray(detail.templates)
+        ? (detail.templates as unknown[]).filter((t): t is StudioModuleTemplate =>
+          typeof t === 'object' && t !== null
+            && typeof (t as { id?: unknown }).id === 'string'
+            && typeof (t as { skill?: unknown }).skill === 'string')
+        : []
+      const moduleState = {
+        moduleId,
+        name: typeof detail.name === 'string' ? detail.name : moduleId,
+        desc: typeof detail.desc === 'string' ? detail.desc : '',
+        icon: typeof detail.icon === 'string' ? detail.icon : '🎬',
+        templates,
+      }
+      const target = resolveStudioWorkspace(
+        typeof detail.workspaceId === 'string' ? detail.workspaceId : undefined, 'module',
+      )
+      if (target === undefined) return
+      void uiWorkspace.openWorkspace(target, (sessionId) => {
+        try {
+          localStorage.setItem('hl-console-mode', 'module')
+          localStorage.setItem('hl-console-mode-at', String(Date.now()))
+        } catch { /* 非致命 */ }
+        try { sessionStorage.setItem('hl-module-console', JSON.stringify(moduleState)) } catch { /* 非致命 */ }
+        window.dispatchEvent(new CustomEvent('hl:mode-change', { detail: { mode: 'module' } }))
+        window.dispatchEvent(new CustomEvent('hl:replication-session-open', { detail: { sessionId } }))
+      }).catch((reason: unknown) => {
+        console.warn('module session failed:', reason)
+      })
+    }
+    window.addEventListener('hl:start-module', onStartModule)
+    return () => { window.removeEventListener('hl:start-module', onStartModule) }
+  }, 'ui-workspace: module entry')
 
   // HeightLab 定制：全新环境自动完成首次初始化——没有工作区时自动创建
   // 「~/HeightLab」工作区；没有会话时自动开始一个新会话。直接进入产品

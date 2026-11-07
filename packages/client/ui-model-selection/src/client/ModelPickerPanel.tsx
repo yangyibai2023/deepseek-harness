@@ -223,10 +223,25 @@ export function ModelPickerPanel({
    *      位置不变则复用，预览切换不再引起任何移动（第一幕的修法目的保留）。 */
   const providerMenuStyleRef = useRef<CSSProperties | null>(null)
   const providerMenuKeyRef = useRef('')
+  /* O6-弹跳·第三幕（2026-11-08 用户录屏逐帧实锤）：第二幕修完后「大部分时候
+   * 没问题」但仍在弹跳——录屏 f-001 帧有面板+菜单整体瞬移的重影，且光标停驻
+   * 不动时预览在两厂商间来回翻转（反馈环）。机制：面板翻到触发器**上方**时
+   * （贴底锚定：bottom=锚点顶-gap），useAnchoredPosition 的 place() 每次按
+   * 「当前内容高度」重算 top —— 预览切换改变模型行数 → 面板高度变 → top 移
+   * → 二级菜单键(left,top,width)失效跟随 → 菜单在光标下移位 → mouseenter
+   * 打到另一行 → 预览再切 → 高度再变 → **振荡环**。修法：上方翻转形态把
+   * top **钉在打开时刻**（锚点未动则 top 恒定），maxHeight 同步钉为「钉住的
+   * top 到触发器的距离」——内容变高改走列表内部滚动，不再推着面板跑；
+   * 下方展开（未翻转）形态 top 本就钉在锚点下方，无需处理。 */
+  const panelTopPinRef = useRef<{ anchorTop: number; top: number } | null>(null)
 
-  // 每次关闭都收起二级浮层：下次打开看到的是当前厂商详情。
+  // 每次关闭都收起二级浮层：下次打开看到的是当前厂商详情；顶部钉住同步失效
+  //（下次打开按当时锚点重新钉）。
   useEffect(() => {
-    if (!open) setPickingProvider(false)
+    if (!open) {
+      setPickingProvider(false)
+      panelTopPinRef.current = null
+    }
   }, [open])
 
   /* 打开时拉一次倍率（服务端下发，FIX-5/FIX-6）。
@@ -382,6 +397,32 @@ export function ModelPickerPanel({
 
   if (!open) return null
 
+  /* 一级面板的最终定位样式（2026-11-08 O6 第三幕：上方翻转形态钉 top）。
+   * 下方展开：hook 的 top 本就钉在锚点下方（top=锚点底+gap），原样透传；
+   * 上方翻转：hook 的 top=锚点顶-gap-当前高度，随内容高度漂移——改为钉在
+   * 打开时刻的值，maxHeight 同步钉为「钉住的 top 到触发器的距离」（=钉住
+   * 时刻的面板高度）：内容变高走 modelList 内部滚动，不再推着面板跑。
+   * 锚点移动（滚动/缩放）时 |cached.anchorTop-anchor.top| 超阈 → 按当前
+   * placement 重新钉（正确跟随，一次性移动，无环）。 */
+  const panelStyle = ((): CSSProperties => {
+    if (position === null) return MEASURE_STYLE
+    const left = Number(position.left)
+    const top = Number(position.top)
+    if (!Number.isFinite(left) || !Number.isFinite(top)) return MEASURE_STYLE
+    const anchor = anchorRef.current?.getBoundingClientRect()
+    if (anchor === undefined) return { left, top, maxHeight: panelMaxHeight }
+    if (top < anchor.top - 1) {
+      const cached = panelTopPinRef.current
+      if (cached !== null && Math.abs(cached.anchorTop - anchor.top) < 0.5) {
+        return { left, top: cached.top, maxHeight: Math.max(240, anchor.top - 4 - cached.top) }
+      }
+      panelTopPinRef.current = { anchorTop: anchor.top, top }
+      return { left, top, maxHeight: Math.max(240, anchor.top - 4 - top) }
+    }
+    panelTopPinRef.current = null
+    return { left, top, maxHeight: panelMaxHeight }
+  })()
+
   /* 二级厂商浮层的位置（2026-10-22 用户第三次校正；2026-11-08 O6 终修）。
    *
    * ZCode 的实际做法是**弹在一级面板的右侧并排**，不是翻到上方叠在一起。
@@ -393,18 +434,20 @@ export function ModelPickerPanel({
    *   · 垂直方向 顶对齐 → 底对齐 → 才 shift（不会飞到屏幕外）
    *   · 按可用空间限高
    *
-   * 锚点几何取 position（useAnchoredPosition 对触发按钮的锚定结果）+ 面板
-   * offset 尺寸推导——**绝不读面板自身的 getBoundingClientRect**：面板在
-   * 首帧挂在 MEASURE 位置（视口原点），读实时 rect 会把垃圾坐标冻进缓存
-   * （O6 第二幕）。返回视口绝对坐标（浮层是 position:fixed 挂在 body 下）。
+   * 锚点几何取 panelStyle（已含 O6 第三幕的 top 钉住——保证键稳定，预览
+   * 切换不再使缓存失效）+ 面板 offset 尺寸推导——**绝不读面板自身的
+   * getBoundingClientRect**：面板在首帧挂在 MEASURE 位置（视口原点），读
+   * 实时 rect 会把垃圾坐标冻进缓存（O6 第二幕）。返回视口绝对坐标
+   * （浮层是 position:fixed 挂在 body 下）。
    */
   const providerMenuStyle = ((): CSSProperties => {
     if (position === null) return { visibility: 'hidden' }
     const host = panelRef.current
     if (host === null) return { visibility: 'hidden' }
-    /* position 由 useAnchoredPosition 以触发按钮几何算出，left/top 恒为 number。 */
-    const left = Number(position.left)
-    const top = Number(position.top)
+    /* panelStyle 由 useAnchoredPosition 的锚定结果（+第三幕钉住）推导，
+     * left/top 恒为 number。 */
+    const left = Number(panelStyle.left)
+    const top = Number(panelStyle.top)
     /* 护栏：坐标不是有限数（理论不可达，hook 只写 number）时宁可隐藏也绝不
      * 定位/冻结——「把垃圾坐标冻进缓存」正是 O6 第二幕的教训。 */
     if (!Number.isFinite(left) || !Number.isFinite(top)) return { visibility: 'hidden' }
@@ -440,7 +483,7 @@ export function ModelPickerPanel({
     <MenuSurface
       ref={panelRef}
       className={css.panel}
-      style={{ ...(position ?? MEASURE_STYLE), maxHeight: panelMaxHeight }}
+      style={panelStyle}
       role="menu"
       aria-label={ariaLabel}
       onClick={(event) => {

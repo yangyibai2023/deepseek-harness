@@ -216,6 +216,12 @@ export function apply(ctx: ClientContext): void {
         return false
       }
     }
+    /* HeightLab 0.5.7 模块创作台（2026-11-08）：hl-console-mode 有两类创作
+     * 模式——'replication'（爆款复刻）与 'module'（视频创作一级页其余七模块）。
+     * 二者共用同一套「新会话自动开创作台 / 鲜活期不自动关 / 空白会话登记」
+     * 机制，判断统一走这里，禁止散落 `=== 'replication'` 字面量。 */
+    const isStudioConsoleMode = (mode: string | null): boolean =>
+      mode === 'replication' || mode === 'module'
 
     let expandLoopRunning = false
     const openConsoleRetrying = (expand: boolean): void => {
@@ -295,7 +301,7 @@ export function apply(ctx: ClientContext): void {
             let justEnteredReplication = false
             try {
               const at = Number(localStorage.getItem('hl-console-mode-at') ?? '0')
-              justEnteredReplication = localStorage.getItem('hl-console-mode') === 'replication'
+              justEnteredReplication = isStudioConsoleMode(localStorage.getItem('hl-console-mode'))
                 && Number.isFinite(at) && at > 0 && Date.now() - at < 15_000
             } catch { /* 忽略 */ }
             if (cached && !justEnteredReplication) {
@@ -376,7 +382,7 @@ export function apply(ctx: ClientContext): void {
       let justEnteredReplication = false
       try {
         const at = Number(localStorage.getItem('hl-console-mode-at') ?? '0')
-        justEnteredReplication = localStorage.getItem('hl-console-mode') === 'replication'
+        justEnteredReplication = isStudioConsoleMode(localStorage.getItem('hl-console-mode'))
           && Number.isFinite(at) && at > 0 && Date.now() - at < 15_000
       } catch { /* 忽略 */ }
       const registered = Array.isArray(rep) && rep.includes(sid)
@@ -434,7 +440,7 @@ export function apply(ctx: ClientContext): void {
           // 一个跟视频无关的会话，也会因为读到这个陈旧值而自动弹创作台。
           // 只在「刚进过复刻模式」的短窗口内认它（由 setReplicationMode 写入
           // 时间戳），窗口外视为过期。
-          if (localStorage.getItem('hl-console-mode') === 'replication'
+          if (isStudioConsoleMode(localStorage.getItem('hl-console-mode'))
             && replicationModeFresh()) {
             openConsoleRetrying(false)
           }
