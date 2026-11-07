@@ -762,7 +762,7 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
           : (
             <div className={css.moduleGrid}>
               {moduleConsole.templates.map(t => (
-                <button key={t.id} type="button" className={css.moduleCard}
+                <button key={t.id} type="button" className={css.moduleCard} title={t.tagline}
                   onClick={() => {
                     window.dispatchEvent(new CustomEvent('hl:open-template-console', { detail: { id: t.id, template: t.name, skill: t.skill } }))
                   }}
@@ -777,7 +777,6 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
                     }}
                   />
                   <span className={css.moduleCardName}>{t.name}</span>
-                  <span className={css.moduleCardTag}>{t.tagline}</span>
                 </button>
               ))}
             </div>
