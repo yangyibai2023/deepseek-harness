@@ -208,22 +208,20 @@ function AccountMenu({
       }
       const rail = anchor.width < 150
       /* 两种形态的约束不同：
-       *   · 展开态：2026-11-07 用户实测「余额和积分被挤成两行，严禁」。
-       *     根因是面板宽度被压成 `侧栏宽 - 12`（约 220px），而行内固定内容
-       *     （图标16 + 3×gap10 + 数字 ~68 + 箭头12 + padding20 = 146）只剩
-       *     ~50px 给「积分余额」，差 2px 就折行。现在面板宽度 = 侧栏宽 + 48
-       *     （下限 268、上限 340），允许**有意**向右探出侧栏一截（收在视口内），
-       *     行内标签再配 nowrap，双保险保证单行。
+       *   · 展开态：2026-11-07 用户拍板——面板必须**收在侧栏内**（不越过侧栏
+       *     右缘），同时不得挤压行内文字。侧栏默认 280px（ui-layout
+       *     SIDEBAR_DEFAULT），面板取「侧栏宽 - 12」= 268，内容区 248px；
+       *     而行内固定内容只需 ~198px（图标16+gap30+标签52+数字68+箭头12+
+       *     padding20），余量充足 → 单行不折行（nowrap 兜底）。
+       *     下限 210 是硬保护：任何窄侧栏下也不低于行内需求。
        *   · 折叠态（图标轨 56）：轨道装不下面板，弹层浮在主区上是正常的，
        *     但必须夹在视口内，且左边不越过轨道。 */
-      const preferred = rail
-        ? 268
-        : Math.max(268, Math.min(340, Math.round(anchor.width) + 48))
-      const width = Math.min(preferred, window.innerWidth - 16)
-      const rightLimit = Math.max(8, window.innerWidth - width - 8)
+      const width = rail
+        ? Math.min(268, window.innerWidth - 24)
+        : Math.min(268, Math.max(210, Math.round(anchor.width) - 12))
       const left = rail
-        ? Math.round(Math.min(Math.max(8, anchor.left + 4), rightLimit))
-        : Math.round(Math.min(Math.max(8, anchor.left + Math.max(6, (anchor.width - width) / 2)), rightLimit))
+        ? Math.round(Math.min(Math.max(8, anchor.left + 4), window.innerWidth - width - 8))
+        : Math.round(anchor.left + Math.max(6, (anchor.width - width) / 2))
       setPos({ left, bottom: Math.round(window.innerHeight - tb.top + 8), width })
     }
     measure()
