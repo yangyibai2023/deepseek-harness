@@ -129,9 +129,11 @@ export function createLayoutStore(): EngineStoreHandle<LayoutState, LayoutAction
           d.layoutInfo.rightbarInstant = d.layoutInfo.rightbarFullscreen && !fullscreen
         }
         if (!d.layoutInfo.rightbarShown && d.layoutInfo.viewportWidth < SIDEBAR_AUTO_COLLAPSE) d.layoutInfo.narrowExpanded = false
-        // HeightLab：右侧边栏打开时自动收起左侧，保证中间输入区宽度足够；
-        // 用户仍可手动展开左侧（两边同开时由输入区换行兜底）。
-        if (d.layoutInfo.sidebar !== 0) d.layoutInfo.sidebar = 0
+        // HeightLab 2026-11-08（用户拍板取消「右栏打开即折叠左栏」）：原先这里
+        // 无条件 sidebar=0，导致创作台/模块工作台一开左栏就被收走。现在左栏
+        // 保持用户偏好宽度，三区宽窄由 computeColumns 自动分配——右栏先让位
+        // （min(可用空间, 45%)，缩到 300 下限才撤轨道），中间吃剩余，左栏永不
+        // 牺牲；窄窗（<1024）仍走原生响应式折叠。
         d.layoutInfo.rightbar ??= Math.max(RIGHTBAR_MIN, Math.round(d.layoutInfo.viewportWidth * RIGHTBAR_DEFAULT_RATIO))
         d.layoutInfo.rightbarShown = true
         d.layoutInfo.rightbarTrack = track

@@ -156,7 +156,14 @@ export function ConversationRoot(props: ConversationRootProps) {
       }
     } catch { /* 非致命 */ }
     if (hub === null) return
-    const labels = ['收起侧边栏', '折叠侧边栏', '收起底部面板', '折叠底部面板']
+    /* HeightLab 2026-11-08（用户拍板「右侧边栏打开，左侧都不用自动折叠」）：
+     * 本效果原先把「收起侧边栏/折叠侧边栏」也放进标签表——按 aria-label 模糊
+     * 匹配恰好命中**左侧边栏**的收起钮（注释意图本就写着绝不点它，实现背离了
+     * 意图），于是打开任一 hub 页（视频创作/灵感/资产中心…）左栏被折叠且关闭
+     * 后不还原；模块/复刻流程（hub→卡片→创作台）便呈现「右栏开着、左栏没了」。
+     * 现只收底部面板；左栏保持展开，三区宽窄由 ui-layout computeColumns 自动
+     * 分配（右栏先让位→缩到 300 下限→才撤轨道，左栏永不牺牲）。 */
+    const labels = ['收起底部面板', '折叠底部面板']
     const closePanels = (): void => {
       // 只作用于 better-sidebar 的面板宿主，绝不点击左侧原生侧边栏的收起按钮。
       // HeightLab 2026-09-14：0.19.1 删除了 toggleCluster 类（旧版用它圈定按钮簇），
