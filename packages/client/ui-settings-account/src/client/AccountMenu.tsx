@@ -19,6 +19,9 @@ interface CreditsOverview {
   tierLabel?: string
   canBuyBooster?: boolean
   totalUnits?: number
+  /** 展示口径积分（2026-11-07 修）：totalUnits 是 New API 内部计量（十亿级
+   * 天文数字），用户可见数字必须用这个已换算字段。 */
+  displayTotalUnits?: number
   plan?: { name?: string } | null
 }
 
@@ -79,10 +82,18 @@ export function AccountMenu({
   useEffect(() => {
     if (!open || !signedIn) return
     let cancelled = false
-    void fetch('/hl/credits').then(res => res.ok ? res.json() : null).then((data) => {
-      if (!cancelled && data !== null) setCredits(data as CreditsOverview)
-    }).catch(() => undefined)
-    return () => { cancelled = true }
+    /* P0（2026-11-07 同 HeightLabAccountFoot）：打开期间 15s 轮询 +
+     * 聊天结算事件即时刷新，修「消耗后数字静止」。 */
+    const load = (): void => {
+      void fetch('/hl/credits').then(res => res.ok ? res.json() : null).then((data) => {
+        if (!cancelled && data !== null) setCredits(data as CreditsOverview)
+      }).catch(() => undefined)
+    }
+    load()
+    const pollId = window.setInterval(load, 15_000)
+    const onDirty = (): void => { load() }
+    window.addEventListener('hl:credits-dirty', onDirty)
+    return () => { cancelled = true; window.clearInterval(pollId); window.removeEventListener('hl:credits-dirty', onDirty) }
   }, [open, signedIn])
   // FIX-23（0.5.5）：credits 没拿到时 tierLabel 传 undefined → TierBadge 未知态灰「—」；
   // 原来兜底「体验版」是把真实档位冒充查询结果（旗舰账号显示成体验版的事故根因）。
@@ -118,7 +129,9 @@ export function AccountMenu({
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 11, color: 'var(--dsw-alias-label-tertiary, rgba(127,127,127,0.85))' }}>积分余额</div>
-            <div style={{ marginTop: 4, fontSize: 15, fontWeight: 600 }}>{formatUnits(credits?.totalUnits)}</div>
+            <div style={{ marginTop: 4, fontSize: 15, fontWeight: 600 }}>
+              {formatUnits(credits?.displayTotalUnits ?? credits?.totalUnits)}
+            </div>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, padding: '10px 12px 4px' }}>

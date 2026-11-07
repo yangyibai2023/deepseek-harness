@@ -441,20 +441,30 @@ export function HeightLabAccountFoot({ wide, openSettings }: HeightLabAccountFoo
   const [creditsOverview, setCreditsOverview] = useState<CreditsInfo | null>(null)
   useEffect(() => {
     let cancelled = false
-    fetch('/hl/credits')
-      .then(r => r.ok ? r.json() : null)
-      .then((data: { tierLabel?: string; canBuyBooster?: boolean; totalUnits?: number; displayTotalUnits?: number } | null) => {
-        if (cancelled || data === null) return
-        const next: { tierLabel?: string | undefined; canBuyBooster: boolean; totalUnits?: number; displayTotalUnits?: number } = {
-          tierLabel: typeof data.tierLabel === 'string' ? data.tierLabel : undefined,
-          canBuyBooster: data.canBuyBooster === true,
-        }
-        if (typeof data.totalUnits === 'number') next.totalUnits = data.totalUnits
-        if (typeof data.displayTotalUnits === 'number') next.displayTotalUnits = data.displayTotalUnits
-        setCreditsOverview(next)
-      })
-      .catch(() => { /* 弹框回落未知态「—」（FIX-23） */ })
-    return () => { cancelled = true }
+    /* P0（2026-11-07 用户实测）：原实现只在弹框开合时拉一次、无轮询——聊天
+     * 消耗后数字永远静止，用户误判「积分不扣」。改为：打开期间 15s 轮询 +
+     * 监听聊天回合结算事件（hl:credits-dirty）立即刷新。扣费本身经服务器
+     * New API used_quota 实证正常（用户账号已消耗 1.27 亿 units）。 */
+    const loadCredits = (): void => {
+      fetch('/hl/credits')
+        .then(r => r.ok ? r.json() : null)
+        .then((data: { tierLabel?: string; canBuyBooster?: boolean; totalUnits?: number; displayTotalUnits?: number } | null) => {
+          if (cancelled || data === null) return
+          const next: { tierLabel?: string | undefined; canBuyBooster: boolean; totalUnits?: number; displayTotalUnits?: number } = {
+            tierLabel: typeof data.tierLabel === 'string' ? data.tierLabel : undefined,
+            canBuyBooster: data.canBuyBooster === true,
+          }
+          if (typeof data.totalUnits === 'number') next.totalUnits = data.totalUnits
+          if (typeof data.displayTotalUnits === 'number') next.displayTotalUnits = data.displayTotalUnits
+          setCreditsOverview(next)
+        })
+        .catch(() => { /* 弹框回落未知态「—」（FIX-23） */ })
+    }
+    loadCredits()
+    const pollId = window.setInterval(loadCredits, 15_000)
+    const onDirty = (): void => { loadCredits() }
+    window.addEventListener('hl:credits-dirty', onDirty)
+    return () => { cancelled = true; window.clearInterval(pollId); window.removeEventListener('hl:credits-dirty', onDirty) }
   }, [accountMenuOpen])
   useEffect(() => {
     const id = window.setInterval(() => {
@@ -481,7 +491,6 @@ export function HeightLabAccountFoot({ wide, openSettings }: HeightLabAccountFoo
   // 侧边栏账户入口显示当前登录用户（头像 + 用户名，无用户名显示邮箱）。
   useEffect(() => {
     loadAccount()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadAccount 为组件内稳定读取函数
   }, [])
 
   // HeightLab：账户页保存资料后，左侧栏账户名立即同步（无需重启）。
