@@ -324,6 +324,24 @@ const hubSubtitleStyle: CSSProperties = {
 /* 2026-11-08（第四次校准）：原生插件页是**单列垂直列表**（实测 UL:
  * flex column / gap 2px / 每行 65px），不是多列网格。用户质问「布局对吗」
  * ——这里就是没对的地方。列表 maxWidth 与 header 内容盒一致（960）。 */
+/* 2026-11-08（美观版分组，用户拍板「不只是对齐要好看」）：8 模块天然两族——
+ * 对标复刻 / 流量转化（带货评测短剧切片）/ 人设与知识（口播讲解访谈）。
+ * 照原生 .groupHead/.groupTitle（14px/500/22px）加分组标题，与插件页的
+ * 「内置插件配置/实验性插件」同一语言。 */
+const STUDIO_GROUPS: ReadonlyArray<{ title: string; modules: readonly string[] }> = [
+  { title: '对标复刻', modules: ['replication'] },
+  { title: '流量转化', modules: ['influencer-selling', 'product-review', 'drama-short', 'live-clip'] },
+  { title: '人设与知识', modules: ['ip-talk', 'knowledge-tutorial', 'interview-video'] },
+]
+
+const groupTitleStyle: CSSProperties = {
+  fontSize: 14,
+  fontWeight: 500,
+  lineHeight: '22px',
+  margin: 0,
+  color: 'var(--dsw-alias-label-primary)',
+}
+
 const studioGridStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
@@ -510,45 +528,50 @@ export function HeightLabHubPage({ page, onClose }: { page: HubPage; onClose: ()
       )}
       {page === 'video-studio' ? (
         <div style={hubPageStyle}>
-          <div style={studioGridStyle}>
-            {STUDIO_CARDS.map(card => (
-              <button
-                key={card.name}
-                type="button"
-                className={css.studioCard}
-                style={studioCardStyle}
-                onClick={() => {
-                  if (card.moduleId === 'replication') {
-                    // 爆款复刻：专属 FY1 云镜链（既有通道，0.5.7 已修工作区解析）。
-                    window.dispatchEvent(new CustomEvent('hl:start-replication'))
-                    window.dispatchEvent(new CustomEvent('hl:close-hub'))
-                    return
-                  }
-                  /* 0.5.7 模块创作台：把模块元数据 + 按映射取好的模板条目整包
+          {STUDIO_GROUPS.map(group => (
+            <section key={group.title} style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 960 }}>
+              <h3 style={groupTitleStyle}>{group.title}</h3>
+              <div style={studioGridStyle}>
+                {STUDIO_CARDS.filter(card => group.modules.includes(card.moduleId)).map(card => (
+                  <button
+                    key={card.name}
+                    type="button"
+                    className={css.studioCard}
+                    style={studioCardStyle}
+                    onClick={() => {
+                      if (card.moduleId === 'replication') {
+                        // 爆款复刻：专属 FY1 云镜链（既有通道，0.5.7 已修工作区解析）。
+                        window.dispatchEvent(new CustomEvent('hl:start-replication'))
+                        window.dispatchEvent(new CustomEvent('hl:close-hub'))
+                        return
+                      }
+                      /* 0.5.7 模块创作台：把模块元数据 + 按映射取好的模板条目整包
                    * 传给 ui-workspace（建新会话）与右栏控制台（模板选择网格）。 */
-                  const templates = (MODULE_TEMPLATE_IDS[card.moduleId] ?? [])
-                    .map(id => VIDEO_CATALOG.find(item => item.id === id))
-                    .filter((item): item is (typeof VIDEO_CATALOG)[number] => item !== undefined)
-                    .map(item => ({
-                      id: item.id, name: item.name, tagline: item.tagline,
-                      cover: item.cover,
-                      ...(item.coverFallback !== undefined ? { coverFallback: item.coverFallback } : {}),
-                      skill: item.skill,
-                    }))
-                  window.dispatchEvent(new CustomEvent('hl:start-module', {
-                    detail: { moduleId: card.moduleId, name: card.name, desc: card.desc, icon: '', templates },
-                  }))
-                  window.dispatchEvent(new CustomEvent('hl:close-hub'))
-                }}
-              >
-                <span style={studioIconWrapStyle} aria-hidden="true">{card.svg}</span>
-                <span style={studioTextStyle}>
-                  <span style={studioNameStyle}>{card.name}</span>
-                  <span style={studioDescStyle}>{card.desc}</span>
-                </span>
-              </button>
-            ))}
-          </div>
+                      const templates = (MODULE_TEMPLATE_IDS[card.moduleId] ?? [])
+                        .map(id => VIDEO_CATALOG.find(item => item.id === id))
+                        .filter((item): item is (typeof VIDEO_CATALOG)[number] => item !== undefined)
+                        .map(item => ({
+                          id: item.id, name: item.name, tagline: item.tagline,
+                          cover: item.cover,
+                          ...(item.coverFallback !== undefined ? { coverFallback: item.coverFallback } : {}),
+                          skill: item.skill,
+                        }))
+                      window.dispatchEvent(new CustomEvent('hl:start-module', {
+                        detail: { moduleId: card.moduleId, name: card.name, desc: card.desc, icon: '', templates },
+                      }))
+                      window.dispatchEvent(new CustomEvent('hl:close-hub'))
+                    }}
+                  >
+                    <span style={studioIconWrapStyle} aria-hidden="true">{card.svg}</span>
+                    <span style={studioTextStyle}>
+                      <span style={studioNameStyle}>{card.name}</span>
+                      <span style={studioDescStyle}>{card.desc}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          ))}
         </div>
       ) : page === 'inspiration' ? (
         <div style={hubPageStyle}>

@@ -276,6 +276,15 @@ export function HeightLabMaterialPanel() {
   }
 
   const showTrash = category === '回收站'
+  /* 2026-11-08（美观版）：分类从左侧 112px 窄栏改为顶部筛选 chips（与首页
+   * 模板网格「精选/UGC广告」chips 同款）——工具行/网格/标题三者落同一竖线，
+   * 且带上每个分类的真实数量（技能中心「官方精选（13）」同款）。 */
+  const liveItems = items.filter(item => item.trashed_at === null)
+  const countOf = (name: Category): number => {
+    if (name === '回收站') return items.length - liveItems.length
+    if (name === '全部') return liveItems.length
+    return liveItems.filter(item => TYPE_MAP[item.artifact_type] === name).length
+  }
   const filtered = items
     .filter(item => showTrash ? item.trashed_at !== null : item.trashed_at === null)
     .filter(item => category === '全部' || TYPE_MAP[item.artifact_type] === category)
@@ -360,20 +369,21 @@ export function HeightLabMaterialPanel() {
   return (
     <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       <div className={css.libraryBody}>
-        <div className={css.libraryLeft}>
-          {CATEGORIES.map(name => (
-            <button
-              key={name}
-              type="button"
-              className={category === name ? `${css.libraryGroupRow} ${css.libraryGroupRowActive}` : css.libraryGroupRow}
-              onClick={() => setCategory(name)}
-            >
-              {name}
-            </button>
-          ))}
-        </div>
-
         <div className={css.libraryRight}>
+          <div className={css.libraryChips} role="tablist" aria-label="素材分类">
+            {CATEGORIES.map(name => (
+              <button
+                key={name}
+                type="button"
+                role="tab"
+                aria-selected={category === name}
+                className={category === name ? `${css.libraryChip} ${css.libraryChipActive}` : css.libraryChip}
+                onClick={() => setCategory(name)}
+              >
+                {name}（{countOf(name)}）
+              </button>
+            ))}
+          </div>
           {error !== '' && (
             <div style={{ marginBottom: 10, fontSize: 12, color: 'var(--dsw-alias-label-secondary)' }}>{error}</div>
           )}
