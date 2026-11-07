@@ -317,20 +317,30 @@ const hubSubtitleStyle: CSSProperties = {
   margin: 0,
 }
 
+/* 2026-11-08（第四次校准）：原生插件页是**单列垂直列表**（实测 UL:
+ * flex column / gap 2px / 每行 65px），不是多列网格。用户质问「布局对吗」
+ * ——这里就是没对的地方。列表 maxWidth 与 header 内容盒一致（960）。 */
 const studioGridStyle: CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-  gap: '8px 32px',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 2,
   maxWidth: 960,
 }
 
-/* 原生行式卡片：图标 49×49 在左，标题/描述在右（不是竖向大卡）。 */
+/* 原生卡片行（实测 PluginManagerPage.module.css）：
+ *   .card      margin 0 -8px / radius xl（hover 面超出内容对齐线 8px）
+ *   .cardHead  flex row / gap 14 / padding 8px
+ *   .cardMain  flex column / gap 4
+ *   .cardTitle 14/20/500 单行截断
+ *   .cardDesc  13/18 tertiary 单行截断 */
 const studioCardStyle: CSSProperties = {
   display: 'flex',
-  alignItems: 'flex-start',
-  gap: 16,
-  padding: '12px 0',
+  alignItems: 'center',
+  gap: 14,
+  padding: 8,
+  margin: '0 -8px',
   border: 'none',
+  borderRadius: 12,
   background: 'transparent',
   textAlign: 'left',
   boxSizing: 'border-box',
@@ -342,33 +352,41 @@ const studioIconWrapStyle: CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
-  width: 49,
-  height: 49,
-  borderRadius: 16,
-  border: '0.5px solid var(--dsw-alias-border-l2, rgba(0,0,0,0.12))',
+  width: 48,
+  height: 48,
+  borderRadius: 'var(--dsw-radius-lg, 12px)',
+  border: '0.5px solid var(--dsw-alias-border-l3, rgba(0,0,0,0.12))',
   background: 'transparent',
   color: 'var(--dsw-alias-label-secondary, #61666B)',
   boxSizing: 'border-box',
 }
 
 const studioTextStyle: CSSProperties = {
+  flex: 1,
+  minWidth: 0,
   display: 'flex',
   flexDirection: 'column',
-  gap: 2,
-  minWidth: 0,
+  gap: 4,
 }
 
 const studioNameStyle: CSSProperties = {
   fontSize: 14,
   fontWeight: 500,
-  lineHeight: '22px',
+  lineHeight: '20px',
   color: 'var(--dsw-alias-label-primary)',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
 }
 
 const studioDescStyle: CSSProperties = {
   fontSize: 13,
-  lineHeight: '20px',
-  color: 'var(--dsw-alias-label-secondary)',
+  lineHeight: '18px',
+  color: 'var(--dsw-alias-label-tertiary)',
+  display: '-webkit-box',
+  WebkitBoxOrient: 'vertical',
+  WebkitLineClamp: 1,
+  overflow: 'hidden',
 }
 
 const PAGE_TITLES: Record<HubPage, string> = {
