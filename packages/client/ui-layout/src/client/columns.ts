@@ -25,8 +25,10 @@ export const SIDEBAR_AUTO_COLLAPSE = 1024
 export const RIGHTBAR_MIN = 300
 /** Maximum normal right panel width as a fraction of the frame. */
 export const RIGHTBAR_MAX_RATIO = 0.7
-/** First-open right panel preference as a fraction of the frame. */
-export const RIGHTBAR_DEFAULT_RATIO = 0.45
+/** First-open right panel preference as a fraction of the frame.
+ * HeightLab 2026-11-08（用户拍板）：0.45 → 0.38——创作工作台/模板选择用不了
+ * 那么宽，窄一点把中间区还回来（用户可拖拽加深，钳制不变）。 */
+export const RIGHTBAR_DEFAULT_RATIO = 0.38
 
 /**
  * Clamp a panel width into its contract range.

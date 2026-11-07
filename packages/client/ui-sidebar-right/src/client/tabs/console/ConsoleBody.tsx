@@ -790,6 +790,7 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
                     }}
                   />
                   <span className={css.moduleCardName}>{t.name}</span>
+                  <span className={css.moduleCardTag}>{t.tagline}</span>
                 </button>
               ))}
             </div>
