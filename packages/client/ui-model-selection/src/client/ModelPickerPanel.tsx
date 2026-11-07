@@ -196,6 +196,19 @@ export function ModelPickerPanel({
   const panelRef = useRef<HTMLDivElement | null>(null)
   /** 二级：是否展开「所有供应商」浮层。 */
   const [pickingProvider, setPickingProvider] = useState(false)
+  /* O6-乱弹（2026-11-08 用户视频 + 侦听日志实锤）：供应商菜单的定位此前在
+   * **每次渲染**都重算（getBoundingClientRect + placeOverlay）。悬停供应商行
+   * 会切换预览 -> 左侧模型列表行数变化 -> 一级面板高度变化 -> 本菜单容器
+   * 重渲染时 placeOverlay 算出**不同的 top**（实测 top 224 -> 368 瞬移 144px）
+   * -> 鼠标瞬间在容器外 -> mouseleave -> 150ms 后整个菜单关闭 = 用户看到的
+   * 「选供应商乱弹」。
+   * 修法：位置只在打开（false -> true）时计算一次并**冻结**，预览重渲染不重算
+   * ——容器永不移动，mouseleave 永不误触发。关闭时清缓存，下次打开重算
+   * （锚点位置可能已变）。maxHeight 360 + 内部滚动本就固定了本菜单大小。 */
+  const providerMenuStyleRef = useRef<CSSProperties | null>(null)
+  useEffect(() => {
+    if (!pickingProvider) providerMenuStyleRef.current = null
+  }, [pickingProvider])
 
   // 每次关闭都收起二级浮层：下次打开看到的是当前厂商详情。
   useEffect(() => {
@@ -369,6 +382,7 @@ export function ModelPickerPanel({
    * 这里返回视口绝对坐标（浮层是 position:fixed 挂在 body 下）。
    */
   const providerMenuStyle = ((): CSSProperties => {
+    if (providerMenuStyleRef.current !== null) return providerMenuStyleRef.current
     const host = panelRef.current
     if (host === null) return {}
     const anchor = host.querySelector('button[aria-haspopup="menu"]')
@@ -389,13 +403,15 @@ export function ModelPickerPanel({
       margin: 12,
       maxHeight: 360,
     })
-    return {
+    const style: CSSProperties = {
       position: 'fixed',
       left: placement.left,
       top: placement.top,
       width: host.offsetWidth,
       maxHeight: placement.maxHeight ?? 360,
     }
+    providerMenuStyleRef.current = style
+    return style
   })()
 
   const panel = (

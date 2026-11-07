@@ -23,6 +23,10 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+  /* O6 兜底（2026-11-08）：聊天流是纵向流，任何子内容（思考行/长 URL/
+   * 未换行代码）都不应产生**页面级**横向滚动条——横向滚动只允许出现在
+   * 各自内部（代码块自带 overflow-x:auto 不受影响）。 */
+  overflow-x: hidden;
   /* Sides = composer clearance + 16px: on narrow viewports the transcript
      stays exactly 32px narrower than the input card (the shared width rule). */
   padding: 16px calc(var(--dsh-composer-side-clearance) + 16px);
@@ -179,6 +183,15 @@
    左缘渐隐滚动观感；页面抖动另查（用户实测与本行无关）。 */
 .runningTailLine {
   overflow: hidden;
+  /* O6 真根因（2026-11-08 用户实测：思考内容溢出右侧边缘 -> 页面出现横向
+   * 滚动条 -> 整页"左右抖动"）。原实现 nowrap+overflow:hidden 但**无宽度
+   * 约束**——.running 是 align-items:flex-start 的 flex column，本行按内容
+   * 自然宽度展开 = 无限宽，撑破消息列。max-width:100% + align-self:stretch
+   * 双保险把行宽钉在容器内，超长文本由 overflow:hidden 截断（左侧 mask
+   * 渐变依旧生效），与左侧内容同宽对齐。 */
+  max-width: 100%;
+  align-self: stretch;
+  min-width: 0;
   color: color-mix(in srgb, var(--dsw-alias-text-secondary, #71717a) 92%, transparent);
   font-size: calc(var(--dsh-content-font-size, 14px) - 2px);
   line-height: 20px;
