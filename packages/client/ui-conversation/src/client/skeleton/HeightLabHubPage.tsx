@@ -6,7 +6,7 @@
  * 展示输入框下方的模板卡片（推荐/文案/图片/视频/办公），整页可滚动。
  */
 
-import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useId, useState, type CSSProperties, type ReactNode } from 'react'
 import { TEMPLATE_CARDS, TEMPLATE_ORDER, loadTemplateCatalog, templateThumb, type Recommendation, type TemplateCategory } from './HeightLabTemplates.ts'
 import { VIDEO_CATALOG } from './HeightLabVideoCatalog.ts'
 import { TemplatePreview } from './TemplatePreview.tsx'
@@ -20,74 +20,172 @@ export type HubPage = 'inspiration' | 'library' | 'automation' | 'video-studio' 
  * 0.5.7 模块创作台（2026-11-08 用户拍板「一个功能驾驭多个模板」）：8 模块全部
  * 上线——爆款复刻走专属 FY1 链（hl:start-replication），其余七模块走
  * hl:start-module（新建会话 + 右栏先选模板再进模板工作台）。 */
-/* 图标：**矢量线条 SVG**（原生 icon 体系同款：36×36 viewBox、1.5 描边、
- * currentColor），不用 emoji——emoji 在不同系统渲染各异、与原生线性图标
- * 风格割裂（用户明确指出）。容器为 49×49 圆角 16 描边框（原生实测值）。 */
-const ICON_PROPS = {
-  viewBox: '0 0 36 36', width: 36, height: 36, fill: 'none',
-  stroke: 'currentColor', strokeWidth: 1.5,
-  strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const,
+/* 图标（2026-11-08 第三次校准，用户指出「原生是彩色风格，绝不是线条 SVG」）：
+ * 照搬原生 `ui-primitives/plugin-artwork.tsx` 的**固定调色板渐变**体系——
+ * 36×36 viewBox、自带品牌色（蓝/紫/绿/青/橙渐变，不跟 currentColor）、
+ * useId 生成唯一渐变 id（同一卡片重复渲染不会串色）。这是 DSH 插件页
+ * 「子智能体 / Agent 循环 / 网页搜索」那套图标的同款语言。 */
+const useArtworkId = (): string => `hl_hub_art_${useId().replaceAll(':', '')}`
+
+const artSvg = { viewBox: '0 0 36 36', fill: 'none', xmlns: 'http://www.w3.org/2000/svg' } as const
+
+/** 爆款复刻：火焰（暖橙→玫红渐变）。 */
+const ArtFlame = (): ReactNode => {
+  const uid = useArtworkId()
+  return (
+    <svg {...artSvg} width={36} height={36} aria-hidden="true">
+      <path d="M18 5.5c4.4 5.5 8.6 8.8 8.6 15a8.6 8.6 0 1 1-17.2 0c0-3.3 1.7-5.5 3.3-7.7 1.1 3.3 2.2 4.4 3.8 5C16 13.8 16.5 9.5 18 5.5Z" fill={`url(#${uid}a)`} />
+      <path d="M18 27.5a4.4 4.4 0 0 0 4.4-4.4c0-2.2-1.6-3.8-4.4-6.6-2.8 2.8-4.4 4.4-4.4 6.6a4.4 4.4 0 0 0 4.4 4.4Z" fill="#FFD9A0" fillOpacity="0.9" />
+      <defs>
+        <linearGradient id={`${uid}a`} x1="26.6" y1="5.5" x2="11.8" y2="28.5" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#FFB020" />
+          <stop offset="0.55" stopColor="#FF6B4A" />
+          <stop offset="1" stopColor="#E23AA0" />
+        </linearGradient>
+      </defs>
+    </svg>
+  )
 }
 
-const StudioIconFlame = (): ReactNode => (
-  <svg {...ICON_PROPS} aria-hidden="true">
-    <path d="M18 5c4 5 8 8 8 14a8 8 0 1 1-16 0c0-3 1.5-5 3-7 1 3 2 4 3.5 4.5C16 13 16.5 9 18 5Z" />
-    <path d="M18 27a4 4 0 0 0 4-4c0-2-1.5-3.5-4-6-2.5 2.5-4 4-4 6a4 4 0 0 0 4 4Z" />
-  </svg>
-)
-const StudioIconBag = (): ReactNode => (
-  <svg {...ICON_PROPS} aria-hidden="true">
-    <path d="M7 12h22l-2 17H9L7 12Z" />
-    <path d="M13 12V9a5 5 0 0 1 10 0v3" />
-  </svg>
-)
-const StudioIconSearch = (): ReactNode => (
-  <svg {...ICON_PROPS} aria-hidden="true">
-    <circle cx="16" cy="16" r="8" />
-    <path d="m22 22 7 7" />
-  </svg>
-)
-const StudioIconLive = (): ReactNode => (
-  <svg {...ICON_PROPS} aria-hidden="true">
-    <rect x="5" y="10" width="26" height="18" rx="3" />
-    <path d="m15 17 7 4-7 4v-8Z" />
-  </svg>
-)
-const StudioIconMic = (): ReactNode => (
-  <svg {...ICON_PROPS} aria-hidden="true">
-    <rect x="14" y="5" width="8" height="17" rx="4" />
-    <path d="M9 19a9 9 0 0 0 18 0M18 28v4M13 32h10" />
-  </svg>
-)
-const StudioIconBook = (): ReactNode => (
-  <svg {...ICON_PROPS} aria-hidden="true">
-    <path d="M6 8h9a4 4 0 0 1 4 4v17a3 3 0 0 0-3-3H6V8Z" />
-    <path d="M30 8h-9a4 4 0 0 0-4 4v17a3 3 0 0 1 3-3h10V8Z" />
-  </svg>
-)
-const StudioIconFilm = (): ReactNode => (
-  <svg {...ICON_PROPS} aria-hidden="true">
-    <rect x="4" y="9" width="28" height="18" rx="3" />
-    <path d="M4 15h28M4 21h28M11 9v18M25 9v18" />
-  </svg>
-)
-const StudioIconChat = (): ReactNode => (
-  <svg {...ICON_PROPS} aria-hidden="true">
-    <path d="M8 9h13a4 4 0 0 1 4 4v7a4 4 0 0 1-4 4H13l-5 4v-4a4 4 0 0 1-4-4v-7a4 4 0 0 1 4-4Z" />
-    <path d="M25 13h3a4 4 0 0 1 4 4v6a4 4 0 0 1-4 4h-1v3l-4-3" />
-  </svg>
-)
+/** 达人带货：购物袋（紫→蓝渐变）。 */
+const ArtBag = (): ReactNode => {
+  const uid = useArtworkId()
+  return (
+    <svg {...artSvg} width={36} height={36} aria-hidden="true">
+      <path d="M7 12.5h22L27 30H9L7 12.5Z" fill={`url(#${uid}a)`} fillOpacity="0.85" />
+      <path d="M13.2 13V9.6a4.8 4.8 0 0 1 9.6 0V13" stroke="#7B5BF5" strokeWidth="2.6" strokeLinecap="round" />
+      <defs>
+        <linearGradient id={`${uid}a`} x1="18" y1="12.5" x2="18" y2="30" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#A797FC" />
+          <stop offset="1" stopColor="#4561EE" />
+        </linearGradient>
+      </defs>
+    </svg>
+  )
+}
+
+/** 产品评测：放大镜（青→蓝渐变环）。 */
+const ArtSearch = (): ReactNode => {
+  const uid = useArtworkId()
+  return (
+    <svg {...artSvg} width={36} height={36} aria-hidden="true">
+      <circle cx="16" cy="16" r="8.2" stroke={`url(#${uid}a)`} strokeWidth="3.4" />
+      <path d="m22.2 22.2 6.6 6.6" stroke="#3B82F6" strokeWidth="3.4" strokeLinecap="round" />
+      <defs>
+        <linearGradient id={`${uid}a`} x1="8" y1="8" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#41E1AC" />
+          <stop offset="1" stopColor="#658EFF" />
+        </linearGradient>
+      </defs>
+    </svg>
+  )
+}
+
+/** 直播切片：播放器（绿→青渐变）。 */
+const ArtLive = (): ReactNode => {
+  const uid = useArtworkId()
+  return (
+    <svg {...artSvg} width={36} height={36} aria-hidden="true">
+      <rect x="5.5" y="10" width="25" height="17" rx="4" fill={`url(#${uid}a)`} fillOpacity="0.9" />
+      <path d="M15.5 16.4 22 18.5l-6.5 2.1v-4.2Z" fill="#FFFFFF" />
+      <defs>
+        <linearGradient id={`${uid}a`} x1="5.5" y1="10" x2="30.5" y2="27" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#45E7A4" />
+          <stop offset="1" stopColor="#05909D" />
+        </linearGradient>
+      </defs>
+    </svg>
+  )
+}
+
+/** IP 口播：麦克风（粉→紫渐变）。 */
+const ArtMic = (): ReactNode => {
+  const uid = useArtworkId()
+  return (
+    <svg {...artSvg} width={36} height={36} aria-hidden="true">
+      <rect x="14" y="5.5" width="8" height="16" rx="4" fill={`url(#${uid}a)`} />
+      <path d="M9.5 19a8.5 8.5 0 0 0 17 0" stroke="#D946A8" strokeWidth="2.6" strokeLinecap="round" />
+      <path d="M18 27.5v3.5M13.5 31h9" stroke="#B14BD8" strokeWidth="2.6" strokeLinecap="round" />
+      <defs>
+        <linearGradient id={`${uid}a`} x1="18" y1="5.5" x2="18" y2="21.5" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#FF8FC7" />
+          <stop offset="1" stopColor="#B14BD8" />
+        </linearGradient>
+      </defs>
+    </svg>
+  )
+}
+
+/** 知识讲解：书本（蓝→青渐变）。 */
+const ArtBook = (): ReactNode => {
+  const uid = useArtworkId()
+  return (
+    <svg {...artSvg} width={36} height={36} aria-hidden="true">
+      <path d="M6 8.5h8.5a4 4 0 0 1 4 4v17a3.2 3.2 0 0 0-3.2-3.2H6V8.5Z" fill={`url(#${uid}a)`} fillOpacity="0.9" />
+      <path d="M30 8.5h-8.5a4 4 0 0 0-4 4v17a3.2 3.2 0 0 1 3.2-3.2H30V8.5Z" fill={`url(#${uid}b)`} fillOpacity="0.9" />
+      <defs>
+        <linearGradient id={`${uid}a`} x1="6" y1="8.5" x2="18.5" y2="29.5" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#69B9FF" />
+          <stop offset="1" stopColor="#324DE2" />
+        </linearGradient>
+        <linearGradient id={`${uid}b`} x1="30" y1="8.5" x2="17.5" y2="29.5" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#54ECE7" />
+          <stop offset="1" stopColor="#4B8CF7" />
+        </linearGradient>
+      </defs>
+    </svg>
+  )
+}
+
+/** 情景短剧：胶片（橙→红渐变）。 */
+const ArtFilm = (): ReactNode => {
+  const uid = useArtworkId()
+  return (
+    <svg {...artSvg} width={36} height={36} aria-hidden="true">
+      <rect x="4.5" y="9" width="27" height="18" rx="3.4" fill={`url(#${uid}a)`} fillOpacity="0.9" />
+      <path d="M11 9v18M25 9v18" stroke="#FFFFFF" strokeOpacity="0.85" strokeWidth="2.2" />
+      <path d="M4.5 15.5h27M4.5 20.5h27" stroke="#FFFFFF" strokeOpacity="0.6" strokeWidth="1.6" />
+      <defs>
+        <linearGradient id={`${uid}a`} x1="4.5" y1="9" x2="31.5" y2="27" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#FFC24A" />
+          <stop offset="1" stopColor="#F0503C" />
+        </linearGradient>
+      </defs>
+    </svg>
+  )
+}
+
+/** 访谈视频：双对话气泡（紫→粉渐变）。 */
+const ArtChat = (): ReactNode => {
+  const uid = useArtworkId()
+  return (
+    <svg {...artSvg} width={36} height={36} aria-hidden="true">
+      <path d="M7.5 9.5h12a3.6 3.6 0 0 1 3.6 3.6v6.4a3.6 3.6 0 0 1-3.6 3.6H12l-4.5 3.6V23a3.6 3.6 0 0 1-3.6-3.6v-6.4A3.6 3.6 0 0 1 7.5 9.5Z" fill={`url(#${uid}a)`} fillOpacity="0.92" />
+      <path d="M25 13.5h3.2a3.6 3.6 0 0 1 3.6 3.6v5.2a3.6 3.6 0 0 1-3.6 3.6h-.6v2.8l-3.6-2.8h-1.4" fill={`url(#${uid}b)`} fillOpacity="0.75" />
+      <defs>
+        <linearGradient id={`${uid}a`} x1="7.5" y1="9.5" x2="23.1" y2="23.1" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#A797FC" />
+          <stop offset="1" stopColor="#4561EE" />
+        </linearGradient>
+        <linearGradient id={`${uid}b`} x1="25" y1="13.5" x2="33" y2="24" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#FF8FC7" />
+          <stop offset="1" stopColor="#A23AE7" />
+        </linearGradient>
+      </defs>
+    </svg>
+  )
+}
 
 type StudioCard = { name: string; desc: string; svg: ReactNode; moduleId: string }
 const STUDIO_CARDS: StudioCard[] = [
-  { name: '爆款复刻', desc: '上传对标视频，AI 拆脚本、分镜与钩子，换品换人换文案重生成', svg: <StudioIconFlame />, moduleId: 'replication' },
-  { name: '达人带货', desc: '达人形象 + 商品图，按卖点直接生成种草带货视频', svg: <StudioIconBag />, moduleId: 'influencer-selling' },
-  { name: '产品评测', desc: '开箱、对比、试用与参数解读的真实体验向测评', svg: <StudioIconSearch />, moduleId: 'product-review' },
-  { name: '直播切片', desc: '直播回放自动切金句高光，加字幕标题二次创作', svg: <StudioIconLive />, moduleId: 'live-clip' },
-  { name: 'IP 口播', desc: '固定形象 + 文案生成单人主讲，人设统一、不强制挂品', svg: <StudioIconMic />, moduleId: 'ip-talk' },
-  { name: '知识讲解', desc: '文档知识点转图解讲解、配音与字幕的教程科普', svg: <StudioIconBook />, moduleId: 'knowledge-tutorial' },
-  { name: '情景短剧', desc: '从梗概到分镜的剧情带货与品牌短剧', svg: <StudioIconFilm />, moduleId: 'drama-short' },
-  { name: '访谈视频', desc: '双人对谈与圆桌采访，提纲或录音直接转视频', svg: <StudioIconChat />, moduleId: 'interview-video' },
+  { name: '爆款复刻', desc: '上传对标视频，AI 拆脚本、分镜与钩子，换品换人换文案重生成', svg: <ArtFlame />, moduleId: 'replication' },
+  { name: '达人带货', desc: '达人形象 + 商品图，按卖点直接生成种草带货视频', svg: <ArtBag />, moduleId: 'influencer-selling' },
+  { name: '产品评测', desc: '开箱、对比、试用与参数解读的真实体验向测评', svg: <ArtSearch />, moduleId: 'product-review' },
+  { name: '直播切片', desc: '直播回放自动切金句高光，加字幕标题二次创作', svg: <ArtLive />, moduleId: 'live-clip' },
+  { name: 'IP 口播', desc: '固定形象 + 文案生成单人主讲，人设统一、不强制挂品', svg: <ArtMic />, moduleId: 'ip-talk' },
+  { name: '知识讲解', desc: '文档知识点转图解讲解、配音与字幕的教程科普', svg: <ArtBook />, moduleId: 'knowledge-tutorial' },
+  { name: '情景短剧', desc: '从梗概到分镜的剧情带货与品牌短剧', svg: <ArtFilm />, moduleId: 'drama-short' },
+  { name: '访谈视频', desc: '双人对谈与圆桌采访，提纲或录音直接转视频', svg: <ArtChat />, moduleId: 'interview-video' },
 ]
 
 /* 模块 -> 模板目录条目 id 集（2026-11-07 八模块↔120 条目录映射调研落定，家族
@@ -167,9 +265,12 @@ const MODULE_TEMPLATE_IDS: Record<string, readonly string[]> = {
  * 描述行，与标题分行。
  * 颜色一律 --dsw-alias-* token（暗色跟随）。 */
 
+/* ⚠️ 不能是 position:absolute + inset:0 —— 实测会锚到**视口**而不是内容区，
+ * 标题从 x=48 起被左侧栏遮盖（用户实测「标题溢出屏幕」）。改为普通流式
+ * 100%×100% 容器，跟随父级（hubOverlay 内容区）自然定位。 */
 const hubRootStyle: CSSProperties = {
-  position: 'absolute',
-  inset: 0,
+  width: '100%',
+  height: '100%',
   display: 'flex',
   flexDirection: 'column',
   background: 'var(--dsw-alias-surface-primary, #fff)',
