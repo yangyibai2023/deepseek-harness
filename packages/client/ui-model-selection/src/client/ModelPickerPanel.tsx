@@ -282,6 +282,45 @@ export function ModelPickerPanel({
       top, right: rightOffset,
     })
   }
+  /* N3 v7（0.5.7 用户实测：二级菜单里鼠标快速上下滑动「闪来闪去」）：
+   * 根因三条，收敛为「hover 驱动的 setState 全部 rAF 合帧」+「关闭路径统一」：
+   *   ① 供应商行 onMouseEnter 每行直呼 setPreviewProviderId——快速滑动时每秒
+   *      十几次全面板 reconcile，表头 logo/名字反复切换；
+   *   ② 二级菜单自身 onMouseLeave 是**立即卸载**（表头路径却有 150ms 延迟），
+   *      滑出边缘又扫回 = 二级整棵 DOM 卸载→重建，直接闪没再闪出；
+   *   ③ 模型行介绍卡 enter/leave 都立即 setState，高频挂卸。
+   * 修法：预览与介绍卡各走一个「最后写入 wins」的 rAF 合帧——一帧内多次
+   * enter/leave 只产生最终态的一次 setState；二级菜单离开统一走
+   * scheduleMenuClose（150ms，进入即 cancel），扫出又扫回不再重建。
+   * 用户显式动作（点击选中）不经合帧，立即生效。 */
+  const hoverPreviewFrameRef = useRef<number | null>(null)
+  const hoverPreviewValueRef = useRef<string | undefined>(undefined)
+  const hoverCardFrameRef = useRef<number | null>(null)
+  const hoverCardPendingRef = useRef<{ model: ModelRowEntry; element: HTMLElement } | null>(null)
+  const scheduleHoverPreview = (providerId: string | undefined): void => {
+    hoverPreviewValueRef.current = providerId
+    if (hoverPreviewFrameRef.current !== null) return
+    hoverPreviewFrameRef.current = window.requestAnimationFrame(() => {
+      hoverPreviewFrameRef.current = null
+      onPreviewProvider?.(hoverPreviewValueRef.current)
+    })
+  }
+  const scheduleHoverCard = (model: ModelRowEntry | null, element?: HTMLElement): void => {
+    hoverCardPendingRef.current = model === null || element === undefined ? null : { model, element }
+    if (hoverCardFrameRef.current !== null) return
+    hoverCardFrameRef.current = window.requestAnimationFrame(() => {
+      hoverCardFrameRef.current = null
+      const pending = hoverCardPendingRef.current
+      if (pending === null) { setHoverCard(null); return }
+      showHoverCard(pending.model, pending.element)
+    })
+  }
+  /* 卸载时撤销未 flush 的帧，防止对已卸载组件 setState（React 18 虽不再告警，
+   * 但合帧回调里读 ref/props 仍是无谓开销）。 */
+  useEffect(() => () => {
+    if (hoverPreviewFrameRef.current !== null) window.cancelAnimationFrame(hoverPreviewFrameRef.current)
+    if (hoverCardFrameRef.current !== null) window.cancelAnimationFrame(hoverCardFrameRef.current)
+  }, [])
   /* 2026-11-03 深夜四修（用户第四次实测「App 里还是溢出屏幕」）：
    *
    * 前三修的错误：把 maxHeight 算成「视口 × 0.7，封顶 520」这个**固定值**，
@@ -400,10 +439,9 @@ export function ModelPickerPanel({
         {pickingProvider && (
           <div
             onMouseEnter={() => { cancelMenuClose() }}
-            onMouseLeave={() => {
-              setPickingProvider(false)
-              onPreviewProvider?.(undefined)
-            }}
+            /* N3 v7：离开二级不再立即卸载——统一走 150ms 延迟（与表头路径一致），
+             * 快速滑动扫出又扫回时 cancelMenuClose 兜住，菜单不再闪没重建。 */
+            onMouseLeave={() => { scheduleMenuClose(onPreviewProvider) }}
             className={css.providerMenu}
             role="menu"
             aria-label="选择厂商"
@@ -426,7 +464,9 @@ export function ModelPickerPanel({
                   onPreviewProvider?.(provider.id)
                   setPickingProvider(false)
                 }}
-                onMouseEnter={() => { onPreviewProvider?.(provider.id) }}
+                /* N3 v7：预览切换经 rAF 合帧（最后写入 wins），快速滑动不再每行
+                 * 触发一次全面板 reconcile。 */
+                onMouseEnter={() => { scheduleHoverPreview(provider.id) }}
               >
                 <BrandMarkIcon providerId={provider.id} />
                 <span className={css.providerName}>{provider.label}</span>
@@ -449,8 +489,9 @@ export function ModelPickerPanel({
             role="menuitem"
             className={css.modelRow}
             aria-selected={model.selected}
-            onMouseEnter={(event) => { showHoverCard(model, event.currentTarget) }}
-            onMouseLeave={() => { setHoverCard(null) }}
+            /* N3 v7：介绍卡挂/卸经 rAF 合帧——同帧 enter→leave 只落最终态。 */
+            onMouseEnter={(event) => { scheduleHoverCard(model, event.currentTarget) }}
+            onMouseLeave={() => { scheduleHoverCard(null) }}
             onClick={() => { if (previewed !== undefined) onPickModel(previewed.id, model.id) }}
           >
             <span className={css.modelName}>{model.label}</span>

@@ -189,7 +189,9 @@ export const TEMPLATE_CARDS: Record<TemplateCategory, Recommendation[]> = {
       desc: '以截图/视频为屏幕证据 · oil-cover 规范',
       color: '#DCE9FF',
       cover: 'cover',
-      thumbnail: '/templates/cover-evidence.jpg',
+      /* F6（0.5.7）：thumbnail 曾指向 /templates/cover-evidence.jpg，但该路径
+       * 从未被任何静态服务挂载（桥 assets 里的同名文件是孤儿资源）→ 恒 404 破图。
+       * 删除引用走 templateThumbUri(color) SVG 渐变兜底，与本页其他卡片一致。 */
       prompt: '封面结构（oil-cover）：真实屏幕证据 + 细网格柔和氛围 + 透视屏幕 + 衬线标题 + chip 点缀，三画幅可选',
     },
     { title: '商品主图', desc: '白底 / 场景 / 卖点', color: '#DFF3E0' },
