@@ -284,16 +284,22 @@ const hubPageStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: 20,
-  padding: '0 48px 48px',
+  padding: '32px 48px 48px',
   boxSizing: 'border-box',
 }
 
+/* ⚠️ 必须带左右内边距！此前只有 paddingTop:28（漏了左右 48），标题直接贴
+ * 容器左缘被裁——用户连续两次截图指出「标题溢出」。原生 pageHead 是放在
+ * `padding: 0 48px 48px` 的 section 内部的，左右内距由父级提供；我们的
+ * header 在 page 容器**之外**，必须自带同样的左右内距。 */
 const hubHeaderStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: 4,
-  paddingTop: 28,
-  maxWidth: 960,
+  padding: '28px 48px 0',
+  maxWidth: 1056, /* 960 内容盒 + 左右 48 内距 */
+  boxSizing: 'border-box',
+  flex: 'none',
 }
 
 const hubTitleStyle: CSSProperties = {

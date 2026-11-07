@@ -595,7 +595,8 @@
 .libraryTabs {
   display: flex;
   gap: 28px;
-  padding: 4px 24px 0;
+  /* 2026-11-08：与 header 的 48px 左内距对齐（原 24 会与大标题错位）。 */
+  padding: 0 48px;
   border-bottom: 1px solid var(--dsw-alias-border-l2);
 }
 
@@ -999,7 +1000,8 @@
 .libraryTabs {
   display: flex;
   gap: 28px;
-  padding: 4px 24px 0;
+  /* 2026-11-08：与 header 的 48px 左内距对齐（原 24 会与大标题错位）。 */
+  padding: 0 48px;
   border-bottom: 1px solid var(--dsw-alias-border-l2);
 }
 
