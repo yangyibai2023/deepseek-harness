@@ -171,12 +171,44 @@ export function apply(ctx: Context): void {
     return target
   }
 
+  /* 创作秒开预热（2026-11-08 用户实测「点开很慢/没反应」）：创作入口
+   * （复刻/模块）点击时 connectBlank(reuse=true) 会优先复用空白会话——有
+   * 空白可复用是毫秒级，没有就要现场建会话（秒级，用户感知为卡/无反应）。
+   * 这里保证个人工作区**常备 1 个空白会话**：启动后预热 + 每次创作进入
+   * 消耗后后台补建，点击永远走 adoption 快路径。 */
+  const ensureSpareBlank = (): void => {
+    void (async () => {
+      try {
+        const sessionList = sessions.list.getSnapshot()
+        const wsItems = workspaces.list.getSnapshot().items
+        const byId = sessionList.byId
+        const ws = wsItems.find(item => Object.values(byId).some(sv => sv !== undefined && sv.cwd === item.path)) ?? wsItems[0]
+        if (ws === undefined) return
+        const archived = workspaces.list.getSnapshot().archivedSessionIds ?? []
+        const hasBlank = sessionList.ids.some((id) => {
+          const sv = byId[id]
+          return sv !== undefined && sv.blank && sv.cwd === ws.path
+            && ws.sessionIds.includes(id) && !(archived as readonly string[]).includes(id)
+        })
+        if (!hasBlank) await uiWorkspace.connectWorkspace(ws.workspaceId)
+      } catch { /* 预热失败静默：点击时仍可现场创建（慢路径兜底） */ }
+    })()
+  }
+  // 启动预热：8s/20s/35s 三次尝试（等工作区/会话列表就绪）。
+  for (const delay of [8_000, 20_000, 35_000]) {
+    setTimeout(() => { if (typeof window !== 'undefined') ensureSpareBlank() }, delay)
+  }
+
   // HeightLab V26e-b：视频创作一级页「爆款复刻」（hl:start-replication）——
   // 新建会话并在导航打开前设置复刻模式标记 + 广播会话就绪（右栏展开消费）。
   ctx.effect(() => {
     if (typeof window === 'undefined') return () => {}
     const onStart = (event: Event): void => {
-      const detail = (event as CustomEvent<{ workspaceId?: unknown }>).detail
+      /* detail 空 defensively：卡片派发的 CustomEvent 不带 detail（spec 默认
+       * null），直接读 .workspaceId 会 TypeError 使整个入口静默崩溃——
+       * 2026-11-08 实锤「复刻点击毫无反应、模块却正常」的根因（模块入口
+       * 写了 ?? {} 而这里漏了）。 */
+      const detail = (event as CustomEvent<{ workspaceId?: unknown }>).detail ?? {}
       const detailWorkspaceId = typeof detail.workspaceId === 'string' ? detail.workspaceId : undefined
       const target = resolveStudioWorkspace(detailWorkspaceId, 'replication')
       if (target === undefined) return
@@ -193,6 +225,8 @@ export function apply(ctx: Context): void {
         // 选项区+输入框贴底）。
         window.dispatchEvent(new CustomEvent('hl:mode-change', { detail: { mode: 'replication' } }))
         window.dispatchEvent(new CustomEvent('hl:replication-session-open', { detail: { sessionId } }))
+        // 本次进入消耗了预热空白——2.5s 后（导航稳定）后台补建。
+        window.setTimeout(() => { ensureSpareBlank() }, 2_500)
       }).catch((reason: unknown) => {
         console.warn('replication session failed:', reason)
       })
@@ -252,6 +286,7 @@ export function apply(ctx: Context): void {
         try { sessionStorage.setItem('hl-module-console', JSON.stringify(moduleState)) } catch { /* 非致命 */ }
         window.dispatchEvent(new CustomEvent('hl:mode-change', { detail: { mode: 'module' } }))
         window.dispatchEvent(new CustomEvent('hl:replication-session-open', { detail: { sessionId } }))
+        window.setTimeout(() => { ensureSpareBlank() }, 2_500)
       }).catch((reason: unknown) => {
         console.warn('module session failed:', reason)
       })

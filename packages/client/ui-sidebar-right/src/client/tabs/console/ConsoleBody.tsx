@@ -180,9 +180,22 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
       } catch { /* 非致命 */ }
     }
     /* 显式进入爆款复刻（hl:mode-change replication）时收掉模块/模板模式——
-     * ConsoleBody 跨会话不重挂，不收会残留上一个流程的面板。 */
+     * ConsoleBody 跨会话不重挂，不收会残留上一个流程的面板。
+     * 2026-11-08 补：mode='module' 时**同步恢复**模块态——本组件跨会话不重挂，
+     * 仅靠挂载时读 sessionStorage 会错过「旧会话控制台已开 → 切入模块新会话」
+     * 的场景（实测控制台回落成复刻面板）。 */
     const onModeChange = (e: Event): void => {
-      if ((e as CustomEvent<{ mode?: unknown }>).detail?.mode === 'replication') onClear()
+      const mode = (e as CustomEvent<{ mode?: unknown }>).detail?.mode
+      if (mode === 'replication') { onClear(); return }
+      if (mode === 'module') {
+        try {
+          const parsed = JSON.parse(sessionStorage.getItem('hl-module-console') ?? 'null') as ModuleConsoleState | null
+          if (parsed !== null && typeof parsed.moduleId === 'string') {
+            setModuleConsole(parsed)
+            setTemplateSchema(null)
+          }
+        } catch { /* 非致命 */ }
+      }
     }
     window.addEventListener('hl:open-template-console', onOpen)
     window.addEventListener('hl:open-console', onClear)

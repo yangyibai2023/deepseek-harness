@@ -131,8 +131,33 @@ export function HeroShell({ t, renderSlot, children }: HeroShellProps) {
   const [replicationMode, setReplicationMode] = useState(
     () => localStorage.getItem('hl-console-mode') === 'replication',
   )
+  /* 0.5.7 模块创作台（用户拍板「中间必须是定制引导页，不放通用模板」）：
+   * hl-console-mode='module' 时读 sessionStorage('hl-module-console') 的模块
+   * 元数据，渲染模块引导 hero（与复刻工作台引导同构），输入框下方不再出现
+   * 通用模板网格（网格在 ConversationContent 里同样按 studioMode 隐藏）。 */
+  const [moduleConsole, setModuleConsole] = useState<{ name: string; desc: string; icon: string } | null>(
+    () => {
+      if (localStorage.getItem('hl-console-mode') !== 'module') return null
+      try {
+        const parsed = JSON.parse(sessionStorage.getItem('hl-module-console') ?? 'null') as { name?: string; desc?: string; icon?: string } | null
+        return parsed ? { name: parsed.name ?? '', desc: parsed.desc ?? '', icon: parsed.icon ?? '🎬' } : null
+      } catch { return null }
+    },
+  )
   useEffect(() => {
-    const sync = (): void => setReplicationMode(localStorage.getItem('hl-console-mode') === 'replication')
+    const sync = (): void => {
+      const mode = localStorage.getItem('hl-console-mode')
+      setReplicationMode(mode === 'replication')
+      if (mode === 'module') {
+        try {
+          const parsed = JSON.parse(sessionStorage.getItem('hl-module-console') ?? 'null') as { name?: string; desc?: string; icon?: string } | null
+          setModuleConsole(parsed ? { name: parsed.name ?? '', desc: parsed.desc ?? '', icon: parsed.icon ?? '🎬' } : null)
+        } catch { setModuleConsole(null) }
+      } else {
+        setModuleConsole(null)
+      }
+    }
+    sync()
     window.addEventListener('hl:mode-change', sync)
     window.addEventListener('storage', sync)
     return () => {
@@ -140,6 +165,43 @@ export function HeroShell({ t, renderSlot, children }: HeroShellProps) {
       window.removeEventListener('storage', sync)
     }
   }, [])
+  if (!replicationMode && moduleConsole !== null) {
+    return (
+      <div
+        className={css.root}
+        data-tauri-drag-region="deep"
+        style={{ alignItems: 'flex-start', justifyContent: 'flex-start', paddingTop: 40 }}
+      >
+        <div className={css.stack}>
+          <div style={{ maxWidth: 640, margin: '0 auto', width: '100%' }}>
+            <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 6 }}>{moduleConsole.icon} {moduleConsole.name} · 创作工作台</div>
+            <div style={{ fontSize: 12, color: '#999', marginBottom: 14 }}>
+              {moduleConsole.desc}。三步出片：① 在右侧控制台选一个模板 → ② 按模板填素材与参数 → ③ 点「生成」，任务进入左侧对话执行。
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {['① 右侧选模板', '② 填素材与参数', '③ 生成进对话'].map(step => (
+                <span
+                  key={step}
+                  style={{
+                    padding: '6px 10px',
+                    border: '1px solid #d9d9d9',
+                    borderRadius: 16,
+                    background: '#fff',
+                    color: '#1a1a1a',
+                    fontSize: 12,
+                  }}
+                >
+                  {step}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div style={{ flex: 1, minHeight: 24 }} />
+        </div>
+        {children}
+      </div>
+    )
+  }
   if (replicationMode) {
     const chipClick = (kind: string, value: string): void => {
       if (kind === 'console') {

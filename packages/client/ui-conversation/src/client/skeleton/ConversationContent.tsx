@@ -60,13 +60,23 @@ export function ConversationContent(props: ConversationContentProps) {
   const [replicationMode, setReplicationMode] = useState(
     () => localStorage.getItem('hl-console-mode') === 'replication',
   )
+  /* 0.5.7 模块创作台：'module' 与 'replication' 同权——模板网格隐藏、
+   * 输入卡贴底布局一致（用户拍板「创作模式中间不放通用模板」）。 */
+  const [moduleMode, setModuleMode] = useState(
+    () => localStorage.getItem('hl-console-mode') === 'module',
+  )
   useEffect(() => {
     const sync = (): void => {
-      const next = localStorage.getItem('hl-console-mode') === 'replication'
+      const mode = localStorage.getItem('hl-console-mode')
+      const next = mode === 'replication'
+      setModuleMode(mode === 'module')
       setReplicationMode(next)
       // V26c 用户实测：进入二级页面（本视图挂载）时工作台才可能可靠打开
       //（此刻会话 surface 必已就绪）——挂载即打开，替代此前不可靠的
       // 「先广播后挂载」时序。
+      /* 仅 replication 走这个兜底：hl:open-console 在 ConsoleBody 侧的语义是
+       * 「清除模板/模块态」，模块会话的控制台由 seed+store-create 打开，
+       * 这里再派发会把自己刚进入的模块态清掉（2026-11-08 实测回落复刻面板）。 */
       if (next) {
         window.setTimeout(() => {
           window.dispatchEvent(new CustomEvent('hl:open-console'))
@@ -230,8 +240,8 @@ export function ConversationContent(props: ConversationContentProps) {
   const composerBar = (
     <div
       ref={stackRef}
-      className={clsx(css.composerStack, hero && (replicationMode ? css.composerHeroReplication : css.composerHero))}
-      onScroll={hero && !replicationMode ? onStackScroll : undefined}
+      className={clsx(css.composerStack, hero && (replicationMode || moduleMode ? css.composerHeroReplication : css.composerHero))}
+      onScroll={hero && !replicationMode && !moduleMode ? onStackScroll : undefined}
     >
       {hero && !replicationMode && (
         /* 2026-10-21：卡片滚到头部区域后必须**完全不可见**。
@@ -258,7 +268,7 @@ export function ConversationContent(props: ConversationContentProps) {
       {zone !== undefined && renderSlot('conversation.input.dock', zone)}
       {inputBar}
       {/* HeightLab V32：首页视频模板网格（仅普通 hero；复刻态不渲染）。 */}
-      {hero && !replicationMode && <HeightLabVideoGrid />}
+      {hero && !replicationMode && !moduleMode && <HeightLabVideoGrid />}
     </div>
   )
 
