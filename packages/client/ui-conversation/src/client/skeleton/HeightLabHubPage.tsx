@@ -6,7 +6,7 @@
  * 展示输入框下方的模板卡片（推荐/文案/图片/视频/办公），整页可滚动。
  */
 
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { TEMPLATE_CARDS, TEMPLATE_ORDER, loadTemplateCatalog, templateThumb, type Recommendation, type TemplateCategory } from './HeightLabTemplates.ts'
 import { VIDEO_CATALOG } from './HeightLabVideoCatalog.ts'
 import { TemplatePreview } from './TemplatePreview.tsx'
@@ -20,16 +20,74 @@ export type HubPage = 'inspiration' | 'library' | 'automation' | 'video-studio' 
  * 0.5.7 模块创作台（2026-11-08 用户拍板「一个功能驾驭多个模板」）：8 模块全部
  * 上线——爆款复刻走专属 FY1 链（hl:start-replication），其余七模块走
  * hl:start-module（新建会话 + 右栏先选模板再进模板工作台）。 */
-type StudioCard = { name: string; desc: string; icon: string; moduleId: string }
+/* 图标：**矢量线条 SVG**（原生 icon 体系同款：36×36 viewBox、1.5 描边、
+ * currentColor），不用 emoji——emoji 在不同系统渲染各异、与原生线性图标
+ * 风格割裂（用户明确指出）。容器为 49×49 圆角 16 描边框（原生实测值）。 */
+const ICON_PROPS = {
+  viewBox: '0 0 36 36', width: 36, height: 36, fill: 'none',
+  stroke: 'currentColor', strokeWidth: 1.5,
+  strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const,
+}
+
+const StudioIconFlame = (): ReactNode => (
+  <svg {...ICON_PROPS} aria-hidden="true">
+    <path d="M18 5c4 5 8 8 8 14a8 8 0 1 1-16 0c0-3 1.5-5 3-7 1 3 2 4 3.5 4.5C16 13 16.5 9 18 5Z" />
+    <path d="M18 27a4 4 0 0 0 4-4c0-2-1.5-3.5-4-6-2.5 2.5-4 4-4 6a4 4 0 0 0 4 4Z" />
+  </svg>
+)
+const StudioIconBag = (): ReactNode => (
+  <svg {...ICON_PROPS} aria-hidden="true">
+    <path d="M7 12h22l-2 17H9L7 12Z" />
+    <path d="M13 12V9a5 5 0 0 1 10 0v3" />
+  </svg>
+)
+const StudioIconSearch = (): ReactNode => (
+  <svg {...ICON_PROPS} aria-hidden="true">
+    <circle cx="16" cy="16" r="8" />
+    <path d="m22 22 7 7" />
+  </svg>
+)
+const StudioIconLive = (): ReactNode => (
+  <svg {...ICON_PROPS} aria-hidden="true">
+    <rect x="5" y="10" width="26" height="18" rx="3" />
+    <path d="m15 17 7 4-7 4v-8Z" />
+  </svg>
+)
+const StudioIconMic = (): ReactNode => (
+  <svg {...ICON_PROPS} aria-hidden="true">
+    <rect x="14" y="5" width="8" height="17" rx="4" />
+    <path d="M9 19a9 9 0 0 0 18 0M18 28v4M13 32h10" />
+  </svg>
+)
+const StudioIconBook = (): ReactNode => (
+  <svg {...ICON_PROPS} aria-hidden="true">
+    <path d="M6 8h9a4 4 0 0 1 4 4v17a3 3 0 0 0-3-3H6V8Z" />
+    <path d="M30 8h-9a4 4 0 0 0-4 4v17a3 3 0 0 1 3-3h10V8Z" />
+  </svg>
+)
+const StudioIconFilm = (): ReactNode => (
+  <svg {...ICON_PROPS} aria-hidden="true">
+    <rect x="4" y="9" width="28" height="18" rx="3" />
+    <path d="M4 15h28M4 21h28M11 9v18M25 9v18" />
+  </svg>
+)
+const StudioIconChat = (): ReactNode => (
+  <svg {...ICON_PROPS} aria-hidden="true">
+    <path d="M8 9h13a4 4 0 0 1 4 4v7a4 4 0 0 1-4 4H13l-5 4v-4a4 4 0 0 1-4-4v-7a4 4 0 0 1 4-4Z" />
+    <path d="M25 13h3a4 4 0 0 1 4 4v6a4 4 0 0 1-4 4h-1v3l-4-3" />
+  </svg>
+)
+
+type StudioCard = { name: string; desc: string; svg: ReactNode; moduleId: string }
 const STUDIO_CARDS: StudioCard[] = [
-  { name: '爆款复刻', desc: '上传对标视频，AI 拆脚本、分镜与钩子，换品换人换文案重生成', icon: '🔥', moduleId: 'replication' },
-  { name: '达人带货', desc: '达人形象 + 商品图，按卖点直接生成种草带货视频', icon: '🛍️', moduleId: 'influencer-selling' },
-  { name: '产品评测', desc: '开箱、对比、试用与参数解读的真实体验向测评', icon: '🔍', moduleId: 'product-review' },
-  { name: '直播切片', desc: '直播回放自动切金句高光，加字幕标题二次创作', icon: '📺', moduleId: 'live-clip' },
-  { name: 'IP 口播', desc: '固定形象 + 文案生成单人主讲，人设统一、不强制挂品', icon: '🎙️', moduleId: 'ip-talk' },
-  { name: '知识讲解', desc: '文档知识点转图解讲解、配音与字幕的教程科普', icon: '📚', moduleId: 'knowledge-tutorial' },
-  { name: '情景短剧', desc: '从梗概到分镜的剧情带货与品牌短剧', icon: '🎬', moduleId: 'drama-short' },
-  { name: '访谈视频', desc: '双人对谈与圆桌采访，提纲或录音直接转视频', icon: '🎤', moduleId: 'interview-video' },
+  { name: '爆款复刻', desc: '上传对标视频，AI 拆脚本、分镜与钩子，换品换人换文案重生成', svg: <StudioIconFlame />, moduleId: 'replication' },
+  { name: '达人带货', desc: '达人形象 + 商品图，按卖点直接生成种草带货视频', svg: <StudioIconBag />, moduleId: 'influencer-selling' },
+  { name: '产品评测', desc: '开箱、对比、试用与参数解读的真实体验向测评', svg: <StudioIconSearch />, moduleId: 'product-review' },
+  { name: '直播切片', desc: '直播回放自动切金句高光，加字幕标题二次创作', svg: <StudioIconLive />, moduleId: 'live-clip' },
+  { name: 'IP 口播', desc: '固定形象 + 文案生成单人主讲，人设统一、不强制挂品', svg: <StudioIconMic />, moduleId: 'ip-talk' },
+  { name: '知识讲解', desc: '文档知识点转图解讲解、配音与字幕的教程科普', svg: <StudioIconBook />, moduleId: 'knowledge-tutorial' },
+  { name: '情景短剧', desc: '从梗概到分镜的剧情带货与品牌短剧', svg: <StudioIconFilm />, moduleId: 'drama-short' },
+  { name: '访谈视频', desc: '双人对谈与圆桌采访，提纲或录音直接转视频', svg: <StudioIconChat />, moduleId: 'interview-video' },
 ]
 
 /* 模块 -> 模板目录条目 id 集（2026-11-07 八模块↔120 条目录映射调研落定，家族
@@ -90,18 +148,24 @@ const MODULE_TEMPLATE_IDS: Record<string, readonly string[]> = {
   ],
 }
 
-/* 2026-11-08 用户拍板（UI 统一）：视频创作与资产中心是自建页，此前各用一套
- * 字号/圆角/内距/阴影，与 DSH 原生页割裂。以下参数**全部对齐原生基准**
- * （ui-conversation HeightLabSkillHub 的技能市场页，原生形态）：
- *   Root    absolute inset:0 / flex col / bg surface-primary
- *   Header  padding 18px 28px 6px；标题 17/700 + 副标 12 tertiary
- *   Body    padding 18px 28px
- *   Card    border 1px separator / radius 12 / padding 14 / gap 4 /
- *           bg surface-primary（无多层阴影，仅 hover 边框加深）
- *   Grid    auto-fill minmax(260px, 1fr) / gap 14
- *   Btn     padding 5px 14px / radius 6 / border l3 / font 12
- * 颜色一律走 --dsw-alias-* token（亮/暗双主题自动跟随），禁止写死 #fff/#999。
- * 右上角关闭钮已删除（原生一级页都没有，用户明确要求去掉）。 */
+/* 2026-11-08（UI 统一·第二次校准，用户在浏览器实测原生「插件·技能」页后
+ * 逐项量取**计算样式**，不再靠猜）：
+ *
+ *   页面 SECTION   padding 0 48px 48px      ← 左右 48px（此前 24-28 太少）
+ *   标题区 HEADER  padding 28px 0 0         ← 上方 28px
+ *   H1            20px / 500 / lh 28        ← 此前 17/700（过小过粗）
+ *   描述          13px / lh 20 / #61666B    ← 与标题**分行**（不是同行！）
+ *   分组标题 H3   14px / 500 / lh 22        ← 分组内标题
+ *   卡片图标      49×49 / 圆角 16 / 0.5px 边框 rgba(0,0,0,.12)
+ *                 / 内部矢量 SVG 36×36 / 线条色 #61666B（**不用 emoji**）
+ *   卡片标题      14px / 500（与图标同一行，图标在左侧）
+ *   卡片描述      13px / lh 20 / #61666B
+ *
+ * 关键结构差异（用户指出）：原生是「图标+文字**横向**排布」的行式卡片，
+ * 不是我们之前的「图标在上、文字在下」的竖向大卡。副标题（一句话介绍）
+ * 原生只出现在标题下方**独立一行**且仅部分页面有——本次保留但降为普通
+ * 描述行，与标题分行。
+ * 颜色一律 --dsw-alias-* token（暗色跟随）。 */
 
 const hubRootStyle: CSSProperties = {
   position: 'absolute',
@@ -112,57 +176,91 @@ const hubRootStyle: CSSProperties = {
   overflow: 'hidden',
 }
 
-const hubHeaderStyle: CSSProperties = {
-  display: 'flex',
-  alignItems: 'baseline',
-  gap: 12,
-  padding: '18px 28px 6px',
-  flex: 'none',
-}
-
-const hubTitleStyle: CSSProperties = { fontSize: 17, fontWeight: 700 }
-
-const hubSubtitleStyle: CSSProperties = {
-  fontSize: 12,
-  color: 'var(--dsw-alias-label-tertiary)',
-}
-
-const hubBodyStyle: CSSProperties = {
+const hubPageStyle: CSSProperties = {
   flex: 1,
   minHeight: 0,
   overflowY: 'auto',
-  padding: '18px 28px',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 20,
+  padding: '0 48px 48px',
   boxSizing: 'border-box',
+}
+
+const hubHeaderStyle: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 4,
+  paddingTop: 28,
+  maxWidth: 960,
+}
+
+const hubTitleStyle: CSSProperties = {
+  fontSize: 20,
+  fontWeight: 500,
+  lineHeight: '28px',
+  margin: 0,
+  color: 'var(--dsw-alias-label-primary)',
+}
+
+const hubSubtitleStyle: CSSProperties = {
+  fontSize: 13,
+  lineHeight: '20px',
+  color: 'var(--dsw-alias-label-secondary)',
+  margin: 0,
 }
 
 const studioGridStyle: CSSProperties = {
   display: 'grid',
-  // 原生 minmax(260px) 在「三区同开、主区被压到 ~250px」时会退化成单列
-  //（实测：视频创作 8 张卡竖成一列）。降到 190 保证最窄场景也有 1 列以上，
-  // 常规宽度（>600px）自然排 3 列，与原生 auto-fill 行为一致。
-  gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))',
-  gap: 14,
+  gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+  gap: '8px 32px',
+  maxWidth: 960,
 }
 
+/* 原生行式卡片：图标 49×49 在左，标题/描述在右（不是竖向大卡）。 */
 const studioCardStyle: CSSProperties = {
   display: 'flex',
-  flexDirection: 'column',
   alignItems: 'flex-start',
-  gap: 4,
-  padding: 14,
-  border: '1px solid var(--dsw-alias-separator, #e8e8e8)',
-  borderRadius: 12,
-  background: 'var(--dsw-alias-surface-primary, #fff)',
+  gap: 16,
+  padding: '12px 0',
+  border: 'none',
+  background: 'transparent',
   textAlign: 'left',
   boxSizing: 'border-box',
-  transition: 'border-color 0.15s ease',
+  cursor: 'pointer',
 }
 
-const studioIconStyle: CSSProperties = { fontSize: 20, lineHeight: 1.2, marginBottom: 2 }
-const studioNameStyle: CSSProperties = { fontWeight: 600, fontSize: 13, lineHeight: '18px' }
+const studioIconWrapStyle: CSSProperties = {
+  flex: 'none',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: 49,
+  height: 49,
+  borderRadius: 16,
+  border: '0.5px solid var(--dsw-alias-border-l2, rgba(0,0,0,0.12))',
+  background: 'transparent',
+  color: 'var(--dsw-alias-label-secondary, #61666B)',
+  boxSizing: 'border-box',
+}
+
+const studioTextStyle: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 2,
+  minWidth: 0,
+}
+
+const studioNameStyle: CSSProperties = {
+  fontSize: 14,
+  fontWeight: 500,
+  lineHeight: '22px',
+  color: 'var(--dsw-alias-label-primary)',
+}
+
 const studioDescStyle: CSSProperties = {
-  fontSize: 12,
-  lineHeight: '18px',
+  fontSize: 13,
+  lineHeight: '20px',
   color: 'var(--dsw-alias-label-secondary)',
 }
 
@@ -175,33 +273,32 @@ const PAGE_TITLES: Record<HubPage, string> = {
   'video-studio': '视频创作',
 }
 
-const PAGE_SUBTITLES: Record<HubPage, string> = {
-  'film-studio': '',
-  'skill-hub': '',
-  inspiration: '按场景挑一个模板，点开即可在对话里开始创作',
-  library: '新生成的图片、视频与文档自动入库，可扫描补录旧素材',
-  automation: '把重复的活儿交给定时任务，到点自动执行',
-  'video-studio': '选一个创作方向；右侧工作台里挑模板、填素材、一键生成',
+/* 仅在有明确说明价值时给一行副标题（原生页多数没有；用户已指出「一句话
+ * 介绍多余」——此处从六页全给缩减为两页，且与标题分行小字）。 */
+const PAGE_SUBTITLES: Partial<Record<HubPage, string>> = {
+  'video-studio': '选一个创作方向，右侧工作台里挑模板、填素材、一键生成',
 }
 
 const sectionTitleStyle: CSSProperties = {
-  fontWeight: 600,
   fontSize: 14,
+  fontWeight: 500,
   lineHeight: '22px',
   color: 'var(--dsw-alias-label-primary)',
-  margin: '18px 0 10px',
+  margin: '0 0 8px',
 }
 
+/* 创意灵感页：模板网格（横向行式，与上面统一） */
 const gridStyle: CSSProperties = {
   display: 'grid',
   gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-  gap: '14px 14px',
+  gap: '16px 16px',
+  maxWidth: 960,
 }
 
 const cardStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
-  gap: 5,
+  gap: 6,
   minWidth: 0,
   padding: 0,
   border: 'none',
@@ -223,9 +320,9 @@ const cardTitleStyle: CSSProperties = {
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
-  fontSize: 13,
-  fontWeight: 600,
-  lineHeight: '18px',
+  fontSize: 14,
+  fontWeight: 500,
+  lineHeight: '22px',
   color: 'var(--dsw-alias-label-primary)',
 }
 
@@ -233,9 +330,9 @@ const cardDescStyle: CSSProperties = {
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
-  fontSize: 12,
-  lineHeight: '18px',
-  color: 'var(--dsw-alias-label-tertiary)',
+  fontSize: 13,
+  lineHeight: '20px',
+  color: 'var(--dsw-alias-label-secondary)',
 }
 
 /** Render the page in the main content area (replaces chat view). */
@@ -274,14 +371,16 @@ export function HeightLabHubPage({ page, onClose }: { page: HubPage; onClose: ()
       {/* 2026-11-08 用户要求（UI 统一）：删除右上角关闭钮——原生一级页
           （插件·技能 / 自动化 / 设置）都没有，自建页带一个是割裂感来源。
           关闭走侧栏切换或 Esc 即可（原生行为）。 */}
+      {/* 原生结构：标题 H1 单独一行；副标题（若有）在其下方小字分行。
+          原生一级页没有右上角关闭钮——本次已删除。 */}
       {page === 'film-studio' ? null : (
         <div style={hubHeaderStyle} data-tauri-drag-region="deep">
-          <span style={hubTitleStyle}>{PAGE_TITLES[page]}</span>
-          {PAGE_SUBTITLES[page] !== '' && <span style={hubSubtitleStyle}>{PAGE_SUBTITLES[page]}</span>}
+          <h1 style={hubTitleStyle}>{PAGE_TITLES[page]}</h1>
+          {PAGE_SUBTITLES[page] !== undefined && <p style={hubSubtitleStyle}>{PAGE_SUBTITLES[page]}</p>}
         </div>
       )}
       {page === 'video-studio' ? (
-        <div style={hubBodyStyle}>
+        <div style={hubPageStyle}>
           <div style={studioGridStyle}>
             {STUDIO_CARDS.map(card => (
               <button
@@ -308,20 +407,22 @@ export function HeightLabHubPage({ page, onClose }: { page: HubPage; onClose: ()
                       skill: item.skill,
                     }))
                   window.dispatchEvent(new CustomEvent('hl:start-module', {
-                    detail: { moduleId: card.moduleId, name: card.name, desc: card.desc, icon: card.icon, templates },
+                    detail: { moduleId: card.moduleId, name: card.name, desc: card.desc, icon: '', templates },
                   }))
                   window.dispatchEvent(new CustomEvent('hl:close-hub'))
                 }}
               >
-                <span className={css.studioIcon} style={studioIconStyle} aria-hidden="true">{card.icon}</span>
-                <span style={studioNameStyle}>{card.name}</span>
-                <span style={studioDescStyle}>{card.desc}</span>
+                <span style={studioIconWrapStyle} aria-hidden="true">{card.svg}</span>
+                <span style={studioTextStyle}>
+                  <span style={studioNameStyle}>{card.name}</span>
+                  <span style={studioDescStyle}>{card.desc}</span>
+                </span>
               </button>
             ))}
           </div>
         </div>
       ) : page === 'inspiration' ? (
-        <div style={hubBodyStyle}>
+        <div style={hubPageStyle}>
           {/* HeightLab：术语分类暂不更新，创意灵感页先隐藏（数据保留）。 */}
           {TEMPLATE_ORDER.filter(category => category !== '术语').map(category => (
             <section key={category}>

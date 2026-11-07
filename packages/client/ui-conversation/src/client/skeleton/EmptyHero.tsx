@@ -174,7 +174,7 @@ export function HeroShell({ t, renderSlot, children }: HeroShellProps) {
       >
         <div className={css.stack}>
           <div style={{ maxWidth: 640, margin: '0 auto', width: '100%' }}>
-            <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 6 }}>{moduleConsole.icon} {moduleConsole.name} · 创作工作台</div>
+            <div style={{ fontSize: 20, fontWeight: 500, lineHeight: '28px', marginBottom: 4 }}>{moduleConsole.name} · 创作工作台</div>
             <div style={{ fontSize: 12, color: '#999', marginBottom: 14 }}>
               {moduleConsole.desc}。三步出片：① 在右侧控制台选一个模板 → ② 按模板填素材与参数 → ③ 点「生成」，任务进入左侧对话执行。
             </div>
