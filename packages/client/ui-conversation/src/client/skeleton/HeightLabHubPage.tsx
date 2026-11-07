@@ -90,39 +90,82 @@ const MODULE_TEMPLATE_IDS: Record<string, readonly string[]> = {
   ],
 }
 
-const studioWrapStyle: CSSProperties = {
-  maxWidth: 760,
-  margin: '0 auto',
-  // HeightLab V24b 用户反馈：卡片组垂直居中——「选择页面」而非「网页内容」。
-  minHeight: 'calc(100vh - 120px)',
+/* 2026-11-08 用户拍板（UI 统一）：视频创作与资产中心是自建页，此前各用一套
+ * 字号/圆角/内距/阴影，与 DSH 原生页割裂。以下参数**全部对齐原生基准**
+ * （ui-conversation HeightLabSkillHub 的技能市场页，原生形态）：
+ *   Root    absolute inset:0 / flex col / bg surface-primary
+ *   Header  padding 18px 28px 6px；标题 17/700 + 副标 12 tertiary
+ *   Body    padding 18px 28px
+ *   Card    border 1px separator / radius 12 / padding 14 / gap 4 /
+ *           bg surface-primary（无多层阴影，仅 hover 边框加深）
+ *   Grid    auto-fill minmax(260px, 1fr) / gap 14
+ *   Btn     padding 5px 14px / radius 6 / border l3 / font 12
+ * 颜色一律走 --dsw-alias-* token（亮/暗双主题自动跟随），禁止写死 #fff/#999。
+ * 右上角关闭钮已删除（原生一级页都没有，用户明确要求去掉）。 */
+
+const hubRootStyle: CSSProperties = {
+  position: 'absolute',
+  inset: 0,
   display: 'flex',
   flexDirection: 'column',
-  justifyContent: 'center',
+  background: 'var(--dsw-alias-surface-primary, #fff)',
+  overflow: 'hidden',
 }
+
+const hubHeaderStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'baseline',
+  gap: 12,
+  padding: '18px 28px 6px',
+  flex: 'none',
+}
+
+const hubTitleStyle: CSSProperties = { fontSize: 17, fontWeight: 700 }
+
+const hubSubtitleStyle: CSSProperties = {
+  fontSize: 12,
+  color: 'var(--dsw-alias-label-tertiary)',
+}
+
+const hubBodyStyle: CSSProperties = {
+  flex: 1,
+  minHeight: 0,
+  overflowY: 'auto',
+  padding: '18px 28px',
+  boxSizing: 'border-box',
+}
+
 const studioGridStyle: CSSProperties = {
   display: 'grid',
-  gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-  gap: 16,
+  // 原生 minmax(260px) 在「三区同开、主区被压到 ~250px」时会退化成单列
+  //（实测：视频创作 8 张卡竖成一列）。降到 190 保证最窄场景也有 1 列以上，
+  // 常规宽度（>600px）自然排 3 列，与原生 auto-fill 行为一致。
+  gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))',
+  gap: 14,
 }
+
 const studioCardStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'flex-start',
-  gap: 8,
-  padding: '18px 16px 16px',
-  border: '1px solid var(--dsw-alias-border-l1, #ececec)',
-  borderRadius: 16,
-  background: '#fff',
+  gap: 4,
+  padding: 14,
+  border: '1px solid var(--dsw-alias-separator, #e8e8e8)',
+  borderRadius: 12,
+  background: 'var(--dsw-alias-surface-primary, #fff)',
   textAlign: 'left',
   boxSizing: 'border-box',
-  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05), 0 4px 14px rgba(0, 0, 0, 0.04)',
-  transition: 'transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease',
+  transition: 'border-color 0.15s ease',
 }
-// 悬停抬升与图标底托需要伪类，inline style 表达不了——统一放
-// ConversationRoot.module.css 的 .studioCard / .studioIcon 类（V24b）。
-const studioIconStyle: CSSProperties = { fontSize: 24, lineHeight: 1.2 }
+
+const studioIconStyle: CSSProperties = { fontSize: 20, lineHeight: 1.2, marginBottom: 2 }
 const studioNameStyle: CSSProperties = { fontWeight: 600, fontSize: 13, lineHeight: '18px' }
-const studioDescStyle: CSSProperties = { fontSize: 11, lineHeight: '16px', color: '#999' }
+const studioDescStyle: CSSProperties = {
+  fontSize: 12,
+  lineHeight: '18px',
+  color: 'var(--dsw-alias-label-secondary)',
+}
+
 const PAGE_TITLES: Record<HubPage, string> = {
   'film-studio': '智能剪辑台',
   'skill-hub': '技能中心',
@@ -132,29 +175,13 @@ const PAGE_TITLES: Record<HubPage, string> = {
   'video-studio': '视频创作',
 }
 
-const headerStyle: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  height: 36,
-  padding: '0 24px',
-}
-
-const closeStyle: CSSProperties = {
-  border: 'none',
-  color: 'var(--dsw-alias-label-secondary)',
-  padding: 4,
-  cursor: 'pointer',
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-}
-
-const bodyStyle: CSSProperties = {
-  flex: 1,
-  overflowY: 'auto',
-  padding: '4px 24px 32px',
-  boxSizing: 'border-box',
+const PAGE_SUBTITLES: Record<HubPage, string> = {
+  'film-studio': '',
+  'skill-hub': '',
+  inspiration: '按场景挑一个模板，点开即可在对话里开始创作',
+  library: '新生成的图片、视频与文档自动入库，可扫描补录旧素材',
+  automation: '把重复的活儿交给定时任务，到点自动执行',
+  'video-studio': '选一个创作方向；右侧工作台里挑模板、填素材、一键生成',
 }
 
 const sectionTitleStyle: CSSProperties = {
@@ -167,8 +194,8 @@ const sectionTitleStyle: CSSProperties = {
 
 const gridStyle: CSSProperties = {
   display: 'grid',
-  gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-  gap: '10px 12px',
+  gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+  gap: '14px 14px',
 }
 
 const cardStyle: CSSProperties = {
@@ -178,7 +205,7 @@ const cardStyle: CSSProperties = {
   minWidth: 0,
   padding: 0,
   border: 'none',
-  borderRadius: 10,
+  borderRadius: 12,
   background: 'transparent',
   textAlign: 'left',
   cursor: 'pointer',
@@ -188,7 +215,7 @@ const thumbStyle: CSSProperties = {
   display: 'block',
   width: '100%',
   aspectRatio: '16 / 10',
-  borderRadius: 10,
+  borderRadius: 12,
   objectFit: 'cover',
 }
 
@@ -196,7 +223,7 @@ const cardTitleStyle: CSSProperties = {
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
-  fontSize: 12,
+  fontSize: 13,
   fontWeight: 600,
   lineHeight: '18px',
   color: 'var(--dsw-alias-label-primary)',
@@ -206,8 +233,8 @@ const cardDescStyle: CSSProperties = {
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
-  fontSize: 11,
-  lineHeight: '16px',
+  fontSize: 12,
+  lineHeight: '18px',
   color: 'var(--dsw-alias-label-tertiary)',
 }
 
@@ -239,37 +266,22 @@ export function HeightLabHubPage({ page, onClose }: { page: HubPage; onClose: ()
     }))
   }
   return (
-    <div
-      style={{
-        width: '100%',
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        background: 'var(--dsw-alias-bg-base)',
-      }}
-    >
+    <div style={hubRootStyle}>
       {/* 2026-10-20 用户要求：一级菜单「剪辑台」以 OpenFilm 原生布局为准——
           它的顶栏就是整个工作区的顶栏，我们不再叠一条自己的标题栏。
           关闭入口挪进 Studio 右上角的浮层里（HeightLabFilmStudio native）。
           其他 hub 页（灵感/资产）保持原样。 */}
+      {/* 2026-11-08 用户要求（UI 统一）：删除右上角关闭钮——原生一级页
+          （插件·技能 / 自动化 / 设置）都没有，自建页带一个是割裂感来源。
+          关闭走侧栏切换或 Esc 即可（原生行为）。 */}
       {page === 'film-studio' ? null : (
-        <div style={headerStyle} data-tauri-drag-region="deep">
-          <span style={{ fontWeight: 600, fontSize: 13, lineHeight: '20px' }}>{PAGE_TITLES[page]}</span>
-          <button
-            type="button"
-            style={closeStyle}
-            className={css.closeHover}
-            aria-label="关闭"
-            onClick={onClose}
-          >
-            <svg viewBox="0 0 16 16" width="16" height="16" fill="none" aria-hidden="true">
-              <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
-            </svg>
-          </button>
+        <div style={hubHeaderStyle} data-tauri-drag-region="deep">
+          <span style={hubTitleStyle}>{PAGE_TITLES[page]}</span>
+          {PAGE_SUBTITLES[page] !== '' && <span style={hubSubtitleStyle}>{PAGE_SUBTITLES[page]}</span>}
         </div>
       )}
       {page === 'video-studio' ? (
-        <div style={studioWrapStyle}>
+        <div style={hubBodyStyle}>
           <div style={studioGridStyle}>
             {STUDIO_CARDS.map(card => (
               <button
@@ -309,7 +321,7 @@ export function HeightLabHubPage({ page, onClose }: { page: HubPage; onClose: ()
           </div>
         </div>
       ) : page === 'inspiration' ? (
-        <div style={bodyStyle}>
+        <div style={hubBodyStyle}>
           {/* HeightLab：术语分类暂不更新，创意灵感页先隐藏（数据保留）。 */}
           {TEMPLATE_ORDER.filter(category => category !== '术语').map(category => (
             <section key={category}>
