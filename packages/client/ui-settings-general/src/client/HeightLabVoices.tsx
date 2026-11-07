@@ -112,6 +112,10 @@ const SHOW_MANUAL_CREATE = false
 export function HeightLabVoices() {
   const [items, setItems] = useState<VoiceItem[]>([])
   const [error, setError] = useState<string | null>(null)
+  /* ⑩-A（2026-11-07 体验审计）：原实现无加载态——首次 refresh 期间
+   * `items=[]` 且 `error=null`，界面会先显示「还没有声音克隆」的空态，
+   * 1 秒后列表突然出现（误报空态 + 闪烁）。加 loading 三态。 */
+  const [loading, setLoading] = useState(true)
   const [busyRef, setBusyRef] = useState<string | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [createName, setCreateName] = useState('')
@@ -125,8 +129,9 @@ export function HeightLabVoices() {
   const timerRef = useRef<number | null>(null)
 
   const refresh = (): void => {
+    setLoading(true)
     fetch('/hl/voices')
-      .then((r) => r.json())
+      .then(r => r.json())
       .then((data) => {
         if (data?.ok) {
           setItems(Array.isArray(data.items) ? data.items : [])
@@ -137,6 +142,7 @@ export function HeightLabVoices() {
         }
       })
       .catch(() => { setItems([]); setError('声音加载失败，请稍后重试') })
+      .finally(() => { setLoading(false) })
   }
 
   useEffect(() => { refresh() }, [])
@@ -153,7 +159,7 @@ export function HeightLabVoices() {
 
   // 有克隆中的声音时每 10 秒自动刷新一次（后台 sweeper 会自动推进）。
   useEffect(() => {
-    if (!items.some((item) => item.status === 'training')) return
+    if (!items.some(item => item.status === 'training')) return
     const timer = window.setInterval(refresh, 10_000)
     return () => window.clearInterval(timer)
   }, [items])
@@ -188,7 +194,7 @@ export function HeightLabVoices() {
       recorder.start()
       setRecording(true)
       setElapsed(0)
-      timerRef.current = window.setInterval(() => setElapsed((s) => s + 1), 1000)
+      timerRef.current = window.setInterval(() => setElapsed(s => s + 1), 1000)
     } catch {
       setCreateError('无法访问麦克风，请使用「上传音频文件」方式。')
     }
@@ -238,7 +244,7 @@ export function HeightLabVoices() {
       }
       const ref = data.voice_reference
       for (let i = 0; i < 60; i += 1) {
-        await new Promise((r) => window.setTimeout(r, 5_000))
+        await new Promise(r => window.setTimeout(r, 5_000))
         try {
           const sr = await fetch('/hl/voices/status', {
             method: 'POST',
@@ -294,10 +300,13 @@ export function HeightLabVoices() {
         </button>}
       </div>
       {error && <div style={{ opacity: 0.8, fontSize: 13, color: '#d64545' }}>{error}</div>}
-      {!error && items.length === 0 && (
+      {!error && loading && items.length === 0 && (
+        <div style={{ opacity: 0.6, fontSize: 13 }}>正在加载声音列表……</div>
+      )}
+      {!error && !loading && items.length === 0 && (
         <div style={{ opacity: 0.6, fontSize: 13 }}>还没有声音克隆，点击「新建声音」录制或上传一段音频即可。</div>
       )}
-      {items.map((item) => (
+      {items.map(item => (
         <div key={item.voice_reference} style={rowStyle}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
             <div style={{ minWidth: 0 }}>
@@ -323,7 +332,7 @@ export function HeightLabVoices() {
       ))}
       {createOpen && (
         <div style={overlayStyle} onClick={() => { if (!creating && !recording) setCreateOpen(false) }}>
-          <div style={panelStyle} onClick={(e) => e.stopPropagation()}>
+          <div style={panelStyle} onClick={e => e.stopPropagation()}>
             <div style={{ fontWeight: 600, fontSize: 15 }}>新建声音克隆</div>
             <div style={{ opacity: 0.7, fontSize: 13 }}>
               录制或上传一段你的声音（10-30 秒清晰人声效果最佳），克隆创建免费。
@@ -344,7 +353,7 @@ export function HeightLabVoices() {
                   type="file"
                   accept="audio/*"
                   style={{ display: 'none' }}
-                  onChange={(e) => pickAudio(e.target.files?.[0])}
+                  onChange={e => pickAudio(e.target.files?.[0])}
                 />
               </label>
             </div>
@@ -357,7 +366,7 @@ export function HeightLabVoices() {
               placeholder="声音名字（可选，例如：我的声音）"
               style={inputStyle}
               maxLength={30}
-              onChange={(e) => setCreateName(e.target.value)}
+              onChange={e => setCreateName(e.target.value)}
             />
             {createError && <div style={{ color: '#d64545', fontSize: 13 }}>{createError}</div>}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
