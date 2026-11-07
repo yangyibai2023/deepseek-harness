@@ -223,6 +223,16 @@ body {
   --dsw-alias-label-secondary: var(--dsw-static-neutral-bluish-700);
   --dsw-alias-label-shimmer: color-mix(in srgb, var(--dsw-static-neutral-1000) 30%, transparent);
   --dsw-alias-label-tertiary: var(--dsw-static-neutral-bluish-600);
+  /* N19 第一批（2026-11-08）：补齐被引用却未定义的 7 个 alias——此前这些
+   * var() 永远走内联兜底（亮色写死），暗色模式不换色。映射到既有 alias，
+   * 亮暗自动跟随。引用点：PlanUpgrade/ChatView/TodoPanel/TemplateFormModal 等。 */
+  --dsw-alias-text-primary: var(--dsw-alias-label-primary);
+  --dsw-alias-text-secondary: var(--dsw-alias-label-secondary);
+  --dsw-alias-text-tertiary: var(--dsw-alias-label-tertiary);
+  --dsw-alias-label-danger: var(--dsw-alias-state-error-primary);
+  --dsw-alias-bg-1: var(--dsw-alias-bg-layer-1);
+  --dsw-alias-bg-secondary: var(--dsw-static-neutral-bluish-75);
+  --dsw-alias-fill-secondary: var(--dsw-alias-interactive-bg-hover);
   --dsw-alias-menu-icon: var(--dsw-static-neutral-bluish-800);
   --dsw-alias-link: var(--dsw-static-deepseek-500);
   --dsw-alias-markdown-citation: var(--dsw-static-neutral-bluish-100);
@@ -366,6 +376,15 @@ body[data-ds-dark-theme] {
   --dsw-alias-label-secondary: var(--dsw-static-neutral-bluish-300);
   --dsw-alias-label-shimmer: color-mix(in srgb, var(--dsw-static-neutral-00) 45%, transparent);
   --dsw-alias-label-tertiary: var(--dsw-static-neutral-bluish-400);
+  /* N19 第一批（暗色块）：同上 7 个 alias 的暗色映射（bg-secondary 用
+   * bluish-850，介于 layer-2(850)/layer-1(875) 之间的次级面）。 */
+  --dsw-alias-text-primary: var(--dsw-alias-label-primary);
+  --dsw-alias-text-secondary: var(--dsw-alias-label-secondary);
+  --dsw-alias-text-tertiary: var(--dsw-alias-label-tertiary);
+  --dsw-alias-label-danger: var(--dsw-alias-state-error-primary);
+  --dsw-alias-bg-1: var(--dsw-alias-bg-layer-1);
+  --dsw-alias-bg-secondary: var(--dsw-static-neutral-bluish-850);
+  --dsw-alias-fill-secondary: var(--dsw-alias-interactive-bg-hover);
   --dsw-alias-menu-icon: var(--dsw-alias-label-primary-dimmed);
   --dsw-alias-link: var(--dsw-static-deepseek-400);
   --dsw-alias-markdown-citation: var(--dsw-static-neutral-bluish-800);
