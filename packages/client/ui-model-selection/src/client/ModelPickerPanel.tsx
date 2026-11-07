@@ -196,19 +196,33 @@ export function ModelPickerPanel({
   const panelRef = useRef<HTMLDivElement | null>(null)
   /** 二级：是否展开「所有供应商」浮层。 */
   const [pickingProvider, setPickingProvider] = useState(false)
-  /* O6-乱弹（2026-11-08 用户视频 + 侦听日志实锤）：供应商菜单的定位此前在
-   * **每次渲染**都重算（getBoundingClientRect + placeOverlay）。悬停供应商行
-   * 会切换预览 -> 左侧模型列表行数变化 -> 一级面板高度变化 -> 本菜单容器
-   * 重渲染时 placeOverlay 算出**不同的 top**（实测 top 224 -> 368 瞬移 144px）
-   * -> 鼠标瞬间在容器外 -> mouseleave -> 150ms 后整个菜单关闭 = 用户看到的
-   * 「选供应商乱弹」。
-   * 修法：位置只在打开（false -> true）时计算一次并**冻结**，预览重渲染不重算
-   * ——容器永不移动，mouseleave 永不误触发。关闭时清缓存，下次打开重算
-   * （锚点位置可能已变）。maxHeight 360 + 内部滚动本就固定了本菜单大小。 */
+  /* O6-乱弹·两幕（2026-11-08 用户视频 + 侦听日志实锤 + 用户复测补刀）：
+   *
+   * 第一幕：供应商菜单的定位在**每次渲染**都重算（getBoundingClientRect +
+   * placeOverlay）。悬停供应商行会切换预览 -> 左侧模型列表行数变化 -> 一级
+   * 面板高度变化 -> useAnchoredPosition 重算锚定（可能翻转）-> 本菜单重渲染
+   * 时 placeOverlay 算出**不同的 top**（实测 top 224 -> 368 瞬移 144px）->
+   * 鼠标瞬间在容器外 -> mouseleave -> 150ms 后整个菜单关闭 = 「乱弹」。
+   *
+   * 第二幕（第一幕的修法引入，用户复测「首次打开必弹左上角，重开才正确」
+   * 暴露）：「算一次并冻结」被放进了 render 里的 IIFE——它在**每一帧**都跑
+   * （不管二级有没有展开）。而一级面板自己的锚定坐标（position）要到第二个
+   * 渲染帧才由 useAnchoredPosition 算出，首帧面板挂在 MEASURE_STYLE
+   * （visibility:hidden + left/top:0 = **视口原点**）。IIFE 在 position 就绪的
+   * 那一帧读 getBoundingClientRect，读到的仍是上一帧提交的 MEASURE 位置，
+   * 把「视口原点右侧挂载」的垃圾坐标冻结进缓存。用户截图的数值指纹完全吻合：
+   * 菜单左缘 ≈ 204px = 面板宽 198 + gap 6，顶缘 = 0。
+   *
+   * 终修（三重保险，铲掉「读面板实时 rect」这颗时序炸弹）：
+   *   ① 锚点几何一律取 useAnchoredPosition 已算好的 position（源自触发按钮
+   *      的 rect——触发按钮常驻 DOM、位置稳定）+ 面板 offsetWidth/offsetHeight
+   *      （布局尺寸，与定位无关）——**不读面板自身的实时 rect**；
+   *   ② position 未就绪（null）时返回隐藏样式，**绝不冻结**；
+   *   ③ 缓存以「锚定坐标 + 面板宽」为键：面板位置一变（重开/翻转/滚动/缩放
+   *      都会让 hook 重算 position）缓存自动失效重算，菜单正确跟随面板；
+   *      位置不变则复用，预览切换不再引起任何移动（第一幕的修法目的保留）。 */
   const providerMenuStyleRef = useRef<CSSProperties | null>(null)
-  useEffect(() => {
-    if (!pickingProvider) providerMenuStyleRef.current = null
-  }, [pickingProvider])
+  const providerMenuKeyRef = useRef('')
 
   // 每次关闭都收起二级浮层：下次打开看到的是当前厂商详情。
   useEffect(() => {
@@ -368,10 +382,10 @@ export function ModelPickerPanel({
 
   if (!open) return null
 
-  /* 二级厂商浮层的位置（2026-10-22 用户第三次校正）。
+  /* 二级厂商浮层的位置（2026-10-22 用户第三次校正；2026-11-08 O6 终修）。
    *
    * ZCode 的实际做法是**弹在一级面板的右侧并排**，不是翻到上方叠在一起。
-   * 我上一版用了 placeOverlay 的垂直 flip，结果面板被顶到上方、还与一级重叠，
+   * 上一版用了 placeOverlay 的垂直 flip，结果面板被顶到上方、还与一级重叠，
    * 用户直接说「太丑了，而且重叠了」。
    *
    * 正确做法：横向挂载（side='right'）。placeOverlay 会：
@@ -379,22 +393,29 @@ export function ModelPickerPanel({
    *   · 垂直方向 顶对齐 → 底对齐 → 才 shift（不会飞到屏幕外）
    *   · 按可用空间限高
    *
-   * 这里返回视口绝对坐标（浮层是 position:fixed 挂在 body 下）。
+   * 锚点几何取 position（useAnchoredPosition 对触发按钮的锚定结果）+ 面板
+   * offset 尺寸推导——**绝不读面板自身的 getBoundingClientRect**：面板在
+   * 首帧挂在 MEASURE 位置（视口原点），读实时 rect 会把垃圾坐标冻进缓存
+   * （O6 第二幕）。返回视口绝对坐标（浮层是 position:fixed 挂在 body 下）。
    */
   const providerMenuStyle = ((): CSSProperties => {
-    if (providerMenuStyleRef.current !== null) return providerMenuStyleRef.current
+    if (position === null) return { visibility: 'hidden' }
     const host = panelRef.current
-    if (host === null) return {}
-    const anchor = host.querySelector('button[aria-haspopup="menu"]')
-    if (anchor === null) return {}
-    const hostRect = host.getBoundingClientRect()
+    if (host === null) return { visibility: 'hidden' }
+    /* position 由 useAnchoredPosition 以触发按钮几何算出，left/top 恒为 number。 */
+    const left = Number(position.left)
+    const top = Number(position.top)
+    /* 护栏：坐标不是有限数（理论不可达，hook 只写 number）时宁可隐藏也绝不
+     * 定位/冻结——「把垃圾坐标冻进缓存」正是 O6 第二幕的教训。 */
+    if (!Number.isFinite(left) || !Number.isFinite(top)) return { visibility: 'hidden' }
+    const width = host.offsetWidth
+    const height = host.offsetHeight
+    const key = `${left},${top},${width}`
+    const cached = providerMenuStyleRef.current
+    if (cached !== null && providerMenuKeyRef.current === key) return cached
     const placement = placeOverlay({
-      anchor: {
-        top: hostRect.top, bottom: hostRect.bottom,
-        left: hostRect.left, right: hostRect.right,
-        width: hostRect.width, height: hostRect.height,
-      },
-      panel: { width: host.offsetWidth, height: 0 },
+      anchor: { top, bottom: top + height, left, right: left + width, width, height },
+      panel: { width, height: 0 },
       viewport: { width: window.innerWidth, height: window.innerHeight },
       // 与一级面板同宽，挂在它的右侧（放不下自动翻左）。
       side: 'right',
@@ -407,9 +428,10 @@ export function ModelPickerPanel({
       position: 'fixed',
       left: placement.left,
       top: placement.top,
-      width: host.offsetWidth,
+      width,
       maxHeight: placement.maxHeight ?? 360,
     }
+    providerMenuKeyRef.current = key
     providerMenuStyleRef.current = style
     return style
   })()
