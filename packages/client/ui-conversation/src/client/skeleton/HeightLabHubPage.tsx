@@ -344,7 +344,7 @@ const studioCardStyle: CSSProperties = {
   padding: 8,
   margin: '0 -8px',
   border: 'none',
-  borderRadius: 12,
+  borderRadius: 'var(--dsw-radius-xl, 20px)',
   background: 'transparent',
   textAlign: 'left',
   boxSizing: 'border-box',
