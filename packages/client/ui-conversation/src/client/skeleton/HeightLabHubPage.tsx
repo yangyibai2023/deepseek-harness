@@ -277,14 +277,18 @@ const hubRootStyle: CSSProperties = {
   overflow: 'hidden',
 }
 
+/* 原生 .page：gap 32 / padding `0 clamp(24px,4vw,48px) 48px`（**响应式**内距，
+ * 不是固定 48）/ overflow auto；.pageHead 自带 padding-top 28。
+ * 我们的 header 与内容分属两个容器，故 header 承担 top 28 + 内距，body 承担
+ * 剩余内距 + 48px 底部。 */
 const hubPageStyle: CSSProperties = {
   flex: 1,
   minHeight: 0,
   overflowY: 'auto',
   display: 'flex',
   flexDirection: 'column',
-  gap: 20,
-  padding: '32px 48px 48px',
+  gap: 32,
+  padding: '0 clamp(24px, 4vw, 48px) 48px',
   boxSizing: 'border-box',
 }
 
@@ -296,8 +300,8 @@ const hubHeaderStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: 4,
-  padding: '28px 48px 0',
-  maxWidth: 1056, /* 960 内容盒 + 左右 48 内距 */
+  padding: '28px clamp(24px, 4vw, 48px) 0',
+  maxWidth: 1056, /* 960 内容盒 + 左右 48 内距（clamp 上限） */
   boxSizing: 'border-box',
   flex: 'none',
 }
