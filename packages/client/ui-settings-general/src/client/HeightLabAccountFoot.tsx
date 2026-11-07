@@ -208,16 +208,22 @@ function AccountMenu({
       }
       const rail = anchor.width < 150
       /* 两种形态的约束不同：
-       *   · 展开态（侧栏 268–280）：面板必须**收在侧栏内**——用户反馈的
-       *     「溢出」就是这一态。宽度取侧栏宽减 12，水平居中于侧栏。
+       *   · 展开态：2026-11-07 用户实测「余额和积分被挤成两行，严禁」。
+       *     根因是面板宽度被压成 `侧栏宽 - 12`（约 220px），而行内固定内容
+       *     （图标16 + 3×gap10 + 数字 ~68 + 箭头12 + padding20 = 146）只剩
+       *     ~50px 给「积分余额」，差 2px 就折行。现在面板宽度 = 侧栏宽 + 48
+       *     （下限 268、上限 340），允许**有意**向右探出侧栏一截（收在视口内），
+       *     行内标签再配 nowrap，双保险保证单行。
        *   · 折叠态（图标轨 56）：轨道装不下面板，弹层浮在主区上是正常的，
        *     但必须夹在视口内，且左边不越过轨道。 */
-      const width = rail
-        ? Math.min(268, window.innerWidth - 24)
-        : Math.min(268, Math.max(200, anchor.width - 12))
+      const preferred = rail
+        ? 268
+        : Math.max(268, Math.min(340, Math.round(anchor.width) + 48))
+      const width = Math.min(preferred, window.innerWidth - 16)
+      const rightLimit = Math.max(8, window.innerWidth - width - 8)
       const left = rail
-        ? Math.round(Math.min(Math.max(8, anchor.left + 4), window.innerWidth - width - 8))
-        : Math.round(anchor.left + Math.max(6, (anchor.width - width) / 2))
+        ? Math.round(Math.min(Math.max(8, anchor.left + 4), rightLimit))
+        : Math.round(Math.min(Math.max(8, anchor.left + Math.max(6, (anchor.width - width) / 2)), rightLimit))
       setPos({ left, bottom: Math.round(window.innerHeight - tb.top + 8), width })
     }
     measure()
@@ -361,7 +367,7 @@ function AccountMenu({
           <path d="M2.5 11.5 2 5l3.4 2.6L8 3.5l2.6 4.1L14 5l-.5 6.5z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
           <path d="M3.5 13.5h9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
         </svg>
-        <span style={{ flex: 1 }}>会员等级</span>
+        <span style={{ flex: 1, whiteSpace: 'nowrap' }}>会员等级</span>
         {/* FIX-23（0.5.5）：credits 没拿到时传 undefined → TierBadge 未知态灰「—」，
             不再把「体验版」当兜底（旗舰账号被误显示体验版的事故根因）。 */}
         <TierBadge tierLabel={creditsInfo?.tierLabel} />
@@ -377,8 +383,9 @@ function AccountMenu({
         <svg viewBox="0 0 16 16" width={16} height={16} fill="none" aria-hidden>
           <path d="M8 1.8 9.7 6l4.5.4-3.4 3 1 4.4L8 11.5l-3.8 2.3 1-4.4-3.4-3L6.3 6z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
         </svg>
-        <span style={{ flex: 1 }}>积分余额</span>
-        <span style={{ fontSize: 13, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+        {/* 2026-11-07 用户铁令：标签与余额**严禁两行**。nowrap + 面板加宽双保险。 */}
+        <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>积分余额</span>
+        <span style={{ fontSize: 13, fontWeight: 600, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
           {balanceLoading || creditsInfo === null ? '—' : creditsInfo.displayTotalUnits !== undefined ? creditsInfo.displayTotalUnits.toLocaleString('zh-CN') : '—'}
         </span>
         <span style={{ color: 'var(--dsw-alias-label-tertiary)', fontSize: 12 }}>›</span>

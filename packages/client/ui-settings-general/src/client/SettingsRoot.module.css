@@ -302,9 +302,13 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  /* 同宽/同右边距：头像左缘与上方「工作区」标题对齐（+4px），
-     右缘与折叠按钮同列。 */
-  width: calc(100% + 8px);
+  /* 2026-11-07（用户实测「通知/手机被挤到左边」）：本行是 settings.launcher
+   * 的内容，直接被渲染进 .triggerRow（display:flex）成为**flex 子项**。
+   * 原来的 `width: calc(100% + 8px)` 在 flex 收缩下被压回内容宽 ——
+   * space-between 没有余量可分配，三个按钮就全挤在左侧。
+   * 改为 flex:1 1 auto 撑满父容器剩余宽度（负 margin 保留原来与折叠按钮
+   * 同列的外挑 8px）。 */
+  flex: 1 1 auto;
   margin: 4px -4px;
   padding: 0 2px 0 8px;
   box-sizing: border-box;
@@ -323,6 +327,8 @@
   align-items: center;
   gap: 4px;
   min-width: 0;
+  /* 双保险：即使父行宽度计算再出意外，也把通知/手机钉在右缘。 */
+  margin-left: auto;
 }
 
 
