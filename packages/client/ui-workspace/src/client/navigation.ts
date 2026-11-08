@@ -220,8 +220,32 @@ class UiWorkspaceService extends Service implements UiWorkspace {
     // 若目标会话属于 ds-bot 的团队工作区，说明用户想看团队对话 —— 自动把
     // surface 切到团队页；个人模式下的默认工作目录限定由 ui-workspace 的隔离
     // effect 负责（它只会把个人模式的会话拉回「我的工作区」）。
+    this.clearStudioModeIntent()
     this.enterTeamSurfaceIfTeamSession(target)
     this.replaceMain(target, this.lifetime.signal, 'reveal')
+  }
+
+  /**
+   * HeightLab O44（2026-11-09 用户实测「点团队 Colin 弹出视频复刻+右侧栏」）：
+   * 创作模式标记（hl-console-mode + hl-console-mode-at + hl-module-console-browse）
+   * 是**入口点击的一次性意图**，只对紧随其后的新创作会话的 seed/store-create
+   * 有意义；但它会残留（10 分钟 TTL 鲜活期内）——期间打开任何已有会话（如
+   * 团队联系人 Colin），该会话的 store-create 会读到陈值并自动弹创作台。
+   *
+   * 本方法在 openSession 入口统一清理：打开已有会话永远不需要创作意图。
+   * 创作链路（hl:start-module / hl:start-replication → openWorkspace 的
+   * beforeOpen 在 replaceMain 内、store-create 之前写标记）不经过本入口，
+   * 不受影响。
+   */
+  private clearStudioModeIntent(): void {
+    if (typeof window === 'undefined') return
+    try {
+      localStorage.removeItem('hl-console-mode')
+      localStorage.removeItem('hl-console-mode-at')
+      sessionStorage.removeItem('hl-module-console-browse')
+      sessionStorage.removeItem('hl-module-console')
+      sessionStorage.removeItem('hl-template-console')
+    } catch { /* 存储不可用时跳过 */ }
   }
 
   /**
