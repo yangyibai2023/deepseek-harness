@@ -81,6 +81,12 @@ const nextFrame = (): Promise<void> => new Promise((resolve) => {
   window.requestAnimationFrame(() => { resolve() })
 })
 
+/* 启动归位（落个人页）在本页面生命周期内只允许发生一次。折叠侧栏会卸载
+ * HlModeSwitcher、展开会重挂——重挂不是启动（2026-11-09 用户实测翻模式
+ * 事故），模块级标记让重挂直接跳过归位；整页刷新后本模块重新求值，标记
+ * 自然复位，启动归位语义不变。 */
+let homedThisLoad = false
+
 /** 等一小段时间（菜单展开有过渡动画，单帧不够）。 */
 const wait = (ms: number): Promise<void> => new Promise((resolve) => {
   window.setTimeout(resolve, ms)
@@ -282,8 +288,17 @@ export function HlModeSwitcher() {
    * 后 surface=bot，settle 的判据 `readDsBotSurface() === 'agent'` 不满足，
    * 下一次 500ms 重试会 `switchDsBotSurface('agent')` **把用户抢回个人模式**。
    * 修法：用户任何显式模式切换（choose）置 userTouchedRef，settle 每次迭代
-   * 先检查——显式操作永远赢过启动归位。 */
+   * 先检查——显式操作永远赢过启动归位。
+   *
+   * 2026-11-09（用户实测「团队模式折叠侧栏→展开，自动切回个人模式」）：
+   * 归位的触发时机是**组件挂载**，而折叠会卸载本组件、展开会重挂——重挂
+   * 被当成了「启动」，把用户正在使用的团队模式无条件抢回个人（hl.mode 与
+   * ds-bot:surface 双存储被翻转）。归位的真实语义是「页面加载落个人页」，
+   * 与组件挂载解耦：模块级标记保证本页面生命周期内只归位一次；整页刷新
+   * （登录/重启）标记复位，启动归位语义不变。 */
   useEffect(() => {
+    if (homedThisLoad) return
+    homedThisLoad = true
     enter('personal', '')
     let tries = 0
     let stopped = false

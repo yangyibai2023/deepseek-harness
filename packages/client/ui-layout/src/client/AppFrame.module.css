@@ -3,7 +3,12 @@
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
   height: 100%;
-  overflow: hidden;
+  /* HeightLab（2026-11-09）：hidden→clip。overflow:hidden 的盒子仍是**程序
+   * 滚动容器**——ds-bot 会话页签胶囊的 scrollIntoView({inline:"nearest"})
+   * 把整个 App 框架横向滚了 471px（用户实测「团队聊天内容被裁切到屏外」，
+   * 不自愈）。clip 让框架彻底不是滚动容器，scrollIntoView 会跳过它找真正的
+   * 滚动祖先；框架本来就从不合法横向滚动，语义不变。 */
+  overflow: clip;
   background: var(--dsw-alias-bg-base);
 }
 
