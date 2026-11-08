@@ -5,7 +5,7 @@
  * 查看/修改/删除。纯黑白灰原生风格，不带图标。
  */
 
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import css from './ConversationRoot.module.css'
 
 interface ArtifactItem {
@@ -276,6 +276,43 @@ export function HeightLabMaterialPanel() {
   }
 
   const showTrash = category === '回收站'
+
+  /* 卡片渲染（虚拟/非虚拟两分支共用；actionButtons 是本组件闭包）。 */
+  const renderCard = (item: (typeof filtered)[number]): ReactNode => (
+    <div key={item.id} className={css.libraryCard}>
+      <div className={css.libraryCardThumb}>
+        {/* 2026-10-20 用户要求：图片和视频都要有缩略图，不要一片空白。
+          · 图片：直接 <img>
+          · 视频：<video preload="metadata"> + #t=0.1 让它解码首帧
+            （服务端 /file 已支持 Range，否则浏览器不肯出首帧）
+          · 音频/文档/代码：给一个带扩展名的文字标记（比纯类型名好认） */}
+        {item.exists === false ? (
+        /* 源文件被删/移动的记录：给明确失效标，不要再留一片空白 */
+          <span style={{ fontSize: 11, letterSpacing: 0.4, opacity: 0.55 }}>文件已失效</span>
+        ) : item.artifact_type === 'image' ? (
+          <img src={`/ext/artifacts/${item.id}/file`} alt="" loading="lazy" />
+        ) : item.artifact_type === 'video' ? (
+          <video
+            src={`/ext/artifacts/${item.id}/file#t=0.1`}
+            preload="metadata"
+            muted
+            playsInline
+            aria-label={item.title || item.filename}
+          />
+        ) : (
+          <span style={{ fontSize: 11, letterSpacing: 0.4 }}>
+            {(item.filename.split('.').pop() || '').toUpperCase().slice(0, 6) || (TYPE_MAP[item.artifact_type] ?? '素材')}
+          </span>
+        )}
+      </div>
+      <span className={css.libraryCardTitle}>{item.title || item.filename}</span>
+      <span className={css.libraryCardMeta}>
+        {TYPE_MAP[item.artifact_type] ?? '其他'} · {formatSize(item.size_bytes)}
+        {item.tags.length > 0 ? ` · ${item.tags.join(' / ')}` : ''}
+      </span>
+      <span className={css.libraryCardActions}>{actionButtons(item)}</span>
+    </div>
+  )
   /* 2026-11-08（美观版）：分类从左侧 112px 窄栏改为顶部筛选 chips（与首页
    * 模板网格「精选/UGC广告」chips 同款）——工具行/网格/标题三者落同一竖线，
    * 且带上每个分类的真实数量（技能中心「官方精选（13）」同款）。 */
@@ -297,6 +334,40 @@ export function HeightLabMaterialPanel() {
       if (sort === 'sizeAsc') return left.size_bytes - right.size_bytes
       return right.created_at - left.created_at
     })
+
+
+  /* O44（2026-11-08 性能债根治）：卡片视图**窗口化渲染**（手写，零依赖）。
+   * 素材网格此前全量渲染 281 卡 = 3372 DOM 节点（整页 4164 的 81%），每次切入
+   * 资料与知识整树重建——首次切换 500ms+ 的主因。行高固定（缩略图 96 固定高
+   * + 单行标题/meta + 按钮行），只需按 scrollTop 切可见窗口行 ± overscan，
+   * 不需要引入虚拟化库。素材超过千张同样流畅。 */
+  const CARD_ROW_COLUMNS = 4
+  const CARD_ROW_HEIGHT_PX = 236
+  const WINDOW_OVERSCAN_ROWS = 4
+  const gridScrollRef = useRef<HTMLDivElement | null>(null)
+  const [gridScrollTop, setGridScrollTop] = useState(0)
+  const [gridViewportH, setGridViewportH] = useState(600)
+  const cardRows = useMemo(() => {
+    const rows: Array<typeof filtered> = []
+    for (let i = 0; i < filtered.length; i += CARD_ROW_COLUMNS) rows.push(filtered.slice(i, i + CARD_ROW_COLUMNS))
+    return rows
+  }, [filtered])
+  const virtualizationOn = viewMode === 'card' && cardRows.length > 10
+  /* 窗口行区间：scrollTop 前后各留 OVERSCAN 行；筛选/分类变化时 scrollTop
+   * 可能超出新内容高度——钳制在合法区间，避免白屏。 */
+  const clampedTop = virtualizationOn
+    ? Math.max(0, Math.min(gridScrollTop, cardRows.length * CARD_ROW_HEIGHT_PX - gridViewportH))
+    : 0
+  const firstRow = virtualizationOn
+    ? Math.max(0, Math.floor(clampedTop / CARD_ROW_HEIGHT_PX) - WINDOW_OVERSCAN_ROWS)
+    : 0
+  const lastRow = virtualizationOn
+    ? Math.min(cardRows.length, Math.ceil((clampedTop + gridViewportH) / CARD_ROW_HEIGHT_PX) + WINDOW_OVERSCAN_ROWS)
+    : cardRows.length
+  const onGridScroll = (event: React.UIEvent<HTMLDivElement>): void => {
+    setGridScrollTop(event.currentTarget.scrollTop)
+    setGridViewportH(event.currentTarget.clientHeight)
+  }
 
   const actionButtons = (item: ArtifactItem) => (
     <span style={{ display: 'flex', gap: 4, flexShrink: 0, paddingLeft: 8, flexWrap: 'wrap' }}>
@@ -443,49 +514,32 @@ export function HeightLabMaterialPanel() {
 
           {/* 2026-11-08（用户拍板）：chips + 工具行**冻结**在顶部不跟随滚动——
            * 把滚动权从 libraryRight 整体改为只滚这里（libraryScroll）。 */}
-          <div className={css.libraryScroll}>
+          <div ref={gridScrollRef} className={css.libraryScroll} onScroll={onGridScroll}>
             {filtered.length === 0 ? (
               <div style={{ padding: '48px 0', textAlign: 'center', color: 'var(--dsw-alias-label-tertiary)', fontSize: 13 }}>
-              暂无素材，新生成的图片/视频会自动入库，也可点击「扫描」补录
+                暂无素材，新生成的图片/视频会自动入库，也可点击「扫描」补录
               </div>
             ) : viewMode === 'card' ? (
-              <div className={css.libraryCardGrid}>
-                {filtered.map(item => (
-                  <div key={item.id} className={css.libraryCard}>
-                    <div className={css.libraryCardThumb}>
-                      {/* 2026-10-20 用户要求：图片和视频都要有缩略图，不要一片空白。
-                        · 图片：直接 <img>
-                        · 视频：<video preload="metadata"> + #t=0.1 让它解码首帧
-                          （服务端 /file 已支持 Range，否则浏览器不肯出首帧）
-                        · 音频/文档/代码：给一个带扩展名的文字标记（比纯类型名好认） */}
-                      {item.exists === false ? (
-                      /* 源文件被删/移动的记录：给明确失效标，不要再留一片空白 */
-                        <span style={{ fontSize: 11, letterSpacing: 0.4, opacity: 0.55 }}>文件已失效</span>
-                      ) : item.artifact_type === 'image' ? (
-                        <img src={`/ext/artifacts/${item.id}/file`} alt="" loading="lazy" />
-                      ) : item.artifact_type === 'video' ? (
-                        <video
-                          src={`/ext/artifacts/${item.id}/file#t=0.1`}
-                          preload="metadata"
-                          muted
-                          playsInline
-                          aria-label={item.title || item.filename}
-                        />
-                      ) : (
-                        <span style={{ fontSize: 11, letterSpacing: 0.4 }}>
-                          {(item.filename.split('.').pop() || '').toUpperCase().slice(0, 6) || (TYPE_MAP[item.artifact_type] ?? '素材')}
-                        </span>
-                      )}
+              virtualizationOn ? (
+                /* 虚拟化（O44 性能债根治）：行容器 absolute 定位到 virtualRow.start，
+                 * 行内 4 列网格；measureElement 动态实测行高（按钮行 wrap 会使
+                 * 行高不齐）。只渲染可见行 ± overscan。 */
+                <div style={{ position: 'relative', width: '100%', height: cardRows.length * CARD_ROW_HEIGHT_PX }}>
+                  {cardRows.slice(firstRow, lastRow).map((row, i) => (
+                    <div
+                      key={`${firstRow + i}-${row[0]?.id ?? i}`}
+                      className={css.libraryCardRow}
+                      style={{ transform: `translateY(${(firstRow + i) * CARD_ROW_HEIGHT_PX}px)` }}
+                    >
+                      {row.map(item => renderCard(item))}
                     </div>
-                    <span className={css.libraryCardTitle}>{item.title || item.filename}</span>
-                    <span className={css.libraryCardMeta}>
-                      {TYPE_MAP[item.artifact_type] ?? '其他'} · {formatSize(item.size_bytes)}
-                      {item.tags.length > 0 ? ` · ${item.tags.join(' / ')}` : ''}
-                    </span>
-                    <span className={css.libraryCardActions}>{actionButtons(item)}</span>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className={css.libraryCardGrid}>
+                  {filtered.map(item => renderCard(item))}
+                </div>
+              )
             ) : (
               filtered.map(item => (
                 <div key={item.id} className={css.libraryDocRow}>

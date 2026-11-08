@@ -1335,3 +1335,16 @@
   color: var(--dsw-alias-label-primary);
   font-weight: 600;
 }
+
+/* O44（2026-11-08）：素材网格窗口化渲染的行容器——虚拟分支里每行 absolute
+ * 定位（transform translateY 到所在高度），行内保持与 .libraryCardGrid 相同
+ * 的 4 列网格；非虚拟分支（≤40 卡）仍走 .libraryCardGrid 原样式。 */
+.libraryCardRow {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
