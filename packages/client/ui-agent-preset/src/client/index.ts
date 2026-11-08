@@ -53,6 +53,14 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
   }
 }
 
+/* O44（2026-11-08）：智能体页签的 slot 声明——本包编译范围不含
+ * ui-plugin-manager 的 slot-contract augment，需自足声明才能 inject 带 id。 */
+declare module '@deepseek-ai/dsh-client-ui-slots' {
+  interface SlotMap {
+    'plugins.page.agents': { kind: 'list'; scope: 'root'; owner: { close: () => void } }
+  }
+}
+
 export type { AgentPresetLabelInjected, AgentPresetLabelProps } from './AgentPresetLabel.tsx'
 export type { AgentPresetSeatInjected, AgentPresetSeatProps } from './AgentPresetSeat.tsx'
 export type { AgentPresetSectionInjected, AgentPresetSectionProps } from './AgentPresetSection.tsx'
@@ -274,8 +282,13 @@ export function apply(ctx: ClientContext): void {
 
   // Ordered after Models: choosing a model is routine, and composing an
   // agent is the deployment-shaping act behind it.
-  ctx.slots.inject('settings.section', () => ctx.slots.register({
-    name: 'settings.section',
+  /* O44（2026-11-08 用户拍板）：Agent 管理从设置页**挪到**「插件 · 技能 ·
+   * 智能体」页的智能体页签——slot 名随之更换；设置页不再出现该 section
+   *（ui-plugin-manager PluginManagerPage 消费 plugins.page.agents）。 */
+  ctx.slots.inject('plugins.page.agents', () => ctx.slots.register({
+    name: 'plugins.page.agents',
+    /* O44：list 类 slot（同 settings.section）——id 必填（renderSlot only 的
+     * 键），order/label 用于清单排序与展示。 */
     id: 'agent-presets',
     order: 20,
     label: () => ctx.locale.bind('settings.agentPreset')('nav'),

@@ -44,6 +44,7 @@ export type PluginManagerPageProps =
     | 'plugins.add.actions'
     | 'plugins.detail.actions' | 'plugins.detail.badge' | 'plugins.detail.section'
     | 'plugins.page.skills'
+    | 'plugins.page.agents'
   >
   & InjectFace<PluginManagerFace>
   & PropsStore<ReturnType<typeof createNavigationStore>>
@@ -1474,7 +1475,7 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
   /* O44（2026-11-08 用户拍板）：三分页「智能体 | 技能 | 插件」（顺序=用户
    * 指定），智能体页签=内置能力配置卡组（子智能体/Agent 循环/终端/网页
    * 搜索——即设置页「内置插件配置」同源内容，至此挪入本页）。 */
-  const [pageTab, setPageTab] = useState<'agents' | 'plugins' | 'skills' | 'market'>('agents')
+  const [pageTab, setPageTab] = useState<'agents' | 'plugins' | 'skills' | 'market'>('plugins')
   useEffect(() => { ensure() }, [ensure])
   // Installation highlights visible cards without changing the user's current page.
   const { highlight, clearHighlight } = { highlight: state.highlight, clearHighlight: props.clearHighlight }
@@ -1587,10 +1588,10 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
         <button
           type="button"
           role="tab"
-          aria-selected={pageTab === 'agents'}
-          className={clsx(css.pageTab, pageTab === 'agents' && css.pageTabActive)}
-          onClick={() => { setPageTab('agents') }}
-        >智能体</button>
+          aria-selected={pageTab === 'plugins'}
+          className={clsx(css.pageTab, pageTab === 'plugins' && css.pageTabActive)}
+          onClick={() => { setPageTab('plugins') }}
+        >{t('pageTabPlugins')}</button>
         <button
           type="button"
           role="tab"
@@ -1601,10 +1602,10 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
         <button
           type="button"
           role="tab"
-          aria-selected={pageTab === 'plugins'}
-          className={clsx(css.pageTab, pageTab === 'plugins' && css.pageTabActive)}
-          onClick={() => { setPageTab('plugins') }}
-        >{t('pageTabPlugins')}</button>
+          aria-selected={pageTab === 'agents'}
+          className={clsx(css.pageTab, pageTab === 'agents' && css.pageTabActive)}
+          onClick={() => { setPageTab('agents') }}
+        >智能体</button>
         {PLUGIN_INSTALL_UI_ENABLED
           ? (
             <button
@@ -1637,7 +1638,7 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
                * ——与设置页「内置插件配置」同源（ledger.items basicCards），
                * 彩色渐变图标由 ITEM_ARTWORK 提供。 */
               <div className={css.group} data-plugin-group="agents">
-                <ul className={css.cards}>{basicCards}</ul>
+                {renderSlot('plugins.page.agents', { close: () => {} })}
               </div>
             )
             : (
@@ -1757,7 +1758,7 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
                           </section>
                         ) : (
                           <>
-                          /* O44：basic 组（智能体配置卡）移至「智能体」页签。 */
+                            {renderGroup('basic', t('basicTitle'), basicCards)}
                             {renderGroup('extensions', t('extensionsTitle'), extensions.map(packageCard))}
                             {renderGroup('bundles', t('bundlesTitle'), mine.map(packageCard))}
                           </>

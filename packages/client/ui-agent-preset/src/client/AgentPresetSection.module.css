@@ -378,3 +378,24 @@
   opacity: 0.4;
   cursor: default;
 }
+
+/* O44（2026-11-08 用户拍板「彩色 logo，与插件页一模一样」）：预设卡改
+ * 行式布局（图标列 + 文字列）；图标 48×48 圆角 16 + 0.5px 描边框（与
+ * ui-plugin-manager 官方卡完全同款）。 */
+.card {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.cardIcon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border: 0.5px solid var(--dsw-alias-border-l3, rgba(0, 0, 0, 0.12));
+  border-radius: var(--dsw-radius-lg, 12px);
+  color: var(--dsw-alias-label-secondary);
+}

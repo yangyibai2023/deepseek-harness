@@ -158,6 +158,10 @@ export function apply(ctx: ClientContext): void {
         'plugins.detail.section': { kind: 'list', scope: 'root' },
         // HeightLab：技能中心整页（插件·技能合并页的「技能」标签）。
         'plugins.page.skills': { kind: 'single', scope: 'root' },
+        // HeightLab O44：Agent 管理整卡（合并页的「智能体」标签；owner 契约
+        // 在 slot-contract.ts / ui-conversation contract）。
+        'plugins.page.agents': { kind: 'list', scope: 'root' },
+
       },
     }, PluginManagerPage)
     yield ctx.layout.panelInfo.subscribe(() => {

@@ -203,6 +203,13 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * 标签（ui-plugin-manager 的页面渲染本槽位；owner 为空标记）。
      */
     'plugins.page.skills': { kind: 'single'; scope: 'root'; owner: PluginsPageSkillsOwnerProps }
+    /**
+     * HeightLab（2026-11-08 O44）：Agent 管理整卡（ui-agent-preset 的
+     * AgentPresetSection），挂进插件·技能·智能体合并页的「智能体」标签
+     * （ui-plugin-manager 的页面渲染本槽位；owner 为空标记——注入闭包由
+     * settings.section 同款机制提供）。
+     */
+    'plugins.page.agents': { kind: 'list'; scope: 'root'; owner: { close: () => void } }
     /** Selector-routed replacements for the current Session's resident composer. */
     'conversation.composer': { kind: 'chain'; scope: 'session'; owner: ComposerChainProps }
     /** Workspace picker shown by the blank-session Hero. */
@@ -353,6 +360,7 @@ export interface PluginsPageSkillsOwnerProps {
   /** Marker field: the occupant receives no owner-specific values. */
   children?: never
 }
+
 
 /** Base props of one target-owned Conversation View entry. */
 export type ConvViewProps = PropsRuntime<'conversation.view'>

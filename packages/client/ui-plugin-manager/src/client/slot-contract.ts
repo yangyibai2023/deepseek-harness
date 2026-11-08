@@ -107,6 +107,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * 同一（接口合并要求全同）。
      */
     'plugins.page.skills': { kind: 'single'; scope: 'root'; owner: PluginsPageSkillsOwnerProps }
+    /** HeightLab O44（2026-11-08）：Agent 管理整卡——合并页「智能体」标签 occupant。 */
+    'plugins.page.agents': { kind: 'list'; scope: 'root'; owner: { close: () => void } }
 
     /**
      * A bundle's own configuration, keyed by the bundle's package name and
