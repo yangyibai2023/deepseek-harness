@@ -291,7 +291,7 @@ const hubPageStyle: CSSProperties = {
   /* 2026-11-08（用户实测「标题介绍与第一组挤在一块」）：header 与本容器是
    * 兄弟节点，本容器若无 paddingTop，标题副标与「对标复刻」就贴上了——原生
    * .page 的 gap 32 正好承担这个间距（副标底→组标题顶 = 32）。 */
-  padding: '32px clamp(24px, 4vw, 48px) 48px',
+  padding: '12px clamp(24px, 4vw, 48px) 48px',
   boxSizing: 'border-box',
 }
 
@@ -303,7 +303,10 @@ const hubHeaderStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: 4,
-  padding: '28px clamp(24px, 4vw, 48px) 0',
+  /* 2026-11-08（用户实测「标题与 tab 行挤在一块」）：header 下补 20px 呼吸
+   * 间距——资产中心的「素材管理/知识库」tab 行不再贴标题；视频创作页由
+   * hubPageStyle 的 paddingTop 12 补足，副标→首组仍 = 32（与原生一致）。 */
+  padding: '28px clamp(24px, 4vw, 48px) 20px',
   maxWidth: 1056, /* 960 内容盒 + 左右 48 内距（clamp 上限） */
   boxSizing: 'border-box',
   flex: 'none',

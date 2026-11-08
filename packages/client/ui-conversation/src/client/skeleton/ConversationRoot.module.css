@@ -894,7 +894,8 @@
 
 .libraryCardGrid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  /* 2026-11-08（用户拍板）：3 → 4 列，缩略图等比例缩小多显示一排。 */
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   /* HeightLab 2026-10-20：不能 overflow:hidden——卡片多时（实测 1126 张）
    * 它会把内容裁在自己的盒子里（scrollHeight 18159 / height 587），
@@ -906,8 +907,8 @@
 .libraryCard {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 12px;
+  gap: 6px;
+  padding: 10px;
   border: 1px solid var(--dsw-alias-border-l1);
   border-radius: 12px;
   background: var(--dsw-alias-bg-layer-1);
@@ -937,7 +938,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 120px;
+  /* 4 列卡片宽约 210px（内距 12 后缩略图 ~186），高度 120→96 保同比例。 */
+  height: 96px;
   overflow: hidden;
   border-radius: 8px;
   background: var(--dsw-alias-bg-layer-2);
