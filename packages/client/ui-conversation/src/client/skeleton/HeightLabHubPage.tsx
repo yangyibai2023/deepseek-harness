@@ -644,6 +644,11 @@ const creationTabsStyle: CSSProperties = {
   display: 'flex',
   gap: 28,
   borderBottom: '1px solid var(--dsw-alias-border-l2)',
+  /* O44（2026-11-09 用户拍板）：页签行冻结——创作中心内容滚动时吸顶。 */
+  position: 'sticky',
+  top: 0,
+  zIndex: 2,
+  background: 'var(--dsw-alias-bg-base, #fff)',
 }
 
 /* O44：'automation'（死值）与 'skill-hub'（ConversationRoot 在到达本组件前

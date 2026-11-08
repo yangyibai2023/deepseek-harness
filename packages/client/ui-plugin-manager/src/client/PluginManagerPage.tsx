@@ -1630,15 +1630,9 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
           ? renderSlot('plugins.page.skills', {})
           : pageTab === 'agents'
             ? (
-              /* 「专家」页签：Agent 管理整卡 + 内置能力配置卡
-               * （子智能体/Agent 循环/终端/网页搜索）——彩色渐变图标由
-               * ITEM_ARTWORK / AgentPresetSection 提供。 */
-              <>
-                {renderSlot('plugins.page.agents', { close: () => {} })}
-                <div className={css.group} data-plugin-group="agents">
-                  {basicCards}
-                </div>
-              </>
+              /* 「专家」页签：仅 Agent 管理花名册（用户拍板：子智能体等
+               * 配置卡留在设置→插件扩展，此处不重复渲染）。 */
+              <>{renderSlot('plugins.page.agents', { close: () => {} })}</>
             )
             : (
               <>

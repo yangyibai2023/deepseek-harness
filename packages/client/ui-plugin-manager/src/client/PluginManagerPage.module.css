@@ -1495,6 +1495,12 @@ label.registryOption {
   gap: 4px;
   /* 顶部让开 macOS 拖拽条（~38px），标签条落在其下可点击。 */
   padding: 44px 28px 0 20px;
+
+  /* O44（2026-11-09 用户拍板）：页签行冻结——页面滚动时页签吸顶。 */
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--dsw-alias-bg-base, #fff);
 }
 .pageTab {
   border: none;
