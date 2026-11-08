@@ -40,7 +40,6 @@ import { GeneralSection } from './GeneralSection.tsx'
 import { CurrentVersionRow } from './CurrentVersionRow.tsx'
 import { DeveloperToolsRow, type DeveloperToolsRowInjected } from './DeveloperToolsRow.tsx'
 import { FusionRow } from './FusionRow.tsx'
-import { TeamSettingsSection } from './TeamSettingsSection.tsx'
 import { GlobalUsageSection } from './GlobalUsageSection.tsx'
 import { GlobalMemorySection } from './GlobalMemorySection.tsx'
 import { SettingsDocumentAction } from './SettingsDocumentAction.tsx'
@@ -284,13 +283,19 @@ export function apply(ctx: ClientContext): void {
 
   // HeightLab（2026-10-19 用户拍板）：团队专属设置整页内嵌——复用 ds-bot 的
   // 实现（经 window.dshBot.settings 桥），不重写、不产生第二套状态。
-  ctx.slots.inject('settings.section', () => ctx.slots.register({
-    name: 'settings.section',
-    id: 'heightlab-team',
-    order: 200,
-    label: () => '团队设置',
-    group: '团队专属',
-  } as never, TeamSettingsSection))
+  //
+  // 2026-11-09（用户拍板「把设置菜单里的团队设置隐藏吧，因为团队里也能够设置，
+  // 没必要放在这里」）：**不再注入 settings.section**——团队模式下侧栏「团队
+  // 设置」齿轮就是同一个面板（TeamSettingsSection 的内容由 ds-bot 提供），
+  // 放在全局设置里是重复入口。组件保留（侧栏齿轮仍用同一实现）；
+  // 恢复 = 解开本段注释。
+  // ctx.slots.inject('settings.section', () => ctx.slots.register({
+  //   name: 'settings.section',
+  //   id: 'heightlab-team',
+  //   order: 200,
+  //   label: () => '团队设置',
+  //   group: '团队专属',
+  // } as never, TeamSettingsSection))
 
   // ── HeightLab 定制 section（自 0.3.x 稳定线迁移；0.2.1 合并时丢失，2026-10-16 回植）──
   // account section（余额 + 充值），紧跟通用设置（0）之后。
