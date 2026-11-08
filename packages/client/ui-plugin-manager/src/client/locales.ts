@@ -7,8 +7,8 @@ export const INSTALL_PATH_EXAMPLE = '/Users/name/my-plugin'
 
 /** Simplified Chinese dictionary and key source of truth. */
 export const zh = {
-  panel: '专家 · 技能 · 连接',
-  title: '专家 · 技能 · 连接',
+  panel: '专家与技能',
+  title: '专家与技能',
   pageTabPlugins: '插件',
   pageTabSkills: '技能',
   pageTabMarket: '市场',
@@ -227,8 +227,8 @@ export type PluginManagerLocaleKey = keyof typeof zh
 
 /** English dictionary checked against the Chinese key set. */
 export const en = {
-  panel: 'Plugins·Skills',
-  title: 'Plugins·Skills',
+  panel: 'Experts & Skills',
+  title: 'Experts & Skills',
   pageTabPlugins: 'Plugins',
   pageTabSkills: 'Skills',
   pageTabMarket: 'Market',

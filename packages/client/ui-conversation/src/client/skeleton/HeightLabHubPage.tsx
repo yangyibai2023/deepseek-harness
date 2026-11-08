@@ -668,7 +668,7 @@ const PAGE_TITLES: Partial<Record<HubPage, string>> = {
   inspiration: '创意灵感',
   lab: '更多能力',
   library: '资产空间',
-  'video-studio': '创作中心',
+  'video-studio': '场景创作',
 }
 
 /* 仅在有明确说明价值时给一行副标题（原生页多数没有；用户已指出「一句话
@@ -784,7 +784,7 @@ export function HeightLabHubPage({ page, onClose }: { page: HubPage; onClose: ()
       {page === 'video-studio' ? (
         <div style={hubPageStyle}>
           {/* O44 创作中心分页栏（原生下划线 tab，同素材/知识库同款）。 */}
-          <div style={creationTabsStyle} role="tablist" aria-label="创作类型">
+          <div style={creationTabsStyle} role="tablist" aria-label="场景类型">
             {CREATION_TABS.filter(tab => tab.ready).map(tab => (
               <button
                 key={tab.id}
