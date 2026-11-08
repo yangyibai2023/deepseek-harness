@@ -94,8 +94,9 @@ export function ConversationRoot(props: ConversationRootProps) {
       // ⚠️ 这里是 hub 页的**白名单**：新增 HubPage 必须同步加进来，否则
       // 事件被静默忽略（点侧栏没反应，且 __hlPendingHub 会一直挂着）。
       // 2026-10-20 新增 'film-studio' 时踩过。
+      /* O44（2026-11-08）：'lab' 加入白名单（实验室整页）。 */
       if (detail?.page === 'inspiration' || detail?.page === 'library' || detail?.page === 'video-studio'
-        || detail?.page === 'skill-hub' || detail?.page === 'film-studio') {
+        || detail?.page === 'skill-hub' || detail?.page === 'film-studio' || detail?.page === 'lab') {
         // film-studio 仍走 hub 覆盖层（入口 a：主区满幅 + 右侧开新对话）。
         if (detail.page !== 'library') {
           window.dispatchEvent(new CustomEvent('hl:close-knowledge'))

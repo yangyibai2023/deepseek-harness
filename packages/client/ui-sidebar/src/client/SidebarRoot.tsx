@@ -16,7 +16,7 @@
  * scrollbar indirection away while it is elsewhere, so a list the user is not
  * pointing at carries no bar.
  */
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 // HeightLab（2026-10-17 用户拍板）：侧栏自建行图标统一到原生 panelRow 的
 // OutlineRegular 系列——基准是「插件·技能」(IconPluginPinwheelOutlineRegular)
@@ -25,7 +25,7 @@ import clsx from 'clsx'
 // IconLibraryStroke16（不同族），折叠后三项观感明显不一致。
 import {
   IconBrowseOutlineRegular, IconNewChatOutlineRegular, IconPlanOutlineRegular,
-  IconWorkspaceTreeOutlineRegular, MenuSurface, Tooltip,
+  IconWorkspaceTreeOutlineRegular, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
   // HeightLab V31：创意灵感一级入口暂时隐藏（首页输入框下方的视频模板网格
@@ -151,53 +151,14 @@ export function SidebarRoot({
   const showFilmStudioRow = (() => {
     try { return window.localStorage.getItem('SHOW_FILM_STUDIO_ROW') === '1' } catch { return false }
   })()
-  const [labOpen, setLabOpen] = useState(false)
-  const labButtonRef = useRef<HTMLButtonElement | null>(null)
-  const labPanelRef = useRef<HTMLDivElement | null>(null)
-  const [labOrigin, setLabOrigin] = useState<string | undefined>(undefined)
-  const [labQuery, setLabQuery] = useState('')
-  /* macOS 式弹出：transform-origin 实测定到实验室按钮中心——面板「从按钮里
-   * 拧出来」（squish spring ~170ms，见 .labPad keyframes）。 */
-  const openLabDock = (): void => {
-    setLabQuery('')
-    setLabOpen(true)
-  }
-  useLayoutEffect(() => {
-    if (!labOpen) return
-    const btn = labButtonRef.current?.getBoundingClientRect()
-    const panel = labPanelRef.current?.getBoundingClientRect()
-    if (btn !== undefined && panel !== undefined) {
-      const x = Math.round(btn.left + btn.width / 2 - panel.left)
-      const y = Math.round(btn.top + btn.height / 2 - panel.top)
-      setLabOrigin(`${x}px ${y}px`)
-    }
-  }, [labOpen])
-  /* O44（2026-11-08）：实验室 Dock 分区——「生产工具」是正式能力（剪辑台、
-   * 自动化任务），「实验功能」等真实能力到位再加（数字人/声音克隆/去水印；
-   * 不放占位，避免「即将上线」空卡）。条目两型：page=hub 页 / panel=原生面板。 */
-  type LabItem = { key: string; label: string; Icon: typeof IconPlanOutlineRegular }
-    & ({ kind: 'hub'; page: string } | { kind: 'panel'; panelId: string })
-  const LAB_GROUPS: ReadonlyArray<{ title: string; items: readonly LabItem[] }> = [
-    {
-      title: '生产工具',
-      items: [
-        { key: 'film-studio', label: '智能剪辑台', Icon: IconBrowseOutlineRegular, kind: 'hub', page: 'film-studio' },
-        { key: 'schedules', label: '自动化任务', Icon: IconPlanOutlineRegular, kind: 'panel', panelId: 'schedules' },
-      ],
-    },
-  ]
-  const openLabItem = (item: LabItem): void => {
-    setLabOpen(false)
-    if (item.kind === 'panel') {
-      /* 与原生 panelList 行同语义：直接选中该原生面板（自动化任务）。 */
-      selectPanel(item.panelId as never)
-      return
-    }
-    /* Dock 条目与旧一级行同款 hub 语义：pending hub + 事件，选中态归 lab 行。 */
-    ;(window as unknown as { __hlPendingHub?: string | null }).__hlPendingHub = item.page
+  /* O44（2026-11-08 用户拍板）：实验室不再用 Dock 抽屉——与 hub 一级行完全
+   * 同款语义（pending hub + hl:open-hub {page:'lab'}），打开实验室整页
+   * （插件·技能同款布局：彩色渐变图标 + 行式卡片 + 分组标题）。 */
+  const openLabHub = (): void => {
+    ;(window as unknown as { __hlPendingHub?: string | null }).__hlPendingHub = 'lab'
     setActiveHub('lab')
     selectPanel(null)
-    window.dispatchEvent(new CustomEvent('hl:open-hub', { detail: { page: item.page } }))
+    window.dispatchEvent(new CustomEvent('hl:open-hub', { detail: { page: 'lab' } }))
   }
   const lingerTimer = useRef<number | undefined>(undefined)
   const armLinger = (): void => {
@@ -221,7 +182,20 @@ export function SidebarRoot({
   useEffect(() => {
     const onCloseHub = (): void => { setActiveHub(null) }
     window.addEventListener('hl:close-hub', onCloseHub)
-    return () => { window.removeEventListener('hl:close-hub', onCloseHub) }
+    /* O44：实验室整页的「自动化任务」卡 → 原生面板（hub 关闭 + selectPanel）。
+     * 面板页自身无法拿到 layout 服务，由本组件把窗口事件转成 selectPanel——
+     * 与下方「更多能力」图标转发的既有模式相同。 */
+    const onOpenPanel = (event: Event): void => {
+      const panelId = (event as CustomEvent<{ panelId?: unknown }>).detail?.panelId
+      if (typeof panelId !== 'string' || panelId === '') return
+      setActiveHub(null)
+      selectPanel(panelId as never)
+    }
+    window.addEventListener('hl:open-panel', onOpenPanel)
+    return () => {
+      window.removeEventListener('hl:close-hub', onCloseHub)
+      window.removeEventListener('hl:open-panel', onOpenPanel)
+    }
   }, [])
 
   // HeightLab（2026-10-19）：底部「更多能力」图标要打开插件面板。那个按钮在
@@ -447,12 +421,11 @@ export function SidebarRoot({
             图标/字号/间距与 panelRow 完全同款；点击弹出玻璃 Dock。 */}
         <Tooltip label="实验室" delayMs={500} disabled={wide}>
           <button
-            ref={labButtonRef}
             type="button"
-            className={clsx(css.panelRow, labOpen && css.panelActive)}
+            className={clsx(css.panelRow, activeHub === 'lab' && css.panelActive)}
             aria-label="实验室"
-            aria-expanded={labOpen}
-            onClick={() => { if (labOpen) { setLabOpen(false) } else { openLabDock() } }}
+            aria-current={activeHub === 'lab' ? 'page' : undefined}
+            onClick={() => { openLabHub() }}
           >
             <span className={css.panelGlyph} aria-hidden="true">
               {/* N18（用户拍板）：程序坞式 2×2 圆角方格描边形（Launchpad 语义），
@@ -492,56 +465,9 @@ export function SidebarRoot({
           {renderSlot('sidebar.settings', { wide })}
         </div>
       </div>
-      {/* N18 实验室：Launchpad 式居中大面板——dsh 原生 MenuSurface 玻璃
-          （与 @ 弹层同款 material+macOS vibrancy backing），弹出缩放动画。
-          顶栏搜索（Launchpad 同构）+ 工具图标网格；条目=旧一级行同款 hub 语义。 */}
-      {labOpen && (
-        <>
-          <div
-            className={css.labPadBackdrop}
-            onClick={() => setLabOpen(false)}
-            onKeyDown={(event) => { if (event.key === 'Escape') setLabOpen(false) }}
-            role="button"
-            tabIndex={-1}
-            aria-label="关闭实验室"
-          />
-          <MenuSurface ref={labPanelRef} className={css.labPad} style={{ transformOrigin: labOrigin }} role="dialog" aria-label="实验室">
-            <div className={css.labPadHead}>
-              <span className={css.labPadTitle}>实验室</span>
-              <input
-                className={css.labPadSearch}
-                value={labQuery}
-                onChange={event => setLabQuery(event.target.value)}
-                placeholder="搜索"
-                autoFocus
-              />
-            </div>
-            <div className={css.labPadBody}>
-              {LAB_GROUPS.map((group) => {
-                const visible = group.items.filter(({ label }) => labQuery === '' || label.toLowerCase().includes(labQuery.toLowerCase()))
-                if (visible.length === 0 && labQuery === '') return null
-                if (visible.length === 0) return null
-                return (
-                  <div key={group.title} className={css.labPadGroup}>
-                    <div className={css.labPadGroupTitle}>{group.title}</div>
-                    <div className={css.labPadGrid}>
-                      {visible.map(item => (
-                        <button key={item.key} type="button" className={css.labPadTile} onClick={() => openLabItem(item)}>
-                          <span className={css.labPadGlyph} aria-hidden="true"><item.Icon size={26} /></span>
-                          <span className={css.labPadLabel}>{item.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )
-              })}
-              {LAB_GROUPS.every(group => group.items.every(({ label }) => labQuery !== '' && !label.toLowerCase().includes(labQuery.toLowerCase()))) && (
-                <div className={css.labPadEmpty}>没有匹配的工具</div>
-              )}
-            </div>
-          </MenuSurface>
-        </>
-      )}
+      {/* O44（2026-11-08 用户拍板）：实验室 Dock 抽屉已废弃——实验室改为
+          hub 整页（HeightLabHubPage page='lab'，插件·技能同款布局 + 彩色
+          渐变图标），点击侧栏「实验室」行即 hl:open-hub {page:'lab'}。 */}
     </div>
   )
 }

@@ -667,141 +667,21 @@
 /* ═══ N18（0.5.7 用户拍板）：实验室——Launchpad 式居中大面板 ═══
    玻璃=原生 MenuSurface（material+macOS vibrancy backing，与 @ 弹层同款）；
    这里只管布局、网格、弹出动画。背板轻压暗（Launchpad 同观感）。 */
-.labPadBackdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 90;
-  background: rgba(0, 0, 0, 0.18);
-  border: none;
-  padding: 0;
-  cursor: default;
-  animation: labPadBackdropIn 120ms ease both;
-}
 
-@keyframes labPadBackdropIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
 
 /* 2026-11-07 用户反馈：点一下迅速出来 + macOS 式「从实验室按钮拧出来」的
  * squish 弹出。transform-origin 由组件实测按钮中心注入（inline），这里
  * 只定义快节奏的过冲弹簧（170ms，比原生 Launchpad 的从容版更干脆）。 */
-.labPad {
-  position: fixed;
-  z-index: 91;
-  left: 50%;
-  top: 44%;
-  transform: translate(-50%, -50%);
-  width: min(720px, 82vw);
-  min-height: 420px;
-  max-height: 76vh;
-  overflow: auto;
-  padding: 22px 26px;
-  box-sizing: border-box;
-  animation: labPadIn 170ms cubic-bezier(0.3, 1.4, 0.55, 1) both;
-}
 
-@keyframes labPadIn {
-  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.45, 0.32); }
-  55% { opacity: 1; transform: translate(-50%, -50%) scale(1.04, 1.02); }
-  80% { transform: translate(-50%, -50%) scale(0.99, 1.008); }
-  100% { opacity: 1; transform: translate(-50%, -50%) scale(1, 1); }
-}
 
-.labPadHead {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-bottom: 18px;
-}
 
-.labPadTitle {
-  font-size: 17px;
-  font-weight: 700;
-  color: var(--dsw-alias-label-primary);
-}
 
-.labPadSearch {
-  flex: 1;
-  max-width: 320px;
-  height: 32px;
-  padding: 0 12px;
-  border-radius: 10px;
-  border: 1px solid var(--dsw-alias-border-l2);
-  background: var(--dsw-specific-input-major);
-  color: var(--dsw-alias-label-primary);
-  font-size: 13px;
-  outline: none;
-}
 
-.labPadGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
-  gap: 10px;
-}
 
-.labPadTile {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 14px 8px 10px;
-  border: none;
-  border-radius: 14px;
-  background: transparent;
-  color: var(--dsw-alias-label-primary);
-  cursor: pointer;
-  transition: background 140ms ease, transform 140ms ease;
-}
 
-.labPadTile:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
-  transform: translateY(-2px);
-}
 
-.labPadGlyph {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 56px;
-  height: 56px;
-  border-radius: 16px;
-  background: var(--dsw-specific-input-major, rgba(127, 127, 127, 0.1));
-}
 
-.labPadLabel {
-  font-size: 12px;
-  color: var(--dsw-alias-label-primary);
-}
 
-.labPadEmpty {
-  grid-column: 1 / -1;
-  text-align: center;
-  padding: 28px 0;
-  font-size: 13px;
-  color: var(--dsw-alias-label-tertiary);
-}
 
 /* O44（2026-11-08）：实验室 Dock 分区——「生产工具 / 实验功能」组标题。
  * 与内容分组同一语言（原生 groupTitle 14/500 的缩小版，Dock 内更紧凑）。 */
-.labPadBody {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  /* .labPad 已提供 22/26 内距与滚动——本层只承担分组间距，不再加 padding
-   *（避免双重内距）。 */
-}
-
-.labPadGroup {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.labPadGroupTitle {
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 16px;
-  color: var(--dsw-alias-label-tertiary, #8c8c8c);
-  padding: 0 2px;
-}

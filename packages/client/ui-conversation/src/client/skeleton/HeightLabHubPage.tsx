@@ -15,7 +15,7 @@ import { HeightLabFilmStudio } from './HeightLabFilmStudio.tsx'
 import css from './ConversationRoot.module.css'
 
 /* O44：'automation' 是死值（探索证实无人派发、白名单不收）——从联合类型删除。 */
-export type HubPage = 'inspiration' | 'library' | 'video-studio' | 'skill-hub' | 'film-studio'
+export type HubPage = 'inspiration' | 'library' | 'video-studio' | 'skill-hub' | 'film-studio' | 'lab'
 
 /** HeightLab V24b：视频创作一级页的 8 个模块卡片（第一排流量转化/第二排人设内容）。
  * 0.5.7 模块创作台（2026-11-08 用户拍板「一个功能驾驭多个模板」）：8 模块全部
@@ -457,6 +457,58 @@ const CREATION_MODULES: Record<'image' | 'copy', { moduleId: string; name: strin
   copy: { moduleId: 'copywriting', name: '文案创作', desc: '品牌基底、创意策略到商品文案——选模板，一次写到位' },
 }
 
+/* ── O44 实验室整页（2026-11-08 用户拍板弃 Dock 抽屉）：与插件·技能页完全
+ * 同款布局（H1 + 分组标题 + 行式卡片 + 彩色渐变图标）。两区：
+ *   生产工具 = 智能剪辑台（hub 页嵌套打开）/ 自动化任务（原生面板，事件桥）；
+ *   实验功能 = 数字人/声音克隆/去水印等真实能力到位再加，不放占位空卡。 */
+const LabIconEdit = (): ReactNode => {
+  const uid = useArtworkId()
+  return (
+    <svg {...artSvg} width={36} height={36} aria-hidden="true">
+      <rect x="4.5" y="9" width="27" height="18" rx="3.4" fill={`url(#${uid}a)`} fillOpacity="0.9" />
+      <path d="m14 14 5 8M19 14l-5 8" stroke="#FFFFFF" strokeWidth="2.2" strokeLinecap="round" />
+      <path d="M24.5 11.5v13" stroke="#FFFFFF" strokeOpacity="0.7" strokeWidth="2.2" />
+      <defs>
+        <linearGradient id={`${uid}a`} x1="4.5" y1="9" x2="31.5" y2="27" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#A797FC" />
+          <stop offset="1" stopColor="#4561EE" />
+        </linearGradient>
+      </defs>
+    </svg>
+  )
+}
+
+const LabIconAutomation = (): ReactNode => {
+  const uid = useArtworkId()
+  return (
+    <svg {...artSvg} width={36} height={36} aria-hidden="true">
+      <circle cx="18" cy="18" r="6" stroke={`url(#${uid}a)`} strokeWidth="3" />
+      <path d="M18 6.5v4M18 25.5v4M6.5 18h4M25.5 18h4M10 10l2.8 2.8M23.2 23.2 26 26M26 10l-2.8 2.8M12.8 23.2 10 26" stroke="#41B9A6" strokeWidth="2.6" strokeLinecap="round" />
+      <circle cx="18" cy="18" r="2.4" fill="#F0A03C" />
+      <defs>
+        <linearGradient id={`${uid}a`} x1="12" y1="12" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#54ECE7" />
+          <stop offset="1" stopColor="#4B8CF7" />
+        </linearGradient>
+      </defs>
+    </svg>
+  )
+}
+
+/* 实验室条目两型：hub=嵌套打开另一 hub 页（剪辑台）/ panel=原生面板（自动化）。 */
+const LAB_SECTIONS: ReadonlyArray<{
+  title: string
+  items: ReadonlyArray<{ key: string; name: string; desc: string; svg: ReactNode; target: { kind: 'hub'; page: string } | { kind: 'panel'; panelId: string } }>
+}> = [
+  {
+    title: '生产工具',
+    items: [
+      { key: 'film-studio', name: '智能剪辑台', desc: '时间轴剪辑、字幕与多轨合成——影片级的精细剪辑工作台', svg: <LabIconEdit />, target: { kind: 'hub', page: 'film-studio' } },
+      { key: 'schedules', name: '自动化任务', desc: '定时任务自动执行——到点自动跑内容生产与发布', svg: <LabIconAutomation />, target: { kind: 'panel', panelId: 'schedules' } },
+    ],
+  },
+]
+
 const creationTabsStyle: CSSProperties = {
   display: 'flex',
   gap: 28,
@@ -469,6 +521,7 @@ const creationTabsStyle: CSSProperties = {
 const PAGE_TITLES: Partial<Record<HubPage, string>> = {
   'film-studio': '智能剪辑台',
   inspiration: '创意灵感',
+  lab: '实验室',
   library: '资料与知识',
   'video-studio': '创作中心',
 }
@@ -476,6 +529,7 @@ const PAGE_TITLES: Partial<Record<HubPage, string>> = {
 /* 仅在有明确说明价值时给一行副标题（原生页多数没有；用户已指出「一句话
  * 介绍多余」——此处从六页全给缩减为两页，且与标题分行小字）。 */
 const PAGE_SUBTITLES: Partial<Record<HubPage, string>> = {
+  lab: '生产工具与实验能力——正式功能与前沿探索都在这里',
   'video-studio': '文案、图片、视频——选类型，挑模板，一次做齐',
 }
 
@@ -728,6 +782,43 @@ export function HeightLabHubPage({ page, onClose }: { page: HubPage; onClose: ()
                     <img style={thumbStyle} src={templateThumb(item)} alt="" draggable={false} />
                     <span style={cardTitleStyle}>{item.title}</span>
                     <span style={cardDescStyle}>{item.desc}</span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+      ) : page === 'lab' ? (
+        <div style={hubPageStyle}>
+          {LAB_SECTIONS.map(section => (
+            <section key={section.title} style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 960 }}>
+              <h3 style={groupTitleStyle}>{section.title}</h3>
+              <div style={studioGridStyle}>
+                {section.items.map(item => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    className={css.studioCard}
+                    style={studioCardStyle}
+                    onClick={() => {
+                      if (item.target.kind === 'panel') {
+                        /* 原生面板（自动化任务）：事件桥由 SidebarRoot 转发
+                         * selectPanel（面板页拿不到 layout 服务），先关本页。 */
+                        window.dispatchEvent(new CustomEvent('hl:close-hub'))
+                        window.dispatchEvent(new CustomEvent('hl:open-panel', { detail: { panelId: item.target.panelId } }))
+                        return
+                      }
+                      /* hub 页（智能剪辑台）：hub 状态替换 lab→film-studio，
+                       * 无竞态（hl:close-hub 链路既有）。 */
+                      ;(window as unknown as { __hlPendingHub?: string | null }).__hlPendingHub = item.target.page
+                      window.dispatchEvent(new CustomEvent('hl:open-hub', { detail: { page: item.target.page } }))
+                    }}
+                  >
+                    <span style={studioIconWrapStyle} aria-hidden="true">{item.svg}</span>
+                    <span style={studioTextStyle}>
+                      <span style={studioNameStyle}>{item.name}</span>
+                      <span style={studioDescStyle}>{item.desc}</span>
+                    </span>
                   </button>
                 ))}
               </div>
