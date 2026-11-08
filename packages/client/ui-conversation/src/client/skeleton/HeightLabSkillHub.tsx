@@ -10,6 +10,7 @@ import clsx from 'clsx'
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { SKILL_BODIES } from './HeightLabSkillBodies.ts'
+import { skillArtwork, skillArtStyle } from './HeightLabSkillArtwork.tsx'
 import css from './HeightLabSkillHub.module.css'
 
 type UserSkill = { name: string; description: string; updatedAt: number }
@@ -96,8 +97,19 @@ export function HeightLabSkillHub({ onClose, embedded }: { onClose: () => void; 
     return () => { window.removeEventListener('hl:open-skill', onOpenSkill) }
   }, [refreshMine])
 
+  /* 2026-11-09（用户实测「这些技能是不是真的能点击使用」）：官方精选的
+   * SKILL.md 本体在 `~/.heightlab/yunj-skills/<name>/`（随包模板播种），
+   * **不在** DSH 技能发现根（$DSH_HOME/skills、~/.agents/skills）——旧
+   * prompt 只说「技能目录下 <name>/SKILL.md，可用 skill 工具读取」，Agent
+   * 在发现根里找不到该技能，点了等于空转。现直接给绝对路径（fs 读取），
+   * 并说明「不要等 skill 工具」。 */
+  const useOfficialPrompt = (name: string): string =>
+    `请先读取技能文件 ~/.heightlab/yunj-skills/${name}/SKILL.md（用 fs 工具直接读取，不要依赖 skill 工具枚举），严格按其流程执行我的任务：\n`
+
+  /* 「我的技能」由 host 落到 $DSH_HOME/skills（DSH 发现根内），skill 工具
+   * 可按名加载——保持原语义。 */
   const useSkillPrompt = (name: string): string =>
-    `请加载技能「${name}」（技能目录下 ${name}/SKILL.md，可用 skill 工具读取），严格按其流程执行我的任务：\n`
+    `请加载技能「${name}」（可用 skill 工具按名加载，或直接读 ~/.heightlab/dsh-home/skills/${name}/SKILL.md），严格按其流程执行我的任务：\n`
 
   const useInChat = (prompt: string): void => {
     window.dispatchEvent(new CustomEvent('hl:close-hub'))
@@ -286,11 +298,16 @@ export function HeightLabSkillHub({ onClose, embedded }: { onClose: () => void; 
             <div className={css.skillHubColumns}>
               {(market ?? []).map(skill => (
                 <div key={skill.slug} className={css.skillHubCard}>
-                  <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 2 }}>{skill.name}</div>
-                  <div style={{ fontSize: 11, color: 'var(--dsw-alias-label-tertiary)', marginBottom: 6 }}>
-                    {skill.category ?? '技能'}{skill.installs !== undefined && skill.installs > 0 ? ` · ${skill.installs.toLocaleString('en-US')} 次安装` : ''}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+                    <span style={skillArtStyle}>{skillArtwork(skill.name, skill.description)}</span>
+                    <span style={{ minWidth: 0 }}>
+                      <span style={{ display: 'block', fontWeight: 600, fontSize: 13.5, lineHeight: '20px' }}>{skill.name}</span>
+                      <span style={{ display: 'block', fontSize: 11, lineHeight: '16px', color: 'var(--dsw-alias-label-tertiary)' }}>
+                        {skill.category ?? '技能'}{skill.installs !== undefined && skill.installs > 0 ? ` · ${skill.installs.toLocaleString('en-US')} 次安装` : ''}
+                      </span>
+                    </span>
                   </div>
-                  <div style={{ fontSize: 12, color: 'var(--dsw-alias-label-secondary)', marginBottom: 8, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                  <div style={{ fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary)', marginBottom: 10, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                     {skill.description || '（无描述）'}
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
@@ -342,15 +359,23 @@ export function HeightLabSkillHub({ onClose, embedded }: { onClose: () => void; 
         {tab === 'official' && (
           <div className={css.skillHubColumns}>
             {official.map(skill => (
+              /* 2026-11-09（用户拍板「UI 必须和场景创作/资产空间统一」）：
+               * 彩色渐变图标头行（44px 描边框）+ 名称/描述统一行距（4/6/10），
+               * 与 hub 页模块卡同一套语言。 */
               <div key={skill.id} className={css.skillHubCard}>
-                <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>{skill.title}</div>
-                <div style={{ fontSize: 12, color: 'var(--dsw-alias-label-secondary)', marginBottom: 8, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+                  <span style={skillArtStyle}>{skillArtwork(skill.name, skill.title)}</span>
+                  <span style={{ fontWeight: 600, fontSize: 13.5, lineHeight: '20px', minWidth: 0 }}>
+                    {skill.title}
+                  </span>
+                </div>
+                <div style={{ fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary)', marginBottom: 10, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                   {skill.body.split('\n').find(l => l.trim() && !l.startsWith('#') && l.trim() !== '---') ?? ''}
                 </div>
                 <button
                   type="button"
                   className={css.skillHubAction}
-                  onClick={() => useInChat(useSkillPrompt(skill.name))}
+                  onClick={() => useInChat(useOfficialPrompt(skill.name))}
                 >
                   使用此技能
                 </button>
@@ -362,8 +387,11 @@ export function HeightLabSkillHub({ onClose, embedded }: { onClose: () => void; 
           <div className={css.skillHubColumns}>
             {(mine ?? []).map(skill => (
               <div key={skill.name} className={css.skillHubCard}>
-                <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>{skill.name}</div>
-                <div style={{ fontSize: 12, color: 'var(--dsw-alias-label-secondary)', marginBottom: 8, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+                  <span style={skillArtStyle}>{skillArtwork(skill.name, skill.description)}</span>
+                  <span style={{ fontWeight: 600, fontSize: 13.5, lineHeight: '20px', minWidth: 0 }}>{skill.name}</span>
+                </div>
+                <div style={{ fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary)', marginBottom: 10, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                   {skill.description || '（无描述）'}
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
