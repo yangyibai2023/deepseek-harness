@@ -172,16 +172,32 @@ export function SidebarRoot({
       setLabOrigin(`${x}px ${y}px`)
     }
   }, [labOpen])
-  /* Dock 条目与旧一级行同款 hub 语义：pending hub + 事件，选中态归 lab 行。 */
-  const labItems: readonly { key: string; label: string; Icon: typeof IconPlanOutlineRegular; page: string }[] = [
-    { key: 'film-studio', label: '智能剪辑台', Icon: IconBrowseOutlineRegular, page: 'film-studio' },
+  /* O44（2026-11-08）：实验室 Dock 分区——「生产工具」是正式能力（剪辑台、
+   * 自动化任务），「实验功能」等真实能力到位再加（数字人/声音克隆/去水印；
+   * 不放占位，避免「即将上线」空卡）。条目两型：page=hub 页 / panel=原生面板。 */
+  type LabItem = { key: string; label: string; Icon: typeof IconPlanOutlineRegular }
+    & ({ kind: 'hub'; page: string } | { kind: 'panel'; panelId: string })
+  const LAB_GROUPS: ReadonlyArray<{ title: string; items: readonly LabItem[] }> = [
+    {
+      title: '生产工具',
+      items: [
+        { key: 'film-studio', label: '智能剪辑台', Icon: IconBrowseOutlineRegular, kind: 'hub', page: 'film-studio' },
+        { key: 'schedules', label: '自动化任务', Icon: IconPlanOutlineRegular, kind: 'panel', panelId: 'schedules' },
+      ],
+    },
   ]
-  const openLabItem = (page: string): void => {
-    ;(window as unknown as { __hlPendingHub?: string | null }).__hlPendingHub = page
+  const openLabItem = (item: LabItem): void => {
+    setLabOpen(false)
+    if (item.kind === 'panel') {
+      /* 与原生 panelList 行同语义：直接选中该原生面板（自动化任务）。 */
+      selectPanel(item.panelId as never)
+      return
+    }
+    /* Dock 条目与旧一级行同款 hub 语义：pending hub + 事件，选中态归 lab 行。 */
+    ;(window as unknown as { __hlPendingHub?: string | null }).__hlPendingHub = item.page
     setActiveHub('lab')
     selectPanel(null)
-    setLabOpen(false)
-    window.dispatchEvent(new CustomEvent('hl:open-hub', { detail: { page } }))
+    window.dispatchEvent(new CustomEvent('hl:open-hub', { detail: { page: item.page } }))
   }
   const lingerTimer = useRef<number | undefined>(undefined)
   const armLinger = (): void => {
@@ -346,13 +362,14 @@ export function SidebarRoot({
       <nav className={css.panelList} aria-label={t('panels.label')}>
         {(() => {
           const hubRows: readonly { key: string; label: string; Icon: typeof IconPlanOutlineRegular; page: string }[] = [
-            // 图标统一到 OutlineRegular（2026-10-17）：「视频创作」用 Plan 型
-            // （分镜/计划语义），「资产中心」用 WorkspaceTree 型（目录/资产语义）。
-            { key: 'video-studio', label: '视频创作', Icon: IconPlanOutlineRegular, page: 'video-studio' },
+            /* O44（2026-11-08 用户拍板侧栏 7→5）：「视频创作」→「创作中心」
+             *（文案/图片/视频/文档四分页容器；key 不动零风险）；「资产中心」
+             * →「资料与知识」（素材=资料、知识库=知识，呼应内部两个 tab）。 */
+            { key: 'video-studio', label: '创作中心', Icon: IconPlanOutlineRegular, page: 'video-studio' },
             // N18（2026-11-07 用户拍板）：剪辑台一级入口隐藏，收纳进「实验室」Dock
             //（不删除；回滚开关 = localStorage SHOW_FILM_STUDIO_ROW=1 恢复本行）。
             ...(showFilmStudioRow ? [{ key: 'film-studio', label: '智能剪辑台', Icon: IconBrowseOutlineRegular, page: 'film-studio' }] : []),
-            { key: 'library', label: '资产中心', Icon: IconWorkspaceTreeOutlineRegular, page: 'library' },
+            { key: 'library', label: '资料与知识', Icon: IconWorkspaceTreeOutlineRegular, page: 'library' },
           ]
           return (
             <>
@@ -491,16 +508,26 @@ export function SidebarRoot({
                 autoFocus
               />
             </div>
-            <div className={css.labPadGrid}>
-              {labItems
-                .filter(({ label }) => labQuery === '' || label.toLowerCase().includes(labQuery.toLowerCase()))
-                .map(({ key, label, Icon, page }) => (
-                  <button key={key} type="button" className={css.labPadTile} onClick={() => openLabItem(page)}>
-                    <span className={css.labPadGlyph} aria-hidden="true"><Icon size={26} /></span>
-                    <span className={css.labPadLabel}>{label}</span>
-                  </button>
-                ))}
-              {labItems.every(({ label }) => labQuery !== '' && !label.toLowerCase().includes(labQuery.toLowerCase())) && (
+            <div className={css.labPadBody}>
+              {LAB_GROUPS.map((group) => {
+                const visible = group.items.filter(({ label }) => labQuery === '' || label.toLowerCase().includes(labQuery.toLowerCase()))
+                if (visible.length === 0 && labQuery === '') return null
+                if (visible.length === 0) return null
+                return (
+                  <div key={group.title} className={css.labPadGroup}>
+                    <div className={css.labPadGroupTitle}>{group.title}</div>
+                    <div className={css.labPadGrid}>
+                      {visible.map(item => (
+                        <button key={item.key} type="button" className={css.labPadTile} onClick={() => openLabItem(item)}>
+                          <span className={css.labPadGlyph} aria-hidden="true"><item.Icon size={26} /></span>
+                          <span className={css.labPadLabel}>{item.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+              {LAB_GROUPS.every(group => group.items.every(({ label }) => labQuery !== '' && !label.toLowerCase().includes(labQuery.toLowerCase()))) && (
                 <div className={css.labPadEmpty}>没有匹配的工具</div>
               )}
             </div>

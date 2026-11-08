@@ -192,7 +192,17 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
           const parsed = JSON.parse(sessionStorage.getItem('hl-module-console') ?? 'null') as ModuleConsoleState | null
           if (parsed !== null && typeof parsed.moduleId === 'string') {
             setModuleConsole(parsed)
-            setTemplateSchema(null)
+            /* O44（2026-11-08）：入口侧可能已预写 hl-template-console（点模板卡
+             * 直达工作台）——此时必须**恢复它**而不是清掉，否则跨会话复用
+             * ConsoleBody 实例时模板面板丢失只剩模块网格。 */
+            const tpl = JSON.parse(sessionStorage.getItem('hl-template-console') ?? 'null') as { id?: string; template?: string; skill?: string } | null
+            if (tpl !== null && tpl.skill !== undefined) {
+              setTemplateSchema(schemaForTemplate(tpl.id ?? '', tpl.skill))
+              setTemplateName(tpl.template ?? '')
+              setTemplateValues({})
+            } else {
+              setTemplateSchema(null)
+            }
           }
         } catch { /* 非致命 */ }
       }

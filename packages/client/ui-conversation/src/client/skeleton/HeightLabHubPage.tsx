@@ -14,7 +14,8 @@ import { HeightLabLibraryPage } from './HeightLabLibraryPage.tsx'
 import { HeightLabFilmStudio } from './HeightLabFilmStudio.tsx'
 import css from './ConversationRoot.module.css'
 
-export type HubPage = 'inspiration' | 'library' | 'automation' | 'video-studio' | 'skill-hub' | 'film-studio'
+/* O44：'automation' 是死值（探索证实无人派发、白名单不收）——从联合类型删除。 */
+export type HubPage = 'inspiration' | 'library' | 'video-studio' | 'skill-hub' | 'film-studio'
 
 /** HeightLab V24b：视频创作一级页的 8 个模块卡片（第一排流量转化/第二排人设内容）。
  * 0.5.7 模块创作台（2026-11-08 用户拍板「一个功能驾驭多个模板」）：8 模块全部
@@ -417,19 +418,65 @@ const studioDescStyle: CSSProperties = {
   overflow: 'hidden',
 }
 
-const PAGE_TITLES: Record<HubPage, string> = {
+/* ── O44 创作中心（2026-11-08 用户拍板）：video-studio 页 = 「创作中心」，
+ * 内部四个分页（文案/图片/视频/文档）——**纯产出，策略不做 tab**（中美 16 家
+ * 对标 0 先例，决策依据 docs/70-PLANS/2026-11-08-创作中心与策略分层调研.md）。
+ * 本批启用 视频/图片/文案 三页；文档（PPT）等用户模板到位再启用，不渲染占位。 */
+type CreationTabId = 'video' | 'image' | 'copy' | 'docs'
+const VIDEO_TEMPLATE_TOTAL = Object.entries(MODULE_TEMPLATE_IDS)
+  .filter(([key]) => key !== 'replication')
+  .reduce((sum, [, ids]) => sum + ids.length, 0)
+
+const CREATION_TABS: ReadonlyArray<{ id: CreationTabId; label: string; count: number; ready: boolean }> = [
+  // 顺序=内容厚度递减，默认落视频（旗舰）；用户可一句话调整。
+  { id: 'video', label: '视频', count: VIDEO_TEMPLATE_TOTAL, ready: true },
+  { id: 'image', label: '图片', count: 20, ready: true },
+  { id: 'copy', label: '文案', count: 8, ready: true },
+  // 文档（PPT）：等用户模板（O47）——不渲染，避免「即将上线」空卡。
+  { id: 'docs', label: '文档', count: 0, ready: false },
+]
+
+/* 图片页分组：YJ-401 出图改图系（7 条）+ YJ-402 商品信息图系（13 条）。
+ * YJ-402 同时挂在视频页「知识讲解」模块——有意重复挂载（同族跨模块，与
+ * 主播系同服带货/口播同一先例），不动知识模块已验收的存量。 */
+const IMAGE_GROUPS: ReadonlyArray<{ title: string; ids: readonly string[] }> = [
+  { title: '商品出图与改图', ids: ['yj-401-benchmark-replica', 'yj-401-commercial-poster', 'yj-401-custom-batch-edit', 'yj-401-fashion-tryon', 'yj-401-image-text-edit', 'yj-401-original-main-detail', 'yj-401-product-model'] },
+  { title: '商品信息图', ids: ['yj-402-attribute-guide', 'yj-402-benefits-infographic', 'yj-402-brand-closing-banner', 'yj-402-components-structure', 'yj-402-feature-matrix', 'yj-402-how-to-use', 'yj-402-lifestyle-scene', 'yj-402-materials-story', 'yj-402-multi-angle-showcase', 'yj-402-packaging-detail', 'yj-402-routine-context', 'yj-402-white-background-main', 'yj-402-wide-hero-banner'] },
+]
+
+/* 文案页分组：策略基底（品牌事实/语气/人群）→ 创意策略（洞察到协议）→ 商品文案。 */
+const COPY_GROUPS: ReadonlyArray<{ title: string; ids: readonly string[] }> = [
+  { title: '策略基底', ids: ['yj-101-brand-dna', 'yj-102-brand-voice', 'yj-103-icp-persona'] },
+  { title: '创意策略', ids: ['yj-201-voc-audit', 'yj-202-hook-engine', 'yj-203-creative-brief', 'yj-204-creative-research'] },
+  { title: '商品文案', ids: ['yj-320-product-seo-support'] },
+]
+
+/** 图片/文案页的模块元数据（右栏控制台网格标题与左侧引导页共用）。 */
+const CREATION_MODULES: Record<'image' | 'copy', { moduleId: string; name: string; desc: string }> = {
+  image: { moduleId: 'image-studio', name: '图片创作', desc: '商品出图、改图与商品信息图——选模板，填素材，一键生成' },
+  copy: { moduleId: 'copywriting', name: '文案创作', desc: '品牌基底、创意策略到商品文案——选模板，一次写到位' },
+}
+
+const creationTabsStyle: CSSProperties = {
+  display: 'flex',
+  gap: 28,
+  borderBottom: '1px solid var(--dsw-alias-border-l2)',
+}
+
+/* O44：'automation'（死值）与 'skill-hub'（ConversationRoot 在到达本组件前
+ * 就分流到 HeightLabSkillHub，永远渲染不到）两个键删除；video-studio 页即
+ * 「创作中心」四分页容器；library 一级名改「资料与知识」。 */
+const PAGE_TITLES: Partial<Record<HubPage, string>> = {
   'film-studio': '智能剪辑台',
-  'skill-hub': '技能中心',
   inspiration: '创意灵感',
-  library: '资产中心',
-  automation: '自动化',
-  'video-studio': '视频创作',
+  library: '资料与知识',
+  'video-studio': '创作中心',
 }
 
 /* 仅在有明确说明价值时给一行副标题（原生页多数没有；用户已指出「一句话
  * 介绍多余」——此处从六页全给缩减为两页，且与标题分行小字）。 */
 const PAGE_SUBTITLES: Partial<Record<HubPage, string>> = {
-  'video-studio': '选一个创作方向，右侧工作台里挑模板、填素材、一键生成',
+  'video-studio': '文案、图片、视频——选类型，挑模板，一次做齐',
 }
 
 const sectionTitleStyle: CSSProperties = {
@@ -491,6 +538,49 @@ const cardDescStyle: CSSProperties = {
 /** Render the page in the main content area (replaces chat view). */
 export function HeightLabHubPage({ page, onClose }: { page: HubPage; onClose: () => void }) {
   const [preview, setPreview] = useState<{ item: Recommendation; category: TemplateCategory } | null>(null)
+  const [creationTab, setCreationTab] = useState<CreationTabId>('video')
+
+  /* 图片/文案页点模板卡：整包传模块（含全部模板集=返回钮回全量网格）+
+   * template 指定直达模板工作台（ui-workspace 写 hl-template-console）。 */
+  const openCreationTemplate = (tab: 'image' | 'copy', item: (typeof VIDEO_CATALOG)[number]): void => {
+    const module_ = CREATION_MODULES[tab]
+    const groups = tab === 'image' ? IMAGE_GROUPS : COPY_GROUPS
+    const templates = groups.flatMap(group => group.ids)
+      .map(id => VIDEO_CATALOG.find(entry => entry.id === id))
+      .filter((entry): entry is (typeof VIDEO_CATALOG)[number] => entry !== undefined)
+      .map(entry => ({
+        id: entry.id, name: entry.name, tagline: entry.tagline,
+        cover: entry.cover,
+        ...(entry.coverFallback !== undefined ? { coverFallback: entry.coverFallback } : {}),
+        skill: entry.skill,
+      }))
+    window.dispatchEvent(new CustomEvent('hl:start-module', {
+      detail: {
+        moduleId: module_.moduleId, name: module_.name, desc: module_.desc, icon: '',
+        templates,
+        template: { id: item.id, name: item.name, skill: item.skill },
+      },
+    }))
+    window.dispatchEvent(new CustomEvent('hl:close-hub'))
+  }
+
+  /* 模板卡（图片/文案页共用）：封面 16:10 + 名称 + 一行 tagline，
+   * 观感与创意灵感页模板卡一致。 */
+  const renderTemplateCard = (tab: 'image' | 'copy', item: (typeof VIDEO_CATALOG)[number]): ReactNode => (
+    <button key={item.id} type="button" style={cardStyle} onClick={() => openCreationTemplate(tab, item)}>
+      <img
+        style={thumbStyle}
+        src={item.cover}
+        alt=""
+        draggable={false}
+        onError={(e) => {
+          if (item.coverFallback !== undefined && e.currentTarget.src !== item.coverFallback) e.currentTarget.src = item.coverFallback
+        }}
+      />
+      <span style={cardTitleStyle}>{item.name}</span>
+      <span style={cardDescStyle}>{item.tagline}</span>
+    </button>
+  )
   const [cards, setCards] = useState<Record<TemplateCategory, Recommendation[]>>(TEMPLATE_CARDS)
 
   // HeightLab：模板热更新——进入页面时拉取服务器目录，失败回退包内默认。
@@ -528,56 +618,103 @@ export function HeightLabHubPage({ page, onClose }: { page: HubPage; onClose: ()
           原生一级页没有右上角关闭钮——本次已删除。 */}
       {page === 'film-studio' ? null : (
         <div style={hubHeaderStyle} data-tauri-drag-region="deep">
-          <h1 style={hubTitleStyle}>{PAGE_TITLES[page]}</h1>
+          <h1 style={hubTitleStyle}>{PAGE_TITLES[page] ?? ''}</h1>
           {PAGE_SUBTITLES[page] !== undefined && <p style={hubSubtitleStyle}>{PAGE_SUBTITLES[page]}</p>}
         </div>
       )}
       {page === 'video-studio' ? (
         <div style={hubPageStyle}>
-          {STUDIO_GROUPS.map(group => (
-            <section key={group.title} style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 960 }}>
-              <h3 style={groupTitleStyle}>{group.title}</h3>
-              <div style={studioGridStyle}>
-                {STUDIO_CARDS.filter(card => group.modules.includes(card.moduleId)).map(card => (
-                  <button
-                    key={card.name}
-                    type="button"
-                    className={css.studioCard}
-                    style={studioCardStyle}
-                    onClick={() => {
-                      if (card.moduleId === 'replication') {
-                        // 爆款复刻：专属 FY1 云镜链（既有通道，0.5.7 已修工作区解析）。
-                        window.dispatchEvent(new CustomEvent('hl:start-replication'))
-                        window.dispatchEvent(new CustomEvent('hl:close-hub'))
-                        return
-                      }
-                      /* 0.5.7 模块创作台：把模块元数据 + 按映射取好的模板条目整包
+          {/* O44 创作中心分页栏（原生下划线 tab，同素材/知识库同款）。 */}
+          <div style={creationTabsStyle} role="tablist" aria-label="创作类型">
+            {CREATION_TABS.filter(tab => tab.ready).map(tab => (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={creationTab === tab.id}
+                className={creationTab === tab.id ? `${css.libraryTab} ${css.libraryTabActive}` : css.libraryTab}
+                onClick={() => { setCreationTab(tab.id) }}
+              >
+                {tab.label}（{tab.count}）
+              </button>
+            ))}
+          </div>
+          {creationTab === 'image' ? (
+            <>
+              {IMAGE_GROUPS.map(group => (
+                <section key={group.title} style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 960 }}>
+                  <h3 style={groupTitleStyle}>{group.title}</h3>
+                  <div style={gridStyle}>
+                    {group.ids
+                      .map(id => VIDEO_CATALOG.find(item => item.id === id))
+                      .filter((item): item is (typeof VIDEO_CATALOG)[number] => item !== undefined)
+                      .map(item => renderTemplateCard('image', item))}
+                  </div>
+                </section>
+              ))}
+            </>
+          ) : creationTab === 'copy' ? (
+            <>
+              {COPY_GROUPS.map(group => (
+                <section key={group.title} style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 960 }}>
+                  <h3 style={groupTitleStyle}>{group.title}</h3>
+                  <div style={gridStyle}>
+                    {group.ids
+                      .map(id => VIDEO_CATALOG.find(item => item.id === id))
+                      .filter((item): item is (typeof VIDEO_CATALOG)[number] => item !== undefined)
+                      .map(item => renderTemplateCard('copy', item))}
+                  </div>
+                </section>
+              ))}
+            </>
+          ) : creationTab === 'video' ? (
+            <>
+              {STUDIO_GROUPS.map(group => (
+                <section key={group.title} style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 960 }}>
+                  <h3 style={groupTitleStyle}>{group.title}</h3>
+                  <div style={studioGridStyle}>
+                    {STUDIO_CARDS.filter(card => group.modules.includes(card.moduleId)).map(card => (
+                      <button
+                        key={card.name}
+                        type="button"
+                        className={css.studioCard}
+                        style={studioCardStyle}
+                        onClick={() => {
+                          if (card.moduleId === 'replication') {
+                            // 爆款复刻：专属 FY1 云镜链（既有通道，0.5.7 已修工作区解析）。
+                            window.dispatchEvent(new CustomEvent('hl:start-replication'))
+                            window.dispatchEvent(new CustomEvent('hl:close-hub'))
+                            return
+                          }
+                          /* 0.5.7 模块创作台：把模块元数据 + 按映射取好的模板条目整包
                    * 传给 ui-workspace（建新会话）与右栏控制台（模板选择网格）。 */
-                      const templates = (MODULE_TEMPLATE_IDS[card.moduleId] ?? [])
-                        .map(id => VIDEO_CATALOG.find(item => item.id === id))
-                        .filter((item): item is (typeof VIDEO_CATALOG)[number] => item !== undefined)
-                        .map(item => ({
-                          id: item.id, name: item.name, tagline: item.tagline,
-                          cover: item.cover,
-                          ...(item.coverFallback !== undefined ? { coverFallback: item.coverFallback } : {}),
-                          skill: item.skill,
-                        }))
-                      window.dispatchEvent(new CustomEvent('hl:start-module', {
-                        detail: { moduleId: card.moduleId, name: card.name, desc: card.desc, icon: '', templates },
-                      }))
-                      window.dispatchEvent(new CustomEvent('hl:close-hub'))
-                    }}
-                  >
-                    <span style={studioIconWrapStyle} aria-hidden="true">{card.svg}</span>
-                    <span style={studioTextStyle}>
-                      <span style={studioNameStyle}>{card.name}</span>
-                      <span style={studioDescStyle}>{card.desc}</span>
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </section>
-          ))}
+                          const templates = (MODULE_TEMPLATE_IDS[card.moduleId] ?? [])
+                            .map(id => VIDEO_CATALOG.find(item => item.id === id))
+                            .filter((item): item is (typeof VIDEO_CATALOG)[number] => item !== undefined)
+                            .map(item => ({
+                              id: item.id, name: item.name, tagline: item.tagline,
+                              cover: item.cover,
+                              ...(item.coverFallback !== undefined ? { coverFallback: item.coverFallback } : {}),
+                              skill: item.skill,
+                            }))
+                          window.dispatchEvent(new CustomEvent('hl:start-module', {
+                            detail: { moduleId: card.moduleId, name: card.name, desc: card.desc, icon: '', templates },
+                          }))
+                          window.dispatchEvent(new CustomEvent('hl:close-hub'))
+                        }}
+                      >
+                        <span style={studioIconWrapStyle} aria-hidden="true">{card.svg}</span>
+                        <span style={studioTextStyle}>
+                          <span style={studioNameStyle}>{card.name}</span>
+                          <span style={studioDescStyle}>{card.desc}</span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </>
+          ) : null}
         </div>
       ) : page === 'inspiration' ? (
         <div style={hubPageStyle}>

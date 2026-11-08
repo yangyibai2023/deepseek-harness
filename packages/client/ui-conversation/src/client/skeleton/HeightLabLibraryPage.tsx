@@ -14,10 +14,10 @@ import css from './ConversationRoot.module.css'
 import { HeightLabKnowledgePanel } from './HeightLabKnowledgePanel.tsx'
 import { HeightLabMaterialPanel } from './HeightLabMaterialPanel.tsx'
 
-/* 2026-11-08 用户拍板：素材管理放左侧且为默认页（资产中心优先展示素材库，
- * 知识库退居第二标签）。顺序即视觉顺序，默认值必须同步改——只改顺序不改
- * 默认会出现「素材在最左但打开仍落知识库」。 */
-const LIBRARY_TABS = ['素材管理', '知识库'] as const
+/* 2026-11-08 用户拍板：素材放左侧且为默认页（知识库退居第二标签）；同日
+ * 一级名「资产中心」→「资料与知识」，tab「素材管理」简化为「素材」呼应。
+ * 顺序即视觉顺序，默认值必须同步改。 */
+const LIBRARY_TABS = ['素材', '知识库'] as const
 type LibraryTab = typeof LIBRARY_TABS[number]
 
 const bodyStyle: CSSProperties = {
@@ -31,7 +31,7 @@ const bodyStyle: CSSProperties = {
 
 /** Render the resource library page (素材管理 / 知识库). */
 export function HeightLabLibraryPage() {
-  const [tab, setTab] = useState<LibraryTab>('素材管理')
+  const [tab, setTab] = useState<LibraryTab>('素材')
 
   return (
     <div
@@ -61,7 +61,7 @@ export function HeightLabLibraryPage() {
         ))}
       </div>
       <div style={bodyStyle}>
-        {tab === '素材管理' ? (
+        {tab === '素材' ? (
           <HeightLabMaterialPanel />
         ) : (
           <HeightLabKnowledgePanel />

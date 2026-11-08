@@ -56,14 +56,14 @@ export const TEMPLATE_SCHEMAS: Record<string, TemplateSchema> = {
         { id: 'selling_points', label: '真实卖点（每行一条）', type: 'textarea', required: true, wide: true },
         { id: 'audience', label: '目标人群', type: 'text' },
         { id: 'product_images', label: '产品图（≤9 张，白底/实拍最佳）', type: 'images' },
-      ]},
+      ] },
       { title: '创意方向', fields: [
         { id: 'ugc_type', label: 'UGC 类型', type: 'select', options: ['口播推荐', '产品测评', '开箱', '痛点解决', 'B-roll 展示'] },
         { id: 'voice_form', label: '声音形态', type: 'select', options: ['口播', '旁白', '纯画面+音乐', 'ASMR'] },
         { id: 'shoot_style', label: '拍摄风格', type: 'select', options: ['手持自拍', '固定机位', '桌面俯拍', '户外漫步', '风格库推荐'] },
         { id: 'platform', label: '投放平台', type: 'select', options: ['抖音', 'TikTok', 'Reels', '视频号', '小红书'] },
         { id: 'language', label: '口播语言', type: 'select', options: ['中文', '英语', '日语'] },
-      ]},
+      ] },
       COMMON_OUTPUT,
     ],
   },
@@ -78,13 +78,13 @@ export const TEMPLATE_SCHEMAS: Record<string, TemplateSchema> = {
         { id: 'selling_points', label: '卖点与可用证据（每行一条）', type: 'textarea', required: true, wide: true },
         { id: 'product_images', label: '产品图（≤9 张）', type: 'images' },
         { id: 'reference_video', label: '参考视频（可选，模仿其节奏）', type: 'video' },
-      ]},
+      ] },
       { title: '叙事与连续性', fields: [
         { id: 'narrative', label: '叙事类型', type: 'select', options: ['真人测评', '开箱', '手持展示', '生活方式', '痛点解决', '前后对比'] },
         { id: 'host_setting', label: '达人设定', type: 'text', placeholder: '例：30 岁居家妈妈，亲和口语' },
         { id: 'reference_strategy', label: '参考素材策略', type: 'select', options: ['required（必须上传参考，推荐）', '可选'] },
         { id: 'platform', label: '投放平台', type: 'select', options: ['抖音', 'TikTok', 'Reels', 'Meta 短视频'] },
-      ]},
+      ] },
       COMMON_OUTPUT,
     ],
   },
@@ -98,7 +98,7 @@ export const TEMPLATE_SCHEMAS: Record<string, TemplateSchema> = {
         { id: 'source_video', label: '原视频', type: 'video', required: true },
         { id: 'frame_interval', label: '拆解抽帧密度', type: 'select', options: ['每秒 1 帧（标准）', '每 0.5 秒 1 帧（精细）', '每 2 秒 1 帧（快速）'] },
         { id: 'enhanced', label: '分析版本', type: 'select', options: ['标准分析', '增强版（参考视频分析后选择）'] },
-      ]},
+      ] },
       { title: '复刻口径（确认后冻结）', fields: [
         { id: 'rep_mode', label: '复刻方式', type: 'select', options: ['分镜驱动（原版，默认）', '像素复刻（贴原片）'] },
         { id: 'voice', label: '声音', type: 'select', options: ['原片声音（推荐）', '原片音色克隆', '智能识别', '我的资产声音', '静音'] },
@@ -106,7 +106,7 @@ export const TEMPLATE_SCHEMAS: Record<string, TemplateSchema> = {
         { id: 'replace_product', label: '替换产品（名称/外观/卖点，不改可留空）', type: 'text', wide: true },
         { id: 'reference_confirm', label: '参考图确认', type: 'select', options: ['参考图须在写提示词前经我确认（推荐）', '跳过确认'] },
         { id: 'device_visibility', label: '拍摄设备是否可见', type: 'select', options: ['不入镜（默认）', '设备可见（手持自拍感）'] },
-      ]},
+      ] },
       COMMON_OUTPUT,
     ],
   },
@@ -120,13 +120,13 @@ export const TEMPLATE_SCHEMAS: Record<string, TemplateSchema> = {
         { id: 'product', label: '商品名称与品类', type: 'text', required: true },
         { id: 'selling_points', label: '卖点矩阵（每行一条）', type: 'textarea', required: true, wide: true },
         { id: 'product_images', label: '商品参考图（≤9 张）', type: 'images', required: true },
-      ]},
+      ] },
       { title: '编排偏好', fields: [
         { id: 'platform', label: '目标平台', type: 'select', options: ['淘宝/天猫', '京东', '拼多多', '抖音商城', '独立站'] },
         { id: 'modules', label: '内容模块', type: 'select', options: ['卖点信息图', '多角度展示', '生活方式图', '包装细节', '组件结构', '使用步骤', '品牌收尾'] },
         { id: 'text_rule', label: '图内文字', type: 'select', options: ['保持已确认文字的原文（推荐）', '允许改写'] },
         { id: 'forbid', label: '禁项', type: 'select', options: ['不出现平台界面/零售商标识/采购渠道（推荐）', '无特殊要求'] },
-      ]},
+      ] },
     ],
   },
   'yunjing-studio-ecommerce-images': {
@@ -138,14 +138,14 @@ export const TEMPLATE_SCHEMAS: Record<string, TemplateSchema> = {
       { title: '商品素材', fields: [
         { id: 'product_images', label: '商品图（≤9 张，可一次多选）', type: 'images', required: true },
         { id: 'product', label: '商品介绍（不会写没关系）', type: 'textarea', placeholder: '例：植物精华滥用管瓶，主打清爽质地与日常护理，面向 25-40 岁女性', wide: true },
-      ]},
+      ] },
       { title: '生成偏好', fields: [
         { id: 'language', label: '目标语言', type: 'select', options: ['中文', '英语'] },
         { id: 'platform', label: '销售平台', type: 'select', options: ['自动推荐', '抖音', '天猫', '京东', '独立站'] },
         { id: 'composition', label: '构图方向', type: 'select', options: ['每张自动换一套（主视觉/卖点拆解/场景图/细节特写，推荐）', '统一构图'] },
         { id: 'count', label: '生成数量', type: 'number' },
         { id: 'selling_copy', label: '卖点文案（适用时）', type: 'textarea', wide: true },
-      ]},
+      ] },
     ],
   },
   'yunjing-studio-brand-strategy': {
@@ -159,7 +159,7 @@ export const TEMPLATE_SCHEMAS: Record<string, TemplateSchema> = {
         { id: 'positioning', label: '当前定位与诉求', type: 'textarea', required: true, wide: true },
         { id: 'competitors', label: '竞品（可选，每行一个）', type: 'textarea', wide: true },
         NOTES,
-      ]},
+      ] },
     ],
   },
   'yunjing-studio-customer-insight': {
@@ -173,7 +173,7 @@ export const TEMPLATE_SCHEMAS: Record<string, TemplateSchema> = {
         { id: 'audience', label: '目标人群描述', type: 'textarea', required: true, wide: true },
         { id: 'goal', label: '想验证的问题', type: 'text' },
         NOTES,
-      ]},
+      ] },
     ],
   },
   'yunjing-studio-meta-optimizer': {
@@ -186,7 +186,7 @@ export const TEMPLATE_SCHEMAS: Record<string, TemplateSchema> = {
         { id: 'material_desc', label: '现有素材描述/数据', type: 'textarea', required: true, wide: true },
         { id: 'goal', label: '优化目标', type: 'select', options: ['提升点击率', '提升转化率', '降低 ACP', '延长停留'] },
         NOTES,
-      ]},
+      ] },
     ],
   },
   'yunjing-studio-sd2-generate': {
@@ -201,7 +201,7 @@ export const TEMPLATE_SCHEMAS: Record<string, TemplateSchema> = {
         { id: 'reference_video', label: '参考视频/音频（可选）', type: 'video' },
         { id: 'model_tier', label: '模型档位', type: 'select', options: ['标准', '增强版（参考视频分析后）'] },
         { id: 'creator_mode', label: '创作模式', type: 'select', options: ['reference_creator（参考创作，推荐）', 'text_locked_creator（文字锁定）'] },
-      ]},
+      ] },
       COMMON_OUTPUT,
     ],
   },
@@ -217,12 +217,12 @@ export const TEMPLATE_SCHEMAS: Record<string, TemplateSchema> = {
         { id: 'reference_video', label: '参考视频/关键帧（可选）', type: 'video' },
         { id: 'market', label: '市场/人群', type: 'text', placeholder: '例：国内抖音 女装 25-40 岁' },
         { id: 'multi_product', label: '多产品口径', type: 'select', options: ['每款分别生成一条（官方默认）', '合并为一条'] },
-      ]},
+      ] },
       { title: '场景与节奏', fields: [
         { id: 'scene_note', label: '场景模板确认', type: 'text', placeholder: '例：服装卡点变装（默认按所选模板）' },
         { id: 'style', label: '拍摄风格', type: 'select', options: ['按模板默认', '手持自拍', '固定机位', '一镜到底', '快剪卡点'] },
         NOTES,
-      ]},
+      ] },
       COMMON_OUTPUT,
     ],
   },
@@ -235,7 +235,7 @@ export const TEMPLATE_SCHEMAS: Record<string, TemplateSchema> = {
       { title: '输入', fields: [
         { id: 'source_video', label: '原视频', type: 'video', required: true },
         NOTES,
-      ]},
+      ] },
     ],
   },
   'yunjing-studio-updater': {
@@ -1027,20 +1027,59 @@ export const TEMPLATE_FIELD_EXTENSIONS: Record<string, TemplateField[]> = {
     { id: 'answer_style', label: '回答风格', type: 'select', options: ['真实自然（推荐）', '搞笑整活', '观点犀利'] },
   ],
 }
-/** 模板 → schema（基础族 schema + 该模板专属字段段落）。 */
+/** 模板 → schema（基础族 schema + 该模板专属字段段落）。
+ * 2026-11-08（O44 阻断修复）：返回前把 `skill` 覆盖为目录传入的真实值——
+ * 目录与本地 skill 目录统一为 `heightlab-studio-*` 前缀，而 TEMPLATE_SCHEMAS
+ * 的 key 是历史 `yunjing-studio-*`；若不覆盖，ConsoleBody 任务文本尾行的
+ * `~/.heightlab/yunj-skills/<skill>/SKILL.md` 会指向不存在的目录（空挂）。 */
 export function schemaForTemplate(templateId: string, skill: string): TemplateSchema {
   const base = schemaForSkill(skill)
+  const resolved = skill !== '' && base.skill !== skill ? { ...base, skill } : base
   const ext = TEMPLATE_FIELD_EXTENSIONS[templateId]
-  if (ext === undefined || ext.length === 0) return base
-  const sections = base.sections.slice()
+  if (ext === undefined || ext.length === 0) return resolved
+  const sections = resolved.sections.slice()
   const lastSection = sections[sections.length - 1]
   const insertAt = sections.length > 0 && lastSection?.title === '输出要求' ? sections.length - 1 : sections.length
   sections.splice(insertAt, 0, { title: '本模板专属', fields: ext })
-  return { ...base, sections }
+  return { ...resolved, sections }
+}
+
+/** skill 前缀归一化（2026-11-08 O44）：目录用 `heightlab-studio-*`，schema key
+ * 用 `yunjing-studio-*`——此前精确未命中即三级回退到第一个 schema（原创 UGC
+ * 视频表单），导致全部图片/文案模板挂错表单。双向归一化一次命中。 */
+const PREFIX_PAIRS: ReadonlyArray<readonly [string, string]> = [
+  ['heightlab-studio-', 'yunjing-studio-'],
+]
+
+/** 无专属 schema 的 skill 的**显式**回落表（2026-11-08 O44 门禁立）。
+ * `heightlab-studio-router` 是 42 条视频模板的总路由 skill——历史上靠
+ * 「精确未命中 → 取 TEMPLATE_SCHEMAS 第一个 key」的**隐式**回退在渲染
+ * （行为本身是对的，但靠对象键序碰运气）。这里把它显式化：行为不变、
+ * 意图可读、verify-template-skills.mjs 可断言。新增同类 skill 在此登记。 */
+const SKILL_ALIASES: Readonly<Record<string, string>> = {
+  'heightlab-studio-router': 'yunjing-studio-original-ugc',
+  'yunjing-studio-router': 'yunjing-studio-original-ugc',
 }
 
 export function schemaForSkill(skill: string): TemplateSchema {
-  return TEMPLATE_SCHEMAS[skill] ?? TEMPLATE_SCHEMAS['yunjing-studio-router'] ?? TEMPLATE_SCHEMAS[Object.keys(TEMPLATE_SCHEMAS)[0] ?? 'yunjing-studio-router'] as TemplateSchema
+  const exact = TEMPLATE_SCHEMAS[skill]
+  if (exact !== undefined) return exact
+  const alias = SKILL_ALIASES[skill]
+  if (alias !== undefined) {
+    const mapped = TEMPLATE_SCHEMAS[alias]
+    if (mapped !== undefined) return mapped
+  }
+  for (const [a, b] of PREFIX_PAIRS) {
+    if (skill.startsWith(a)) {
+      const mapped = TEMPLATE_SCHEMAS[b + skill.slice(a.length)]
+      if (mapped !== undefined) return mapped
+    }
+    if (skill.startsWith(b)) {
+      const mapped = TEMPLATE_SCHEMAS[a + skill.slice(b.length)]
+      if (mapped !== undefined) return mapped
+    }
+  }
+  return TEMPLATE_SCHEMAS['yunjing-studio-router'] ?? TEMPLATE_SCHEMAS[Object.keys(TEMPLATE_SCHEMAS)[0] ?? 'yunjing-studio-router'] as TemplateSchema
 }
 
 // V41：把全部 images/video 字段注册为控制台通用槽位——模板工作台直接

@@ -56,7 +56,9 @@ import { createSessionScheduleSource, type SessionScheduleSourceFactory } from '
 import { TaskTabBindings } from './task-tab-bindings.ts'
 import { TaskManagerPage, type TaskManagerInjected } from './TaskManagerPage.tsx'
 import type { TaskDetailInjected } from './TaskDetail.tsx'
-import { TaskManagerIcon } from './TaskManagerIcon.tsx'
+/* HeightLab O44：panelList 行已移除（自动化收进实验室），图标导入同步停用；
+ * 回滚时与下方 panelList 注册一并还原。 */
+// import { TaskManagerIcon } from './TaskManagerIcon.tsx'
 import { sessionLinkState } from './session-link.ts'
 import { en, NS, zh, type ScheduleCatalogKey } from './locales.ts'
 import { en as managerEn, zh as managerZh, type TaskManagerKey } from './task-manager-locales.ts'
@@ -200,13 +202,11 @@ export function apply(ctx: ClientContext): void {
       },
     }),
   }, TaskManagerPage))
-  ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({
-    name: 'sidebar.panellist',
-    id: PANEL_ID,
-    order: 10,
-    locale: MANAGER_NS,
-    label: () => t('panel'),
-  }, TaskManagerIcon))
+  /* HeightLab（2026-11-08 O44 侧栏 7→5）：「自动化任务」一级行移除，收进
+   * 「实验室」Dock 的生产工具分区（SidebarRoot 以 selectPanel('schedules')
+   * 直达本页）。主面板注册保留，页面本身不受影响。
+   * 回滚 = 还原本段 panelList 注册。 */
+
   // The created task is a Turn-level element, not a Tool-group row: the Turn
   // Definition publishes the settled result and this tail list entry renders
   // the card beneath the closing prose.

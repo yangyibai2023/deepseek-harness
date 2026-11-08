@@ -258,6 +258,9 @@ export function apply(ctx: Context): void {
         icon?: unknown
         templates?: unknown
         workspaceId?: unknown
+        /* O44（2026-11-08）：可选——指定后直接落到该模板的工作台（不经模块
+         * 网格），返回钮仍回模块全量网格。 */
+        template?: unknown
       }>).detail ?? {}
       const moduleId = typeof detail.moduleId === 'string' ? detail.moduleId : ''
       if (moduleId === '') return
@@ -274,6 +277,17 @@ export function apply(ctx: Context): void {
         icon: typeof detail.icon === 'string' ? detail.icon : '🎬',
         templates,
       }
+      /* 目标模板（可选）：写入 hl-template-console，ConsoleBody 挂载/切换恢复
+       * 后直达模板工作台。 */
+      const templateDetail = ((): { id: string; template: string; skill: string } | undefined => {
+        const t = detail.template
+        if (typeof t !== 'object' || t === null) return undefined
+        const id = (t as { id?: unknown }).id
+        const skill = (t as { skill?: unknown }).skill
+        const name = (t as { name?: unknown }).name
+        if (typeof id !== 'string' || typeof skill !== 'string' || id === '' || skill === '') return undefined
+        return { id, template: typeof name === 'string' ? name : id, skill }
+      })()
       const target = resolveStudioWorkspace(
         typeof detail.workspaceId === 'string' ? detail.workspaceId : undefined, 'module',
       )
@@ -284,6 +298,10 @@ export function apply(ctx: Context): void {
           localStorage.setItem('hl-console-mode-at', String(Date.now()))
         } catch { /* 非致命 */ }
         try { sessionStorage.setItem('hl-module-console', JSON.stringify(moduleState)) } catch { /* 非致命 */ }
+        try {
+          if (templateDetail !== undefined) sessionStorage.setItem('hl-template-console', JSON.stringify(templateDetail))
+          else sessionStorage.removeItem('hl-template-console')
+        } catch { /* 非致命 */ }
         window.dispatchEvent(new CustomEvent('hl:mode-change', { detail: { mode: 'module' } }))
         window.dispatchEvent(new CustomEvent('hl:replication-session-open', { detail: { sessionId } }))
         window.setTimeout(() => { ensureSpareBlank() }, 2_500)

@@ -133,27 +133,15 @@ export function ConversationRoot(props: ConversationRootProps) {
     }
   }, [])
 
-  // HeightLab：创意灵感/自动化采用覆盖层方案，会话视图常驻不卸载；
-  // 点「自动化」时若创意灵感开着，只负责关掉它，视图切换由常驻的
-  // ConversationSession 同步完成，无补发事件、无竞态。
-  useEffect(() => {
-    const onOpenAutomation = (): void => {
-      window.dispatchEvent(new CustomEvent('hl:close-knowledge'))
-      if (hubRef.current !== null) setHub(null)
-    }
-    window.addEventListener('hl:open-automation', onOpenAutomation)
-    return () => { window.removeEventListener('hl:open-automation', onOpenAutomation) }
-  }, [])
-
-  // HeightLab：创意灵感/自动化页与右侧边栏互斥——进入时收起右侧/底部面板，
+  /* O44（2026-11-08 死代码清理）：「自动化」早已是原生面板（ui-schedule），
+   * hl:open-automation 全仓无人派发、hlAutomation 标记全仓只读不写——
+   * 原监听与 dataset 检查删除。自动化页与 hub 互斥由原生面板自身承担。
+   * 回滚 = git 历史恢复本段。 */
+  // HeightLab：hub 页与右侧边栏互斥——进入时收起右侧/底部面板，
   // 并给 body 打标记让右上角两个折叠按钮隐藏；退出时恢复。
   useEffect(() => {
     try {
-      // 自动化视图由 ConversationSession 管理同一个标记；hub 关闭时不要
-      // 覆盖「自动化已激活」的状态，避免右侧边栏错误恢复。
-      if (hub !== null || document.body.dataset.hlAutomation !== '1') {
-        document.body.dataset.hlHub = hub !== null ? '1' : '0'
-      }
+      document.body.dataset.hlHub = hub !== null ? '1' : '0'
     } catch { /* 非致命 */ }
     if (hub === null) return
     /* HeightLab 2026-11-08（用户拍板「右侧边栏打开，左侧都不用自动折叠」）：

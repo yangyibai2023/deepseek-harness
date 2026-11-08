@@ -781,3 +781,27 @@
   font-size: 13px;
   color: var(--dsw-alias-label-tertiary);
 }
+
+/* O44（2026-11-08）：实验室 Dock 分区——「生产工具 / 实验功能」组标题。
+ * 与内容分组同一语言（原生 groupTitle 14/500 的缩小版，Dock 内更紧凑）。 */
+.labPadBody {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  /* .labPad 已提供 22/26 内距与滚动——本层只承担分组间距，不再加 padding
+   *（避免双重内距）。 */
+}
+
+.labPadGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.labPadGroupTitle {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  color: var(--dsw-alias-label-tertiary, #8c8c8c);
+  padding: 0 2px;
+}
