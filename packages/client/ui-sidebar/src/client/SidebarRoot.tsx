@@ -419,11 +419,11 @@ export function SidebarRoot({
         ))}
         {/* N18（0.5.7 用户拍板）：一级菜单末位=「实验室」——程序坞式收纳实验工具。
             图标/字号/间距与 panelRow 完全同款；点击弹出玻璃 Dock。 */}
-        <Tooltip label="实验室" delayMs={500} disabled={wide}>
+        <Tooltip label="更多能力" delayMs={500} disabled={wide}>
           <button
             type="button"
             className={clsx(css.panelRow, activeHub === 'lab' && css.panelActive)}
-            aria-label="实验室"
+            aria-label="更多能力"
             aria-current={activeHub === 'lab' ? 'page' : undefined}
             onClick={() => { openLabHub() }}
           >
@@ -437,7 +437,7 @@ export function SidebarRoot({
                 <rect x="9.1" y="9.1" width="4.8" height="4.8" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
               </svg>
             </span>
-            {wide && <span className={clsx(css.panelTitle, css.wide)}>实验室</span>}
+            {wide && <span className={clsx(css.panelTitle, css.wide)}>更多能力</span>}
           </button>
         </Tooltip>
       </nav>

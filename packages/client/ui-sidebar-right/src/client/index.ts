@@ -461,11 +461,16 @@ export function apply(ctx: ClientContext): void {
     // HeightLab V40：模板工作台——首页模板卡点击（hl:open-template-console）
     // 打开创作控制台 tab；ConsoleBody 按 detail.skill 的 schema 渲染模板面板。
     const onOpenTemplateConsole = (): void => { openConsoleRetrying(true) }
+    /* O44（2026-11-08 模块开台保障）：模块/图片/文案点击 → 复用预热空白会话
+     * 时 store-create 与探针均不可靠（seed 早于 mode 写入失效；新会话服务端
+     * 无状态必 probe-miss）——本监听是**不依赖探针**的确定性开台入口。 */
+    const onOpenModuleConsole = (): void => { openConsoleRetrying(true) }
     const onModeCleared = (event: Event): void => {
       if ((event as CustomEvent<{ mode?: unknown }>).detail?.mode === '') onCloseConsole()
     }
     window.addEventListener('hl:open-console', onOpenConsole)
     window.addEventListener('hl:open-template-console', onOpenTemplateConsole)
+    window.addEventListener('hl:open-module-console', onOpenModuleConsole)
     window.addEventListener('hl:close-console', onCloseConsole)
     window.addEventListener('hl:mode-change', onModeCleared)
     window.addEventListener('hl:start-replication', onStartReplication)

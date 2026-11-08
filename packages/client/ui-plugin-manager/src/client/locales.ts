@@ -7,7 +7,7 @@ export const INSTALL_PATH_EXAMPLE = '/Users/name/my-plugin'
 
 /** Simplified Chinese dictionary and key source of truth. */
 export const zh = {
-  panel: '插件·技能',
+  panel: '智能体 · 技能 · 插件',
   title: '插件·技能',
   pageTabPlugins: '插件',
   pageTabSkills: '技能',

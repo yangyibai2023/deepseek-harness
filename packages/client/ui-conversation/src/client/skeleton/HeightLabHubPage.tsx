@@ -422,40 +422,20 @@ const studioDescStyle: CSSProperties = {
  * 内部四个分页（文案/图片/视频/文档）——**纯产出，策略不做 tab**（中美 16 家
  * 对标 0 先例，决策依据 docs/70-PLANS/2026-11-08-创作中心与策略分层调研.md）。
  * 本批启用 视频/图片/文案 三页；文档（PPT）等用户模板到位再启用，不渲染占位。 */
-type CreationTabId = 'video' | 'image' | 'copy' | 'docs'
+type CreationTabId = 'copy' | 'image' | 'video' | 'docs'
 const VIDEO_TEMPLATE_TOTAL = Object.entries(MODULE_TEMPLATE_IDS)
   .filter(([key]) => key !== 'replication')
   .reduce((sum, [, ids]) => sum + ids.length, 0)
 
+/* 2026-11-08 用户拍板：顺序=文案→图片→视频→文档；文档（PPT）tab 本批启用
+ * 结构（模板等用户素材，进入后显示优雅空态——非模块空卡，是用户要求的
+ * 结构先行）。 */
 const CREATION_TABS: ReadonlyArray<{ id: CreationTabId; label: string; count: number; ready: boolean }> = [
-  // 顺序=内容厚度递减，默认落视频（旗舰）；用户可一句话调整。
-  { id: 'video', label: '视频', count: VIDEO_TEMPLATE_TOTAL, ready: true },
-  { id: 'image', label: '图片', count: 20, ready: true },
   { id: 'copy', label: '文案', count: 8, ready: true },
-  // 文档（PPT）：等用户模板（O47）——不渲染，避免「即将上线」空卡。
-  { id: 'docs', label: '文档', count: 0, ready: false },
+  { id: 'image', label: '图片', count: 20, ready: true },
+  { id: 'video', label: '视频', count: VIDEO_TEMPLATE_TOTAL, ready: true },
+  { id: 'docs', label: 'PPT', count: 0, ready: true },
 ]
-
-/* 图片页分组：YJ-401 出图改图系（7 条）+ YJ-402 商品信息图系（13 条）。
- * YJ-402 同时挂在视频页「知识讲解」模块——有意重复挂载（同族跨模块，与
- * 主播系同服带货/口播同一先例），不动知识模块已验收的存量。 */
-const IMAGE_GROUPS: ReadonlyArray<{ title: string; ids: readonly string[] }> = [
-  { title: '商品出图与改图', ids: ['yj-401-benchmark-replica', 'yj-401-commercial-poster', 'yj-401-custom-batch-edit', 'yj-401-fashion-tryon', 'yj-401-image-text-edit', 'yj-401-original-main-detail', 'yj-401-product-model'] },
-  { title: '商品信息图', ids: ['yj-402-attribute-guide', 'yj-402-benefits-infographic', 'yj-402-brand-closing-banner', 'yj-402-components-structure', 'yj-402-feature-matrix', 'yj-402-how-to-use', 'yj-402-lifestyle-scene', 'yj-402-materials-story', 'yj-402-multi-angle-showcase', 'yj-402-packaging-detail', 'yj-402-routine-context', 'yj-402-white-background-main', 'yj-402-wide-hero-banner'] },
-]
-
-/* 文案页分组：策略基底（品牌事实/语气/人群）→ 创意策略（洞察到协议）→ 商品文案。 */
-const COPY_GROUPS: ReadonlyArray<{ title: string; ids: readonly string[] }> = [
-  { title: '策略基底', ids: ['yj-101-brand-dna', 'yj-102-brand-voice', 'yj-103-icp-persona'] },
-  { title: '创意策略', ids: ['yj-201-voc-audit', 'yj-202-hook-engine', 'yj-203-creative-brief', 'yj-204-creative-research'] },
-  { title: '商品文案', ids: ['yj-320-product-seo-support'] },
-]
-
-/** 图片/文案页的模块元数据（右栏控制台网格标题与左侧引导页共用）。 */
-const CREATION_MODULES: Record<'image' | 'copy', { moduleId: string; name: string; desc: string }> = {
-  image: { moduleId: 'image-studio', name: '图片创作', desc: '商品出图、改图与商品信息图——选模板，填素材，一键生成' },
-  copy: { moduleId: 'copywriting', name: '文案创作', desc: '品牌基底、创意策略到商品文案——选模板，一次写到位' },
-}
 
 /* ── O44 实验室整页（2026-11-08 用户拍板弃 Dock 抽屉）：与插件·技能页完全
  * 同款布局（H1 + 分组标题 + 行式卡片 + 彩色渐变图标）。两区：
@@ -509,6 +489,151 @@ const LAB_SECTIONS: ReadonlyArray<{
   },
 ]
 
+/* ── O44 美观统一（用户拍板）：图片/文案/文档与视频页同款交互——彩色
+ * 渐变图标分类卡（点分类→新会话+右栏该组模板网格），行距与视频页完全
+ * 统一（studioGridStyle + studioCardStyle）。 */
+const ArtCopyStrategy = (): ReactNode => {
+  const uid = useArtworkId()
+  return (
+    <svg {...artSvg} width={36} height={36} aria-hidden="true">
+      <circle cx="18" cy="15" r="8" stroke={`url(#${uid}a)`} strokeWidth="2.6" />
+      <path d="M18 7v16M10 15h16" stroke={`url(#${uid}a)`} strokeWidth="2" />
+      <path d="m13 26 10 6-4.5-6" fill={`url(#${uid}b)`} />
+      <defs>
+        <linearGradient id={`${uid}a`} x1="10" y1="7" x2="26" y2="23" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#69B9FF" />
+          <stop offset="1" stopColor="#324DE2" />
+        </linearGradient>
+        <linearGradient id={`${uid}b`} x1="13" y1="26" x2="23" y2="32" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#FF8FC7" />
+          <stop offset="1" stopColor="#B14BD8" />
+        </linearGradient>
+      </defs>
+    </svg>
+  )
+}
+
+const ArtCopyCreative = (): ReactNode => {
+  const uid = useArtworkId()
+  return (
+    <svg {...artSvg} width={36} height={36} aria-hidden="true">
+      <path d="M18 4.5a9.5 9.5 0 0 1 6 16.9c-1.2 1-2 2.2-2 3.6h-8c0-1.4-.8-2.6-2-3.6A9.5 9.5 0 0 1 18 4.5Z" fill={`url(#${uid}a)`} fillOpacity="0.9" />
+      <path d="M14.5 28h7M15.5 31h5" stroke="#B14BD8" strokeWidth="2.2" strokeLinecap="round" />
+      <path d="m18 9 1.4 3.2 3.4.3-2.6 2.2.8 3.3-3-1.8-3 1.8.8-3.3-2.6-2.2 3.4-.3L18 9Z" fill="#FFF3C4" />
+      <defs>
+        <linearGradient id={`${uid}a`} x1="8.5" y1="4.5" x2="24" y2="25" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#FFC24A" />
+          <stop offset="1" stopColor="#F0503C" />
+        </linearGradient>
+      </defs>
+    </svg>
+  )
+}
+
+const ArtCopyProduct = (): ReactNode => {
+  const uid = useArtworkId()
+  return (
+    <svg {...artSvg} width={36} height={36} aria-hidden="true">
+      <rect x="6" y="7" width="24" height="22" rx="3" fill={`url(#${uid}a)`} fillOpacity="0.9" />
+      <path d="M10 13h10M10 18h16M10 23h13" stroke="#FFFFFF" strokeOpacity="0.85" strokeWidth="2" strokeLinecap="round" />
+      <defs>
+        <linearGradient id={`${uid}a`} x1="6" y1="7" x2="30" y2="29" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#45E7A4" />
+          <stop offset="1" stopColor="#0E9888" />
+        </linearGradient>
+      </defs>
+    </svg>
+  )
+}
+
+const ArtImageEdit = (): ReactNode => {
+  const uid = useArtworkId()
+  return (
+    <svg {...artSvg} width={36} height={36} aria-hidden="true">
+      <rect x="4.5" y="8" width="27" height="20" rx="3" stroke={`url(#${uid}a)`} strokeWidth="2.6" />
+      <circle cx="13" cy="15" r="2.6" fill="#FFC24A" />
+      <path d="m8 24 7-6 5 4 4-3.5 6.5 5.5" stroke="#658EFF" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+      <defs>
+        <linearGradient id={`${uid}a`} x1="4.5" y1="8" x2="31.5" y2="28" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#41E1AC" />
+          <stop offset="1" stopColor="#658EFF" />
+        </linearGradient>
+      </defs>
+    </svg>
+  )
+}
+
+const ArtImageInfographic = (): ReactNode => {
+  const uid = useArtworkId()
+  return (
+    <svg {...artSvg} width={36} height={36} aria-hidden="true">
+      <rect x="6" y="6" width="24" height="24" rx="3.4" fill={`url(#${uid}a)`} fillOpacity="0.9" />
+      <path d="M11 24v-6M17 24v-10M23 24v-7" stroke="#FFFFFF" strokeWidth="3" strokeLinecap="round" />
+      <defs>
+        <linearGradient id={`${uid}a`} x1="6" y1="6" x2="30" y2="30" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#FF8FC7" />
+          <stop offset="1" stopColor="#A23AE7" />
+        </linearGradient>
+      </defs>
+    </svg>
+  )
+}
+
+const ArtDocsPpt = (): ReactNode => {
+  const uid = useArtworkId()
+  return (
+    <svg {...artSvg} width={36} height={36} aria-hidden="true">
+      <rect x="4.5" y="8" width="27" height="17" rx="3" stroke={`url(#${uid}a)`} strokeWidth="2.6" />
+      <path d="M18 25v4M13 29h10" stroke="#A23AE7" strokeWidth="2.4" strokeLinecap="round" />
+      <path d="m14 13 8 3.5-8 3.5v-7Z" fill={`url(#${uid}b)`} />
+      <defs>
+        <linearGradient id={`${uid}a`} x1="4.5" y1="8" x2="31.5" y2="25" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#A797FC" />
+          <stop offset="1" stopColor="#E23AA0" />
+        </linearGradient>
+        <linearGradient id={`${uid}b`} x1="14" y1="13" x2="22" y2="20" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#FFC24A" />
+          <stop offset="1" stopColor="#F0503C" />
+        </linearGradient>
+      </defs>
+    </svg>
+  )
+}
+
+/* 分类卡定义（图片/文案/文档）：点分类卡 → hl:start-module（新会话 +
+ * 右栏该组模板网格）。文档（PPT）模板等用户素材，进入后显示整理中空态。 */
+const COPY_CARDS: ReadonlyArray<{ key: string; name: string; desc: string; svg: ReactNode; ids: readonly string[] }> = [
+  { key: 'copy-baseline', name: '策略基底', desc: '品牌事实、语气与客户画像——一切文案的地基', svg: <ArtCopyStrategy />, ids: ['yj-101-brand-dna', 'yj-102-brand-voice', 'yj-103-icp-persona'] },
+  { key: 'copy-strategy', name: '创意策略', desc: 'VOC 审计、Hook 引擎、Brief 与创意研究——洞察到协议', svg: <ArtCopyCreative />, ids: ['yj-201-voc-audit', 'yj-202-hook-engine', 'yj-203-creative-brief', 'yj-204-creative-research'] },
+  { key: 'copy-product', name: '商品文案', desc: '商品标题、搜索词与卖点短句——直接可上架', svg: <ArtCopyProduct />, ids: ['yj-320-product-seo-support'] },
+]
+
+const IMAGE_CARDS: ReadonlyArray<{ key: string; name: string; desc: string; svg: ReactNode; ids: readonly string[] }> = [
+  { key: 'image-edit', name: '商品出图与改图', desc: '对标复刻、海报、试穿换装、改字与批量出图', svg: <ArtImageEdit />, ids: ['yj-401-benchmark-replica', 'yj-401-commercial-poster', 'yj-401-custom-batch-edit', 'yj-401-fashion-tryon', 'yj-401-image-text-edit', 'yj-401-original-main-detail', 'yj-401-product-model'] },
+  { key: 'image-infographic', name: '商品信息图', desc: '属性指南、卖点图解、场景图与白底主图——13 式信息图', svg: <ArtImageInfographic />, ids: ['yj-402-attribute-guide', 'yj-402-benefits-infographic', 'yj-402-brand-closing-banner', 'yj-402-components-structure', 'yj-402-feature-matrix', 'yj-402-how-to-use', 'yj-402-lifestyle-scene', 'yj-402-materials-story', 'yj-402-multi-angle-showcase', 'yj-402-packaging-detail', 'yj-402-routine-context', 'yj-402-white-background-main', 'yj-402-wide-hero-banner'] },
+]
+
+const DOCS_CARDS: ReadonlyArray<{ key: string; name: string; desc: string; svg: ReactNode; ids: readonly string[] }> = [
+  { key: 'docs-ppt', name: '演示文稿 PPT', desc: '营销提案与路演 PPT——模板接入中', svg: <ArtDocsPpt />, ids: [] },
+]
+
+/** 分类卡点击 → 模块链路（moduleId=分类 key，模板集=组内全部模板）。 */
+const openCreationModule = (card: { key: string; name: string; desc: string; svg: ReactNode; ids: readonly string[] }): void => {
+  const templates = card.ids
+    .map(id => VIDEO_CATALOG.find(item => item.id === id))
+    .filter((item): item is (typeof VIDEO_CATALOG)[number] => item !== undefined)
+    .map(item => ({
+      id: item.id, name: item.name, tagline: item.tagline,
+      cover: item.cover,
+      ...(item.coverFallback !== undefined ? { coverFallback: item.coverFallback } : {}),
+      skill: item.skill,
+    }))
+  window.dispatchEvent(new CustomEvent('hl:start-module', {
+    detail: { moduleId: card.key, name: card.name, desc: card.desc, icon: '', templates },
+  }))
+  window.dispatchEvent(new CustomEvent('hl:close-hub'))
+}
+
 const creationTabsStyle: CSSProperties = {
   display: 'flex',
   gap: 28,
@@ -521,7 +646,7 @@ const creationTabsStyle: CSSProperties = {
 const PAGE_TITLES: Partial<Record<HubPage, string>> = {
   'film-studio': '智能剪辑台',
   inspiration: '创意灵感',
-  lab: '实验室',
+  lab: '更多能力',
   library: '资料与知识',
   'video-studio': '创作中心',
 }
@@ -529,7 +654,7 @@ const PAGE_TITLES: Partial<Record<HubPage, string>> = {
 /* 仅在有明确说明价值时给一行副标题（原生页多数没有；用户已指出「一句话
  * 介绍多余」——此处从六页全给缩减为两页，且与标题分行小字）。 */
 const PAGE_SUBTITLES: Partial<Record<HubPage, string>> = {
-  lab: '生产工具与实验能力——正式功能与前沿探索都在这里',
+  lab: '更多生产与实验能力——持续扩充中',
   'video-studio': '文案、图片、视频——选类型，挑模板，一次做齐',
 }
 
@@ -592,49 +717,6 @@ const cardDescStyle: CSSProperties = {
 /** Render the page in the main content area (replaces chat view). */
 export function HeightLabHubPage({ page, onClose }: { page: HubPage; onClose: () => void }) {
   const [preview, setPreview] = useState<{ item: Recommendation; category: TemplateCategory } | null>(null)
-  const [creationTab, setCreationTab] = useState<CreationTabId>('video')
-
-  /* 图片/文案页点模板卡：整包传模块（含全部模板集=返回钮回全量网格）+
-   * template 指定直达模板工作台（ui-workspace 写 hl-template-console）。 */
-  const openCreationTemplate = (tab: 'image' | 'copy', item: (typeof VIDEO_CATALOG)[number]): void => {
-    const module_ = CREATION_MODULES[tab]
-    const groups = tab === 'image' ? IMAGE_GROUPS : COPY_GROUPS
-    const templates = groups.flatMap(group => group.ids)
-      .map(id => VIDEO_CATALOG.find(entry => entry.id === id))
-      .filter((entry): entry is (typeof VIDEO_CATALOG)[number] => entry !== undefined)
-      .map(entry => ({
-        id: entry.id, name: entry.name, tagline: entry.tagline,
-        cover: entry.cover,
-        ...(entry.coverFallback !== undefined ? { coverFallback: entry.coverFallback } : {}),
-        skill: entry.skill,
-      }))
-    window.dispatchEvent(new CustomEvent('hl:start-module', {
-      detail: {
-        moduleId: module_.moduleId, name: module_.name, desc: module_.desc, icon: '',
-        templates,
-        template: { id: item.id, name: item.name, skill: item.skill },
-      },
-    }))
-    window.dispatchEvent(new CustomEvent('hl:close-hub'))
-  }
-
-  /* 模板卡（图片/文案页共用）：封面 16:10 + 名称 + 一行 tagline，
-   * 观感与创意灵感页模板卡一致。 */
-  const renderTemplateCard = (tab: 'image' | 'copy', item: (typeof VIDEO_CATALOG)[number]): ReactNode => (
-    <button key={item.id} type="button" style={cardStyle} onClick={() => openCreationTemplate(tab, item)}>
-      <img
-        style={thumbStyle}
-        src={item.cover}
-        alt=""
-        draggable={false}
-        onError={(e) => {
-          if (item.coverFallback !== undefined && e.currentTarget.src !== item.coverFallback) e.currentTarget.src = item.coverFallback
-        }}
-      />
-      <span style={cardTitleStyle}>{item.name}</span>
-      <span style={cardDescStyle}>{item.tagline}</span>
-    </button>
-  )
   const [cards, setCards] = useState<Record<TemplateCategory, Recommendation[]>>(TEMPLATE_CARDS)
 
   // HeightLab：模板热更新——进入页面时拉取服务器目录，失败回退包内默认。
@@ -645,6 +727,7 @@ export function HeightLabHubPage({ page, onClose }: { page: HubPage; onClose: ()
     })
     return () => { cancelled = true }
   }, [])
+  const [creationTab, setCreationTab] = useState<CreationTabId>('copy')
   const sameOf = (item: Recommendation, category: TemplateCategory): void => {
     // 做同款：关闭预览回聊天，切换对应专家，并把模板名以胶囊形式插入
     // 输入框文字区（Manus 式）；不发送，用户可继续输入。
@@ -659,6 +742,8 @@ export function HeightLabHubPage({ page, onClose }: { page: HubPage; onClose: ()
       },
     }))
   }
+
+
   return (
     <div style={hubRootStyle}>
       {/* 2026-10-20 用户要求：一级菜单「剪辑台」以 OpenFilm 原生布局为准——
@@ -694,31 +779,59 @@ export function HeightLabHubPage({ page, onClose }: { page: HubPage; onClose: ()
             ))}
           </div>
           {creationTab === 'image' ? (
+            /* O44 美观统一（用户拍板）：图片/文案页与视频页同款彩色分类卡
+             * （行式 + 渐变图标），点分类 → 新会话 + 右栏该组模板网格。 */
             <>
-              {IMAGE_GROUPS.map(group => (
-                <section key={group.title} style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 960 }}>
-                  <h3 style={groupTitleStyle}>{group.title}</h3>
-                  <div style={gridStyle}>
-                    {group.ids
-                      .map(id => VIDEO_CATALOG.find(item => item.id === id))
-                      .filter((item): item is (typeof VIDEO_CATALOG)[number] => item !== undefined)
-                      .map(item => renderTemplateCard('image', item))}
-                  </div>
-                </section>
+              {IMAGE_CARDS.map(card => (
+                <button
+                  key={card.key}
+                  type="button"
+                  className={css.studioCard}
+                  style={studioCardStyle}
+                  onClick={() => openCreationModule(card)}
+                >
+                  <span style={studioIconWrapStyle} aria-hidden="true">{card.svg}</span>
+                  <span style={studioTextStyle}>
+                    <span style={studioNameStyle}>{card.name}</span>
+                    <span style={studioDescStyle}>{card.desc}</span>
+                  </span>
+                </button>
               ))}
             </>
           ) : creationTab === 'copy' ? (
             <>
-              {COPY_GROUPS.map(group => (
-                <section key={group.title} style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 960 }}>
-                  <h3 style={groupTitleStyle}>{group.title}</h3>
-                  <div style={gridStyle}>
-                    {group.ids
-                      .map(id => VIDEO_CATALOG.find(item => item.id === id))
-                      .filter((item): item is (typeof VIDEO_CATALOG)[number] => item !== undefined)
-                      .map(item => renderTemplateCard('copy', item))}
-                  </div>
-                </section>
+              {COPY_CARDS.map(card => (
+                <button
+                  key={card.key}
+                  type="button"
+                  className={css.studioCard}
+                  style={studioCardStyle}
+                  onClick={() => openCreationModule(card)}
+                >
+                  <span style={studioIconWrapStyle} aria-hidden="true">{card.svg}</span>
+                  <span style={studioTextStyle}>
+                    <span style={studioNameStyle}>{card.name}</span>
+                    <span style={studioDescStyle}>{card.desc}</span>
+                  </span>
+                </button>
+              ))}
+            </>
+          ) : creationTab === 'docs' ? (
+            <>
+              {DOCS_CARDS.map(card => (
+                <button
+                  key={card.key}
+                  type="button"
+                  className={css.studioCard}
+                  style={studioCardStyle}
+                  onClick={() => openCreationModule(card)}
+                >
+                  <span style={studioIconWrapStyle} aria-hidden="true">{card.svg}</span>
+                  <span style={studioTextStyle}>
+                    <span style={studioNameStyle}>{card.name}</span>
+                    <span style={studioDescStyle}>{card.desc}</span>
+                  </span>
+                </button>
               ))}
             </>
           ) : creationTab === 'video' ? (

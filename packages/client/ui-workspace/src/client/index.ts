@@ -302,6 +302,19 @@ export function apply(ctx: Context): void {
           if (templateDetail !== undefined) sessionStorage.setItem('hl-template-console', JSON.stringify(templateDetail))
           else sessionStorage.removeItem('hl-template-console')
         } catch { /* 非致命 */ }
+        /* O44（2026-11-08 模块开台保障，修复「点模块不弹面板」间歇性 bug）：
+         * 开台原本只靠 seed/store-create（仅新建会话路径有效——两者都在 mode
+         * 写入**之前**执行）+ 服务端探针（新会话必无状态必 probe-miss）。
+         * 复用预热空白会话时两条全失效 → 右栏不弹。以下确定性序列不依赖
+         * 探针：open-console 开台（ConsoleBody onClear 清残留态）→
+         * open-module-console 设模块态（SidebarRoot 同名监听开台）→
+         * [有直达模板时] open-template-console 直达模板工作台（后写胜出，
+         * 覆盖 onModuleOpen 的 removeItem）。 */
+        window.dispatchEvent(new CustomEvent('hl:open-console'))
+        window.dispatchEvent(new CustomEvent('hl:open-module-console', { detail: moduleState }))
+        if (templateDetail !== undefined) {
+          window.dispatchEvent(new CustomEvent('hl:open-template-console', { detail: templateDetail }))
+        }
         window.dispatchEvent(new CustomEvent('hl:mode-change', { detail: { mode: 'module' } }))
         window.dispatchEvent(new CustomEvent('hl:replication-session-open', { detail: { sessionId } }))
         window.setTimeout(() => { ensureSpareBlank() }, 2_500)
