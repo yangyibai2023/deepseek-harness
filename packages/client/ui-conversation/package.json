@@ -46,7 +46,8 @@
   },
   "license": "MIT",
   "dependencies": {
-    "@deepseek-ai/schemastery": "workspace:~"
+    "@deepseek-ai/schemastery": "workspace:~",
+    "@tanstack/react-virtual": "^3.14.10"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "workspace:~"

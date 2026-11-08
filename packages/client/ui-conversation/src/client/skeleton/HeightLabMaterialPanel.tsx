@@ -6,6 +6,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import css from './ConversationRoot.module.css'
 
 interface ArtifactItem {
@@ -336,37 +337,30 @@ export function HeightLabMaterialPanel() {
     })
 
 
-  /* O44（2026-11-08 性能债根治）：卡片视图**窗口化渲染**（手写，零依赖）。
-   * 素材网格此前全量渲染 281 卡 = 3372 DOM 节点（整页 4164 的 81%），每次切入
-   * 资料与知识整树重建——首次切换 500ms+ 的主因。行高固定（缩略图 96 固定高
-   * + 单行标题/meta + 按钮行），只需按 scrollTop 切可见窗口行 ± overscan，
-   * 不需要引入虚拟化库。素材超过千张同样流畅。 */
+  /* O44（2026-11-08 性能债根治·库版）：卡片视图行虚拟化——@tanstack/react-virtual
+   * 与 ui-trajectory TrajectoryTable / ui-chat TurnNavigator 完全同库（用户拍板
+   * 用原生路线，不手写）。素材网格此前全量渲染 281 卡 = 3372 DOM 节点（整页
+   * 81%），每次切入整树重建，首次切换 500ms+。行虚拟化按 4 列切块，只渲染
+   * 可见行 ± overscan；measureElement 动态实测行高（按钮 wrap 等不齐也正确）。 */
   const CARD_ROW_COLUMNS = 4
-  const CARD_ROW_HEIGHT_PX = 236
-  const WINDOW_OVERSCAN_ROWS = 4
+  const CARD_ROW_ESTIMATE_PX = 236
+  const CARD_VIRTUAL_THRESHOLD = 10
   const gridScrollRef = useRef<HTMLDivElement | null>(null)
-  const [gridScrollTop, setGridScrollTop] = useState(0)
-  const [gridViewportH, setGridViewportH] = useState(600)
   const cardRows = useMemo(() => {
     const rows: Array<typeof filtered> = []
     for (let i = 0; i < filtered.length; i += CARD_ROW_COLUMNS) rows.push(filtered.slice(i, i + CARD_ROW_COLUMNS))
     return rows
   }, [filtered])
-  const virtualizationOn = viewMode === 'card' && cardRows.length > 10
-  /* 窗口行区间：scrollTop 前后各留 OVERSCAN 行；筛选/分类变化时 scrollTop
-   * 可能超出新内容高度——钳制在合法区间，避免白屏。 */
-  const clampedTop = virtualizationOn
-    ? Math.max(0, Math.min(gridScrollTop, cardRows.length * CARD_ROW_HEIGHT_PX - gridViewportH))
-    : 0
-  const firstRow = virtualizationOn
-    ? Math.max(0, Math.floor(clampedTop / CARD_ROW_HEIGHT_PX) - WINDOW_OVERSCAN_ROWS)
-    : 0
-  const lastRow = virtualizationOn
-    ? Math.min(cardRows.length, Math.ceil((clampedTop + gridViewportH) / CARD_ROW_HEIGHT_PX) + WINDOW_OVERSCAN_ROWS)
-    : cardRows.length
-  const onGridScroll = (event: React.UIEvent<HTMLDivElement>): void => {
-    setGridScrollTop(event.currentTarget.scrollTop)
-    setGridViewportH(event.currentTarget.clientHeight)
+  const virtualizationOn = viewMode === 'card' && cardRows.length > CARD_VIRTUAL_THRESHOLD
+  const rowVirtualizer = useVirtualizer({
+    count: virtualizationOn ? cardRows.length : 0,
+    enabled: virtualizationOn,
+    estimateSize: () => CARD_ROW_ESTIMATE_PX,
+    overscan: 4,
+    getScrollElement: () => gridScrollRef.current,
+  })
+  const measureRowRef = (el: HTMLElement | null): void => {
+    if (el !== null && virtualizationOn) rowVirtualizer.measureElement(el)
   }
 
   const actionButtons = (item: ArtifactItem) => (
@@ -514,7 +508,7 @@ export function HeightLabMaterialPanel() {
 
           {/* 2026-11-08（用户拍板）：chips + 工具行**冻结**在顶部不跟随滚动——
            * 把滚动权从 libraryRight 整体改为只滚这里（libraryScroll）。 */}
-          <div ref={gridScrollRef} className={css.libraryScroll} onScroll={onGridScroll}>
+          <div ref={gridScrollRef} className={css.libraryScroll}>
             {filtered.length === 0 ? (
               <div style={{ padding: '48px 0', textAlign: 'center', color: 'var(--dsw-alias-label-tertiary)', fontSize: 13 }}>
                 暂无素材，新生成的图片/视频会自动入库，也可点击「扫描」补录
@@ -524,14 +518,16 @@ export function HeightLabMaterialPanel() {
                 /* 虚拟化（O44 性能债根治）：行容器 absolute 定位到 virtualRow.start，
                  * 行内 4 列网格；measureElement 动态实测行高（按钮行 wrap 会使
                  * 行高不齐）。只渲染可见行 ± overscan。 */
-                <div style={{ position: 'relative', width: '100%', height: cardRows.length * CARD_ROW_HEIGHT_PX }}>
-                  {cardRows.slice(firstRow, lastRow).map((row, i) => (
+                <div style={{ position: 'relative', width: '100%', height: rowVirtualizer.getTotalSize() }}>
+                  {rowVirtualizer.getVirtualItems().map(virtualRow => (
                     <div
-                      key={`${firstRow + i}-${row[0]?.id ?? i}`}
+                      key={String(virtualRow.key)}
+                      ref={measureRowRef}
+                      data-index={virtualRow.index}
                       className={css.libraryCardRow}
-                      style={{ transform: `translateY(${(firstRow + i) * CARD_ROW_HEIGHT_PX}px)` }}
+                      style={{ transform: `translateY(${virtualRow.start}px)` }}
                     >
-                      {row.map(item => renderCard(item))}
+                      {cardRows[virtualRow.index]?.map(item => renderCard(item))}
                     </div>
                   ))}
                 </div>
