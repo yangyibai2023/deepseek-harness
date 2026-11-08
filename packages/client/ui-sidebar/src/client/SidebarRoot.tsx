@@ -157,10 +157,12 @@ export function SidebarRoot({
   const openLabHub = (): void => {
     ;(window as unknown as { __hlPendingHub?: string | null }).__hlPendingHub = 'lab'
     setActiveHub('lab')
-    /* O44（2026-11-09 闪屏修复）：不调 selectPanel(null)——先卸面板会露出
-     * 底层首页一帧（用户实测「闪一下首页再进入更多能力」）；hubOverlay
-     * （z40 满幅不透明）直接盖上即可，面板保持在底层不卸载。 */
     window.dispatchEvent(new CustomEvent('hl:open-hub', { detail: { page: 'lab' } }))
+    /* O44（2026-11-09 双高亮修复）：selectPanel(null) 清原生面板行的选中态
+     * （activePanelId 残留会导致「专家·技能·连接」+「更多能力」双高亮），
+     * 放在事件派发**之后**——React 18 同批提交（外部 store 与 state 同帧），
+     * 不产生「先卸面板露首页」的中间帧。 */
+    selectPanel(null)
   }
   const lingerTimer = useRef<number | undefined>(undefined)
   const armLinger = (): void => {
