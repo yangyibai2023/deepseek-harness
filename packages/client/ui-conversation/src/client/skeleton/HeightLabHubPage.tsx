@@ -617,8 +617,14 @@ const DOCS_CARDS: ReadonlyArray<{ key: string; name: string; desc: string; svg: 
   { key: 'docs-ppt', name: '演示文稿 PPT', desc: '营销提案与路演 PPT——模板接入中', svg: <ArtDocsPpt />, ids: [] },
 ]
 
-/** 分类卡点击 → 模块链路（moduleId=分类 key，模板集=组内全部模板）。 */
-const openCreationModule = (card: { key: string; name: string; desc: string; svg: ReactNode; ids: readonly string[] }): void => {
+/* O44 交互重构（2026-11-08 用户拍板）：点分类卡 → **不切会话**，右栏换该
+ * 分类模板网格（浏览态）；真正点右栏模板 → hl:start-module 开创作会话
+ * （直达模板工作台）+ 关创作中心。浏览态不写 hl-console-mode（不标记
+ * 会话），sessionStorage 不落盘（切走即失，会话语义纯净）。 */
+const browseCreationCategory = (tab: 'image' | 'copy' | 'docs', card: { key: string; name: string; desc: string; svg: ReactNode; ids: readonly string[] }): void => {
+  const names: Record<'image' | 'copy' | 'docs', string> = {
+    image: '图片创作', copy: '文案创作', docs: 'PPT 创作模板',
+  }
   const templates = card.ids
     .map(id => VIDEO_CATALOG.find(item => item.id === id))
     .filter((item): item is (typeof VIDEO_CATALOG)[number] => item !== undefined)
@@ -628,10 +634,10 @@ const openCreationModule = (card: { key: string; name: string; desc: string; svg
       ...(item.coverFallback !== undefined ? { coverFallback: item.coverFallback } : {}),
       skill: item.skill,
     }))
-  window.dispatchEvent(new CustomEvent('hl:start-module', {
-    detail: { moduleId: card.key, name: card.name, desc: card.desc, icon: '', templates },
+  window.dispatchEvent(new CustomEvent('hl:open-console'))
+  window.dispatchEvent(new CustomEvent('hl:open-module-console', {
+    detail: { moduleId: card.key, name: names[tab], desc: card.desc, icon: '', templates },
   }))
-  window.dispatchEvent(new CustomEvent('hl:close-hub'))
 }
 
 const creationTabsStyle: CSSProperties = {
@@ -788,7 +794,7 @@ export function HeightLabHubPage({ page, onClose }: { page: HubPage; onClose: ()
                   type="button"
                   className={css.studioCard}
                   style={studioCardStyle}
-                  onClick={() => openCreationModule(card)}
+                  onClick={() => browseCreationCategory('image', card)}
                 >
                   <span style={studioIconWrapStyle} aria-hidden="true">{card.svg}</span>
                   <span style={studioTextStyle}>
@@ -806,7 +812,7 @@ export function HeightLabHubPage({ page, onClose }: { page: HubPage; onClose: ()
                   type="button"
                   className={css.studioCard}
                   style={studioCardStyle}
-                  onClick={() => openCreationModule(card)}
+                  onClick={() => browseCreationCategory('copy', card)}
                 >
                   <span style={studioIconWrapStyle} aria-hidden="true">{card.svg}</span>
                   <span style={studioTextStyle}>
@@ -824,7 +830,7 @@ export function HeightLabHubPage({ page, onClose }: { page: HubPage; onClose: ()
                   type="button"
                   className={css.studioCard}
                   style={studioCardStyle}
-                  onClick={() => openCreationModule(card)}
+                  onClick={() => browseCreationCategory('docs', card)}
                 >
                   <span style={studioIconWrapStyle} aria-hidden="true">{card.svg}</span>
                   <span style={studioTextStyle}>
@@ -864,10 +870,12 @@ export function HeightLabHubPage({ page, onClose }: { page: HubPage; onClose: ()
                               ...(item.coverFallback !== undefined ? { coverFallback: item.coverFallback } : {}),
                               skill: item.skill,
                             }))
-                          window.dispatchEvent(new CustomEvent('hl:start-module', {
+                          /* O44 交互重构：模块卡点击=浏览态（右栏换网格，
+                           * 不切会话不关创作中心）；点右栏模板才开创作会话。 */
+                          window.dispatchEvent(new CustomEvent('hl:open-console'))
+                          window.dispatchEvent(new CustomEvent('hl:open-module-console', {
                             detail: { moduleId: card.moduleId, name: card.name, desc: card.desc, icon: '', templates },
                           }))
-                          window.dispatchEvent(new CustomEvent('hl:close-hub'))
                         }}
                       >
                         <span style={studioIconWrapStyle} aria-hidden="true">{card.svg}</span>

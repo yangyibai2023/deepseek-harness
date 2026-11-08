@@ -174,10 +174,10 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
       if (detail === null || typeof detail.moduleId !== 'string' || detail.moduleId === '') return
       setModuleConsole(detail)
       setTemplateSchema(null)
-      try {
-        sessionStorage.setItem('hl-module-console', JSON.stringify(detail))
-        sessionStorage.removeItem('hl-template-console')
-      } catch { /* 非致命 */ }
+      /* O44 交互重构（2026-11-08）：事件双语义——①创作进入时（ui-workspace
+       * beforeOpen 已落盘）恢复模块态；②创作中心**浏览态**（分类卡点击，
+       * 不切会话）切换右栏网格——此时**不落盘**（浏览态易失，切走即失；
+       * 创作会话的落盘由 ui-workspace beforeOpen 负责）。 */
     }
     /* 显式进入爆款复刻（hl:mode-change replication）时收掉模块/模板模式——
      * ConsoleBody 跨会话不重挂，不收会残留上一个流程的面板。
@@ -787,7 +787,21 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
               {moduleConsole.templates.map(t => (
                 <button key={t.id} type="button" className={css.moduleCard} title={t.tagline}
                   onClick={() => {
-                    window.dispatchEvent(new CustomEvent('hl:open-template-console', { detail: { id: t.id, template: t.name, skill: t.skill } }))
+                    /* O44 交互重构（用户拍板「点模板才变聊天框」）：点模板 =
+                     * 开创作会话（hl:start-module 带 template 直达模板工作台）
+                     * + 关创作中心。moduleConsole 为浏览态当前分类（模板集=
+                     * 返回钮的全量网格来源）。 */
+                    window.dispatchEvent(new CustomEvent('hl:start-module', {
+                      detail: {
+                        moduleId: moduleConsole?.moduleId ?? '',
+                        name: moduleConsole?.name ?? '',
+                        desc: moduleConsole?.desc ?? '',
+                        icon: '',
+                        templates: moduleConsole?.templates ?? [],
+                        template: { id: t.id, name: t.name, skill: t.skill },
+                      },
+                    }))
+                    window.dispatchEvent(new CustomEvent('hl:close-hub'))
                   }}
                 >
                   <img
