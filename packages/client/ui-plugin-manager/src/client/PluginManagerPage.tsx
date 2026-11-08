@@ -1475,7 +1475,7 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
   /* O44（2026-11-08 用户拍板）：三分页「智能体 | 技能 | 插件」（顺序=用户
    * 指定），智能体页签=内置能力配置卡组（子智能体/Agent 循环/终端/网页
    * 搜索——即设置页「内置插件配置」同源内容，至此挪入本页）。 */
-  const [pageTab, setPageTab] = useState<'agents' | 'plugins' | 'skills' | 'market'>('plugins')
+  const [pageTab, setPageTab] = useState<'agents' | 'skills' | 'connections'>('agents')
   useEffect(() => { ensure() }, [ensure])
   // Installation highlights visible cards without changing the user's current page.
   const { highlight, clearHighlight } = { highlight: state.highlight, clearHighlight: props.clearHighlight }
@@ -1584,14 +1584,15 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
     <section className={css.page} data-plugin-panel aria-busy={state.status === 'loading' || refreshing}>
       {/* HeightLab（2026-10-17）：插件·技能合并页顶部标签。技能标签渲染
           plugins.page.skills 槽位 occupant（ui-conversation 的技能中心整页）。 */}
+      {/* O44（2026-11-09 用户拍板）：页签顺序=专家|技能|连接（一级同名）。 */}
       <div className={css.pageTabs} role="tablist" aria-label={t('title')}>
         <button
           type="button"
           role="tab"
-          aria-selected={pageTab === 'plugins'}
-          className={clsx(css.pageTab, pageTab === 'plugins' && css.pageTabActive)}
-          onClick={() => { setPageTab('plugins') }}
-        >{t('pageTabPlugins')}</button>
+          aria-selected={pageTab === 'agents'}
+          className={clsx(css.pageTab, pageTab === 'agents' && css.pageTabActive)}
+          onClick={() => { setPageTab('agents') }}
+        >专家</button>
         <button
           type="button"
           role="tab"
@@ -1602,44 +1603,52 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
         <button
           type="button"
           role="tab"
-          aria-selected={pageTab === 'agents'}
-          className={clsx(css.pageTab, pageTab === 'agents' && css.pageTabActive)}
-          onClick={() => { setPageTab('agents') }}
-        >智能体</button>
-        {PLUGIN_INSTALL_UI_ENABLED
-          ? (
-            <button
-              type="button"
-              role="tab"
-              aria-selected={pageTab === 'market'}
-              className={clsx(css.pageTab, pageTab === 'market' && css.pageTabActive)}
-              onClick={() => { setPageTab('market') }}
-            >{t('pageTabMarket')}</button>
-          )
-          : null}
+          aria-selected={pageTab === 'connections'}
+          className={clsx(css.pageTab, pageTab === 'connections' && css.pageTabActive)}
+          onClick={() => { setPageTab('connections') }}
+        >连接</button>
       </div>
-      {PLUGIN_INSTALL_UI_ENABLED && pageTab === 'market'
+      {pageTab === 'connections'
         ? (
-          <div className={css.marketHost} data-dsh-market-host="">
-            {props.marketRender !== undefined
-              ? props.marketRender({})
-              : (
-                <div className={css.marketFallback}>
-                  <p>{t('marketUnavailable')}</p>
-                </div>
-              )}
-          </div>
+          /* 「连接」页签（O44 用户拍板）：外部 MCP 连接能力接入中；当前插件
+           * 市场管理组保留在此（连接=与外部服务/插件生态的连接）。 */
+          <>
+            <div className={css.group} data-plugin-group="mcp">
+              <div className={css.mcpHint}>
+                <p className={css.groupHead}>外部连接（MCP）</p>
+                <p className={css.mcpHintText}>
+                  外部 MCP 连接能力接入中——当前已挂载的 MCP 服务可在
+                  设置 → 插件扩展 → MCP 服务 查看。
+                </p>
+              </div>
+              <div className={css.group} data-plugin-group="market">
+                <p className={css.groupHead}>插件市场管理</p>
+              </div>
+            </div>
+            <div className={css.marketHost} data-dsh-market-host="">
+              {props.marketRender !== undefined
+                ? props.marketRender({})
+                : (
+                  <div className={css.marketFallback}>
+                    <p>{t('marketUnavailable')}</p>
+                  </div>
+                )}
+            </div>
+          </>
         )
         : pageTab === 'skills'
           ? renderSlot('plugins.page.skills', {})
           : pageTab === 'agents'
             ? (
-              /* 智能体页签：内置能力配置卡（子智能体/Agent 循环/终端/网页搜索）
-               * ——与设置页「内置插件配置」同源（ledger.items basicCards），
-               * 彩色渐变图标由 ITEM_ARTWORK 提供。 */
-              <div className={css.group} data-plugin-group="agents">
+              /* 「专家」页签：Agent 管理整卡 + 内置能力配置卡
+               * （子智能体/Agent 循环/终端/网页搜索）——彩色渐变图标由
+               * ITEM_ARTWORK / AgentPresetSection 提供。 */
+              <>
                 {renderSlot('plugins.page.agents', { close: () => {} })}
-              </div>
+                <div className={css.group} data-plugin-group="agents">
+                  {basicCards}
+                </div>
+              </>
             )
             : (
               <>

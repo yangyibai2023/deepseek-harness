@@ -1,3 +1,4 @@
+import { PluginManagementEntry } from './PluginManagementEntry.tsx'
 /**
  * Plugin manager, browser half: the **Plugins** entry of the sidebar and the
  * management page it opens in the main column. The page installs, enables,
@@ -175,6 +176,14 @@ export function apply(ctx: ClientContext): void {
     })
     yield () => { void disposeNavigation() }
   })
+  /* O44（2026-11-09 用户拍板「插件管理挪到设置」）：设置页「插件管理」入口卡。 */
+  ctx.slots.inject('settings.section', () => ctx.slots.register({
+    name: 'settings.section',
+    id: 'plugin-management-entry',
+    order: 22,
+    label: () => '插件管理',
+    inject: () => ({ close: () => {} }),
+  }, PluginManagementEntry))
   ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({
     name: 'sidebar.panellist',
     id: PANEL_ID,

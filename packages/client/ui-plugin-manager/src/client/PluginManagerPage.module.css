@@ -1529,3 +1529,15 @@ label.registryOption {
   color: var(--dsw-alias-label-secondary);
   font-size: 13px;
 }
+
+/* O44（2026-11-09）：「连接」页签的 MCP 接入中提示。 */
+.mcpHint {
+  margin: 0 0 18px;
+}
+
+.mcpHintText {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-secondary);
+}
