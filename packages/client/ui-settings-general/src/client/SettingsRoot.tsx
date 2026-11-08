@@ -173,11 +173,28 @@ export function SettingsRoot(props: SettingsRootComponentProps) {
       .find(session => (session.retainedBy.mainView ?? 0) > 0)
     return state.phase === 'ready' && (main === undefined || main.blank)
   })
+  /* HeightLab 2026-11-09（第三次复发后的结构性兜底）：桌面端**永不自动弹**
+   * onboarding 步骤。
+   *
+   * 这里才是「自动弹出」的真正判定点：它只看 slots 里有没有未完成的 entry，
+   * **完全不读各 step 自己的 automatic 字段**（那字段只控制弹窗组件内部
+   * 要不要自动 load）。所以只要有人注册了 settings.onboarding，空白会话就会
+   * 全屏弹出——API Key 弹窗在 0.4.2 之后反复复现就是这个原因（详见
+   * ui-settings-models/index.ts 的完整根因注释）。
+   *
+   * 本闸门把「显式请求」（requestedOnboarding，如用户自己点「添加自定义模型」）
+   * 与「自动弹出」严格分开：前者保留，后者在桌面壳下一律不触发。桌面壳判定
+   * 用 `__HEIGHTLAB_DESKTOP__`（由 bridge 注入，见 heightlab-host-api），
+   * 不依赖从未存在的 `dshDesktop`。 */
+  const desktopShell = typeof window !== 'undefined'
+    && (window as unknown as { __HEIGHTLAB_DESKTOP__?: unknown }).__HEIGHTLAB_DESKTOP__ !== undefined
   const onboardingStep = requestedOnboarding !== undefined
     ? onboardingSteps.find(step => step.id === requestedOnboarding)
-    : onboardingActive
-      ? onboardingSteps.find(step => !completedOnboarding.has(step.id))
-      : undefined
+    : desktopShell
+      ? undefined
+      : onboardingActive
+        ? onboardingSteps.find(step => !completedOnboarding.has(step.id))
+        : undefined
 
   useEffect(() => {
     if (onboardingActive) return

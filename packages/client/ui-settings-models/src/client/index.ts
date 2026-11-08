@@ -18,8 +18,6 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import { ModelsSection } from './ModelsSection.tsx'
 import type { ModelsSectionInjected } from './ModelsSection.tsx'
-import { DeepSeekOnboardingDialog } from './DeepSeekOnboardingDialog.tsx'
-import type { DeepSeekOnboardingInjected } from './DeepSeekOnboardingDialog.tsx'
 // HeightLab：上游「预览版说明」弹窗不注册（见 apply 内注释）。
 // import { WelcomeNotice } from './WelcomeNotice.tsx'
 // import type { WelcomeNoticeInjected } from './WelcomeNotice.tsx'
@@ -80,7 +78,10 @@ export function apply(ctx: ClientContext): void {
   const page = globalThis as Partial<Record<typeof ONBOARDING_CONFIG_GLOBAL, unknown>>
   const payload = page[ONBOARDING_CONFIG_GLOBAL]
   const configured = Config(payload === undefined ? {} : payload)
+  /* 2026-11-09：本变量只服务于已删除的 onboarding 注册（保留 Config 读取，
+   * 避免 page-bootstrap 契约漂移；下行 `void` 标记其有意保留）。 */
   const credentialOnboarding = configured.credentialOnboarding && !('dshDesktop' in globalThis)
+  void credentialOnboarding
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-settings-models: copy dictionaries')
 
   const schema = createSettingsSchemaOperations(ctx.settingsSchema)
@@ -98,15 +99,9 @@ export function apply(ctx: ClientContext): void {
     schema,
     t,
   })
-  const deepSeekOnboardingInjected = (): DeepSeekOnboardingInjected => ({
-    automatic: credentialOnboarding,
-    track: (name, attributes) => ctx.get('productAnalytics')?.track(name, attributes),
-    controller,
-    hooks: { models: controller.store },
-    operations,
-    schema,
-    t,
-  })
+  /* 2026-11-09：DeepSeekOnboardingDialog 的 inject 闭包随注册一并删除——
+   * 该弹窗不再注册（完整根因见文件末尾注释）。组件文件与 automatic 逻辑保留，
+   * 将来要恢复上游行为时直接解注释即可。 */
   // HeightLab：不注册上游「预览版说明」welcome 弹窗（0.4.1 无此弹窗，
   // 用户已明确反对）；welcome-store/controller 一并弃用。
   ctx.effect(() => {
@@ -134,13 +129,32 @@ export function apply(ctx: ClientContext): void {
       'settings.models.footer': { kind: 'list', scope: 'root' },
     },
   }, ModelsSection))
-  // HeightLab：不注册上游「预览版说明」welcome 弹窗（0.4.1 无此弹窗，
-  // 用户已明确反对；welcome-notice 的 ack 状态不再需要）。
-  ctx.slots.inject('settings.onboarding', () => ctx.slots.register({
-    name: 'settings.onboarding',
-    id: 'deepseek-official',
-    children: { 'settings.models.sign-in': { kind: 'single', scope: 'root' } },
-    order: 0,
-    inject: deepSeekOnboardingInjected,
-  }, DeepSeekOnboardingDialog))
+  /* HeightLab 2026-11-09（用户第三次实测复现「Windows 0.5.6 新装机仍弹 API Key」）：
+   * **彻底不注册 settings.onboarding**。
+   *
+   * 为什么之前两轮修复都无效（本次逐层实锤）：
+   *   ① 0.4.2 起把 `automatic` 接成 `credentialOnboarding`——但
+   *      `SettingsRoot` 的自动弹出判定**根本不读 automatic**：它只看
+   *      `ctx.slots.entries('settings.onboarding')` 是否有未完成的 entry，
+   *      只要注册了、主会话是空白就 `renderSlot` 全屏弹出。automatic 只控制
+   *      **弹窗组件内部**要不要自动 load / 主动 complete。
+   *   ② 唯一防线写成 `!('dshDesktop' in globalThis)`，而全仓**从来没有**
+   *      任何地方定义 `dshDesktop`（本次 grep 全库零写入点）——这个条件恒为
+   *      true，等于没有闸。
+   *   ③ `__DSH_MODELS_ONBOARDING__` 这个 page-bootstrap 全局同样无人写入，
+   *      `Config` 默认 `credentialOnboarding: true`，所以 automatic 恒 true。
+   *   → 新装机首次登录（凭据链未就绪 = credential-missing）必弹；老账号因为
+   *     provider-ready 才「看起来正常」。这就是「修了无数轮还在」的原因。
+   *
+   * 现在直接不注册 entry：没有 entry 就没有 onboarding step，外层自动弹出
+   * 路径从结构上不存在。凭据配置能力不受影响——「设置 → 模型」的
+   * provider 卡片仍是完整的手动配钥匙入口（用户需要时自己去配）。
+   * 恢复上游行为 = 解开本段注释并解决上面的 automatic 语义问题。 */
+  // ctx.slots.inject('settings.onboarding', () => ctx.slots.register({
+  //   name: 'settings.onboarding',
+  //   id: 'deepseek-official',
+  //   children: { 'settings.models.sign-in': { kind: 'single', scope: 'root' } },
+  //   order: 0,
+  //   inject: deepSeekOnboardingInjected,
+  // }, DeepSeekOnboardingDialog))
 }
