@@ -381,6 +381,14 @@ export function SidebarRoot({
                   onClick={() => {
                     // HeightLab 2026-09-19：普通创作入口清除控制台模式标记。
                     window.localStorage.removeItem('hl-console-mode')
+                    // O44（2026-11-08 补）：模块/模板状态也要清——实测只清
+                    // hl-console-mode 时 sessionStorage 残留（hl-module-console /
+                    // hl-template-console），用户之后手动打开创作控制台会恢复成
+                    // 上次的模块/模板面板而非默认控制台。
+                    try {
+                      window.sessionStorage.removeItem('hl-module-console')
+                      window.sessionStorage.removeItem('hl-template-console')
+                    } catch { /* 非致命 */ }
                     window.dispatchEvent(new CustomEvent('hl:mode-change', { detail: { mode: '' } }))
                     setActiveHub(null)
                     selectPanel(null)
