@@ -162,6 +162,9 @@ export function apply(ctx: ClientContext): void {
         // HeightLab O44：Agent 管理整卡（合并页的「智能体」标签；owner 契约
         // 在 slot-contract.ts / ui-conversation contract）。
         'plugins.page.agents': { kind: 'list', scope: 'root' },
+        // HeightLab O44：MCP 服务清单嵌入合并页「连接」页签（list 类 slot，
+        // 注册方 ui-settings-plugin-inventory id='mcp'）。
+        'settings.plugins.tab': { kind: 'list', scope: 'root' },
 
       },
     }, PluginManagerPage)

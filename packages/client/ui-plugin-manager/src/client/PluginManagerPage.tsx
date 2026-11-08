@@ -45,6 +45,7 @@ export type PluginManagerPageProps =
     | 'plugins.detail.actions' | 'plugins.detail.badge' | 'plugins.detail.section'
     | 'plugins.page.skills'
     | 'plugins.page.agents'
+    | 'settings.plugins.tab'
   >
   & InjectFace<PluginManagerFace>
   & PropsStore<ReturnType<typeof createNavigationStore>>
@@ -1610,33 +1611,22 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
       </div>
       {pageTab === 'connections'
         ? (
-          /* 「连接」页签（O44 用户拍板）：外部 MCP 连接能力接入中；当前插件
-           * 市场管理组保留在此（连接=与外部服务/插件生态的连接）。 */
+          /* 「连接」页签（O44 用户拍板 2026-11-09 定稿）：纯 MCP 外部连接——
+           * 上方=已连接的服务，下方=可连接的市场与自定义连接（dsh-mcp-client
+           * 原生支持 stdio/streamable-http，配置即接）。当前阶段 MCP 客户端
+           * 配置界面未建，先以空态说明；原「MCP 只读清单」保留在
+           * 设置 → 插件扩展 → MCP 服务（未删除）；插件市场管理视图已挪至
+           * 设置页「插件管理」入口（PluginManagementEntry），本页不再渲染。 */
           <>
-            <div className={css.group} data-plugin-group="mcp">
-              <div className={css.mcpHint}>
-                <p className={css.groupHead}>外部连接（MCP）</p>
-                <p className={css.mcpHintText}>
-                  外部 MCP 连接能力接入中——当前已挂载的 MCP 服务可在
-                  设置 → 插件扩展 → MCP 服务 查看。
-                </p>
-              </div>
-              <div className={css.group} data-plugin-group="market">
-                <p className={css.groupHead}>插件市场管理</p>
-              </div>
-            </div>
-            <div className={css.marketHost} data-dsh-market-host="">
-              {props.marketRender !== undefined
-                ? props.marketRender({})
-                : (
-                  <div className={css.marketFallback}>
-                    <p>{t('marketUnavailable')}</p>
-                  </div>
-                )}
+            <div className={css.group} data-plugin-group="connections">
+              <p className={css.groupHead}>外部连接（MCP）</p>
+              <p className={css.mcpHintText}>
+                外部 MCP 连接能力接入中——将支持配置账号连接外部数据库、API
+                与各类 MCP 服务（连接后其能力可直接在对话中使用），敬请期待。
+              </p>
             </div>
           </>
-        )
-        : pageTab === 'skills'
+        )        : pageTab === 'skills'
           ? renderSlot('plugins.page.skills', {})
           : pageTab === 'agents'
             ? (
