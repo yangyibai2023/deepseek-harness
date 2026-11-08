@@ -151,7 +151,14 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
         }
       }
       const savedModule = sessionStorage.getItem('hl-module-console')
-      if (savedModule !== null) setModuleConsole(JSON.parse(savedModule) as ModuleConsoleState)
+      /* O44（2026-11-09 修正 v2）：恢复凭据=创作标记（hl-console-mode==='module'）
+       * **或**浏览标记（hl-module-console-browse，分类卡浏览态写入）。二者都
+       * 不满足（普通会话）则不恢复，防浏览态残留污染。 */
+      const restoreModule = localStorage.getItem('hl-console-mode') === 'module'
+        || sessionStorage.getItem('hl-module-console-browse') === '1'
+      if (savedModule !== null && restoreModule) {
+        setModuleConsole(JSON.parse(savedModule) as ModuleConsoleState)
+      }
     } catch { /* 非致命 */ }
     const onOpen = (e: Event): void => {
       const detail = (e as CustomEvent<{ id?: string; template?: string; skill?: string }>).detail ?? {}
@@ -174,10 +181,15 @@ export function ConsoleBody(props: ConsoleBodyProps): ReactNode {
       if (detail === null || typeof detail.moduleId !== 'string' || detail.moduleId === '') return
       setModuleConsole(detail)
       setTemplateSchema(null)
-      /* O44 交互重构（2026-11-08）：事件双语义——①创作进入时（ui-workspace
-       * beforeOpen 已落盘）恢复模块态；②创作中心**浏览态**（分类卡点击，
-       * 不切会话）切换右栏网格——此时**不落盘**（浏览态易失，切走即失；
-       * 创作会话的落盘由 ui-workspace beforeOpen 负责）。 */
+      /* O44 交互重构（2026-11-09 修正）：**必须落盘**——右栏 tab 是异步开启
+       * 的（open-console 轮询），open-module-console 派发时新挂载的
+       * ConsoleBody 尚未存在，其挂载恢复依赖此处写入的 hl-module-console。
+       * 不落盘会导致浏览态网格丢失（回落默认控制台，用户实测复现）。
+       * 普通会话的残留由挂载恢复条件（hl-console-mode==='module'）把关。 */
+      try {
+        sessionStorage.setItem('hl-module-console', JSON.stringify(detail))
+        sessionStorage.removeItem('hl-template-console')
+      } catch { /* 非致命 */ }
     }
     /* 显式进入爆款复刻（hl:mode-change replication）时收掉模块/模板模式——
      * ConsoleBody 跨会话不重挂，不收会残留上一个流程的面板。

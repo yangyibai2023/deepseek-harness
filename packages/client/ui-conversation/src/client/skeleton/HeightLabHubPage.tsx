@@ -634,6 +634,15 @@ const browseCreationCategory = (tab: 'image' | 'copy' | 'docs', card: { key: str
       ...(item.coverFallback !== undefined ? { coverFallback: item.coverFallback } : {}),
       skill: item.skill,
     }))
+  /* 浏览态落盘（分类卡点击时 ConsoleBody 可能未挂载——open-module-console
+   * 事件无监听者会丢模块态；此处直接写 storage，挂载恢复凭 browse flag
+   * + module-console 双凭据恢复）。hl-console-mode 不写（浏览态不标记会话）。 */
+  try {
+    sessionStorage.setItem('hl-module-console', JSON.stringify({
+      moduleId: card.key, name: names[tab], desc: card.desc, icon: '', templates,
+    }))
+    sessionStorage.setItem('hl-module-console-browse', '1')
+  } catch { /* 非致命 */ }
   window.dispatchEvent(new CustomEvent('hl:open-console'))
   window.dispatchEvent(new CustomEvent('hl:open-module-console', {
     detail: { moduleId: card.key, name: names[tab], desc: card.desc, icon: '', templates },
