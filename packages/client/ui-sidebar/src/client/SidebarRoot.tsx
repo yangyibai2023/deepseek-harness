@@ -157,7 +157,9 @@ export function SidebarRoot({
   const openLabHub = (): void => {
     ;(window as unknown as { __hlPendingHub?: string | null }).__hlPendingHub = 'lab'
     setActiveHub('lab')
-    selectPanel(null)
+    /* O44（2026-11-09 闪屏修复）：不调 selectPanel(null)——先卸面板会露出
+     * 底层首页一帧（用户实测「闪一下首页再进入更多能力」）；hubOverlay
+     * （z40 满幅不透明）直接盖上即可，面板保持在底层不卸载。 */
     window.dispatchEvent(new CustomEvent('hl:open-hub', { detail: { page: 'lab' } }))
   }
   const lingerTimer = useRef<number | undefined>(undefined)
