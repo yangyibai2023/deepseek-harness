@@ -84,7 +84,18 @@ export function ConversationRoot(props: ConversationRootProps) {
   const phase = settling ? 'settling' : hero ? 'hero' : 'active'
 
   // HeightLab：创意灵感 / 资料库覆盖层页状态（null = 显示聊天）。
-  const [hub, setHub] = useState<HubPage | null>(null)
+  // 2026-11-09（用户实测「从专家·技能·连接点任一 hub 行先闪一下主页」）：
+  // 原生面板激活时本组件**尚未挂载**——SidebarRoot 的 selectPanel(null) 让
+  // 会话视图挂载，旧实现首帧渲染主页、effect 再消费 pending 才 setHub，
+  // 中间那一帧就是闪屏。现在初始化器直接消费 __hlPendingHub，**首帧即 hub**。
+  // 只读不清标记（StrictMode 双调初始化器两次读到同值，确定性不变），
+  // 清理仍由下方 effect 的 pending 分支完成。白名单与 onOpen 保持一致。
+  const [hub, setHub] = useState<HubPage | null>(() => {
+    const pending = (window as unknown as { __hlPendingHub?: HubPage | null }).__hlPendingHub
+    return pending === 'inspiration' || pending === 'library' || pending === 'video-studio'
+      || pending === 'skill-hub' || pending === 'film-studio' || pending === 'lab'
+      ? pending : null
+  })
   const hubRef = useRef(hub)
   hubRef.current = hub
 

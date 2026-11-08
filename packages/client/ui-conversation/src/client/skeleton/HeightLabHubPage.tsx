@@ -662,12 +662,12 @@ const creationTabsStyle: CSSProperties = {
 
 /* O44：'automation'（死值）与 'skill-hub'（ConversationRoot 在到达本组件前
  * 就分流到 HeightLabSkillHub，永远渲染不到）两个键删除；video-studio 页即
- * 「创作中心」四分页容器；library 一级名改「资料与知识」。 */
+ * 「创作中心」四分页容器；library 一级名 2026-11-09 用户拍板改「资产空间」。 */
 const PAGE_TITLES: Partial<Record<HubPage, string>> = {
   'film-studio': '智能剪辑台',
   inspiration: '创意灵感',
   lab: '更多能力',
-  library: '资料与知识',
+  library: '资产空间',
   'video-studio': '创作中心',
 }
 

@@ -15,7 +15,8 @@ import { HeightLabKnowledgePanel } from './HeightLabKnowledgePanel.tsx'
 import { HeightLabMaterialPanel } from './HeightLabMaterialPanel.tsx'
 
 /* 2026-11-08 用户拍板：素材放左侧且为默认页（知识库退居第二标签）；同日
- * 一级名「资产中心」→「资料与知识」，tab「素材管理」简化为「素材」呼应。
+ * 一级名「资产中心」→「资料与知识」→ 2026-11-09 用户拍板改「资产空间」，
+ * tab「素材管理」简化为「素材」呼应。
  * 顺序即视觉顺序，默认值必须同步改。 */
 const LIBRARY_TABS = ['素材', '知识库'] as const
 type LibraryTab = typeof LIBRARY_TABS[number]

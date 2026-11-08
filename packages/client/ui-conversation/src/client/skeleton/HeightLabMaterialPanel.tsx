@@ -71,6 +71,27 @@ export function HeightLabMaterialPanel() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  /* 2026-11-09（用户拍板）：下载完成弹窗——「已下载，点击查看」，点击打开
+   * 所在文件夹（Finder 揭示已下载副本）。样式对齐主页通知弹窗的原生卡片
+   * 语言（白底/描边/圆角/阴影，黑白灰）。一次一张（新下载覆盖旧弹窗）。 */
+  const [downloadToast, setDownloadToast] = useState<{ id: string; filename: string } | null>(null)
+  const downloadToastTimer = useRef<number | undefined>(undefined)
+  const showDownloadToast = (id: string, filename: string): void => {
+    setDownloadToast({ id, filename })
+    if (downloadToastTimer.current !== undefined) window.clearTimeout(downloadToastTimer.current)
+    downloadToastTimer.current = window.setTimeout(() => { setDownloadToast(null) }, 8_000)
+  }
+  const revealDownloaded = async (id: string): Promise<void> => {
+    try {
+      await fetch('/hl/assets/reveal', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id }),
+      })
+    } catch { /* 揭示失败静默：文件可能被手动删了 */ }
+    if (downloadToastTimer.current !== undefined) window.clearTimeout(downloadToastTimer.current)
+    setDownloadToast(null)
+  }
 
   const refresh = async (): Promise<void> => {
     try {
@@ -245,10 +266,26 @@ export function HeightLabMaterialPanel() {
   }
 
   const downloadItem = async (item: ArtifactItem): Promise<void> => {
+    /* 2026-11-09（用户拍板）：下载改走宿主端点——素材本体就在主机磁盘，
+     * 宿主把源文件拷到 ~/Downloads（确定性位置）并回填弹窗；旧浏览器 blob
+     * 下载降级保留（宿主端点缺失的旧 runtime 时兜底）。 */
     try {
-      const res = await fetch(`/ext/artifacts/${item.id}/file`)
-      if (!res.ok) throw new Error('下载失败')
-      const blob = await res.blob()
+      const res = await fetch('/hl/assets/download', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id: item.id }),
+      })
+      if (res.ok) {
+        const data = await res.json() as { ok?: boolean; filename?: unknown }
+        if (data.ok === true) {
+          showDownloadToast(item.id, typeof data.filename === 'string' && data.filename !== '' ? data.filename : (item.filename || item.title || '已下载'))
+          return
+        }
+      }
+      // 端点不可用（旧 runtime）：回退浏览器下载。
+      const fileRes = await fetch(`/ext/artifacts/${item.id}/file`)
+      if (!fileRes.ok) throw new Error('下载失败')
+      const blob = await fileRes.blob()
       const url = URL.createObjectURL(blob)
       const anchor = document.createElement('a')
       anchor.href = url
@@ -278,9 +315,16 @@ export function HeightLabMaterialPanel() {
 
   const showTrash = category === '回收站'
 
-  /* 卡片渲染（虚拟/非虚拟两分支共用；actionButtons 是本组件闭包）。 */
+  /* 卡片渲染（虚拟/非虚拟两分支共用；actionButtons 是本组件闭包）。
+   * 2026-11-09（用户拍板）：点卡片任意处即「查看」（原查看钮删除腾位），
+   * 操作按钮行 stopPropagation 不触发查看。 */
   const renderCard = (item: (typeof filtered)[number]): ReactNode => (
-    <div key={item.id} className={css.libraryCard}>
+    <div
+      key={item.id}
+      className={css.libraryCard}
+      style={{ cursor: 'pointer' }}
+      onClick={() => setViewItem(item)}
+    >
       <div className={css.libraryCardThumb}>
         {/* 2026-10-20 用户要求：图片和视频都要有缩略图，不要一片空白。
           · 图片：直接 <img>
@@ -364,7 +408,12 @@ export function HeightLabMaterialPanel() {
   }
 
   const actionButtons = (item: ArtifactItem) => (
-    <span style={{ display: 'flex', gap: 4, flexShrink: 0, paddingLeft: 8, flexWrap: 'wrap' }}>
+    /* 2026-11-09：查看钮删除（点卡即看）；行内按钮 stopPropagation 防
+     * 冒泡触发卡片/行的查看。少一个按钮后四列网格不再把「删除」挤出卡外。 */
+    <span
+      style={{ display: 'flex', gap: 4, flexShrink: 0, paddingLeft: 8, flexWrap: 'wrap' }}
+      onClick={(event) => { event.stopPropagation() }}
+    >
       {showTrash ? (
         <>
           <button
@@ -386,14 +435,6 @@ export function HeightLabMaterialPanel() {
         </>
       ) : (
         <>
-          <button
-            type="button"
-            className={css.libraryActionButton}
-            onClick={() => setViewItem(item)}
-            style={{ height: 22, padding: '0 5px', fontSize: 11 }}
-          >
-            查看
-          </button>
           <button
             type="button"
             className={css.libraryActionButton}
@@ -538,7 +579,12 @@ export function HeightLabMaterialPanel() {
               )
             ) : (
               filtered.map(item => (
-                <div key={item.id} className={css.libraryDocRow}>
+                <div
+                  key={item.id}
+                  className={css.libraryDocRow}
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => setViewItem(item)}
+                >
                   <span style={{ flex: 1, minWidth: 0 }}>
                     <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {item.title || item.filename}
@@ -558,6 +604,46 @@ export function HeightLabMaterialPanel() {
 
       {viewItem !== null && (
         <MaterialViewDialog item={viewItem} onClose={() => setViewItem(null)} />
+      )}
+      {downloadToast !== null && (
+        /* 下载完成弹窗（用户拍板「已下载，点击查看」）：原生通知卡片语言，
+         * 右下角浮动，点击任意处 Finder 揭示已下载副本所在文件夹。 */
+        <div
+          role="status"
+          onClick={() => { void revealDownloaded(downloadToast.id) }}
+          style={{
+            position: 'fixed',
+            right: 24,
+            bottom: 24,
+            zIndex: 1000,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 4,
+            padding: '12px 16px',
+            minWidth: 240,
+            maxWidth: 340,
+            background: 'var(--dsw-alias-bg-base, #fff)',
+            border: '1px solid var(--dsw-alias-border-l2, #e5e5e5)',
+            borderRadius: 12,
+            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.14)',
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+          }}
+        >
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 500, color: 'var(--dsw-alias-label-primary)' }}>
+            <span aria-hidden="true" style={{
+              width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+              background: 'var(--dsw-alias-success, #10a37f)',
+            }} />
+            已下载
+          </span>
+          <span style={{ fontSize: 12, color: 'var(--dsw-alias-label-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {downloadToast.filename}
+          </span>
+          <span style={{ fontSize: 12, color: 'var(--dsw-alias-label-secondary)', marginTop: 2 }}>
+            点击查看（打开所在文件夹）
+          </span>
+        </div>
       )}
       {editItem !== null && (
         <MaterialEditDialog

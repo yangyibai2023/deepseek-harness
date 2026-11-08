@@ -342,12 +342,13 @@ export function SidebarRoot({
           const hubRows: readonly { key: string; label: string; Icon: typeof IconPlanOutlineRegular; page: string }[] = [
             /* O44（2026-11-08 用户拍板侧栏 7→5）：「视频创作」→「创作中心」
              *（文案/图片/视频/文档四分页容器；key 不动零风险）；「资产中心」
-             * →「资料与知识」（素材=资料、知识库=知识，呼应内部两个 tab）。 */
+             * →「资料与知识」→ 2026-11-09 用户拍板再改「资产空间」（key
+             * 'library' 不动零风险；素材+知识库都在这一个空间里）。 */
             { key: 'video-studio', label: '创作中心', Icon: IconPlanOutlineRegular, page: 'video-studio' },
             // N18（2026-11-07 用户拍板）：剪辑台一级入口隐藏，收纳进「实验室」Dock
             //（不删除；回滚开关 = localStorage SHOW_FILM_STUDIO_ROW=1 恢复本行）。
             ...(showFilmStudioRow ? [{ key: 'film-studio', label: '智能剪辑台', Icon: IconBrowseOutlineRegular, page: 'film-studio' }] : []),
-            { key: 'library', label: '资料与知识', Icon: IconWorkspaceTreeOutlineRegular, page: 'library' },
+            { key: 'library', label: '资产空间', Icon: IconWorkspaceTreeOutlineRegular, page: 'library' },
           ]
           return (
             <>
