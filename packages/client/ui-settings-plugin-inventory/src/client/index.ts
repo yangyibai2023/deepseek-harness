@@ -10,9 +10,15 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-agent-preset/client'
 // Inline-safe shared fold: shipped ids map to dictionary keys in one home.
 import { presetDisplayText } from '@deepseek-ai/dsh-agent-preset-registry/display'
-import type { AgentPresetPluginGroup } from '@deepseek-ai/dsh-host-plugin-inventory/types'
 import { PluginInventorySettingsTab, type PluginInventorySettingsTabInjected } from './PluginInventorySettingsTab.tsx'
-import { en, mcpEn, mcpZh, zh, type MCPInventoryLocaleKey, type PluginInventoryLocaleKey } from './locales.ts'
+import { en, zh, type PluginInventoryLocaleKey } from './locales.ts'
+// HeightLab（2026-11-10）：预装隐藏策略 + MCP 服务标签页整体抽离到独立文件，
+// 本文件只保留接线（见该文件头注释：降低 vendor 渗透 = 上游升级零冲突）。
+import {
+  makeInventoryLists,
+  registerHeightLabMcpTab,
+  type MCPInventoryLocaleKey,
+} from './HeightLabPluginInventoryPolicy.ts'
 
 export type { PluginInventorySettingsTabInjected, PluginInventorySettingsTabProps } from './PluginInventorySettingsTab.tsx'
 export type { PluginInventoryLocaleKey } from './locales.ts'
@@ -28,102 +34,6 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 
 /** Dictionary namespace owned by this plugin. */
 export const NS = 'settings.pluginInventory'
-/** MCP 服务标签页 dictionary namespace. */
-const MCP_NS = 'settings.pluginInventoryMCP'
-
-/** MCP 客户端插件的 Loader 模块标识。 */
-const MCP_CLIENT_MODULE = '@deepseek-ai/dsh-mcp-client'
-
-/** 我们内置的 MCP 客户端条目 id（运行时可能带 include: 前缀）。 */
-const SHIPPED_MCP_IDS: ReadonlySet<string> = new Set(['mcp-heightlab-tools'])
-
-/** 是否为系统内置的 MCP 客户端行。 */
-function isShippedMcpEntry(entry: { entryId: string; moduleName: string }): boolean {
-  if (entry.moduleName !== MCP_CLIENT_MODULE) return false
-  const shortId = entry.entryId.split(':').pop() ?? entry.entryId
-  return SHIPPED_MCP_IDS.has(shortId)
-}
-
-/**
- * HeightLab 技能白名单策略：
- * 列表默认全部隐藏（DSH 官方、HeightLab 自研、预装社区插件一律不显示），
- * 只显示用户自己后来安装的插件（白名单之外安装的 skill）。
- * 以后我们新增/更新任何预装插件，必须把它的 entryId 或模块名前缀加入下面的
- * 隐藏名单，否则会出现在用户列表里。
- *
- * ⚠️ 2026-10-21 实测漏出 4 条（用户截图确认）：video-downloader / 插件市场 /
- * ds-bot / ds-bot/web-search。它们都是我们**随包预装**的社区插件，属「预装
- * 一律隐藏」。漏的原因是新装插件只加了模块名、没加 entryId，而 entryId 与
- * 模块名不一定同名（market 的 entryId 是 `dsh-market`、模块名是 `dshmarket`；
- * ds-bot 的 web search 行模块名是 `ds-bot/web-search`）。因此下面同时按
- * **entryId** 与**模块名**收录，并在 isUserInstalled 里加 scope 前缀兜底。
- */
-const HEIGHTLAB_ENTRY_IDS: ReadonlySet<string> = new Set([
-  'heightlab-brand',
-  'heightlab-host-api',
-  'heightlab-tool-scope',
-  'heightlab-dispatch',
-  'mcp-heightlab-tools',
-  'dsh-automation',
-  'knowledge',
-  'tool-knowledge',
-  'ui-knowledge',
-  'artifact-library',
-  'include',
-  // 社区预装（better-sidebar / genui / modlens）按 id 兜底隐藏。
-  'better-sidebar',
-  'genui',
-  'modlens',
-  // 2026-10-21 补：预装但此前漏出的四条。
-  'video-downloader',
-  'dsh-market',
-  'bot',
-  'web-search-auto',
-])
-
-/**
- * 预装社区插件的**模块名前缀**。
- * 与 entryId 名单互补：entryId 会随上游改名，模块名 scope 更稳。
- * 判据是「我们随包预装了它」——用户自己装的同 scope 包目前不存在，
- * 若将来出现，应改为白名单而不是放宽这里。
- */
-const SHIPPED_MODULE_PREFIXES: ReadonlyArray<string> = [
-  '@omdsh-dev/',
-  '@changfenhuang/',
-  '@liustack/',
-  '@dsh-external/',
-  '@heightlab/',
-  'dsh-knowledge',
-  'dsh-better-sidebar',
-  'dshmarket',
-  'ds-bot',
-  'dsh-video-downloader',
-]
-
-/** Whether one Loader entry is user-installed (visible in the list). */
-function isUserInstalled(entry: { entryId: string; moduleName: string }): boolean {
-  // Loader id 可能带 'include:' 等前缀，短 id 与全 id 都比对。
-  const shortId = entry.entryId.split(':').pop() ?? entry.entryId
-  if (HEIGHTLAB_ENTRY_IDS.has(shortId) || HEIGHTLAB_ENTRY_IDS.has(entry.entryId)) return false
-  // 2026-10-21 补：`heightlab-*` 的 entryId 有十几个（film / canvas-tools /
-  // enterprise / team-welcome / local-guard / customization-guard / …），
-  // 逐个列名单必然漏（实测 heightlab-film 就会漏出）。前缀判据一次覆盖。
-  if (shortId.startsWith('heightlab')) return false
-  const name = entry.moduleName
-  // 用户自装的 MCP 客户端行（module 也是 @deepseek-ai/dsh-mcp-client）只要
-  // 不是内置的 heightlab-tools，就算用户自装，两个标签页都会显示并可管理。
-  if (name === MCP_CLIENT_MODULE) return !isShippedMcpEntry(entry)
-  // 预装社区插件的模块名前缀（scope 与包名两类）——比 entryId 更稳，
-  // 上游改 id 也不会漏（2026-10-21 漏出四条后补）。
-  for (const prefix of SHIPPED_MODULE_PREFIXES) {
-    if (name.startsWith(prefix)) return false
-  }
-  if (name.includes('heightlab')) return false
-  if (name.startsWith('@deepseek-ai/')) return false
-  if (name.startsWith('cordis-plugin-') || name === 'cordis') return false
-  if (name.startsWith('cordis:')) return false
-  return true
-}
 
 /** Services required by the Settings registration and generated Remote face. */
 export const inject = ['slots', 'locale', 'remote', 'remote.pluginInventory', 'modules']
@@ -131,80 +41,18 @@ export const inject = ['slots', 'locale', 'remote', 'remote.pluginInventory', 'm
 /** Contribute the lazy inventory tab to the Plugins settings section. */
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-settings-plugin-inventory: dictionaries')
-  ctx.effect(() => ctx.locale.register(MCP_NS, { zh: mcpZh, en: mcpEn }), 'ui-settings-plugin-inventory: mcp dictionaries')
 
   const t = ctx.locale.bind(NS)
-  const tMCP = ctx.locale.bind(MCP_NS)
-  /**
-   * HeightLab：除 Loader `entries` 外，还要过滤 DSH 0.1.5 **新增**的
-   * `agentPresets`（界面上的「会话插件」列表）。
-   *
-   * 0.3.30 的快照只有 `entries`，我们的 isUserInstalled 只作用于它；
-   * 0.1.5 新增 agentPresets（按 Agent 预设组成的内部工具行，如 persona /
-   * tool-bash / tool-fs …），客户端原样渲染 → 商业版里冒出 28 个内部工具，
-   * 违背「预装一律隐藏、只显示用户自装」的产品设定。
-   * 该列表按组带 `trust: 'system' | 'user'`，只保留用户自建的组。
-   */
-  // HeightLab（2026-09-16）：我们预装的 6 个专家预设也以 user-trust 落地
-  // （.agent-presets 下发），其内部工具行（persona/tool-bash/…）同属
-  // 「预装一律隐藏」——trust 过滤之外再按预装 id 排除。
-  const SHIPPED_PRESET_IDS: ReadonlySet<string> = new Set([
-    'content-creator', 'image-generator', 'research-analyst',
-    'video-producer', 'general-assistant', 'automation-worker',
-    // 2026-10-16 补：上游 shipped 预设（standard=Colin Commander /
-    // minimal / ptc）的组合行同样属「预装一律隐藏」——此前漏 standard，
-    // Colin Commander 默认组合的 28 个内部工具行全部漏出（用户实测）。
-    'standard', 'minimal', 'ptc',
-    // 创造模式预设（Creator mode，colin 自定义链）组合行同属预装隐藏。
-    'cordis',
-  ])
-  // 2026-10-14 0.2.1 适配：wire 的组类型不再携带 trust；「预装一律隐藏」
-  // 以预装 id 集合判定——用户自建预设的 id 不在集合内，天然保留。
-  const keepUserPresetGroups = (
-    groups: readonly AgentPresetPluginGroup[] | undefined,
-  ): readonly AgentPresetPluginGroup[] | undefined =>
-    groups?.filter(group => !SHIPPED_PRESET_IDS.has(group.id))
-  const list: PluginInventorySettingsTabInjected['list'] = async () => {
-    const result = await ctx.remote.pluginInventory.list()
-    if (!result.ok) {
-      throw new Error(`pluginInventory.list failed: ${result.error.code}: ${result.error.message}`)
-    }
-    const agentPresets = keepUserPresetGroups(result.value.agentPresets)
-    return {
-      ...result.value,
-      ...(agentPresets === undefined ? {} : { agentPresets }),
-      entries: result.value.entries.filter(isUserInstalled),
-    }
-  }
-  const mcpList: PluginInventorySettingsTabInjected['list'] = async () => {
-    const result = await ctx.remote.pluginInventory.list()
-    if (!result.ok) {
-      throw new Error(`pluginInventory.list failed: ${result.error.code}: ${result.error.message}`)
-    }
-    return {
-      ...result.value,
-      // MCP 标签页只显示用户自装的 MCP（系统内置的 heightlab-tools 隐藏）。
-      // 会话插件组（agentPresets）整体不进 MCP 标签页——2026-09-16 用户实测
-      // 漏出 Colin 指挥官（默认）·28 个内部工具行，即此处漏过滤所致。
-      agentPresets: [],
-      entries: result.value.entries.filter(entry => entry.moduleName === MCP_CLIENT_MODULE && isUserInstalled(entry)),
-    }
-  }
+  /* HeightLab（2026-11-10 抽离）：list 实现（预装隐藏过滤 + 会话插件组过滤）
+   * 迁至 HeightLabPluginInventoryPolicy.ts，本行只是接线。 */
+  const { list, mcpList } = makeInventoryLists(ctx)
   // Resolved per call over ui-agent-preset's dictionaries, so a language
   // switch re-resolves shipped names; user-authored metadata passes through.
   const agentPresetCopy = ctx.locale.bind('settings.agentPreset')
   const presetName: PluginInventorySettingsTabInjected['presetName'] = preset =>
     presetDisplayText(preset, agentPresetCopy).name
   const injected = (): PluginInventorySettingsTabInjected => ({
-    list,
-    presetName,
-    resolveText: text => ctx.locale.resolveText(text),
-    hooks: { clientSync: ctx.modules.entries.state },
-    retryClient: () => { void ctx.modules.entries.retry().catch((error: unknown) => { ctx.logger.error(error) }) },
-  })
-  const mcpInjected = (): PluginInventorySettingsTabInjected => ({
-    list: mcpList,
-    presetName,
+    list, presetName,
     resolveText: text => ctx.locale.resolveText(text),
     hooks: { clientSync: ctx.modules.entries.state },
     retryClient: () => { void ctx.modules.entries.retry().catch((error: unknown) => { ctx.logger.error(error) }) },
@@ -219,14 +67,7 @@ export function apply(ctx: ClientContext): void {
     inject: injected,
   }, PluginInventorySettingsTab))
 
-  // HeightLab：插件扩展页新增「MCP 服务」标签页（只读查看 Loader 中挂载的
-  // MCP 客户端条目；点击卡片可展开查看标识与状态）。
-  ctx.slots.inject('settings.plugins.tab', () => ctx.slots.register({
-    name: 'settings.plugins.tab',
-    id: 'mcp',
-    order: 20,
-    label: () => tMCP('tab'),
-    locale: NS,
-    inject: mcpInjected,
-  }, PluginInventorySettingsTab))
+  /* HeightLab（2026-11-10 抽离）：MCP 服务标签页注册迁至同一策略文件，
+   * 本行只是接线。 */
+  registerHeightLabMcpTab(ctx, { NS, presetName, mcpList })
 }
