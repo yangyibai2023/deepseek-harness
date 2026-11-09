@@ -664,7 +664,7 @@ export function HeightLabMaterialPanel() {
             <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 500, color: 'var(--dsw-alias-label-primary)' }}>
               <span aria-hidden="true" style={{
                 width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
-                background: 'var(--dsw-alias-success, #10a37f)',
+                background: 'var(--dsw-alias-state-success-primary, #10a37f)',
               }} />
               已下载
             </span>
