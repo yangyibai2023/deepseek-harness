@@ -33,7 +33,7 @@ export function owningGroupKey(
 
 /** Pending interaction kinds with dedicated Workspace-row presentation. */
 export type SessionPendingInteractionStatus = 'approval' | 'plan-review' | 'question'
-type SessionStatuses = SessionStatusSnapshot
+export type SessionStatuses = SessionStatusSnapshot
 
 function mainSessionId(list: SessionListState): SessionId | undefined {
   return Object.values(list.byId)
@@ -394,7 +394,7 @@ function runningChildCount(list: SessionListState, parentId: SessionId, statuses
   ) ?? 0
 }
 
-function sessionNode(
+export function sessionNode(
   s: SessionSummary,
   list: SessionListState,
   statuses: SessionStatuses,

@@ -22,7 +22,7 @@ import {
   IconFlatListOutlineRegular, IconFolderCloseRegular, IconProjectAddOutlineRegular,
   IconQueueOutlineRegular, IconSearchOutlineRegular, IconSlidersTwoOutlineRegular,
   IconWorkspaceTreeOutlineRegular, Menu, Modal, Toast, Tooltip,
-  IconFolderOpenOutlineRegular, } from '@deepseek-ai/dsh-client-ui-primitives'
+  IconFolderOpenOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {
   SessionListState, SessionSearchResultItem,
 } from '@deepseek-ai/dsh-api-session-controller/client'
@@ -942,6 +942,9 @@ export function WorkspaceBrowser({
   // without the field; they read as the default hide-archived view.
   const archivedFilter = useStore(s => s.archivedFilter ?? 'default')
   const groupExpansion = useStore(s => s.groupExpansion)
+  /* 项目树（HeightLabProjectTree）与 SessionTree 一样自取状态 store；
+   * 调用点在 JSX 条件分支内，hook 必须提到组件体顶层。 */
+  const statuses = useSessionStatus(s => s)
   const sessionOrderByAccount = useStore(s => s.sessionOrderByAccount)
   // Archived sessions are not openable: the row stays visible under the
   // filter but a click explains instead of navigating.
@@ -1274,6 +1277,8 @@ export function WorkspaceBrowser({
                     padding: 0,
                     font: 'inherit',
                     color: 'inherit',
+                    /* 两个 tab 之间留一手间距（用户实测「离得太近」） */
+                    marginRight: 10,
                     opacity: active ? 1 : 0.45,
                     cursor: 'pointer',
                   }}
@@ -1434,69 +1439,77 @@ export function WorkspaceBrowser({
             ? (
               <HeightLabProjectTree
                 list={list}
+                statuses={statuses}
+                rowState={rowState}
+                groupExpansion={groupExpansion}
+                setGroupExpanded={actions.setGroupExpanded}
                 query={normalizedQuery}
                 open={guardedOpen}
+                onSessionRenameRequest={requestSessionRename}
+                renderSlot={renderSlot}
+                startSession={startSession}
+                t={t}
               />
             )
             : groupBy === 'flat'
-            ? (
-              <FlatList
-                usePanelInfo={usePanelInfo}
-                list={list}
-                sessionIds={orderedFlatSessionIds}
-                rowState={rowState}
-                onLeaveArchivedOnly={leaveArchivedOnly}
-                workspaceReady={workspaceReady}
-                animationResetKey={`${groupBy}/${orderBy}/${archivedFilter}`}
-                useSessionStatus={useSessionStatus}
-                open={guardedOpen}
-                onSessionRenameRequest={requestSessionRename}
-                renderSlot={renderSlot}
-                setSessionOrder={saveSessionOrder}
-                revealSessionId={revealSessionId}
-                onSessionRevealed={acknowledgeSessionReveal}
-                t={t}
-              />
-            )
-            : (
-              <SessionTree
-                usePanelInfo={usePanelInfo}
-                list={list}
-                shortcuts={shortcuts}
-                useSessionStatus={useSessionStatus}
-                onSessionRenameRequest={requestSessionRename}
-                renderSlot={renderSlot}
-                workspaces={orderedWorkspaces}
-                ungroupedSessionIds={orderedUngroupedSessionIds}
-                workspaceReady={workspaceReady}
-                nestWorkspaces={groupBy === 'workspace-tree'}
-                animationResetKey={`${groupBy}/${orderBy}/${archivedFilter}`}
-                groupExpansion={groupExpansion}
-                setGroupExpanded={actions.setGroupExpanded}
-                setSessionOrder={saveSessionOrder}
-                rowState={rowState}
-                onLeaveArchivedOnly={leaveArchivedOnly}
-                startSession={startSession}
-                open={guardedOpen}
-                insertWorkspaceBefore={insertWorkspaceBefore}
-                revealSessionId={revealSessionId}
-                onSessionRevealed={acknowledgeSessionReveal}
-                home={home}
-                t={t}
-                onRenameRequest={(workspaceId, displayTitle) => {
-                  setRenameTarget({
-                    workspaceId,
-                    storedTitle: storedWorkspaces.find(w => w.workspaceId === workspaceId)?.title ?? displayTitle,
-                  })
-                  setRenameDraft(displayTitle)
-                  setRenameError(null)
-                }}
-                onDeleteRequest={(workspaceId, title) => {
-                  setDeleteTarget({ workspaceId, title })
-                  setDeleteError(null)
-                }}
-              />
-            ))}
+              ? (
+                <FlatList
+                  usePanelInfo={usePanelInfo}
+                  list={list}
+                  sessionIds={orderedFlatSessionIds}
+                  rowState={rowState}
+                  onLeaveArchivedOnly={leaveArchivedOnly}
+                  workspaceReady={workspaceReady}
+                  animationResetKey={`${groupBy}/${orderBy}/${archivedFilter}`}
+                  useSessionStatus={useSessionStatus}
+                  open={guardedOpen}
+                  onSessionRenameRequest={requestSessionRename}
+                  renderSlot={renderSlot}
+                  setSessionOrder={saveSessionOrder}
+                  revealSessionId={revealSessionId}
+                  onSessionRevealed={acknowledgeSessionReveal}
+                  t={t}
+                />
+              )
+              : (
+                <SessionTree
+                  usePanelInfo={usePanelInfo}
+                  list={list}
+                  shortcuts={shortcuts}
+                  useSessionStatus={useSessionStatus}
+                  onSessionRenameRequest={requestSessionRename}
+                  renderSlot={renderSlot}
+                  workspaces={orderedWorkspaces}
+                  ungroupedSessionIds={orderedUngroupedSessionIds}
+                  workspaceReady={workspaceReady}
+                  nestWorkspaces={groupBy === 'workspace-tree'}
+                  animationResetKey={`${groupBy}/${orderBy}/${archivedFilter}`}
+                  groupExpansion={groupExpansion}
+                  setGroupExpanded={actions.setGroupExpanded}
+                  setSessionOrder={saveSessionOrder}
+                  rowState={rowState}
+                  onLeaveArchivedOnly={leaveArchivedOnly}
+                  startSession={startSession}
+                  open={guardedOpen}
+                  insertWorkspaceBefore={insertWorkspaceBefore}
+                  revealSessionId={revealSessionId}
+                  onSessionRevealed={acknowledgeSessionReveal}
+                  home={home}
+                  t={t}
+                  onRenameRequest={(workspaceId, displayTitle) => {
+                    setRenameTarget({
+                      workspaceId,
+                      storedTitle: storedWorkspaces.find(w => w.workspaceId === workspaceId)?.title ?? displayTitle,
+                    })
+                    setRenameDraft(displayTitle)
+                    setRenameError(null)
+                  }}
+                  onDeleteRequest={(workspaceId, title) => {
+                    setDeleteTarget({ workspaceId, title })
+                    setDeleteError(null)
+                  }}
+                />
+              ))}
       </div>
 
       <Modal
