@@ -24,7 +24,7 @@ import clsx from 'clsx'
 // 原实现「视频创作」用实心 IconSparkleRegular、「资产中心」用
 // IconLibraryStroke16（不同族），折叠后三项观感明显不一致。
 import {
-  IconBrowseOutlineRegular, IconDataOutlineRegular, IconNewChatOutlineRegular,
+  IconBrowseOutlineRegular, IconGaugeOutlineRegular, IconNewChatOutlineRegular,
   IconPlanOutlineRegular, IconWorkspaceTreeOutlineRegular, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
@@ -348,8 +348,10 @@ export function SidebarRoot({
             { key: 'video-studio', label: '场景创作', Icon: IconPlanOutlineRegular, page: 'video-studio' },
             /* O49（2026-11-10 用户拍板，第二次修正）：运营面板**放在场景创作下方**
              * ——创作是主线，运营是「做完之后看数据」的下游动作，顺序符合使用心智。
-             * 图标用原生 IconDataOutlineRegular（数据类），与原生语言一致。 */
-            { key: 'ops', label: '运营面板', Icon: IconDataOutlineRegular, page: 'ops' },
+             * 2026-11-14 用户拍板换图标：IconDataOutlineRegular 主体是 fill 实心
+             * 画法（邻居全是 1px 线稿），观感显重显挤；改 IconGaugeOutlineRegular
+             * （仪表盘线稿，同 16 网格/同笔画体系，「运营=仪表」语义直接）。 */
+            { key: 'ops', label: '运营面板', Icon: IconGaugeOutlineRegular, page: 'ops' },
             // N18（2026-11-07 用户拍板）：剪辑台一级入口隐藏，收纳进「实验室」Dock
             //（不删除；回滚开关 = localStorage SHOW_FILM_STUDIO_ROW=1 恢复本行）。
             ...(showFilmStudioRow ? [{ key: 'film-studio', label: '智能剪辑台', Icon: IconBrowseOutlineRegular, page: 'film-studio' }] : []),
