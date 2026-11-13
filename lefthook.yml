@@ -51,5 +51,12 @@ pre-merge-commit:
 
 pre-push:
   jobs:
+    # ── 工作必须入库（2026-11-13 用户铁令「绝对不允许再出现」）──────────
+    # 事故：运营面板三天的工作在本仓一直 ?? 未跟踪（git add 从未执行），
+    # 一次回滚差点全丢。树脏不许推——防「提交一部分、留一部分」断档。
+    # 脚本在主仓 scripts/ 下（本仓为嵌套检出，相对路径 ../.. 上溯两层）；
+    # 独立克隆时文件不存在则跳过，不阻塞上游贡献流。
+    - name: work-committed
+      run: test -f ../../scripts/verify-work-committed.mjs && node ../../scripts/verify-work-committed.mjs || echo "(skip: gate not present)"
     - name: typecheck
       run: pnpm run typecheck
