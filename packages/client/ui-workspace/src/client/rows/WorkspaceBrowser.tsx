@@ -22,7 +22,7 @@ import {
   IconFlatListOutlineRegular, IconFolderCloseRegular, IconProjectAddOutlineRegular,
   IconQueueOutlineRegular, IconSearchOutlineRegular, IconSlidersTwoOutlineRegular,
   IconWorkspaceTreeOutlineRegular, Menu, Modal, Toast, Tooltip,
-} from '@deepseek-ai/dsh-client-ui-primitives'
+  IconFolderOpenOutlineRegular, } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {
   SessionListState, SessionSearchResultItem,
 } from '@deepseek-ai/dsh-api-session-controller/client'
@@ -41,6 +41,7 @@ import { ProjectRowItem, SearchResultItem, SessionNodeItem } from './Rows.tsx'
 import { AnimatedRows } from './AnimatedRows.tsx'
 import { FLAT_SESSION_ORDER_KEY, type SessionGroupBy } from '../stores.ts'
 import { WorkspacePickFlow } from '../WorkspacePicker.tsx'
+import { HeightLabProjectTree } from './HeightLabProjectTree.tsx'
 import css from './WorkspaceBrowser.module.css'
 
 /**
@@ -123,6 +124,9 @@ function ViewOptionsMenu({ groupBy, orderBy, archivedFilter, onGroupPick, onOrde
         { id: 'workspace', label: t('groupBy.workspace'), icon: <IconFolderCloseRegular /> },
         { id: 'workspace-tree', label: t('groupBy.workspaceTree'), icon: <IconWorkspaceTreeOutlineRegular /> },
         { id: 'flat', label: t('groupBy.flat'), icon: <IconFlatListOutlineRegular /> },
+        /* HeightLab（2026-11-14，O56）：按项目分组——项目层（引用标签），
+         * 与目录语义的 workspace 解耦。 */
+        { id: 'projects', label: '按项目', icon: <IconFolderOpenOutlineRegular /> },
         { type: 'separator' as const, id: 'order-by-separator' },
         { type: 'label' as const, id: 'order-by', text: t('orderBy.label') },
         { id: 'manual', label: t('orderBy.manual'), icon: <IconChevronsUpDownOutlineRegular /> },
@@ -139,7 +143,7 @@ function ViewOptionsMenu({ groupBy, orderBy, archivedFilter, onGroupPick, onOrde
         { default: 'hide-archived', show: 'show-archived', only: 'only-archived' }[archivedFilter],
       ]}
       onSelect={(id) => {
-        if (id === 'workspace' || id === 'workspace-tree' || id === 'flat') onGroupPick(id)
+        if (id === 'workspace' || id === 'workspace-tree' || id === 'flat' || id === 'projects') onGroupPick(id)
         else if (id === 'manual' || id === 'updated') onOrderPick(id)
         else if (id === 'hide-archived') onArchivedFilterPick('default')
         else if (id === 'show-archived') onArchivedFilterPick('show')
@@ -1249,9 +1253,43 @@ export function WorkspaceBrowser({
   return (
     <div className={clsx(css.root, !wide && css.rail)}>
       <div className={css.sectionHeader}>
+        {/* HeightLab（2026-11-14，O56 用户拍板）：工作区/项目 切换滑块——
+            小于顶部 个人/OPC 切换。projects 模式下视图选项与 ＋添加工作区
+            是工作区专属，隐藏。 */}
+        {wide && (
+          <div style={{ display: 'flex', gap: 2, marginRight: 6, flex: 'none' }}>
+            {([
+              { id: 'workspace-tree', label: '工作区' },
+              { id: 'projects', label: '项目' },
+            ]).map(({ id, label }) => {
+              const active = id === 'projects' ? groupBy === 'projects' : groupBy !== 'projects'
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => { actions.setGroupBy(id === 'projects' ? 'projects' : 'workspace-tree') }}
+                  style={{
+                    border: 'none',
+                    background: active ? 'var(--dsw-alias-fill-l2, #ececec)' : 'transparent',
+                    color: active ? 'var(--dsw-alias-label-primary, #111)' : 'var(--dsw-alias-label-tertiary, #999)',
+                    borderRadius: 6,
+                    padding: '2px 8px',
+                    fontSize: 11,
+                    lineHeight: '16px',
+                    fontWeight: active ? 600 : 400,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+        )}
         {wide && (
           <span className={clsx(css.sectionLabel, css.wide, searchExpanded && css.sectionLabelHidden)}>
-            {groupBy === 'flat' ? t('section.sessions') : t('section.workspaces')}
+            {groupBy === 'projects' ? '项目'
+              : groupBy === 'flat' ? t('section.sessions') : t('section.workspaces')}
           </span>
         )}
         {wide && (
@@ -1312,7 +1350,7 @@ export function WorkspaceBrowser({
           </div>
         )}
         <div className={clsx(css.headerActions, wide && searchExpanded && css.headerActionsHidden)}>
-          {wide && (
+          {wide && groupBy !== 'projects' && (
             <ViewOptionsMenu
               groupBy={groupBy}
               orderBy={orderBy}
@@ -1326,7 +1364,7 @@ export function WorkspaceBrowser({
           {/* Adding is the button's one action, so a composition with no
               picking affordance has nothing to offer here: the region hides the
               button rather than leaving a dead one in the header. */}
-          {directoryFlowAvailable && (
+          {directoryFlowAvailable && groupBy !== 'projects' && (
             <Tooltip label={t('workspace.add')} shortcutKeys={addShortcut?.keys} side="bottom" delayMs={500}>
               <button
                 ref={wsPlusRef}
@@ -1400,7 +1438,15 @@ export function WorkspaceBrowser({
               t={t}
             />
           )
-          : groupBy === 'flat'
+          : groupBy === 'projects'
+            ? (
+              <HeightLabProjectTree
+                list={list}
+                query={normalizedQuery}
+                open={guardedOpen}
+              />
+            )
+            : groupBy === 'flat'
             ? (
               <FlatList
                 usePanelInfo={usePanelInfo}
