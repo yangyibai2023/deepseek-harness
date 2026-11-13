@@ -2,7 +2,7 @@
  * HeightLab 项目树（2026-11-14，O56）——侧栏「项目」浏览视图。
  *
  * 侧栏滑块切到「项目」时，本组件替换原生工作区树：
- *   项目（📁 名称 + 成员数，行内 ✏️ 重命名 / 🗑 删除）
+ *   项目（文件夹图标 + 名称 + 成员数，行内 编辑 / 删除）
  *     └─ 成员对话（点击 = 打开；行内「移出」）
  *   ＋ 新建项目
  *
@@ -14,6 +14,7 @@
  */
 import { useEffect, useState } from 'react'
 import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
+import { IconEditOutlineRegular, IconFolderOpenOutlineRegular, IconTrashOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 
 /* ── 存储（schema 契约 = web-plugin heightlab-projects 的同一份）───────── */
@@ -198,12 +199,12 @@ function ProjectSection({ project, members, open, onRename, onDelete, onRemoveMe
             onClick={() => { setExpanded(v => !v) }}
             style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'inherit', padding: '3px 0', flex: 1, minWidth: 0, textAlign: 'left', fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6 }}
           >
-            <span style={{ flex: 'none' }}>📁</span>
+            <span style={{ flex: 'none', display: 'inline-flex' }}><IconFolderOpenOutlineRegular size={13} /></span>
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{project.name}</span>
             <span style={{ fontSize: 11, color: 'var(--dsw-alias-label-tertiary,#999)', flex: 'none' }}>{members.length}</span>
           </button>
-          <ActionChip label='✏️' title='重命名' onClick={() => { setDraftName(project.name); setRenaming(true) }} />
-          <ActionChip label='🗑' title='删除项目' onClick={() => setDeleting(true)} />
+          <ActionChip icon={<IconEditOutlineRegular size={12} />} title='重命名' onClick={() => { setDraftName(project.name); setRenaming(true) }} />
+          <ActionChip icon={<IconTrashOutlineRegular size={12} />} title='删除项目' onClick={() => setDeleting(true)} />
         </>
       )
 
@@ -275,8 +276,9 @@ function NewProjectRow({ onCreated }: { onCreated: (id: string) => void }): Reac
 
 /* ── 小工具 ────────────────────────────────────────────────────────────── */
 
-function ActionChip({ label, title, onClick, danger }: {
-  label: string
+function ActionChip({ label, icon, title, onClick, danger }: {
+  label?: string
+  icon?: React.JSX.Element
   title?: string
   onClick: () => void
   danger?: boolean
@@ -291,13 +293,15 @@ function ActionChip({ label, title, onClick, danger }: {
         background: 'transparent',
         cursor: 'pointer',
         fontSize: danger ? 12 : 11,
-        padding: '2px 6px',
+        padding: '2px 4px',
         borderRadius: 6,
         color: danger ? 'var(--dsw-alias-label-error,#c00)' : 'var(--dsw-alias-label-tertiary,#888)',
         flex: 'none',
+        display: 'inline-flex',
+        alignItems: 'center',
       }}
     >
-      {label}
+      {icon ?? label}
     </button>
   )
 }

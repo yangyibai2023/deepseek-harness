@@ -1253,13 +1253,13 @@ export function WorkspaceBrowser({
   return (
     <div className={clsx(css.root, !wide && css.rail)}>
       <div className={css.sectionHeader}>
-        {/* HeightLab（2026-11-14，O56 用户拍板）：工作区/项目 切换滑块——
-            小于顶部 个人/OPC 切换。projects 模式下视图选项与 ＋添加工作区
-            是工作区专属，隐藏。 */}
         {wide && (
-          <div style={{ display: 'flex', gap: 2, marginRight: 6, flex: 'none' }}>
+          <span className={clsx(css.sectionLabel, css.wide, searchExpanded && css.sectionLabelHidden)}>
+            {/* HeightLab（2026-11-14，O56 用户拍板）：工作区 与 项目 并列两个灰字 tab——
+                保留原 label、在其右侧加 项目；不做替换式滑块。激活态=不透明，
+                未激活=45% 透明，字体与原 sectionLabel 同款。 */}
             {([
-              { id: 'workspace-tree', label: '工作区' },
+              { id: 'workspace', label: t('section.workspaces') },
               { id: 'projects', label: '项目' },
             ]).map(({ id, label }) => {
               const active = id === 'projects' ? groupBy === 'projects' : groupBy !== 'projects'
@@ -1267,16 +1267,14 @@ export function WorkspaceBrowser({
                 <button
                   key={id}
                   type="button"
-                  onClick={() => { actions.setGroupBy(id === 'projects' ? 'projects' : 'workspace-tree') }}
+                  onClick={() => { actions.setGroupBy(id === 'projects' ? 'projects' : 'workspace') }}
                   style={{
                     border: 'none',
-                    background: active ? 'var(--dsw-alias-fill-l2, #ececec)' : 'transparent',
-                    color: active ? 'var(--dsw-alias-label-primary, #111)' : 'var(--dsw-alias-label-tertiary, #999)',
-                    borderRadius: 6,
-                    padding: '2px 8px',
-                    fontSize: 11,
-                    lineHeight: '16px',
-                    fontWeight: active ? 600 : 400,
+                    background: 'transparent',
+                    padding: 0,
+                    font: 'inherit',
+                    color: 'inherit',
+                    opacity: active ? 1 : 0.45,
                     cursor: 'pointer',
                   }}
                 >
@@ -1284,12 +1282,6 @@ export function WorkspaceBrowser({
                 </button>
               )
             })}
-          </div>
-        )}
-        {wide && (
-          <span className={clsx(css.sectionLabel, css.wide, searchExpanded && css.sectionLabelHidden)}>
-            {groupBy === 'projects' ? '项目'
-              : groupBy === 'flat' ? t('section.sessions') : t('section.workspaces')}
           </span>
         )}
         {wide && (
