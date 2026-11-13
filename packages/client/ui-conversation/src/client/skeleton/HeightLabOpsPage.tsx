@@ -1112,7 +1112,7 @@ async function fetchXhsStatsViaPage(): Promise<
       provider: 'xhs',
       url: `${ORIGIN}/statistics/account?type=overall`,
       kickoff,
-      readback: `JSON.stringify(window.__hlOps || { pending: true })`,
+      readback: 'JSON.stringify(window.__hlOps || { pending: true })',
     }, 30000)
   } catch {
     return null
@@ -1316,19 +1316,19 @@ function PublishPanel({
         fileName: file.name,
         title: title.trim(),
         description: desc,
-        tags: tags.split(/[,,]/).map(t => t.trim()).filter(Boolean),
+        tags: tags.split(/[,，]/).map(t => t.trim()).filter(Boolean),
         submit,
       }, 180000)
       if (res.ok === true) {
         if (res.intervention?.needUser === true) {
           const what = res.intervention.kind === 'sms' ? '短信验证码'
             : res.intervention.kind === 'qr' ? '扫码验证'
-            : res.intervention.kind === 'cover' ? '封面设置'
-            : '平台要求的确认'
+              : res.intervention.kind === 'cover' ? '封面设置'
+                : '平台要求的确认'
           setResult(`内容已提交，但平台要求完成${what}。窗口已置顶，请在那里完成。`)
         } else if (submit) {
           /* 真正提交了 → 写入监控记录，后续按 T+1h/6h/24h/72h/168h 采快照 */
-          onPublished({ title: title.trim(), description: desc, tags: tags.split(/[,,]/).map(t => t.trim()).filter(Boolean) })
+          onPublished({ title: title.trim(), description: desc, tags: tags.split(/[,，]/).map(t => t.trim()).filter(Boolean) })
           setResult('内容已提交。已加入监控列表，之后会自动记录表现。')
         } else {
           setResult('内容已填入窗口，请确认后点击发布。')
@@ -1459,7 +1459,7 @@ function MonitorPanel({ records }: { records: PublishRecord[] }) {
         每条内容按 {SNAPSHOT_HOURS.map(h => `T+${h}h`).join(' / ')} 自动记录表现
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 860 }}>
-        {records.slice(0, 10).map(r => {
+        {records.slice(0, 10).map((r) => {
           const last = r.snapshots[r.snapshots.length - 1]
           const first = r.snapshots[0]
           /* 增长：最早 → 最新 */
@@ -1803,7 +1803,7 @@ function FanPortraitPanel({ fans }: { fans: FanPortrait }) {
           <section style={{ marginBottom: 28 }}>
             <h3 style={sectionTitleStyle}>7 日净增趋势</h3>
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 88 }}>
-              {pts.map(p => {
+              {pts.map((p) => {
                 const h = Math.max(3, Math.round((Math.abs(p.value) / maxAbs) * 56))
                 const up = p.value >= 0
                 return (
@@ -1962,7 +1962,7 @@ export function HeightLabOpsPage() {
    *     （用户明确否决过「每次点卡都弹窗」）
    */
   const syncPlatform = useCallback(async (def: ProviderDef, opts?: { silent?: boolean }) => {
-    if (opts?.silent !== true) setStates((s) => ({ ...s, [def.id]: { busy: true } }))
+    if (opts?.silent !== true) setStates(s => ({ ...s, [def.id]: { busy: true } }))
     try {
       const snap = await FETCHERS[def.id]()
       /* ① 契约检查：不只看「有没有返回」，还要看**结构是否仍有意义**。
@@ -1975,7 +1975,7 @@ export function HeightLabOpsPage() {
         ]
         const nonNull = metrics.filter(m => m.value !== null).length
         if (nonNull === 0) {
-          setStates((st) => ({
+          setStates(st => ({
             ...st,
             [def.id]: { ...st[def.id], busy: false, error: '接口返回结构已变化，需要更新适配' },
           }))
@@ -1983,7 +1983,7 @@ export function HeightLabOpsPage() {
         }
       }
       if (snap === null) {
-        setStates((s) => ({ ...s, [def.id]: { busy: false } }))
+        setStates(s => ({ ...s, [def.id]: { busy: false } }))
         return false
       }
       /* 计算增长：与上次快照的同名指标相减（首次无基准 → delta 为 null） */
@@ -1991,8 +1991,8 @@ export function HeightLabOpsPage() {
         const old = prev[def.id]
         const withDelta = (metric: Metric, label: string, group?: string): Metric => {
           const oldMetric = group === undefined
-            ? old?.highlights?.find((h) => h.label === label)?.metric
-            : old?.details?.find((d) => d.label === label && d.group === group)?.metric
+            ? old?.highlights?.find(h => h.label === label)?.metric
+            : old?.details?.find(d => d.label === label && d.group === group)?.metric
           const before = oldMetric?.value
           const now = metric.value
           /* 注意 必须带上 format —— 丢了它「5秒完播率」会显示成 0.241 而不是 24.14%
@@ -2023,11 +2023,11 @@ export function HeightLabOpsPage() {
             works: snap.works ?? [],
             ...(snap.fans !== undefined ? { fans: snap.fans } : {}),
           },
-          (snap.highlights ?? []).map((h) => ({
+          (snap.highlights ?? []).map(h => ({
             label: h.label,
             metric: withDelta(h.metric, h.label),
           })),
-          (snap.details ?? []).map((d) => ({
+          (snap.details ?? []).map(d => ({
             group: d.group,
             label: d.label,
             metric: withDelta(d.metric, d.label, d.group),
@@ -2063,11 +2063,11 @@ export function HeightLabOpsPage() {
         /* 但**返回给 UI 的**要带 suspect，用户才能看到「待核」 */
         return { ...prev, [def.id]: merged }
       })
-      setStates((s) => ({ ...s, [def.id]: { busy: false } }))
+      setStates(s => ({ ...s, [def.id]: { busy: false } }))
       return true
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
-      setStates((s) => ({ ...s, [def.id]: { busy: false, error: msg.slice(0, 100) } }))
+      setStates(s => ({ ...s, [def.id]: { busy: false, error: msg.slice(0, 100) } }))
       return false
     }
   }, [])
@@ -2075,11 +2075,19 @@ export function HeightLabOpsPage() {
   /* 进入页面：对**已有快照**的平台静默刷新（不弹窗、不打扰）；
    * 没有快照的平台不动，等用户点卡时再走登录。 */
   useEffect(() => {
+    /* 2026-11-14 stale-while-revalidate：进面板**永远先渲染缓存快照**（loadSnapshots
+     * 已是同步读），这里只对**超过新鲜期**的平台做后台静默刷新。
+     * 此前每次挂载都全量重拉——xhs 的隐藏窗取数要 9~19s，配合壳侧同步命令
+     * （已改 async，见 lib.rs）曾造成每次进面板整窗转圈。5 分钟内视为新鲜跳过，
+     * 既保数据常新，又砍掉无谓的隐藏窗与网络轮询。 */
+    const FRESH_MS = 5 * 60 * 1000
     for (const def of PROVIDERS) {
-      if (snapshots[def.id] !== undefined) void syncPlatform(def, { silent: true })
+      const snap = snapshots[def.id]
+      if (snap === undefined) continue
+      if (typeof snap.syncedAt === 'number' && Date.now() - snap.syncedAt < FRESH_MS) continue
+      void syncPlatform(def, { silent: true })
     }
-    // 仅挂载时执行一次
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // 仅挂载时执行一次（快照初始值来自 localStorage，不参与依赖）
   }, [])
 
   /** 点卡：有快照 → 进详情并刷新；无快照 → 打开登录窗口（只这一次） */
@@ -2130,14 +2138,14 @@ export function HeightLabOpsPage() {
       void firstDelay
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
-      setStates((s) => ({ ...s, [def.id]: { busy: false, error: `开窗失败：${msg.slice(0, 80)}` } }))
+      setStates(s => ({ ...s, [def.id]: { busy: false, error: `开窗失败：${msg.slice(0, 80)}` } }))
     }
   }, [snapshots, syncPlatform])
 
   const detailDef = detail === null ? null : PROVIDERS.find(p => p.id === detail) ?? null
 
   return (
-    /* 布局（2026-11-12 实测两轮修正）
+  /* 布局（2026-11-12 实测两轮修正）
      *
      * 本组件由 `HeightLabHubPage` 渲染，父容器是 `hubRootStyle`
      * （`height:100%; display:flex; flexDirection:column; overflow:hidden`），
@@ -2261,177 +2269,177 @@ export function HeightLabOpsPage() {
           <div style={{ display: 'flex', gap: 28, alignItems: 'flex-start', minHeight: 0 }}>
             {/* ── 左：数据区 ── */}
             <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
-              <button
-                type="button"
-                onClick={() => setDetail(null)}
-                style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13, color: 'var(--dsw-alias-label-secondary)', padding: 0 }}
-              >
-                ← 数据概览
-              </button>
-              <span style={{ fontSize: 13, color: 'var(--dsw-alias-label-tertiary)' }}>
-                {detailDef.name}
-                {snapshots[detailDef.id]?.nickname !== undefined ? ` · ${snapshots[detailDef.id]?.nickname}` : ''}
-              </span>
-            </div>
-
-            {/* 二级分页栏（对标抖音数据中心：总览/作品/粉丝 + 我们的发布监控）。
-             * 视觉复用原生 libraryTabs（与资产空间同款下划线 tab）。 */}
-            <div className={css.libraryTabs} role="tablist" style={{ marginBottom: 20 }}>
-              {DETAIL_TABS.map(name => (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
                 <button
-                  key={name}
                   type="button"
-                  role="tab"
-                  aria-selected={detailTab === name}
-                  className={clsx(css.libraryTab, detailTab === name && css.libraryTabActive)}
-                  onClick={() => { setDetailTab(name) }}
+                  onClick={() => setDetail(null)}
+                  style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13, color: 'var(--dsw-alias-label-secondary)', padding: 0 }}
                 >
-                  {name}
+                  ← 数据概览
                 </button>
-              ))}
-            </div>
+                <span style={{ fontSize: 13, color: 'var(--dsw-alias-label-tertiary)' }}>
+                  {detailDef.name}
+                  {snapshots[detailDef.id]?.nickname !== undefined ? ` · ${snapshots[detailDef.id]?.nickname}` : ''}
+                </span>
+              </div>
 
-            {(() => {
-              const snap = snapshots[detailDef.id]
-              if (snap === undefined) {
+              {/* 二级分页栏（对标抖音数据中心：总览/作品/粉丝 + 我们的发布监控）。
+             * 视觉复用原生 libraryTabs（与资产空间同款下划线 tab）。 */}
+              <div className={css.libraryTabs} role="tablist" style={{ marginBottom: 20 }}>
+                {DETAIL_TABS.map(name => (
+                  <button
+                    key={name}
+                    type="button"
+                    role="tab"
+                    aria-selected={detailTab === name}
+                    className={clsx(css.libraryTab, detailTab === name && css.libraryTabActive)}
+                    onClick={() => { setDetailTab(name) }}
+                  >
+                    {name}
+                  </button>
+                ))}
+              </div>
+
+              {(() => {
+                const snap = snapshots[detailDef.id]
+                if (snap === undefined) {
+                  return (
+                    <div style={{ fontSize: 13, color: 'var(--dsw-alias-label-tertiary)' }}>
+                      尚未同步到数据。请在打开的登录窗口里扫码，数据会自动同步。
+                    </div>
+                  )
+                }
+                const groups = new Map<string, { label: string; metric: Metric }[]>()
+                for (const d of snap.details ?? []) {
+                  const list = groups.get(d.group) ?? []
+                  list.push({ label: d.label, metric: d.metric })
+                  groups.set(d.group, list)
+                }
                 return (
-                  <div style={{ fontSize: 13, color: 'var(--dsw-alias-label-tertiary)' }}>
-                    尚未同步到数据。请在打开的登录窗口里扫码，数据会自动同步。
-                  </div>
-                )
-              }
-              const groups = new Map<string, { label: string; metric: Metric }[]>()
-              for (const d of snap.details ?? []) {
-                const list = groups.get(d.group) ?? []
-                list.push({ label: d.label, metric: d.metric })
-                groups.set(d.group, list)
-              }
-              return (
-                <>
-                  {detailTab === '数据概览' && [...groups.entries()].map(([group, items]) => (
-                    <section key={group} style={{ marginBottom: 28 }}>
-                      <h3 style={sectionTitleStyle}>{group}</h3>
-                      <div style={{ display: 'flex', gap: 40, flexWrap: 'wrap' }}>
-                        {items.map(item => (
-                          <div key={item.label} style={{ minWidth: 96 }}>
-                            <div style={{ display: 'flex', alignItems: 'baseline' }}>
-                              <span style={{ fontSize: 22, fontWeight: 600, lineHeight: '28px', color: 'var(--dsw-alias-label-primary)', fontVariantNumeric: 'tabular-nums' }}>
-                                {fmtNum(item.metric.value, item.metric.format)}
-                              </span>
-                              <DeltaBadge delta={item.metric.delta} format={item.metric.format} />
-                            </div>
-                            <div style={{ fontSize: 13, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary)' }}>
-                              {item.label}
-                              {item.metric.suspect === true && (
-                                <span style={{ marginLeft: 6, color: 'var(--dsw-alias-label-warning, #B45309)' }}>
-                                  待核
+                  <>
+                    {detailTab === '数据概览' && [...groups.entries()].map(([group, items]) => (
+                      <section key={group} style={{ marginBottom: 28 }}>
+                        <h3 style={sectionTitleStyle}>{group}</h3>
+                        <div style={{ display: 'flex', gap: 40, flexWrap: 'wrap' }}>
+                          {items.map(item => (
+                            <div key={item.label} style={{ minWidth: 96 }}>
+                              <div style={{ display: 'flex', alignItems: 'baseline' }}>
+                                <span style={{ fontSize: 22, fontWeight: 600, lineHeight: '28px', color: 'var(--dsw-alias-label-primary)', fontVariantNumeric: 'tabular-nums' }}>
+                                  {fmtNum(item.metric.value, item.metric.format)}
                                 </span>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </section>
-                  ))}
-                  {/* 作品表现分页（对标抖音数据中心·作品数据）。 */}
-                  {detailTab === '作品表现' && (snap.works?.length ?? 0) > 0 && (
-                    <section style={{ marginBottom: 28 }}>
-                      <h3 style={sectionTitleStyle}>近期作品表现</h3>
-                      <div style={{ fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary)', marginBottom: 10 }}>
-                        近 7 天有数据的作品 · 按播放量排序
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 860 }}>
-                        {[...(snap.works ?? [])]
-                          .sort((a, b) => (b.plays ?? 0) - (a.plays ?? 0))
-                          .slice(0, 10)
-                          .map(w => (
-                            <div
-                              key={w.itemId}
-                              style={{
-                                display: 'flex', alignItems: 'center', gap: 12,
-                                padding: '10px 12px',
-                                border: '1px solid var(--dsw-alias-border-l2)',
-                                borderRadius: 10,
-                              }}
-                            >
-                              {w.cover !== undefined && (
-                                <img
-                                  src={w.cover}
-                                  alt=""
-                                  style={{ width: 40, height: 54, objectFit: 'cover', borderRadius: 6, flex: 'none' }}
-                                />
-                              )}
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{
-                                  fontSize: 13, lineHeight: '18px',
-                                  color: 'var(--dsw-alias-label-primary)',
-                                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                                }}>
-                                  {w.title === '' ? '(无标题)' : w.title}
-                                </div>
-                                <div style={{ fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary)' }}>
-                                  {w.publishTime}
-                                </div>
+                                <DeltaBadge delta={item.metric.delta} format={item.metric.format} />
                               </div>
-                              <div style={{ display: 'flex', gap: 20, flex: 'none' }}>
-                                {w.plays !== undefined && (
-                                  <div style={{ textAlign: 'right' }}>
-                                    <div style={{ fontSize: 13, fontWeight: 500, fontVariantNumeric: 'tabular-nums', color: 'var(--dsw-alias-label-primary)' }}>
-                                      {fmtNum(w.plays)}
-                                    </div>
-                                    <div style={{ fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' }}>播放</div>
-                                  </div>
-                                )}
-                                {w.interactions !== undefined && (
-                                  <div style={{ textAlign: 'right' }}>
-                                    <div style={{ fontSize: 13, fontWeight: 500, fontVariantNumeric: 'tabular-nums', color: 'var(--dsw-alias-label-primary)' }}>
-                                      {fmtNum(w.interactions)}
-                                    </div>
-                                    <div style={{ fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' }}>互动</div>
-                                  </div>
-                                )}
-                                {w.completionRate !== undefined && (
-                                  <div style={{ textAlign: 'right' }}>
-                                    <div style={{ fontSize: 13, fontWeight: 500, fontVariantNumeric: 'tabular-nums', color: 'var(--dsw-alias-label-primary)' }}>
-                                      {fmtNum(w.completionRate, 'pct')}
-                                    </div>
-                                    <div style={{ fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' }}>完播率</div>
-                                  </div>
+                              <div style={{ fontSize: 13, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary)' }}>
+                                {item.label}
+                                {item.metric.suspect === true && (
+                                  <span style={{ marginLeft: 6, color: 'var(--dsw-alias-label-warning, #B45309)' }}>
+                                    待核
+                                  </span>
                                 )}
                               </div>
                             </div>
                           ))}
-                      </div>
-                    </section>
-                  )}
-                  {/* 粉丝画像分页（对标抖音数据中心·粉丝数据，2026-11-12 实测打通） */}
-                  {detailTab === '粉丝画像' && (
-                    snap.fans === undefined ? (
-                      <div style={{ fontSize: 13, color: 'var(--dsw-alias-label-tertiary)' }}>
-                        粉丝画像暂未同步到。请稍后点卡片重新同步；若多次失败说明接口已变，需要更新适配。
-                      </div>
-                    ) : (
-                      <FanPortraitPanel fans={snap.fans} />
-                    )
-                  )}
-
-                  {/* 发布监控分页（我们自有能力，抖音无直接对标） */}
-                  {detailTab === '发布监控' && (
-                    <MonitorPanel records={records.filter(r => r.provider === detailDef.id)} />
-                  )}
-
-                  <div style={{ fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary)', marginTop: 16 }}>
-                    同步于 {new Date(snap.syncedAt).toLocaleString('zh-CN')}
-                    {ageDays(snap.syncedAt) > STALE_DAYS && (
-                      <span style={{ marginLeft: 8, color: 'var(--dsw-alias-label-warning, #B45309)' }}>
-                        · 已 {Math.floor(ageDays(snap.syncedAt))} 天未更新，数据可能已过期
-                      </span>
+                        </div>
+                      </section>
+                    ))}
+                    {/* 作品表现分页（对标抖音数据中心·作品数据）。 */}
+                    {detailTab === '作品表现' && (snap.works?.length ?? 0) > 0 && (
+                      <section style={{ marginBottom: 28 }}>
+                        <h3 style={sectionTitleStyle}>近期作品表现</h3>
+                        <div style={{ fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary)', marginBottom: 10 }}>
+                          近 7 天有数据的作品 · 按播放量排序
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 860 }}>
+                          {[...(snap.works ?? [])]
+                            .sort((a, b) => (b.plays ?? 0) - (a.plays ?? 0))
+                            .slice(0, 10)
+                            .map(w => (
+                              <div
+                                key={w.itemId}
+                                style={{
+                                  display: 'flex', alignItems: 'center', gap: 12,
+                                  padding: '10px 12px',
+                                  border: '1px solid var(--dsw-alias-border-l2)',
+                                  borderRadius: 10,
+                                }}
+                              >
+                                {w.cover !== undefined && (
+                                  <img
+                                    src={w.cover}
+                                    alt=""
+                                    style={{ width: 40, height: 54, objectFit: 'cover', borderRadius: 6, flex: 'none' }}
+                                  />
+                                )}
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{
+                                    fontSize: 13, lineHeight: '18px',
+                                    color: 'var(--dsw-alias-label-primary)',
+                                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                  }}>
+                                    {w.title === '' ? '(无标题)' : w.title}
+                                  </div>
+                                  <div style={{ fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary)' }}>
+                                    {w.publishTime}
+                                  </div>
+                                </div>
+                                <div style={{ display: 'flex', gap: 20, flex: 'none' }}>
+                                  {w.plays !== undefined && (
+                                    <div style={{ textAlign: 'right' }}>
+                                      <div style={{ fontSize: 13, fontWeight: 500, fontVariantNumeric: 'tabular-nums', color: 'var(--dsw-alias-label-primary)' }}>
+                                        {fmtNum(w.plays)}
+                                      </div>
+                                      <div style={{ fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' }}>播放</div>
+                                    </div>
+                                  )}
+                                  {w.interactions !== undefined && (
+                                    <div style={{ textAlign: 'right' }}>
+                                      <div style={{ fontSize: 13, fontWeight: 500, fontVariantNumeric: 'tabular-nums', color: 'var(--dsw-alias-label-primary)' }}>
+                                        {fmtNum(w.interactions)}
+                                      </div>
+                                      <div style={{ fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' }}>互动</div>
+                                    </div>
+                                  )}
+                                  {w.completionRate !== undefined && (
+                                    <div style={{ textAlign: 'right' }}>
+                                      <div style={{ fontSize: 13, fontWeight: 500, fontVariantNumeric: 'tabular-nums', color: 'var(--dsw-alias-label-primary)' }}>
+                                        {fmtNum(w.completionRate, 'pct')}
+                                      </div>
+                                      <div style={{ fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' }}>完播率</div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                        </div>
+                      </section>
                     )}
-                  </div>
-                </>
-              )
-            })()}
+                    {/* 粉丝画像分页（对标抖音数据中心·粉丝数据，2026-11-12 实测打通） */}
+                    {detailTab === '粉丝画像' && (
+                      snap.fans === undefined ? (
+                        <div style={{ fontSize: 13, color: 'var(--dsw-alias-label-tertiary)' }}>
+                          粉丝画像暂未同步到。请稍后点卡片重新同步；若多次失败说明接口已变，需要更新适配。
+                        </div>
+                      ) : (
+                        <FanPortraitPanel fans={snap.fans} />
+                      )
+                    )}
+
+                    {/* 发布监控分页（我们自有能力，抖音无直接对标） */}
+                    {detailTab === '发布监控' && (
+                      <MonitorPanel records={records.filter(r => r.provider === detailDef.id)} />
+                    )}
+
+                    <div style={{ fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary)', marginTop: 16 }}>
+                      同步于 {new Date(snap.syncedAt).toLocaleString('zh-CN')}
+                      {ageDays(snap.syncedAt) > STALE_DAYS && (
+                        <span style={{ marginLeft: 8, color: 'var(--dsw-alias-label-warning, #B45309)' }}>
+                          · 已 {Math.floor(ageDays(snap.syncedAt))} 天未更新，数据可能已过期
+                        </span>
+                      )}
+                    </div>
+                  </>
+                )
+              })()}
             </div>
 
             {/* ── 右：操作栏（固定，不随左栏滚动）── */}
