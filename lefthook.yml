@@ -57,6 +57,6 @@ pre-push:
     # 脚本在主仓 scripts/ 下（本仓为嵌套检出，相对路径 ../.. 上溯两层）；
     # 独立克隆时文件不存在则跳过，不阻塞上游贡献流。
     - name: work-committed
-      run: test -f ../../scripts/verify-work-committed.mjs && node ../../scripts/verify-work-committed.mjs || echo "(skip: gate not present)"
+      run: test -f ../../scripts/verify-work-committed.mjs && node ../../scripts/verify-work-committed.mjs || echo "(skip gate not present)"
     - name: typecheck
       run: pnpm run typecheck
