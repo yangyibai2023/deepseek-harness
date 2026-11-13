@@ -1348,3 +1348,74 @@
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
 }
+
+/* ── HeightLab 运营面板（2026-11-12）─────────────────────────────────────────
+ *
+ * 为什么单独建类而不是内联 style：
+ *   内容超出视口后无法滚动，我盲改了 4 轮内联 flex/height/overflow 都没解决。
+ *   原生能滚的容器（`.scrollBody`）用的是一整套 CSS：flex:1 + min-height:0 +
+ *   overflow-y:auto + **scrollbar-gutter: stable**，其中 `scrollbar-gutter`
+ *   内联 style 写不了。这里照抄同一套，并用类名确保优先级不被覆盖。
+ */
+.opsRoot {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--dsw-alias-bg-base);
+}
+
+/* 内容滚动区：与原生 .scrollBody 同一套属性
+ *
+ * ⚠️ 2026-11-13 第 6 轮修复（前 5 轮全无效，用户实锤「要往下滑才看得到」）：
+ * 实测 body 的 clientHeight=720 而 scrollHeight=6623、overflow-y:hidden ——
+ * 也就是说**没有任何元素在 720px 视口里承担滚动**，`flex:1` 链在某一层断了
+ * （父级 hubRootStyle 是 height:100% + overflow:hidden，若其祖先高度未确定，
+ * 100% 会退化成 auto，flex:1 就再也分不到剩余高度）。
+ *
+ * 兜底方案：**不再依赖 flex 链**，直接用视口高度上限 + 强制滚动。
+ *   · `max-height: calc(100vh - <tab 栏高>)` —— 无论祖先高度如何，
+ *     这个容器自身不会超过视口，因此必然产生内部滚动条；
+ *   · 保留 flex:1/min-height:0（祖先正常时优先按 flex 分配，行为不变）；
+ *   · `overscroll-behavior: contain` —— 滚到底不把滚动传给 body，
+ *     避免整页跟着跳。
+ * 这是 CSS 层的确定性修复：不赌任何祖先的 height 计算。 */
+.opsScroll {
+  flex: 1;
+  min-height: 0;
+  /* 兜底：即使祖先高度链断裂，也不让内容溢出视口（tab 栏约 44px） */
+  max-height: calc(100vh - 44px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  padding: 12px clamp(24px, 4vw, 48px) 48px;
+  box-sizing: border-box;
+}
+
+/* tab 栏固定不滚 */
+.opsTabsFixed {
+  flex: 0 0 auto;
+}
+
+/* ── 运营面板打开时，放行外层滚动（2026-11-12 修复「内容超出后无法滚动」）──
+ *
+ * 根因链（用 hl_ops_layout_probe 实测确认，不是猜的）：
+ *   ① `.root[data-phase='hero'] .scrollBody { overflow-y: hidden }`
+ *      —— 这是 2026-09-15 用户明确要求的（防输入框晃动），**不能改**；
+ *   ② 运营面板是 hub 覆盖层，底下的聊天页仍是 hero 态；
+ *   ③ 于是整个内容区被 hidden 锁死，面板自己的 `overflow-y:auto` 拿不到滚动条
+ *      （探针实测：.scrollBody clientH=741 / scrollH=797，overflowY=hidden）。
+ *
+ * 解法：只在**面板打开时**（body[data-hl-hub='1']，ConversationRoot 已在
+ * onOpen 里设置该标记）把 hero 态的 hidden 放行成 auto。
+ * 关闭面板后标记变 '0'，规则自动失效 —— 不影响首页原本的防晃动行为。
+ */
+.root[data-phase='hero'][data-hl-hub='1'] .scrollBody,
+body[data-hl-hub='1'] .root[data-phase='hero'] .scrollBody {
+  overflow-y: auto;
+}

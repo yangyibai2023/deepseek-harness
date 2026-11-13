@@ -11,11 +11,13 @@ import { TEMPLATE_CARDS, TEMPLATE_ORDER, loadTemplateCatalog, templateThumb, typ
 import { VIDEO_CATALOG } from './HeightLabVideoCatalog.ts'
 import { TemplatePreview } from './TemplatePreview.tsx'
 import { HeightLabLibraryPage } from './HeightLabLibraryPage.tsx'
+import { HeightLabOpsPage } from './HeightLabOpsPage.tsx'
 import { HeightLabFilmStudio } from './HeightLabFilmStudio.tsx'
 import css from './ConversationRoot.module.css'
 
 /* O44：'automation' 是死值（探索证实无人派发、白名单不收）——从联合类型删除。 */
-export type HubPage = 'inspiration' | 'library' | 'video-studio' | 'skill-hub' | 'film-studio' | 'lab'
+/* O49（2026-11-10 用户拍板）：新增 'ops'（运营面板）。*/
+export type HubPage = 'inspiration' | 'library' | 'video-studio' | 'skill-hub' | 'film-studio' | 'lab' | 'ops'
 
 /** HeightLab V24b：视频创作一级页的 8 个模块卡片（第一排流量转化/第二排人设内容）。
  * 0.5.7 模块创作台（2026-11-08 用户拍板「一个功能驾驭多个模板」）：8 模块全部
@@ -668,6 +670,7 @@ const PAGE_TITLES: Partial<Record<HubPage, string>> = {
   inspiration: '创意灵感',
   lab: '更多能力',
   library: '资产空间',
+  ops: '运营面板',
   'video-studio': '场景创作',
 }
 
@@ -964,6 +967,8 @@ export function HeightLabHubPage({ page, onClose }: { page: HubPage; onClose: ()
         // 入口 (a)：一级菜单「剪辑台」= 主区满幅 Studio + 右侧开一段全新对话。
         // 这就是 OpenFilm 原生的「左影片、右侧边对话」，只是对话从 0 开始。
         <HeightLabFilmStudio onClose={onClose} opensChat />
+      ) : page === 'ops' ? (
+        <HeightLabOpsPage />
       ) : page === 'library' ? (
         <HeightLabLibraryPage />
       ) : (

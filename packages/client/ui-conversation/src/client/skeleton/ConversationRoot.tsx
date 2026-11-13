@@ -94,6 +94,7 @@ export function ConversationRoot(props: ConversationRootProps) {
     const pending = (window as unknown as { __hlPendingHub?: HubPage | null }).__hlPendingHub
     return pending === 'inspiration' || pending === 'library' || pending === 'video-studio'
       || pending === 'skill-hub' || pending === 'film-studio' || pending === 'lab'
+      || pending === 'ops'
       ? pending : null
   })
   const hubRef = useRef(hub)
@@ -106,8 +107,10 @@ export function ConversationRoot(props: ConversationRootProps) {
       // 事件被静默忽略（点侧栏没反应，且 __hlPendingHub 会一直挂着）。
       // 2026-10-20 新增 'film-studio' 时踩过。
       /* O44（2026-11-08）：'lab' 加入白名单（实验室整页）。 */
+      /* O49（2026-11-10）：'ops'（运营面板）加入白名单。 */
       if (detail?.page === 'inspiration' || detail?.page === 'library' || detail?.page === 'video-studio'
-        || detail?.page === 'skill-hub' || detail?.page === 'film-studio' || detail?.page === 'lab') {
+        || detail?.page === 'skill-hub' || detail?.page === 'film-studio' || detail?.page === 'lab'
+        || detail?.page === 'ops') {
         // film-studio 仍走 hub 覆盖层（入口 a：主区满幅 + 右侧开新对话）。
         if (detail.page !== 'library') {
           window.dispatchEvent(new CustomEvent('hl:close-knowledge'))
