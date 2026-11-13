@@ -1344,92 +1344,98 @@ function PublishPanel({
     }
   }
 
+  /* 2026-11-14 用户拍板：动作收进页头右侧，取消 300px 右栏。
+   * 收起态=一个页头主按钮；点击弹**居中浮层**装表单——既保「永远可点」，
+   * 又不占常驻空间；表单也不再平铺在页面里（避免误填进对话输入框）。 */
   if (!open) {
     return (
-      <section style={{ marginTop: 32, paddingTop: 24, borderTop: '1px solid var(--dsw-alias-border-l2)' }}>
-        <button
-          type="button"
-          onClick={() => { setOpen(true) }}
-          style={{ ...secondaryBtnStyle(false), padding: '10px 20px' }}
-        >
-          发布到{providerName}
-        </button>
-        <div style={{ fontSize: 13, lineHeight: '20px', color: 'var(--dsw-alias-label-tertiary)', marginTop: 10 }}>
-          点开后填写内容，随后在窗口中确认。
-        </div>
-      </section>
+      <button
+        type="button"
+        onClick={() => { setOpen(true) }}
+        style={primaryBtnStyle(false)}
+      >
+        发布到{providerName}
+      </button>
     )
   }
 
   return (
-    <section style={{ marginTop: 32, paddingTop: 24, borderTop: '1px solid var(--dsw-alias-border-l2)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-        <h3 style={{ ...sectionTitleStyle, margin: 0 }}>发布到{providerName}</h3>
-        <button
-          type="button"
-          onClick={() => { setOpen(false) }}
-          style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13, color: 'var(--dsw-alias-label-tertiary)', padding: 0 }}
-        >
-          收起
-        </button>
-      </div>
-      <div style={{ fontSize: 13, lineHeight: '20px', color: 'var(--dsw-alias-label-tertiary)', marginBottom: 16 }}>
-        内容会先填进平台页面，确认无误后由你点击发布。<br />
-        平台可能要求完成一次身份验证（如短信验证码），届时窗口会自动出现在最前面。
-      </div>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 640 }}>
-        <input
-          type="file"
-          accept="video/*"
-          onChange={(e) => { setFile(e.target.files?.[0] ?? null) }}
-          style={{ fontSize: 13 }}
-        />
-        <input
-          type="text"
-          value={title}
-          onChange={(e) => { setTitle(e.target.value) }}
-          placeholder="标题（最多 30 字）"
-          maxLength={30}
-          style={fieldStyle}
-        />
-        <textarea
-          value={desc}
-          onChange={(e) => { setDesc(e.target.value) }}
-          placeholder="正文描述"
-          rows={4}
-          style={{ ...fieldStyle, resize: 'vertical', fontFamily: 'inherit' }}
-        />
-        <input
-          type="text"
-          value={tags}
-          onChange={(e) => { setTags(e.target.value) }}
-          placeholder="话题标签，用逗号分隔，如：AI,自媒体"
-          style={fieldStyle}
-        />
-        <div style={{ display: 'flex', gap: 10 }}>
+    <div
+      style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.35)' }}
+      onClick={() => { setOpen(false) }}
+    >
+      <section
+        onClick={(e) => { e.stopPropagation() }}
+        style={{ width: 560, maxWidth: '92vw', maxHeight: '80vh', overflowY: 'auto', background: 'var(--dsw-alias-bg-base)', borderRadius: 16, padding: 20, boxSizing: 'border-box', boxShadow: '0 18px 48px rgba(0,0,0,0.18)' }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+          <h3 style={{ ...sectionTitleStyle, margin: 0, flex: 1 }}>发布到{providerName}</h3>
           <button
             type="button"
-            disabled={busy}
-            onClick={() => { void run(false) }}
-            style={primaryBtnStyle(busy)}
+            onClick={() => { setOpen(false) }}
+            style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13, color: 'var(--dsw-alias-label-tertiary)', padding: 0 }}
           >
-            {busy ? '处理中…' : '填入页面'}
-          </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => { void run(true) }}
-            style={secondaryBtnStyle(busy)}
-          >
-            确认发布
+          关闭
           </button>
         </div>
-        {result !== null && (
-          <div style={{ fontSize: 13, lineHeight: '20px', color: 'var(--dsw-alias-label-secondary)' }}>{result}</div>
-        )}
-      </div>
-    </section>
+        <div style={{ fontSize: 13, lineHeight: '20px', color: 'var(--dsw-alias-label-tertiary)', marginBottom: 16 }}>
+        内容会先填进平台页面，确认无误后由你点击发布。<br />
+        平台可能要求完成一次身份验证（如短信验证码），届时窗口会自动出现在最前面。
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 640 }}>
+          <input
+            type="file"
+            accept="video/*"
+            onChange={(e) => { setFile(e.target.files?.[0] ?? null) }}
+            style={{ fontSize: 13 }}
+          />
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => { setTitle(e.target.value) }}
+            placeholder="标题（最多 30 字）"
+            maxLength={30}
+            style={fieldStyle}
+          />
+          <textarea
+            value={desc}
+            onChange={(e) => { setDesc(e.target.value) }}
+            placeholder="正文描述"
+            rows={4}
+            style={{ ...fieldStyle, resize: 'vertical', fontFamily: 'inherit' }}
+          />
+          <input
+            type="text"
+            value={tags}
+            onChange={(e) => { setTags(e.target.value) }}
+            placeholder="话题标签，用逗号分隔，如：AI,自媒体"
+            style={fieldStyle}
+          />
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => { void run(false) }}
+              style={primaryBtnStyle(busy)}
+            >
+              {busy ? '处理中…' : '填入页面'}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => { void run(true) }}
+              style={secondaryBtnStyle(busy)}
+            >
+            确认发布
+            </button>
+          </div>
+          {result !== null && (
+            <div style={{ fontSize: 13, lineHeight: '20px', color: 'var(--dsw-alias-label-secondary)' }}>{result}</div>
+          )}
+        </div>
+      </section>
+    </div>
   )
 }
 
@@ -2266,10 +2272,11 @@ export function HeightLabOpsPage() {
            *   · 左栏只放数据，长度可控，即使溢出也只影响数据区；
            *   · 右栏 sticky，滚动左栏时它不动。
            */
-          <div style={{ display: 'flex', gap: 28, alignItems: 'flex-start', minHeight: 0 }}>
-            {/* ── 左：数据区 ── */}
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+          /* 2026-11-14 用户拍板：右栏取消（动作收进页头），数据区恢复全宽。
+           * 原「左数据/右操作」的注释史保留在 git；滚动容器语义不变。 */
+          <div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18, position: 'sticky', top: 0, zIndex: 2, background: 'var(--dsw-alias-bg-base)', paddingTop: 6, paddingBottom: 8 }}>
                 <button
                   type="button"
                   onClick={() => setDetail(null)}
@@ -2277,10 +2284,29 @@ export function HeightLabOpsPage() {
                 >
                   ← 数据概览
                 </button>
-                <span style={{ fontSize: 13, color: 'var(--dsw-alias-label-tertiary)' }}>
+                <span style={{ fontSize: 13, color: 'var(--dsw-alias-label-tertiary)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {detailDef.name}
                   {snapshots[detailDef.id]?.nickname !== undefined ? ` · ${snapshots[detailDef.id]?.nickname}` : ''}
                 </span>
+                {/* 2026-11-14 用户拍板：动作收进页头右侧（原 300px 右栏取消）。
+                 * 反哺=描边次要钮；发布=实心主钮（点开弹浮层表单）。 */}
+                <FeedbackButton
+                  providerName={detailDef.name}
+                  baselineText={(() => {
+                    const snapH = snapshots[detailDef.id]
+                    const w = snapH?.works ?? []
+                    if (w.length === 0) return null
+                    const b = buildBaseline(detailDef.id, snapH?.nickname ?? detailDef.name, w)
+                    return renderBaselineForPrompt(b)
+                  })()}
+                />
+                {detailDef.id === 'douyin' && (
+                  <PublishPanel
+                    provider={detailDef.id}
+                    providerName={detailDef.name}
+                    onPublished={(info) => { recordPublish(detailDef.id, info) }}
+                  />
+                )}
               </div>
 
               {/* 二级分页栏（对标抖音数据中心：总览/作品/粉丝 + 我们的发布监控）。
@@ -2442,35 +2468,7 @@ export function HeightLabOpsPage() {
               })()}
             </div>
 
-            {/* ── 右：操作栏（固定，不随左栏滚动）── */}
-            <aside style={{
-              width: 300,
-              flex: 'none',
-              position: 'sticky',
-              top: 0,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 16,
-            }}>
-              {/* 反哺：把该账号实测表现编译成 Agent 上下文 */}
-              <FeedbackButton
-                providerName={detailDef.name}
-                baselineText={(() => {
-                  const snap = snapshots[detailDef.id]
-                  const w = snap?.works ?? []
-                  if (w.length === 0) return null
-                  const b = buildBaseline(detailDef.id, snap?.nickname ?? detailDef.name, w)
-                  return renderBaselineForPrompt(b)
-                })()}
-              />
-              {detailDef.id === 'douyin' && (
-                <PublishPanel
-                  provider={detailDef.id}
-                  providerName={detailDef.name}
-                  onPublished={(info) => { recordPublish(detailDef.id, info) }}
-                />
-              )}
-            </aside>
+            {/* 右栏已取消（2026-11-14 用户拍板）：动作收进页头右侧 */}
           </div>
         )}
       </div>
