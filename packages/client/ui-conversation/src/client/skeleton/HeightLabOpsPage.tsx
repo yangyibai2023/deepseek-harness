@@ -12,7 +12,7 @@
  * 数据链路（2026-11-10 第五轮定案，详见 docs/70-PLANS/2026-11-10-运营面板设计方案.md §3.0）：
  *   `hl_ops_api` = 从登录窗口取 cookie（能读 HttpOnly）→ **Rust 侧 reqwest 发请求**。
  *   不在主 WebView 里读跨域 cookie（实测会让主界面整体冻结），也不每次开窗取 DOM。
- *   ⚠️ 所有 hl_ops_* 命令必须在 `src-tauri/build.rs` 的 app_manifest 里列出，
+ *   注意 所有 hl_ops_* 命令必须在 `src-tauri/build.rs` 的 app_manifest 里列出，
  *      否则 invoke 被 Tauri ACL 静默拒绝（点了毫无反应、控制台不报错）。
  */
 
@@ -1013,9 +1013,9 @@ async function fetchShipinhao(): Promise<PlatformSnapshot | null> {
  * 小红书（2026-11-10 抓包定位）
  *
  * 分两层：
- *   ✅ `/api/galaxy/user/info` —— **无需签名**，直连即可（实测 success:true），
+ *   可直接用 `/api/galaxy/user/info` —— **无需签名**，直连即可（实测 success:true），
  *      返回昵称 / redId / 简介 / permissions。账号身份这一层用它。
- *   ⚠️ `/api/galaxy/v2/creator/datacenter/*` —— 需要 `x-s`/`x-t` 签名头，
+ *   注意 `/api/galaxy/v2/creator/datacenter/*` —— 需要 `x-s`/`x-t` 签名头，
  *      直连返回 **406 Not Acceptable**。签名由页面 JS 生成，
  *      所以数据层必须走**页面内 fetch**（`hl_ops_fetch`），不能走 Rust。
  */
@@ -1195,7 +1195,7 @@ function isSuspect(prev: number | null | undefined, next: number | null): boolea
   if (next === null) return true                       // 空值，视为异常
   if (prev === null || prev === undefined) return false  // 无基线，无法判断
 
-  /* ⚠️ 2026-11-12 实测踩坑：第一版守卫把「净增粉丝 -2」误判成异常，
+  /* 注意 2026-11-12 实测踩坑：第一版守卫把「净增粉丝 -2」误判成异常，
    * 因为它只看绝对值比例（-2 相对 +27 像"暴跌"）。
    * 修正原则：**只对「单调累积型」指标做暴跌判断**。
    *   · 累积型（粉丝数、作品数、获赞数）：只会增不会减，归零/暴跌必是异常
@@ -1995,7 +1995,7 @@ export function HeightLabOpsPage() {
             : old?.details?.find((d) => d.label === label && d.group === group)?.metric
           const before = oldMetric?.value
           const now = metric.value
-          /* ⚠️ 必须带上 format —— 丢了它「5秒完播率」会显示成 0.241 而不是 24.14%
+          /* 注意 必须带上 format —— 丢了它「5秒完播率」会显示成 0.241 而不是 24.14%
            * （2026-11-10 实测发现的真实 bug）。 */
           const out: Metric = {
             value: now,
@@ -2016,10 +2016,10 @@ export function HeightLabOpsPage() {
             nickname: snap.nickname ?? null,
             accountId: snap.accountId ?? null,
             syncedAt: snap.syncedAt,
-            /* ⚠️ works 必须在这里就带上 —— 2026-11-12 实测踩了两遍同一个坑：
+            /* 注意 works 必须在这里就带上 —— 2026-11-12 实测踩了两遍同一个坑：
              * 这个中间层对象漏了 works，后面 `persistable` 里写
              * `merged.works ?? []` 拿到的是空数组，作品数据被静默丢弃。
-             * 链路：fetchDouyin → snap(有 works) → merged(❌漏了) → persistable(空) */
+             * 链路：fetchDouyin → snap(有 works) → merged(错漏了) → persistable(空) */
             works: snap.works ?? [],
             ...(snap.fans !== undefined ? { fans: snap.fans } : {}),
           },
@@ -2047,7 +2047,7 @@ export function HeightLabOpsPage() {
             nickname: merged.nickname ?? null,
             accountId: merged.accountId ?? null,
             syncedAt: merged.syncedAt,
-            /* ⚠️ 必须带上 works —— 2026-11-12 实测踩到：这里重建对象时漏了它，
+            /* 注意 必须带上 works —— 2026-11-12 实测踩到：这里重建对象时漏了它，
              * 导致作品级数据在**写缓存前就被丢掉**（接口明明成功、缓存里却没有
              * works 字段，界面上「近期作品表现」一直不显示）。 */
             works: merged.works ?? [],
@@ -2098,7 +2098,7 @@ export function HeightLabOpsPage() {
       setDetailTab('数据概览')
       /* 窗口开着时轮询试取（每 5s，最多 3 分钟）——用户扫码成功后自动落地。
        *
-       * ⭐ 同步成功就**自动关掉登录窗口**（2026-11-10 用户要求，全平台通用）：
+       * 重点 同步成功就**自动关掉登录窗口**（2026-11-10 用户要求，全平台通用）：
        * 「视频号登录后弹出也隐藏和抖音一样，剩下 B 站、小红书以及后期有其他平台
        *   都一样」——所以这里**不写平台名判断**，任何平台同步成功都关窗，
        *   以后新增平台自动获得同样行为。
@@ -2114,7 +2114,7 @@ export function HeightLabOpsPage() {
           if (ok) {
             window.clearInterval(timer)
             /* 自动收起登录窗（幂等；窗口已被用户关掉时调用也不报错）。
-             * ⚠️ 顺序关键：**必须等 syncPlatform 完成后再关**。
+             * 注意 顺序关键：**必须等 syncPlatform 完成后再关**。
              * 小红书的数据接口要走页面内 fetch（页面自带签名），
              * 窗口先关掉就拿不到签名上下文，数据会一直空
              * （2026-11-10 实测踩过：关太快 → 小红书只剩账号名）。 */
@@ -2145,7 +2145,7 @@ export function HeightLabOpsPage() {
      *
      * 因此必须用 **`flex: 1` + `minHeight: 0`** 拿「header 之外的剩余高度」——
      * 这是 flex 子项的语义。
-     * ⚠️ 不能用 `height: 100%`：那是按父容器**完整高度**算，加上 header 就溢出，
+     * 注意 不能用 `height: 100%`：那是按父容器**完整高度**算，加上 header 就溢出，
      * 反而把内部滚动条挤没（2026-11-12 实测踩过这一轮）。 */
     /* 2026-11-12 最终方案：改用 **CSS 类**（css.opsRoot / css.opsScroll），
      * 不再用内联 style。原因见 ConversationRoot.module.css 里 .opsScroll 的注释：
