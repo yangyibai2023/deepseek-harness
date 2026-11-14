@@ -204,6 +204,16 @@ export const InputBar = memo(function InputBar({
       inputActions.setDraft(text)
       focusLater()
     }
+    /**
+     * HeightLab 2026-11-15：程序化提交**当前草稿**（不替换内容）。
+     *
+     * 为什么需要：`hl:send-template` 会 setDraft(text) 把胶囊冲掉，而运营 AI 分析
+     * 需要「先插胶囊、再提交」两步。这个事件只调 `inputActions.submit()`，
+     * 草稿（含芯片 reference）原样提交，序列化时由 DSH 展开 clipboardText。
+     */
+    const submitDraft = (): void => {
+      window.setTimeout(() => { inputActions.submit() }, 80)
+    }
     const send = (event: Event): void => {
       const text = (event as CustomEvent<{ text?: unknown }>).detail.text
       if (typeof text !== 'string' || text === '') return
@@ -244,12 +254,20 @@ export const InputBar = memo(function InputBar({
       const label = typeof detail.label === 'string' ? detail.label.trim() : ''
       const prompt = typeof detail.prompt === 'string' ? detail.prompt : ''
       if (label === '' || prompt === '') return
-      const skill = typeof detail.skill === 'string' ? detail.skill : label
       // 草稿清空后插入芯片，保证「刚点模板」时输入框里只有这一个胶囊。
       inputActions.setDraft('')
+      /* ⚠ ref 必须是**完整的模型文本**，不是 skill 名。
+       *
+       * 2026-11-15 事故实录：原先 ref 传 skill、clipboardText 传 prompt，但提交
+       * 序列化只走 `codec.serialize(ref)`（facade.ts:716）——模型真正收到的是
+       * ref，clipboardText 只是复制/持久化投影。更致命的是这两个芯片 source
+       * 当时**没有任何注册点**，serializeReference 直接 reject → 草稿被静默
+       * 还原，用户看到「点发送毫无反应」。codec 现由
+       * services/desktop-dsh-bridge/web-plugins/heightlab-ops-reference 提供
+       * （serialize = 原样返回），所以 ref 承载全文、label 只负责显示。 */
       inputActions.insertChip({
         source: 'heightlab-template',
-        ref: skill,
+        ref: prompt,
         label,
         appearance: 'file',
         clipboardText: prompt,
@@ -269,14 +287,56 @@ export const InputBar = memo(function InputBar({
         focusDraftEditor(editor, revealSelection)
       }, 80)
     }
+    /**
+     * HeightLab 2026-11-15（O57 六轮，用户拍板）：运营 AI 分析也用**芯片**。
+     *
+     * 背景：原来「让 AI 分析」把 2600+ 字的运营数据全文灌进输入框并自动发送，
+     * 用户看到一大坨原始上下文（截图实测）。用户要求「像模板胶囊一样隐藏」，
+     * 且明确**不需要**展开查看全文——所以这里不做展开交互，只留短标签。
+     *
+     * 实现：与 insertTemplateChip 完全同构。`label` 是用户看到的短胶囊
+     * （如「运营快照 · 全部账号 · 11-15 01:06」），`ref`/`clipboardText` 是
+     * 完整数据上下文 + 五段提示词；模型通过 codec 收到 ref 全文。
+     */
+    const insertOpsChip = (event: Event): void => {
+      const detail = (event as CustomEvent<{ label?: unknown; prompt?: unknown }>).detail
+      const label = typeof detail.label === 'string' ? detail.label.trim() : ''
+      const prompt = typeof detail.prompt === 'string' ? detail.prompt : ''
+      if (label === '' || prompt === '') return
+      inputActions.setDraft('')
+      /* 同 insertTemplateChip：ref 承载全文（codec serialize 原样返回），
+       * label 只负责显示。scope 曾用于 ref，但 ref 会被当成模型文本，
+       * 用一个 'all'/project:xxx 短串顶掉全文等于把上下文丢了。 */
+      inputActions.insertChip({
+        source: 'heightlab-ops',
+        ref: prompt,
+        label,
+        appearance: 'file',
+        clipboardText: prompt,
+      })
+      /* 光标落到芯片右侧（用户接着补充需求）——同 insertTemplateChip 的实测坑 */
+      focusLater()
+      window.setTimeout(() => {
+        if (editor === null) return
+        editor.update(() => {
+          const root = $getRoot()
+          root.selectEnd()
+        }, { discrete: true })
+        focusDraftEditor(editor, revealSelection)
+      }, 80)
+    }
     window.addEventListener('hl:fill-draft', fill)
     window.addEventListener('hl:send-template', send)
     window.addEventListener('hl:insert-template-chip', insertTemplateChip)
+    window.addEventListener('hl:insert-ops-chip', insertOpsChip)
+    window.addEventListener('hl:submit-draft', submitDraft)
     window.addEventListener('hl:insert-reference', insertReference)
     return () => {
       window.removeEventListener('hl:fill-draft', fill)
       window.removeEventListener('hl:send-template', send)
       window.removeEventListener('hl:insert-template-chip', insertTemplateChip)
+      window.removeEventListener('hl:insert-ops-chip', insertOpsChip)
+      window.removeEventListener('hl:submit-draft', submitDraft)
       window.removeEventListener('hl:insert-reference', insertReference)
     }
   }, [inputActions, draft, editor])

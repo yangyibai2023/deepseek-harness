@@ -18,6 +18,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import clsx from 'clsx'
+import { IconCheckOutlineRegular, IconCloseOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import css from './ConversationRoot.module.css'
 import {
   SNAPSHOT_HOURS,
@@ -1781,13 +1782,29 @@ function OverviewSection(): React.JSX.Element {
     return s + (typeof h?.metric.value === 'number' ? h.metric.value : 0)
   }, 0)
 
+  /**
+   * 让 AI 分析：O57 六轮（2026-11-15 用户拍板）改成**胶囊 + 隐藏上下文**。
+   *
+   * 原来把 2600+ 字运营数据全文灌进输入框再自动发送——用户要滚屏看一大坨原始数据。
+   * 现在与「模板胶囊」同构：输入框只显示一行标签（含范围与时间，便于区分多次分析），
+   * 完整上下文 + 五段提示词作为芯片的模型文本藏起来，发送时由 DSH 的 codec 展开。
+   * 用户点「让 AI 分析」后**不自动发送**——停在输入框等用户确认/补充，更可控。
+   *
+   * 注意（2026-11-15 事故）：芯片能插不能发，是因为 `source: 'heightlab-ops'`
+   * 没有注册 codec（提交时 serializeReference reject → 草稿静默还原）。codec 现在
+   * 由 services/desktop-dsh-bridge/web-plugins/heightlab-ops-reference 提供。
+   */
   const startSummary = (): void => {
     const ctx = buildOpsContext(range)
-    /* 新建会话 → 填上下文 + 提示词 → 自动发送（真调模型，非规则生成） */
+    const stamp = new Date()
+    const hhmm = `${String(stamp.getMonth() + 1).padStart(2, '0')}-${String(stamp.getDate()).padStart(2, '0')} ${String(stamp.getHours()).padStart(2, '0')}:${String(stamp.getMinutes()).padStart(2, '0')}`
+    const label = `运营快照 · ${range.label} · ${hhmm}`
+    const prompt = `${ctx}\n\n${OPS_SUMMARY_PROMPT}`
     window.dispatchEvent(new CustomEvent('hl:close-hub'))
     setTimeout(() => {
-      window.dispatchEvent(new CustomEvent('hl:fill-draft', { detail: { text: `${ctx}\n\n${OPS_SUMMARY_PROMPT}` } }))
-      setTimeout(() => { window.dispatchEvent(new CustomEvent('hl:send-template', { detail: { text: `${ctx}\n\n${OPS_SUMMARY_PROMPT}` } })) }, 400)
+      window.dispatchEvent(new CustomEvent('hl:insert-ops-chip', { detail: { label, prompt } }))
+      /* 插完胶囊后程序化提交（胶囊 + 隐藏全文一起发出） */
+      setTimeout(() => { window.dispatchEvent(new CustomEvent('hl:submit-draft')) }, 400)
     }, 300)
   }
 
@@ -2073,7 +2090,9 @@ function AccountRowMenu({ acct, projects, onMove, onRemove, onClose }: {
             onClick={() => { onMove(on ? null : p.id) }}
             style={{ ...menuItemStyle, color: 'var(--dsw-alias-label-primary)' }}
           >
-            <span style={{ width: 12, flex: 'none' }}>{on ? '✓' : ''}</span>
+            <span style={{ width: 12, flex: 'none', display: 'inline-flex', alignItems: 'center' }}>
+              {on ? <IconCheckOutlineRegular size={12} /> : null}
+            </span>
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
           </button>
         )
@@ -2456,13 +2475,14 @@ function AddAccountModal({ onClose, onAdded, onLogin, initialKind, initialProjec
               border: 'none',
               background: 'transparent',
               cursor: 'pointer',
-              fontSize: 15,
               color: 'var(--dsw-alias-label-tertiary)',
               padding: '4px 7px',
               borderRadius: 6,
+              display: 'inline-flex',
+              alignItems: 'center',
             }}
           >
-            ✕
+            <IconCloseOutlineRegular size={14} />
           </button>
         </div>
 

@@ -58,6 +58,37 @@ function mediaSegmentsFromPath(path: string): { userId: string; name: string } {
 const GENUI_ACTION_RE = /^\[genui-action\]\s+([^。]+)。用户刚刚在(?:界面|面板)中触发了动作 "([^"]+)"/
 const GENUI_PANEL_RE = /^用户执行了 \/panel 并请求：/
 
+/**
+ * HeightLab（2026-11-15，O57 六轮用户拍板）：运营快照在气泡里也折叠成一行。
+ *
+ * 背景：运营面板「让 AI 分析」会把 2600+ 字真实运营数据 + 五段提示词一起发给
+ * 模型。输入框已改成芯片（只显示「运营快照 · 全部账号 · 11-15 01:49」），
+ * 但**发送后的用户气泡**仍会把全文摊开——用户明确说「不用让用户看到发给它的
+ * 具体上下文」。与上方 GenUI 同一条路子：只在**展示层**替换，会话原文
+ * （session.v4.jsonl 里的 user/message）保持不变，模型照常收到全文。
+ *
+ * 匹配的是 buildOpsContext 的固定首行：
+ *   `【运营数据快照 · 范围「全部账号」· 2026/11/15 01:49:05】`
+ */
+const OPS_SNAPSHOT_HEAD_RE = /^【运营数据快照 · 范围「([^」]*)」· ([^】]*)】/
+
+function opsSnapshotLabel(text: string): string | null {
+  const m = OPS_SNAPSHOT_HEAD_RE.exec(text)
+  if (m === null) return null
+  const scope = m[1] ?? ''
+  const rawWhen = m[2] ?? ''
+  /* 只取到「月-日 时:分」，去掉秒与年份——与输入框胶囊的粒度一致。
+   * ⚠ 年份是 4 位（`2026/11/15 01:49:05`，toLocaleString('zh-CN')），
+   * 曾写成 `(\d{1,2})\/(\d{1,2})\/(\d{4})` → 年份只能吃 2 位 → 整条匹配失败
+   * → 回退显示原文整段（实测踩过）。 */
+  const stamp = /(\d{4})\/(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})/.exec(rawWhen)
+  const when = stamp === null
+    ? rawWhen.trim()
+    : `${(stamp[2] ?? '').padStart(2, '0')}-${(stamp[3] ?? '').padStart(2, '0')} `
+      + `${(stamp[4] ?? '').padStart(2, '0')}:${stamp[5] ?? ''}`
+  return `运营快照 · ${scope} · ${when}`
+}
+
 function genuiFriendlyText(text: string): string {
   if (text.startsWith('[genui-action]')) {
     const label = /组件数据:\s*\{[^}]*"label"\s*:\s*"([^"]+)"/.exec(text)?.[1]
@@ -66,6 +97,8 @@ function genuiFriendlyText(text: string): string {
     return `你触发了「${label}」`
   }
   if (GENUI_PANEL_RE.test(text)) return '你更新了会话面板'
+  const ops = opsSnapshotLabel(text)
+  if (ops !== null) return ops
   return text
 }
 
