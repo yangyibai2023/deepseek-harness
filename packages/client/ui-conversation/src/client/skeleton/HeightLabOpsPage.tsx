@@ -1704,6 +1704,261 @@ function saveOwnExtra(list: OwnExtraAccount[]): void {
   } catch { /* 满 */ }
 }
 
+/* ── 当前概况（O57 四轮，2026-11-14 用户拍板）× 方案 A ──────────────────
+ * 结构：左侧精简项目树（只列项目名+账号数，点击筛选） | 右侧数据摘要 + AI 总结。
+ * 用户诉求：「第一页应该是总的 AI 总结数据情况」+「支持侧边聊天，根据页面数据聊天」。
+ *
+ * AI 总结实现：客户端无直调模型能力（DSH 架构：所有 AI 调用都走会话引擎），
+ * 因此按钮动作 = 新建会话 + 把该范围数据编成上下文写进输入框 + 自动发送。
+ * 会话天然保留在历史里（用户要求「对话记录要保留，就像正常对话」）。
+ * 用 hl:fill-draft + hl:send-template 两条既有通道（零渗透）。
+ */
+interface OverviewRange {
+  kind: 'all' | 'project' | 'account'
+  projectId?: string
+  accountKey?: string
+  label: string
+}
+
+function buildOpsContext(range: OverviewRange): string {
+  const projects = loadO56Projects()
+  const bench = loadBench()
+  const own = loadOwnExtra()
+  const lines: string[] = []
+
+  const projName = (pid: string): string => projects.find(p => p.id === pid)?.name ?? pid
+  const inRange = (key: string): boolean => inRangeOf(range, key)
+
+  lines.push(`【运营数据快照 · 范围「${range.label}」· ${new Date().toLocaleString('zh-CN')}】`)
+
+  /* 我的账号（主平台登录态） */
+  const snaps = loadSnapshots()
+  for (const def of PROVIDERS) {
+    const snap = snaps[def.id]
+    if (snap === undefined) continue
+    if (!inRange(`own:${def.id}`)) continue
+    const hl = (snap.highlights ?? []).map(h => `${h.label} ${h.metric.value ?? '—'}`).join(' / ')
+    lines.push(`\n[我的账号·${def.name}] ${snap.nickname ?? ''}｜${hl}`)
+    const works = (snap.works ?? []).slice(0, 10)
+    if (works.length > 0) {
+      lines.push('  近期作品：')
+      for (const w of works) {
+        lines.push(`   · ${String(w.title ?? '(无题)').slice(0, 60)}｜播放 ${w.plays ?? '—'}｜互动 ${w.interactions ?? '—'}`)
+      }
+    }
+  }
+
+  /* 额外自有账号（公开数据模式） */
+  for (const acct of own) {
+    if (!inRange(`own:${acct.platform}:${acct.accountRef}`)) continue
+    const hl = (acct.snap.highlights ?? []).map(h => `${h.label} ${h.metric.value ?? '—'}`).join(' / ')
+    lines.push(`\n[我的账号·额外·${acct.nickname}]（${acct.kind === 'public' ? '公开数据模式' : '会话采集'}）｜${hl}`)
+  }
+
+  /* 对标账号 */
+  for (const acct of bench) {
+    if (!inRange(`bench:${acct.secUid || acct.link}`)) continue
+    const live = acct.works.filter(w => w.missing !== true)
+    const top5 = live.slice().sort((a, b) => (b.plays ?? b.diggs ?? 0) - (a.plays ?? a.diggs ?? 0)).slice(0, 5)
+    lines.push(`\n[对标账号] ${acct.nickname}｜${live.length} 条作品｜归属：${(acct.groups ?? []).map(projName).join('、') || '未分组'}`)
+    for (const w of top5) {
+      lines.push(`   · ${String(w.desc ?? '(无题)').slice(0, 60)}｜播放 ${w.plays ?? '—'} 赞 ${w.diggs ?? '—'} 评 ${w.comments ?? '—'} 藏 ${w.collects ?? '—'}`)
+      if (w.asr) lines.push(`     口播：${String(w.asr).slice(0, 160)}`)
+    }
+  }
+
+  const pid = range.projectId
+  lines.push(`\n[项目] ${projects.length} 个｜当前范围项目：${pid !== undefined ? projName(pid) : '全部'}`)
+  return lines.join('\n')
+}
+
+/** 范围过滤：account 精确匹配；project 看归属；all 全通过（buildOpsContext 与
+ * OverviewSection 共用同一判据——此前两处实现完全一致，lint 报 identical-functions）。 */
+function inRangeOf(range: OverviewRange, key: string): boolean {
+  if (range.kind === 'all') return true
+  if (range.kind === 'account') return key === range.accountKey
+  return accountGroups(key).includes(range.projectId ?? '')
+}
+
+const OPS_SUMMARY_PROMPT = [
+  '以上是我这个运营账号（或账号组）的真实实测数据。请作为资深运营顾问，输出一份**结构化运营总结**：',
+  '',
+  '1. **当前表现**：这个号/这组号现在处于什么水平（用数据说明，不要空话）',
+  '2. **核心问题**：最值得警惕的 1-2 个问题是什么（指出具体数据证据）',
+  '3. **对标差距**：如果有对标账号，我和它的具体差距在哪',
+  '4. **下周行动**：3 条具体可执行的动作（要能直接落到选题/文案/发布节奏）',
+  '5. **风险提示**：数据里有没有异常信号（缺失/停滞/断崖）',
+].join('\n')
+
+function OverviewSection(): React.JSX.Element {
+  const [projects] = useState<ProjectRecord[]>(loadO56Projects)
+  const [range, setRange] = useState<OverviewRange>({ kind: 'all', label: '全部账号' })
+  const [, setTick] = useState(0)
+
+  useEffect(() => {
+    const onChange = (): void => { setTick(v => v + 1) }
+    window.addEventListener('hl-projects-changed', onChange)
+    window.addEventListener('hl-ops-groups-changed', onChange)
+    return () => {
+      window.removeEventListener('hl-projects-changed', onChange)
+      window.removeEventListener('hl-ops-groups-changed', onChange)
+    }
+  }, [])
+
+  const snaps = loadSnapshots()
+  const bench = loadBench()
+  const own = loadOwnExtra()
+
+  const projCount = (pid: string): number => {
+    let n = 0
+    for (const def of PROVIDERS) if (snaps[def.id] !== undefined && accountGroups(`own:${def.id}`).includes(pid)) n += 1
+    for (const a of own) if (accountGroups(`own:${a.platform}:${a.accountRef}`).includes(pid)) n += 1
+    for (const a of bench) if (accountGroups(`bench:${a.secUid || a.link}`).includes(pid)) n += 1
+    return n
+  }
+
+  /* 摘要数据：按当前 range 过滤 */
+  const inRange = (key: string): boolean => inRangeOf(range, key)
+  const ownSnaps = PROVIDERS.flatMap((d) => {
+    const snap = snaps[d.id]
+    return snap !== undefined && inRange(`own:${d.id}`) ? [snap] : []
+  })
+  const ownExtraIn = own.filter(a => inRange(`own:${a.platform}:${a.accountRef}`))
+  const benchIn = bench.filter(a => inRange(`bench:${a.secUid || a.link}`))
+  const totalWorks = benchIn.reduce((s, a) => s + a.works.filter(w => w.missing !== true).length, 0)
+  const withAsr = benchIn.reduce((s, a) => s + a.works.filter(w => w.asr !== undefined && w.asr !== '').length, 0)
+  const allProjects = (range.kind === 'all' || range.accountKey !== undefined)
+    ? projects.slice()
+    : projects.filter(p => p.id === range.projectId)
+  const withSnapshot = ownSnaps.length + ownExtraIn.length
+  const totalFans = ownSnaps.reduce((s, snap) => {
+    const h = (snap.highlights ?? []).find(x => x.label.includes('粉丝'))
+    return s + (typeof h?.metric.value === 'number' ? h.metric.value : 0)
+  }, 0)
+
+  const startSummary = (): void => {
+    const ctx = buildOpsContext(range)
+    /* 新建会话 → 填上下文 + 提示词 → 自动发送（真调模型，非规则生成） */
+    window.dispatchEvent(new CustomEvent('hl:close-hub'))
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('hl:fill-draft', { detail: { text: `${ctx}\n\n${OPS_SUMMARY_PROMPT}` } }))
+      setTimeout(() => { window.dispatchEvent(new CustomEvent('hl:send-template', { detail: { text: `${ctx}\n\n${OPS_SUMMARY_PROMPT}` } })) }, 400)
+    }, 300)
+  }
+
+  return (
+    <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start', minHeight: 0 }}>
+      {/* ── 左：精简项目树 ── */}
+      <aside style={{ width: 220, flex: 'none', display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <div style={{ fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary)', padding: '0 6px 6px' }}>
+          范围（点选筛选右侧数据）
+        </div>
+        <button
+          type="button"
+          onClick={() => { setRange({ kind: 'all', label: '全部账号' }) }}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8, width: '100%', minHeight: 32, padding: '6px 8px',
+            border: 'none', borderRadius: 8, cursor: 'pointer', textAlign: 'left', font: 'inherit',
+            background: range.kind === 'all' ? 'var(--dsw-alias-interactive-bg-active)' : 'transparent',
+            color: 'var(--dsw-alias-label-primary)',
+          }}
+        >
+          <span style={{ flex: 1, fontSize: 13 }}>全部账号</span>
+          <span style={{ fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' }}>
+            {PROVIDERS.filter(d => snaps[d.id] !== undefined).length + own.length + bench.length}
+          </span>
+        </button>
+        {projects.map((p) => {
+          const active = range.kind === 'project' && range.projectId === p.id
+          return (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => { setRange({ kind: 'project', projectId: p.id, label: p.name }) }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8, width: '100%', minHeight: 32, padding: '6px 8px',
+                border: 'none', borderRadius: 8, cursor: 'pointer', textAlign: 'left', font: 'inherit',
+                background: active ? 'var(--dsw-alias-interactive-bg-active)' : 'transparent',
+                color: 'var(--dsw-alias-label-primary)', opacity: active ? 1 : 0.85,
+              }}
+            >
+              <span style={{ flex: 1, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+              <span style={{ fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' }}>{projCount(p.id)}</span>
+            </button>
+          )
+        })}
+        {projects.length === 0 && (
+          <div style={{ fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary)', padding: '6px' }}>
+            还没有项目——到侧栏「项目」视图新建。
+          </div>
+        )}
+      </aside>
+
+      {/* ── 右：数据摘要 + AI 总结 ── */}
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <h3 style={{ ...sectionTitleStyle, margin: 0, flex: 1 }}>{range.label}</h3>
+          <button type="button" onClick={startSummary} style={primaryBtnStyle(false)}>
+            让 AI 分析
+          </button>
+        </div>
+        <div style={{ fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary)' }}>
+          点「让 AI 分析」→ 新建对话并把这批真实数据交给模型做总结（对话会保留在会话列表）。
+        </div>
+
+        <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
+          {[
+            { label: '自有账号', value: withSnapshot, unit: '个' },
+            { label: '对标账号', value: benchIn.length, unit: '个' },
+            { label: '对标作品', value: totalWorks, unit: '条' },
+            { label: '已有口播文案', value: withAsr, unit: '条' },
+            { label: '项目分组', value: allProjects.length, unit: '个' },
+            { label: '自有粉丝合计', value: totalFans, unit: '' },
+          ].map(item => (
+            <div key={item.label} style={{ border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 10, padding: '12px 14px' }}>
+              <div style={{ fontSize: 12, color: 'var(--dsw-alias-label-tertiary)', marginBottom: 6 }}>{item.label}</div>
+              <div style={{ fontSize: 22, fontWeight: 600, lineHeight: '28px', color: 'var(--dsw-alias-label-primary)', fontVariantNumeric: 'tabular-nums' }}>
+                {item.value > 10000 ? `${(item.value / 10000).toFixed(1)}万` : item.value}
+                <span style={{ fontSize: 12, fontWeight: 400, marginLeft: 4, color: 'var(--dsw-alias-label-tertiary)' }}>{item.unit}</span>
+              </div>
+            </div>
+          ))}
+        </section>
+
+        <section>
+          <h3 style={{ ...sectionTitleStyle, marginBottom: 10 }}>账号清单</h3>
+          {benchIn.length === 0 && withSnapshot === 0 && (
+            <div style={{ ...rowDescStyle }}>当前范围还没有账号数据。先到「账号」页采一个。</div>
+          )}
+          {ownSnaps.map((snap, i) => (
+            <div key={`own-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderTop: '1px solid var(--dsw-alias-border-l2)' }}>
+              <span style={{ fontSize: 11, color: 'var(--dsw-alias-label-tertiary)', flex: 'none', width: 56 }}>我的账号</span>
+              <span style={{ flex: 1, fontSize: 13, color: 'var(--dsw-alias-label-primary)' }}>{snap.nickname ?? '—'}</span>
+              <span style={{ fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' }}>
+                {(snap.highlights ?? []).map(h => `${h.label} ${h.metric.value ?? '—'}`).join(' · ')}
+              </span>
+            </div>
+          ))}
+          {ownExtraIn.map(a => (
+            <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderTop: '1px solid var(--dsw-alias-border-l2)' }}>
+              <span style={{ fontSize: 11, color: 'var(--dsw-alias-label-tertiary)', flex: 'none', width: 56 }}>我的账号</span>
+              <span style={{ flex: 1, fontSize: 13, color: 'var(--dsw-alias-label-primary)' }}>{a.nickname}</span>
+              <span style={{ fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' }}>公开数据模式</span>
+            </div>
+          ))}
+          {benchIn.map(a => (
+            <div key={a.secUid || a.link} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderTop: '1px solid var(--dsw-alias-border-l2)' }}>
+              <span style={{ fontSize: 11, color: 'var(--dsw-alias-label-tertiary)', flex: 'none', width: 56 }}>对标账号</span>
+              <span style={{ flex: 1, fontSize: 13, color: 'var(--dsw-alias-label-primary)' }}>{a.nickname}</span>
+              <span style={{ fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' }}>{a.works.filter(w => w.missing !== true).length} 条作品</span>
+            </div>
+          ))}
+        </section>
+      </div>
+    </div>
+  )
+}
+
 /* ── 我的账号·额外账号区（O57，2026-11-14）──────────────────────────────
  * 主平台卡（每平台 1 个登录会话）下方追加：额外自有账号列表 + 添加入口。
  * 添加支持两种来源：①公开数据（DTK，只需主页链接，立即可用）
@@ -2673,8 +2928,8 @@ interface PlatformState {
 
 export function HeightLabOpsPage() {
   /* O57 D2（2026-11-14 用户拍板）：页面级双分页——我的账号（原数据概览）/ 对标账号（原对标库） */
-  /* 'groups' 排第一（O57 2026-11-14 用户拍板：项目分组 → 我的账号 → 对标账号） */
-  const [tab, setTab] = useState<'groups' | 'overview' | 'bench'>('groups')
+  /* O57 四轮（2026-11-14 用户拍板方案 A）：两页——当前概况（洞察优先）/ 账号（我的+对标合并） */
+  const [tab, setTab] = useState<'overview' | 'accounts'>('overview')
   const [snapshots, setSnapshots] = useState<Record<string, PlatformSnapshot>>(loadSnapshots)
   const [states, setStates] = useState<Record<string, PlatformState>>({})
   const [detail, setDetail] = useState<ProviderId | null>(null)
@@ -2961,39 +3216,28 @@ export function HeightLabOpsPage() {
         <button
           type="button"
           role="tab"
-          aria-selected={tab === 'groups'}
-          className={clsx(css.libraryTab, tab === 'groups' && css.libraryTabActive)}
-          onClick={() => { setTab('groups'); setDetail(null) }}
-        >
-          项目分组
-        </button>
-        <button
-          type="button"
-          role="tab"
           aria-selected={tab === 'overview'}
           className={clsx(css.libraryTab, tab === 'overview' && css.libraryTabActive)}
           onClick={() => { setTab('overview'); setDetail(null) }}
         >
-          我的账号
+          当前概况
         </button>
         <button
           type="button"
           role="tab"
-          aria-selected={tab === 'bench'}
-          className={clsx(css.libraryTab, tab === 'bench' && css.libraryTabActive)}
-          onClick={() => { setTab('bench'); setDetail(null) }}
+          aria-selected={tab === 'accounts'}
+          className={clsx(css.libraryTab, tab === 'accounts' && css.libraryTabActive)}
+          onClick={() => { setTab('accounts'); setDetail(null) }}
         >
-          对标账号
+          账号
         </button>
       </div>
 
       {/* 容器严格照抄原生 hubPageStyle：gap 32 / padding 12 clamp(24,4vw,48) 48 */}
       <div className={css.opsScroll}>
         {detailDef === null ? (
-          tab === 'groups' ? (
-            <GroupsSection />
-          ) : tab === 'bench' ? (
-            <BenchSection />
+          tab === 'overview' ? (
+            <OverviewSection />
           ) : (
             <>
               <div style={{ fontSize: 13, lineHeight: '20px', color: 'var(--dsw-alias-label-tertiary)', margin: 0 }}>
@@ -3073,6 +3317,9 @@ export function HeightLabOpsPage() {
               </section>
               {/* O57（2026-11-14）：额外自有账号（同一平台多账号，公开数据模式） */}
               <OwnExtraSection onOpenDetail={(acct) => { setExtraDetail(acct) }} />
+              {/* O57 四轮：对标采集 + 项目分组归属，合并进「账号」页（不再独立分页） */}
+              <BenchSection />
+              <GroupsSection />
             </>
           )
         ) : (
