@@ -144,6 +144,27 @@ describe('LlmRuntime', () => {
     expect(isQuotaExceededError('quota resets in one minute')).toBe(false)
   })
 
+  /* HeightLab（2026-11-15，O52 根治）：New API 预扣费失败的真实报文。
+   *
+   * 事故：Windows 用户看到「模型服务连接异常…登录已过期，请重新登录」，反复
+   * 重登/重启无效。真因是余额不足返回 403，而分类器把它判成 AUTH。
+   * 关键坑：报文措辞是「预扣费额度**失败**」，不是「额度不足」——旧正则只认
+   * 后者，于是漏判。这些用例把当时的真实字符串钉住。 */
+  it('recognizes New API pre-deduction (预扣费) rejection as quota, not auth', () => {
+    const realGatewayPayload = '403 relay error: 预扣费额度失败, 用户剩余额度: ¥0.081239, 需要预扣费额度: ¥0.147588'
+    expect(isQuotaExceededError(realGatewayPayload)).toBe(true)
+    /* 同族措辞：预扣费/扣费失败 + 剩余额度/余额 */
+    expect(isQuotaExceededError('预扣费额度失败')).toBe(true)
+    expect(isQuotaExceededError('扣费失败，剩余余额不足')).toBe(true)
+    expect(isQuotaExceededError('API Error: 403 余额不足')).toBe(true)
+    expect(isQuotaExceededError('额度已用完')).toBe(true)
+    /* 反向保护：真正的鉴权失败不能被误判成余额问题，否则用户会被引导去充值
+     * 而不是重新登录——这正是本次事故的镜像错误。 */
+    expect(isQuotaExceededError('401 Unauthorized: invalid api key')).toBe(false)
+    expect(isQuotaExceededError('403 permission_error: token revoked')).toBe(false)
+    expect(isQuotaExceededError('authentication_error: token expired')).toBe(false)
+  })
+
   it('errorChain renders the full cause chain of a wrapped transport failure', () => {
     const chain = new TypeError('fetch failed', { cause: new Error('connect ECONNREFUSED 127.0.0.1:443') })
     expect(errorChain(chain)).toBe('fetch failed: connect ECONNREFUSED 127.0.0.1:443')

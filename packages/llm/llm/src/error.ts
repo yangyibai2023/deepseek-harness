@@ -101,6 +101,16 @@ export function isQuotaExceededError(detail: string): boolean {
   if (/(?:余额|额度)(?:不足|已?用完|已?耗尽)/.test(detail)) {
     return true
   }
+  /* HeightLab（2026-11-15，O52 根治）：New API 预扣费失败的真实措辞是
+   *   `403 relay error: 预扣费额度失败, 用户剩余额度: ¥0.081239, 需要预扣费额度: ¥0.147588`
+   * —— 关键词是「额度**失败**」，上面那条只认「不足/用完/耗尽」，**漏判**。
+   * 于是 403 落到 AUTH 分支，用户看到「登录已过期，请重新登录」，反复重登无效
+   * （Windows 用户实测）。这里补两种明确形态：
+   *   · 「预扣费…失败」/「扣费…失败」 —— 网关预扣费闸门拒绝
+   *   · 「剩余额度」/「剩余余额」 —— 拒付报文里必然带当前余量
+   * 只认这些**强特征**，不下沉到宽泛的「失败」，避免把真正的鉴权失败误判成余额。 */
+  if (/预扣费[^,，。]{0,8}失败|扣费[^,，。]{0,8}失败/.test(detail)) return true
+  if (/(?:剩余|可用)(?:额度|余额)/.test(detail)) return true
   return /\binsufficient[\s_-]+(?:quota|balance|credits?)\b/i.test(detail)
     || /\binsufficient[\s_-]+user[\s_-]+quota\b/i.test(detail)
     || /\b(?:quota|usage[\s_-]+limit)[\s_-]+(?:exceeded|exhausted|reached)\b/i.test(detail)
