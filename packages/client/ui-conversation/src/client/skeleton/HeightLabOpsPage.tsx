@@ -1610,6 +1610,20 @@ interface BenchWork {
   shares?: number | null
   playUrl?: string | null
   asr?: string
+  /* O57 增量采集（2026-11-14）：每条作品的生命周期追踪 */
+  firstSeenAt?: number
+  lastSeenAt?: number
+  /** 本轮采集未再返回（被删/超出条数）——保留存档但标注 */
+  missing?: boolean
+}
+/** 一次采集动作的记录（供「采集历史」展示与增量判断） */
+interface BenchRun {
+  at: number
+  requested: number
+  returned: number
+  added: number
+  updated: number
+  missing: number
 }
 interface BenchAccount {
   link: string
@@ -1617,6 +1631,10 @@ interface BenchAccount {
   nickname: string
   works: BenchWork[]
   syncedAt: number
+  /* O57 分组（2026-11-14）：项目分组多对多（复用 hl-projects-v1 的项目 id） */
+  groups?: string[]
+  /** 采集历史（最近在前，最多保留 20 次） */
+  runs?: BenchRun[]
 }
 /** 网关 /api/content-tools/bench-posts 响应（DTK 引擎结构化输出） */
 interface BenchPostItem {
@@ -1648,10 +1666,284 @@ function loadBench(): BenchAccount[] {
 function saveBench(list: BenchAccount[]): void {
   try { window.localStorage.setItem(BENCH_KEY, JSON.stringify({ version: 1, accounts: list })) } catch { /* 满 */ }
 }
+/* ── 项目分组（O57，2026-11-14）：复用 hl-projects-v1，加账号归属 ────────
+ * 与 O56 侧栏项目树同一份项目清单——一个项目同时是「对话容器」和「账号容器」，
+ * 这样 @ 项目时能一次带全（对话 + 我的账号 + 对标账号 + 品牌档案）。
+ * 账号归属存本项目自己的 localStorage（不污染 O56 schema）：
+ *   hl-ops-groups-v1 = { version:1, membership: { [accountKey]: projectId[] } }
+ * accountKey 形如 "own:douyin:secUid" / "bench:secUid"。
+ */
+const GROUP_KEY = 'hl-ops-groups-v1'
+interface GroupStore {
+  version: 1
+  membership: Record<string, string[]>
+}
+function loadGroupStore(): GroupStore {
+  try {
+    const raw = window.localStorage.getItem(GROUP_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw) as GroupStore
+      if (parsed.version === 1 && parsed.membership) return parsed
+    }
+  } catch { /* 重建 */ }
+  return { version: 1, membership: {} }
+}
+function saveGroupStore(store: GroupStore): void {
+  try { window.localStorage.setItem(GROUP_KEY, JSON.stringify(store)) } catch { /* 满 */ }
+  try { window.dispatchEvent(new CustomEvent('hl-ops-groups-changed')) } catch { /* 非浏览器 */ }
+}
+function accountGroups(key: string): string[] {
+  return loadGroupStore().membership[key] ?? []
+}
+function setAccountGroups(key: string, projectIds: string[]): void {
+  const store = loadGroupStore()
+  /* 不用 delete（no-dynamic-delete 规则）——重建 membership */
+  const next: Record<string, string[]> = {}
+  for (const [k, v] of Object.entries(store.membership)) {
+    if (k !== key) next[k] = v
+  }
+  if (projectIds.length > 0) next[key] = projectIds
+  store.membership = next
+  saveGroupStore(store)
+}
+/** 复用 O56 的项目清单（sidebar 项目树同一份） */
+interface ProjectRecord {
+  id: string
+  name: string
+  createdAt: number
+  order: number
+}
+function loadO56Projects(): ProjectRecord[] {
+  try {
+    const raw = window.localStorage.getItem('hl-projects-v1')
+    if (raw) {
+      const parsed = JSON.parse(raw) as { projects?: ProjectRecord[] }
+      if (Array.isArray(parsed.projects)) {
+        return parsed.projects.slice().sort((a, b) => (a.order || 0) - (b.order || 0) || a.createdAt - b.createdAt)
+      }
+    }
+  } catch { /* 无项目 */ }
+  return []
+}
+
+/* ── 对标账号增量合并（O57，2026-11-14 用户明确要求）──────────────────
+ * 语义：**采集只在已有基础上新增，不从零重来**。
+ *   · 已存在作品 → 数据更新为新值，**已转写文案保留**（不重跑 ASR，省钱省时）
+ *   · 新出现作品 → 追加（记录 firstSeenAt）
+ *   · 本轮未返回   → 标记 missing=true（保留存档，不删）
+ *   · 每轮写一条 BenchRun 进 runs（最近 20 条）
+ */
+function mergeBenchWorks(
+  prev: BenchWork[],
+  incoming: BenchPostItem[],
+): { works: BenchWork[]; added: number; updated: number; missing: number } {
+  const now = Date.now()
+  const prevMap = new Map(prev.map(w => [w.awemeId, w]))
+  let added = 0
+  let updated = 0
+  for (const it of incoming) {
+    const old = prevMap.get(it.contentId)
+    if (old === undefined) {
+      prevMap.set(it.contentId, {
+        awemeId: it.contentId,
+        desc: it.title,
+        plays: it.stats?.play_count ?? null,
+        diggs: it.stats?.digg_count ?? null,
+        comments: it.stats?.comment_count ?? null,
+        collects: it.stats?.collect_count ?? null,
+        shares: it.stats?.share_count ?? null,
+        playUrl: it.videoUrl,
+        firstSeenAt: now,
+        lastSeenAt: now,
+      })
+      added += 1
+    } else {
+      /* 数据刷新为新值；asr / firstSeenAt 保留 */
+      old.desc = it.title !== '' ? it.title : old.desc
+      old.plays = it.stats?.play_count ?? old.plays ?? null
+      old.diggs = it.stats?.digg_count ?? old.diggs ?? null
+      old.comments = it.stats?.comment_count ?? old.comments ?? null
+      old.collects = it.stats?.collect_count ?? old.collects ?? null
+      old.shares = it.stats?.share_count ?? old.shares ?? null
+      if (it.videoUrl !== null) old.playUrl = it.videoUrl
+      old.lastSeenAt = now
+      old.missing = false
+      updated += 1
+    }
+  }
+  const incomingIds = new Set(incoming.map(i => i.contentId))
+  let missing = 0
+  for (const w of prevMap.values()) {
+    if (!incomingIds.has(w.awemeId) && w.missing !== true) {
+      w.missing = true
+      missing += 1
+    }
+  }
+  return { works: [...prevMap.values()], added, updated, missing }
+}
+
 function benchNum(n?: number | null): string {
   if (n === null || n === undefined) return '—'
   if (n >= 10000) return `${(n / 10000).toFixed(1)}万`
   return String(n)
+}
+
+/* ── 项目分组（O57，2026-11-14）────────────────────────────────────────────
+ * 一个项目 = 账号容器。与 O56 侧栏项目树共用 hl-projects-v1 的项目清单，
+ * 所以「@ 项目」能一次带全（对话 + 我的账号 + 对标账号）。
+ * 本页职责：看每个项目下挂了哪些账号；给账号分配/移除项目。
+ */
+function GroupsSection() {
+  const [projects] = useState<ProjectRecord[]>(loadO56Projects)
+  const [groupsVersion, setGroupsVersion] = useState(0)
+  const [assigning, setAssigning] = useState<string | null>(null)  // accountKey
+  const [expandProject, setExpandProject] = useState<string | null>(null)
+
+  useEffect(() => {
+    const onChange = (): void => { setGroupsVersion(v => v + 1) }
+    window.addEventListener('hl-ops-groups-changed', onChange)
+    window.addEventListener('hl-projects-changed', onChange)
+    return () => {
+      window.removeEventListener('hl-ops-groups-changed', onChange)
+      window.removeEventListener('hl-projects-changed', onChange)
+    }
+  }, [])
+
+  /* 全部可分组账号：我的账号（每平台一条）+ 对标账号 */
+  const benchAccounts = loadBench()
+  const ownKeys: { key: string; label: string; sub: string }[] = []
+  // 我的账号用平台维度（当前每平台 1 个登录账号）
+  for (const def of PROVIDERS) {
+    ownKeys.push({ key: `own:${def.id}`, label: def.name, sub: '我的账号' })
+  }
+  const benchKeys = benchAccounts.map(a => ({
+    key: `bench:${a.secUid || a.link}`,
+    label: a.nickname,
+    sub: `对标账号 · ${a.works.length} 条作品`,
+  }))
+  const allAccounts = [...ownKeys, ...benchKeys]
+
+  /* 反向索引：projectId → 账号 key 列表 */
+  const byProject = new Map<string, string[]>()
+  for (const a of allAccounts) {
+    for (const pid of accountGroups(a.key)) {
+      const list = byProject.get(pid) ?? []
+      list.push(a.key)
+      byProject.set(pid, list)
+    }
+  }
+  const labelOf = (key: string): string => allAccounts.find(a => a.key === key)?.label ?? key
+  void groupsVersion
+
+  const removeFromProject = (projectId: string, accountKey: string): void => {
+    setAccountGroups(accountKey, accountGroups(accountKey).filter(id => id !== projectId))
+    setGroupsVersion(v => v + 1)
+  }
+
+  return (
+    <section style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ fontSize: 13, lineHeight: '20px', color: 'var(--dsw-alias-label-tertiary)', margin: 0 }}>
+        项目分组 = 账号容器。与侧栏「项目」共用同一份项目清单——在这里挂账号，
+        在侧栏挂对话，@ 项目时两者一起作为上下文。新建项目请在侧栏「项目」视图里操作。
+      </div>
+
+      {projects.length === 0 && (
+        <div style={{ ...rowDescStyle, padding: '12px 2px' }}>
+          还没有项目分组。到侧栏「工作区 | 项目」切到项目视图，点「＋新建项目」创建第一个。
+        </div>
+      )}
+
+      {projects.map((project) => {
+        const members = byProject.get(project.id) ?? []
+        const expanded = expandProject === project.id
+        return (
+          <div key={project.id} style={{ border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 12, padding: 14 }}>
+            <button
+              type="button"
+              onClick={() => { setExpandProject(expanded ? null : project.id) }}
+              style={{ width: '100%', textAlign: 'left', border: 'none', background: 'transparent', cursor: 'pointer', padding: 0 }}
+            >
+              <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--dsw-alias-label-primary)' }}>{project.name}</span>
+              <span style={{ marginLeft: 10, fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' }}>
+                {members.length} 个账号
+              </span>
+            </button>
+            {expanded && (
+              <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {members.length === 0 && (
+                  <div style={{ ...rowDescStyle }}>该项目还没有账号——在下方「账号归属」里分配。</div>
+                )}
+                {members.map(key => (
+                  <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 10, paddingTop: 6, borderTop: '1px solid var(--dsw-alias-border-l2)' }}>
+                    <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: 'var(--dsw-alias-label-primary)' }}>{labelOf(key)}</span>
+                    <button
+                      type="button"
+                      onClick={() => { removeFromProject(project.id, key) }}
+                      style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 12, color: 'var(--dsw-alias-label-tertiary)', padding: 0 }}
+                    >
+                      移出
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })}
+
+      {/* 账号归属分配 */}
+      <div style={{ marginTop: 8, paddingTop: 16, borderTop: '1px solid var(--dsw-alias-border-l2)' }}>
+        <h3 style={{ ...sectionTitleStyle, margin: '0 0 10px' }}>账号归属</h3>
+        <div style={{ fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary)', marginBottom: 10 }}>
+          点账号行分配项目分组（可多选）。
+        </div>
+        {allAccounts.length === 0 && <div style={{ ...rowDescStyle }}>还没有账号。</div>}
+        {allAccounts.map((acct) => {
+          const assigned = accountGroups(acct.key)
+          const isAssigning = assigning === acct.key
+          return (
+            <div key={acct.key} style={{ borderTop: '1px solid var(--dsw-alias-border-l2)', padding: '8px 0' }}>
+              <button
+                type="button"
+                onClick={() => { setAssigning(isAssigning ? null : acct.key) }}
+                style={{ width: '100%', textAlign: 'left', border: 'none', background: 'transparent', cursor: 'pointer', padding: 0 }}
+              >
+                <span style={{ fontSize: 13, color: 'var(--dsw-alias-label-primary)' }}>{acct.label}</span>
+                <span style={{ marginLeft: 8, fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' }}>{acct.sub}</span>
+                <span style={{ marginLeft: 8, fontSize: 12, color: 'var(--dsw-alias-label-secondary)' }}>
+                  {assigned.length > 0
+                    ? `→ ${assigned.map(id => projects.find(p => p.id === id)?.name ?? id).join('、')}`
+                    : '（未分组）'}
+                </span>
+              </button>
+              {isAssigning && (
+                <div style={{ marginTop: 6, paddingLeft: 8, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {projects.map((p) => {
+                    const on = assigned.includes(p.id)
+                    return (
+                      <label key={p.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--dsw-alias-label-secondary)', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={on}
+                          onChange={() => {
+                            const next = on ? assigned.filter(id => id !== p.id) : [...assigned, p.id]
+                            setAccountGroups(acct.key, next)
+                            setGroupsVersion(v => v + 1)
+                          }}
+                        />
+                        {p.name}
+                      </label>
+                    )
+                  })}
+                  {projects.length === 0 && <span style={{ fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' }}>先去侧栏建项目</span>}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </section>
+  )
 }
 
 function BenchSection() {
@@ -1683,21 +1975,22 @@ function BenchSection() {
         setStatus(`采集失败：${String(payload?.message ?? `HTTP ${resp.status}`).slice(0, 160)}`)
         return
       }
-      const works: BenchWork[] = (payload.data?.items ?? []).map(it => ({
-        awemeId: it.contentId,
-        desc: it.title,
-        plays: it.stats?.play_count ?? null,
-        diggs: it.stats?.digg_count ?? null,
-        comments: it.stats?.comment_count ?? null,
-        collects: it.stats?.collect_count ?? null,
-        shares: it.stats?.share_count ?? null,
-        playUrl: it.videoUrl,
-      }))
-      const nickname = (payload.data?.items ?? [])[0]?.author ?? ''
-      if (works.length === 0) { setStatus('该账号未返回作品（可能隐私设置或链接有误）。'); return }
-      setStatus(`已捕获 ${works.length} 条作品，开始转写口播文案（每条约 10-40 秒）…`)
+      const incoming = payload.data?.items ?? []
+      const nickname = incoming[0]?.author ?? ''
+      if (incoming.length === 0) { setStatus('该账号未返回作品（可能隐私设置或链接有误）。'); return }
+
+      /* O57 增量合并（用户明确要求「只在基础上新增，不从头重采」）：
+       * 已有作品的文案(asr)/首见时间保留，仅数据刷新；新作品追加；未返回的标 missing。 */
+      const existing = loadBench().find(a => a.secUid === secUid || a.link === url)
+      const merged = mergeBenchWorks(existing?.works ?? [], incoming)
+      const works = merged.works
+      const toTranscribe = works.filter(w => (w.asr === undefined || w.asr === '') && w.missing !== true && w.playUrl)
+      setStatus(
+        `本次新增 ${merged.added} 条 / 更新 ${merged.updated} 条 / 缺失 ${merged.missing} 条` +
+        (toTranscribe.length > 0 ? `；转写 ${toTranscribe.length} 条新文案…` : '；无新文案需要转写'),
+      )
       let done = 0
-      for (const w of works) {
+      for (const w of toTranscribe) {
         if (w.playUrl) {
           try {
             const r = await fetch('/hl/ops/bench-transcribe', {
@@ -1711,16 +2004,26 @@ function BenchSection() {
           } catch { /* 单条失败不阻断 */ }
         }
         done += 1
-        setStatus(`转写口播文案 ${done}/${works.length}…`)
+        setStatus(`转写口播文案 ${done}/${toTranscribe.length}…`)
+      }
+      const run: BenchRun = {
+        at: Date.now(),
+        requested: count,
+        returned: incoming.length,
+        added: merged.added,
+        updated: merged.updated,
+        missing: merged.missing,
       }
       const acct: BenchAccount = {
         link: url,
         secUid,
-        nickname: nickname || `对标 ${url.slice(-12)}`,
+        nickname: nickname || existing?.nickname || `对标 ${url.slice(-12)}`,
         works,
         syncedAt: Date.now(),
+        ...(existing?.groups !== undefined ? { groups: existing.groups } : {}),
+        runs: [run, ...(existing?.runs ?? [])].slice(0, 20),
       }
-      const next = [acct, ...loadBench().filter(a => a.link !== url)]
+      const next = [acct, ...loadBench().filter(a => a.secUid !== secUid && a.link !== url)]
       setAccounts(next)
       saveBench(next)
       setStatus(null)
@@ -1812,6 +2115,16 @@ function BenchSection() {
               <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--dsw-alias-label-primary)' }}>{acct.nickname}</span>
               <span style={{ marginLeft: 10, fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' }}>
                 {acct.works.length} 条作品 · 同步于 {new Date(acct.syncedAt).toLocaleString('zh-CN')}
+                {(acct.groups ?? []).length > 0 && (
+                  <span style={{ marginLeft: 8, color: 'var(--dsw-alias-label-secondary)' }}>
+                    [{loadO56Projects().filter(p => (acct.groups ?? []).includes(p.id)).map(p => p.name).join('、')}]
+                  </span>
+                )}
+                {acct.runs !== undefined && acct.runs.length > 0 && (
+                  <span style={{ marginLeft: 8 }}>
+                    · 上轮 +{acct.runs[0]?.added ?? 0}/更新 {acct.runs[0]?.updated ?? 0}
+                  </span>
+                )}
               </span>
             </button>
             <button type="button" onClick={() => { createWith(acct) }} style={secondaryBtnStyle(false)}>
@@ -1827,9 +2140,27 @@ function BenchSection() {
           </div>
           {expanded === acct.link && (
             <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {(acct.runs ?? []).length > 0 && (
+                <details>
+                  <summary style={{ fontSize: 12, cursor: 'pointer', color: 'var(--dsw-alias-label-tertiary)' }}>
+                    采集历史（{(acct.runs ?? []).length} 次）
+                  </summary>
+                  <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {(acct.runs ?? []).map(r => (
+                      <div key={r.at} style={{ fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' }}>
+                        {new Date(r.at).toLocaleString('zh-CN')} · 请求 {r.requested} 条 / 返回 {r.returned} ·
+                        新增 {r.added} / 更新 {r.updated} / 缺失 {r.missing}
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              )}
               {acct.works.map(w => (
                 <div key={w.awemeId} style={{ borderTop: '1px solid var(--dsw-alias-border-l2)', paddingTop: 8 }}>
-                  <div style={{ fontSize: 13, lineHeight: '19px', color: 'var(--dsw-alias-label-primary)' }}>{w.desc || '(无标题)'}</div>
+                  <div style={{ fontSize: 13, lineHeight: '19px', color: w.missing === true ? 'var(--dsw-alias-label-tertiary)' : 'var(--dsw-alias-label-primary)' }}>
+                    {w.desc || '(无标题)'}
+                    {w.missing === true && <span style={{ marginLeft: 6, fontSize: 11 }}>（本轮未返回）</span>}
+                  </div>
                   <div style={{ marginTop: 4, fontSize: 12, color: 'var(--dsw-alias-label-tertiary)', display: 'flex', gap: 14 }}>
                     <span>播放 {benchNum(w.plays)}</span>
                     <span>赞 {benchNum(w.diggs)}</span>
@@ -2156,7 +2487,8 @@ interface PlatformState {
 
 export function HeightLabOpsPage() {
   /* O57 D2（2026-11-14 用户拍板）：页面级双分页——我的账号（原数据概览）/ 对标账号（原对标库） */
-  const [tab, setTab] = useState<'overview' | 'bench'>('overview')
+  /* 'groups' 排第一（O57 2026-11-14 用户拍板：项目分组 → 我的账号 → 对标账号） */
+  const [tab, setTab] = useState<'groups' | 'overview' | 'bench'>('groups')
   const [snapshots, setSnapshots] = useState<Record<string, PlatformSnapshot>>(loadSnapshots)
   const [states, setStates] = useState<Record<string, PlatformState>>({})
   const [detail, setDetail] = useState<ProviderId | null>(null)
@@ -2436,6 +2768,15 @@ export function HeightLabOpsPage() {
         <button
           type="button"
           role="tab"
+          aria-selected={tab === 'groups'}
+          className={clsx(css.libraryTab, tab === 'groups' && css.libraryTabActive)}
+          onClick={() => { setTab('groups'); setDetail(null) }}
+        >
+          项目分组
+        </button>
+        <button
+          type="button"
+          role="tab"
           aria-selected={tab === 'overview'}
           className={clsx(css.libraryTab, tab === 'overview' && css.libraryTabActive)}
           onClick={() => { setTab('overview'); setDetail(null) }}
@@ -2456,7 +2797,9 @@ export function HeightLabOpsPage() {
       {/* 容器严格照抄原生 hubPageStyle：gap 32 / padding 12 clamp(24,4vw,48) 48 */}
       <div className={css.opsScroll}>
         {detailDef === null ? (
-          tab === 'bench' ? (
+          tab === 'groups' ? (
+            <GroupsSection />
+          ) : tab === 'bench' ? (
             <BenchSection />
           ) : (
             <>
