@@ -139,53 +139,7 @@ const ARTWORK: Record<ProviderId, (p: { uid: string }) => ReactNode> = {
  * 「做成上一版原来那种卡片的效果，但还是现在这种纵向从上到下排列」——
  * 即：**独立卡片**（有边框、有圆角、有内距、有卡片间隙），而不是原生那种
  * 贴边透明的行。纵向一列排下去，卡片之间留出明显间距。 */
-const rowCardStyle = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 16,
-  padding: '18px 20px',
-  border: '1px solid var(--dsw-alias-border-l2)',
-  borderRadius: 'var(--dsw-radius-xl, 16px)',
-  background: 'var(--dsw-alias-bg-base)',
-  textAlign: 'left',
-  boxSizing: 'border-box',
-  cursor: 'pointer',
-  width: '100%',
-  transition: 'border-color 120ms ease, background 120ms ease',
-} as const
-
 /** 原生图标容器：48×48 / radius lg / 0.5px 描边 */
-const iconWrapStyle = {
-  flex: 'none',
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  width: 56,
-  height: 56,
-  borderRadius: 'var(--dsw-radius-lg, 12px)',
-  border: '0.5px solid var(--dsw-alias-border-l3, rgba(0,0,0,0.12))',
-  background: 'transparent',
-  boxSizing: 'border-box',
-} as const
-
-const rowTextStyle = {
-  flex: 1,
-  minWidth: 0,
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 4,
-} as const
-
-const rowNameStyle = {
-  fontSize: 14,
-  fontWeight: 500,
-  lineHeight: '20px',
-  color: 'var(--dsw-alias-label-primary)',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
-} as const
-
 const rowDescStyle = {
   fontSize: 13,
   lineHeight: '18px',
@@ -1211,17 +1165,6 @@ function isSuspect(prev: number | null | undefined, next: number | null): boolea
 }
 
 /** 一份快照里的可疑指标名（用于 UI 标注「待核」） */
-function suspectsOf(snap: PlatformSnapshot): Set<string> {
-  const out = new Set<string>()
-  for (const h of snap.highlights ?? []) {
-    if (h.metric.suspect === true) out.add(h.label)
-  }
-  for (const d of snap.details ?? []) {
-    if (d.metric.suspect === true) out.add(`${d.group}/${d.label}`)
-  }
-  return out
-}
-
 /* ── 数字与增长渲染 ────────────────────────────────────────────────────── */
 
 function fmtNum(n: number | null | undefined, format?: Metric['format']): string {
@@ -1687,6 +1630,8 @@ interface OwnExtraAccount {
   /** 数据来源：会话采集（后台全量） or 公开数据（DTK） */
   kind: 'session' | 'public'
   snap: PlatformSnapshot
+  /** O57 五轮：账号所属项目（项目 id 数组，多对多） */
+  groups?: string[]
 }
 function loadOwnExtra(): OwnExtraAccount[] {
   try {
@@ -1964,75 +1909,494 @@ function OverviewSection(): React.JSX.Element {
  * 添加支持两种来源：①公开数据（DTK，只需主页链接，立即可用）
  *                 ②登录会话采集（提示需扫码——后续版本接多会话）
  */
-function OwnExtraSection({ onOpenDetail }: { onOpenDetail: (acct: OwnExtraAccount) => void }) {
-  const [accounts, setAccounts] = useState<OwnExtraAccount[]>(loadOwnExtra)
-  const [adding, setAdding] = useState(false)
+/* ══════════════════════════════════════════════════════════════════════
+ * O57 五轮（2026-11-14 用户拍板 v3/v4 设计稿）：
+ *   所有项目页 = 项目手风琴 → 左「我的账号」/ 右「对标账号」→ 列内平台小标题
+ *   添加账号 = 一个弹窗（归属 / 项目 / 平台三步 + 实时落位预览）
+ *   账号行 = 原生彩色 Artwork + hover ⋯ 菜单（移动到项目 / 转归属 / 移除）
+ * 视觉基准全部抄 DSH：ARTWORK 彩色描边渐变、--dsw-alias-* token、
+ * sectionTitleStyle/primaryBtnStyle/secondaryBtnStyle/fieldStyle。
+ * ══════════════════════════════════════════════════════════════════════ */
+
+/** 统一账号行（四来源归一：主平台登录 / 额外自有 / 对标 / 未登录平台） */
+interface UnifiedAccount {
+  /** 全局唯一 key = 与 hl-ops-groups-v1 的 accountKey 一致 */
+  key: string
+  kind: 'own' | 'bench' | 'pending'
+  platform: ProviderId
+  nickname: string
+  /** 主标题下的小字（粉丝/作品等），已格式化 */
+  stats: string
+  /** 数据可能已过期 */
+  stale: boolean
+  /** 额外自有账号（public 模式） */
+  publicMode?: boolean
+  /** 原始引用（点击详情用） */
+  source:
+    | { type: 'primary'; def: ProviderDef }
+    | { type: 'extra'; acct: OwnExtraAccount }
+    | { type: 'bench'; acct: BenchAccount }
+    | { type: 'pending'; def: ProviderDef }
+}
+
+const PLATFORM_ORDER: readonly ProviderId[] = ['douyin', 'shipinhao', 'xhs', 'bilibili']
+
+const PLATFORM_DOT: Record<ProviderId, string> = {
+  douyin: 'linear-gradient(135deg,#25F4EE,#FE2C55)',
+  shipinhao: '#07c160',
+  xhs: '#ff4d6d',
+  bilibili: '#00a1d6',
+}
+
+function platformName(id: ProviderId): string {
+  return PROVIDERS.find(d => d.id === id)?.name ?? id
+}
+
+function statsLine(metrics: { label: string; metric: Metric }[]): string {
+  return metrics
+    .filter(h => h.metric.value !== null && h.metric.value !== undefined)
+    .slice(0, 3)
+    .map(h => `${h.label} ${fmtNum(h.metric.value, h.metric.format)}`)
+    .join(' · ')
+}
+
+/** 主平台登录态 → 统一账号（只算已登录的） */
+function primaryUnified(snaps: Record<string, PlatformSnapshot>): UnifiedAccount[] {
+  const out: UnifiedAccount[] = []
+  for (const def of PROVIDERS) {
+    const snap = snaps[def.id]
+    if (snap === undefined) continue
+    out.push({
+      key: `own:${def.id}`,
+      kind: 'own',
+      platform: def.id,
+      nickname: snap.nickname ?? def.name,
+      stats: statsLine(snap.highlights ?? []),
+      stale: ageDays(snap.syncedAt) > STALE_DAYS,
+      source: { type: 'primary', def },
+    })
+  }
+  return out
+}
+
+function extraUnified(list: OwnExtraAccount[]): UnifiedAccount[] {
+  return list.map(acct => ({
+    key: `own:${acct.platform}:${acct.accountRef}`,
+    kind: 'own' as const,
+    platform: acct.platform,
+    nickname: acct.nickname,
+    stats: statsLine(acct.snap.highlights ?? []),
+    stale: ageDays(acct.snap.syncedAt) > STALE_DAYS,
+    publicMode: acct.kind === 'public',
+    source: { type: 'extra' as const, acct },
+  }))
+}
+
+function benchUnified(list: BenchAccount[]): UnifiedAccount[] {
+  return list.map((acct) => {
+    const live = acct.works.filter(w => w.missing !== true)
+    const withAsr = live.filter(w => w.asr !== undefined && w.asr !== '').length
+    return {
+      key: `bench:${acct.secUid || acct.link}`,
+      kind: 'bench' as const,
+      platform: 'douyin' as ProviderId,
+      nickname: acct.nickname,
+      stats: `${live.length} 条作品` + (withAsr > 0 ? ` · 文案 ${withAsr} 条` : ''),
+      stale: ageDays(acct.syncedAt) > STALE_DAYS,
+      source: { type: 'bench' as const, acct },
+    }
+  })
+}
+
+/** 未登录平台（主平台里还没有快照的） */
+function pendingUnified(snaps: Record<string, PlatformSnapshot>): UnifiedAccount[] {
+  return PROVIDERS.filter(def => snaps[def.id] === undefined).map(def => ({
+    key: `pending:${def.id}`,
+    kind: 'pending' as const,
+    platform: def.id,
+    nickname: def.name,
+    stats: '点击扫码登录后自动同步',
+    stale: false,
+    source: { type: 'pending' as const, def },
+  }))
+}
+
+/* ── 行内 ⋯ 菜单（原生样式） ─────────────────────────────────────────── */
+const menuItemStyle = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  width: '100%',
+  border: 'none',
+  background: 'transparent',
+  cursor: 'pointer',
+  textAlign: 'left',
+  padding: '7px 9px',
+  borderRadius: 7,
+  font: 'inherit',
+  fontSize: 12.5,
+} as const
+
+function AccountRowMenu({ acct, projects, onMove, onRemove, onClose }: {
+  acct: UnifiedAccount
+  projects: ProjectRecord[]
+  onMove: (projectId: string | null) => void
+  onRemove: () => void
+  onClose: () => void
+}): React.JSX.Element {
+  const current = accountGroups(acct.key)
+  return (
+    <div
+      onClick={(e) => { e.stopPropagation() }}
+      style={{
+        position: 'absolute',
+        right: 6,
+        top: 'calc(100% - 4px)',
+        zIndex: 30,
+        background: 'var(--dsw-alias-bg-base)',
+        border: '1px solid var(--dsw-alias-border-l2)',
+        borderRadius: 10,
+        boxShadow: '0 10px 28px rgba(0,0,0,.14)',
+        padding: 5,
+        minWidth: 184,
+      }}
+    >
+      <div style={{ fontSize: 11, color: 'var(--dsw-alias-label-tertiary)', padding: '4px 9px 2px' }}>
+        移动到项目（可多选）
+      </div>
+      {projects.map((p) => {
+        const on = current.includes(p.id)
+        return (
+          <button
+            key={p.id}
+            type="button"
+            onClick={() => { onMove(on ? null : p.id) }}
+            style={{ ...menuItemStyle, color: 'var(--dsw-alias-label-primary)' }}
+          >
+            <span style={{ width: 12, flex: 'none' }}>{on ? '✓' : ''}</span>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+          </button>
+        )
+      })}
+      {projects.length === 0 && (
+        <div style={{ fontSize: 11, color: 'var(--dsw-alias-label-tertiary)', padding: '4px 9px 6px' }}>
+          先去侧栏建项目
+        </div>
+      )}
+      <div style={{ height: 1, background: 'var(--dsw-alias-border-l2)', margin: '4px 2px' }} />
+      <button
+        type="button"
+        onClick={() => { onRemove(); onClose() }}
+        style={{ ...menuItemStyle, color: '#d14343' }}
+      >
+        {acct.kind === 'pending' ? '从列表隐藏' : '从账号列表移除'}
+      </button>
+    </div>
+  )
+}
+
+/* ── 单个账号行（原生 Artwork + 数据 + hover ⋯） ─────────────────────── */
+function AccountRow({ acct, projects, onOpen, onChanged, onLogin }: {
+  acct: UnifiedAccount
+  projects: ProjectRecord[]
+  onOpen: (acct: UnifiedAccount) => void
+  onChanged: () => void
+  onLogin?: (def: ProviderDef) => void
+}): React.JSX.Element {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [hover, setHover] = useState(false)
+  const Art = ARTWORK[acct.platform]
+  const uid = `hl_row_${acct.key.replace(/[^a-zA-Z0-9]/g, '_')}`
+
+  const removeAccount = (): void => {
+    if (acct.kind === 'bench') {
+      saveBench(loadBench().filter(a => `bench:${a.secUid || a.link}` !== acct.key))
+    } else if (acct.kind === 'own' && acct.source.type === 'extra') {
+      saveOwnExtra(loadOwnExtra().filter(a => `own:${a.platform}:${a.accountRef}` !== acct.key))
+    }
+    setAccountGroups(acct.key, [])
+    onChanged()
+  }
+
+  /** 移动到项目：切换该项目的归属（其余归属保留——支持多对多） */
+  const moveTo = (projectId: string | null): void => {
+    const cur = accountGroups(acct.key)
+    if (projectId === null) {
+      setAccountGroups(acct.key, [])
+    } else {
+      setAccountGroups(acct.key, cur.includes(projectId) ? cur.filter(id => id !== projectId) : [...cur, projectId])
+    }
+    onChanged()
+  }
+
+  const rowBorder = acct.kind === 'pending' ? '1px dashed var(--dsw-alias-border-l2)' : '1px solid var(--dsw-alias-border-l2)'
+  return (
+    <div
+      onClick={() => {
+        if (acct.kind === 'pending') {
+          if (acct.source.type === 'pending' && onLogin !== undefined) onLogin(acct.source.def)
+        } else {
+          onOpen(acct)
+        }
+      }}
+      onMouseEnter={() => { setHover(true) }}
+      onMouseLeave={() => { setHover(false); setMenuOpen(false) }}
+      style={{
+        position: 'relative',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        border: rowBorder,
+        borderRadius: 10,
+        padding: '9px 11px',
+        marginBottom: 7,
+        cursor: 'pointer',
+        background: hover ? 'var(--dsw-alias-interactive-bg-hover)' : 'var(--dsw-alias-bg-base)',
+        opacity: acct.stale ? 0.72 : 1,
+      }}
+    >
+      <span style={{ width: 32, height: 32, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }} aria-hidden="true">
+        <Art uid={uid} />
+      </span>
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <span style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+          <span style={{
+            fontSize: 13,
+            fontWeight: 500,
+            color: acct.kind === 'pending' ? 'var(--dsw-alias-label-secondary)' : 'var(--dsw-alias-label-primary)',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}>
+            {acct.nickname}
+          </span>
+          {acct.stale && (
+            <span style={{ fontSize: 10, lineHeight: '15px', padding: '0 5px', borderRadius: 5, color: 'var(--dsw-alias-label-warning, #B45309)', background: 'rgba(180,83,9,.10)', flex: 'none' }}>
+              可能已过期
+            </span>
+          )}
+          {acct.publicMode === true && (
+            <span style={{ fontSize: 10, lineHeight: '15px', padding: '0 5px', borderRadius: 5, color: 'var(--dsw-alias-label-tertiary)', background: 'rgba(17,17,17,.04)', flex: 'none' }}>
+              公开数据
+            </span>
+          )}
+          {acct.kind === 'pending' && (
+            <span style={{ fontSize: 10, lineHeight: '15px', padding: '0 5px', borderRadius: 5, color: 'var(--dsw-alias-label-tertiary)', background: 'rgba(17,17,17,.04)', flex: 'none' }}>
+              未登录
+            </span>
+          )}
+        </span>
+        <span style={{ display: 'block', fontSize: 11, lineHeight: '16px', color: 'var(--dsw-alias-label-tertiary)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {acct.stats}
+        </span>
+      </span>
+      {acct.kind !== 'pending' && (
+        <button
+          type="button"
+          aria-label='更多操作'
+          onClick={(e) => { e.stopPropagation(); setMenuOpen(v => !v) }}
+          style={{ border: 'none', background: 'transparent', cursor: 'pointer', flex: 'none', color: 'var(--dsw-alias-label-tertiary)', fontSize: 15, lineHeight: 1, padding: '3px 6px', borderRadius: 6, opacity: (hover || menuOpen) ? 1 : 0 }}
+        >
+          ⋯
+        </button>
+      )}
+      {menuOpen && (
+        <AccountRowMenu
+          acct={acct}
+          projects={projects}
+          onMove={moveTo}
+          onRemove={removeAccount}
+          onClose={() => { setMenuOpen(false) }}
+        />
+      )}
+    </div>
+  )
+}
+
+/** 列内平台小标题 + 该平台账号 */
+function PlatformGroup({ platform, items, projects, onOpen, onChanged, onLogin }: {
+  platform: ProviderId
+  items: UnifiedAccount[]
+  projects: ProjectRecord[]
+  onOpen: (acct: UnifiedAccount) => void
+  onChanged: () => void
+  onLogin?: (def: ProviderDef) => void
+}): React.JSX.Element {
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        fontSize: 11,
+        lineHeight: '16px',
+        color: 'var(--dsw-alias-label-tertiary)',
+        padding: '2px 2px 5px',
+      }}>
+        <span style={{ width: 6, height: 6, borderRadius: '50%', flex: 'none', background: PLATFORM_DOT[platform] }} />
+        {platformName(platform)}
+        <span>{items.length}</span>
+      </div>
+      {items.map(a => (
+        <AccountRow
+          key={a.key}
+          acct={a}
+          projects={projects}
+          onOpen={onOpen}
+          onChanged={onChanged}
+          {...(onLogin !== undefined ? { onLogin } : {})}
+        />
+      ))}
+    </div>
+  )
+}
+
+/** 左右一列（我的 / 对标），内部按平台分组 */
+function AccountColumn({ title, items, projects, onOpen, onChanged, onAdd, onLogin }: {
+  title: string
+  items: UnifiedAccount[]
+  projects: ProjectRecord[]
+  onOpen: (acct: UnifiedAccount) => void
+  onChanged: () => void
+  onAdd?: () => void
+  onLogin?: (def: ProviderDef) => void
+}): React.JSX.Element {
+  const byPlat = new Map<ProviderId, UnifiedAccount[]>()
+  for (const a of items) {
+    const arr = byPlat.get(a.platform) ?? []
+    arr.push(a)
+    byPlat.set(a.platform, arr)
+  }
+  const plats = PLATFORM_ORDER.filter(p => byPlat.has(p))
+  return (
+    <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        padding: '2px 2px 8px',
+        borderBottom: '1px solid var(--dsw-alias-border-l2)',
+        marginBottom: 9,
+      }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--dsw-alias-label-primary)' }}>{title}</span>
+        <span style={{ fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' }}>{items.length}</span>
+        {onAdd !== undefined && (
+          <button
+            type="button"
+            onClick={onAdd}
+            style={{
+              marginLeft: 'auto',
+              border: 'none',
+              background: 'transparent',
+              cursor: 'pointer',
+              font: 'inherit',
+              fontSize: 12,
+              color: 'var(--dsw-alias-label-tertiary)',
+              padding: '2px 6px',
+              borderRadius: 6,
+            }}
+          >
+            ＋ 添加
+          </button>
+        )}
+      </div>
+      {plats.map(p => (
+        <PlatformGroup
+          key={p}
+          platform={p}
+          items={byPlat.get(p) ?? []}
+          projects={projects}
+          onOpen={onOpen}
+          onChanged={onChanged}
+          {...(onLogin !== undefined ? { onLogin } : {})}
+        />
+      ))}
+      {items.length === 0 && (
+        <div style={{
+          border: '1px dashed var(--dsw-alias-border-l2)',
+          borderRadius: 10,
+          padding: '14px 12px',
+          textAlign: 'center',
+          fontSize: 12,
+          lineHeight: '18px',
+          color: 'var(--dsw-alias-label-tertiary)',
+        }}>
+          这个项目还没有{title}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ── 添加账号弹窗（v4 设计稿落地）───────────────────────────────────────
+ * 三个决定：①归属（我的/对标）②项目（chips，默认第一个项目）③平台（点即扫码）
+ * 底部实时预览最终落位路径。对标账号走粘链接（平台从域名自动识别）。
+ */
+function AddAccountModal({ onClose, onAdded, initialKind, initialProjectId }: {
+  onClose: () => void
+  onAdded: () => void
+  initialKind?: 'own' | 'bench'
+  initialProjectId?: string | null
+}): React.JSX.Element {
+  const projects = loadO56Projects()
+  const [kind, setKind] = useState<'own' | 'bench'>(initialKind ?? 'own')
+  const [projectId, setProjectId] = useState<string | null>(
+    initialProjectId !== undefined ? initialProjectId : (projects[0]?.id ?? null),
+  )
   const [platform, setPlatform] = useState<ProviderId>('douyin')
   const [link, setLink] = useState('')
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState<string | null>(null)
 
-  const runAdd = async (): Promise<void> => {
+  const projName = projectId === null ? '未分组' : (projects.find(p => p.id === projectId)?.name ?? projectId)
+  const previewPath = `${projName} › ${kind === 'own' ? '我的账号' : '对标账号'} › ${kind === 'own' ? platformName(platform) : '（自动识别）'}`
+
+  /** 对标账号：粘链接 → DTK 采集 → 落库（upsert 语义，与 BenchSection 一致） */
+  const addBench = async (): Promise<void> => {
     const url = link.trim()
-    if (url === '') { setStatus('请粘贴该账号的主页链接'); return }
+    if (url === '') { setStatus('请粘贴对标账号主页链接'); return }
     setBusy(true)
-    setStatus('采集中：公开数据模式（DTK）…')
+    setStatus('采集中…')
     try {
       const secMatch = /\/user\/([A-Za-z0-9_-]{20,})/.exec(url)
-      const ref = secMatch?.[1] ?? url
+      const secUid = secMatch?.[1] ?? ''
       const resp = await fetch('/hl/ops/bench-posts', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(secMatch !== null ? { sec_user_id: ref, count: 20 } : { url, count: 20 }),
+        body: JSON.stringify(secUid !== '' ? { sec_user_id: secUid, count: 10 } : { url, count: 10 }),
       })
       const payload = (await resp.json().catch(() => null)) as BenchPostsResponse | null
-      if (payload?.ok !== true) { setStatus(`采集失败：${String(payload?.message ?? resp.status).slice(0, 140)}`); return }
-      const items = payload.data?.items ?? []
-      if (items.length === 0) { setStatus('该账号未返回作品。'); return }
-      const nickname = items[0]?.author ?? `账号 ${ref.slice(-10)}`
-      /* 汇总成 PlatformSnapshot 形态（复用现有详情页渲染） */
-      const totalDigg = items.reduce((a, b) => a + (b.stats?.digg_count ?? 0), 0)
-      const totalPlay = items.reduce((a, b) => a + (b.stats?.play_count ?? 0), 0)
-      const totalComment = items.reduce((a, b) => a + (b.stats?.comment_count ?? 0), 0)
-      const totalCollect = items.reduce((a, b) => a + (b.stats?.collect_count ?? 0), 0)
-      const snap: PlatformSnapshot = {
-        nickname,
-        accountId: ref,
-        highlights: [
-          { label: '作品', metric: { value: items.length } },
-          { label: '总赞', metric: { value: totalDigg } },
-          { label: '总播放', metric: { value: totalPlay || null } },
-        ],
-        details: [
-          { group: '公开数据汇总', label: '作品数', metric: { value: items.length } },
-          { group: '公开数据汇总', label: '总点赞', metric: { value: totalDigg } },
-          { group: '公开数据汇总', label: '总评论', metric: { value: totalComment } },
-          { group: '公开数据汇总', label: '总收藏', metric: { value: totalCollect } },
-          { group: '公开数据汇总', label: '总播放', metric: { value: totalPlay || null } },
-        ],
-        works: items.map(it => ({
-          awemeId: it.contentId,
-          title: it.title,
-          plays: it.stats?.play_count ?? null,
-          interactions: (it.stats?.digg_count ?? 0) + (it.stats?.comment_count ?? 0) + (it.stats?.collect_count ?? 0),
-          completionRate: undefined,
-        })) as never,
+      if (payload?.ok !== true) {
+        setStatus(`采集失败：${String(payload?.message ?? resp.status).slice(0, 140)}`)
+        return
+      }
+      const incoming = payload.data?.items ?? []
+      if (incoming.length === 0) { setStatus('该账号未返回作品。'); return }
+      const existing = loadBench().find(a => a.secUid === secUid || a.link === url)
+      const merged = mergeBenchWorks(existing?.works ?? [], incoming)
+      const acct: BenchAccount = {
+        link: url,
+        secUid,
+        nickname: incoming[0]?.author ?? existing?.nickname ?? `对标 ${url.slice(-10)}`,
+        works: merged.works,
         syncedAt: Date.now(),
+        ...(existing?.groups !== undefined ? { groups: existing.groups } : {}),
+        runs: [
+          {
+            at: Date.now(),
+            requested: 10,
+            returned: incoming.length,
+            added: merged.added,
+            updated: merged.updated,
+            missing: merged.missing,
+          },
+          ...(existing?.runs ?? []),
+        ].slice(0, 20),
       }
-      const acct: OwnExtraAccount = {
-        id: `${platform}:${ref}`,
-        platform,
-        nickname,
-        accountRef: ref,
-        kind: 'public',
-        snap,
-      }
-      const next = [acct, ...loadOwnExtra().filter(a => a.id !== acct.id)]
-      setAccounts(next)
-      saveOwnExtra(next)
-      setStatus(null)
-      setAdding(false)
-      setLink('')
+      saveBench([acct, ...loadBench().filter(a => a.secUid !== secUid && a.link !== url)])
+      if (projectId !== null) setAccountGroups(`bench:${secUid || url}`, [projectId])
+      onAdded()
+      onClose()
     } catch (e) {
       setStatus(`采集失败：${e instanceof Error ? e.message.slice(0, 140) : String(e)}`)
     } finally {
@@ -2040,70 +2404,411 @@ function OwnExtraSection({ onOpenDetail }: { onOpenDetail: (acct: OwnExtraAccoun
     }
   }
 
-  const remove = (id: string): void => {
-    const next = loadOwnExtra().filter(a => a.id !== id)
-    setAccounts(next)
-    saveOwnExtra(next)
+  /** 我的账号：本版跳到「未登录平台」老链路（扫码窗 + 自动同步 + 自动关窗） */
+  const startScan = (): void => {
+    const def = PROVIDERS.find(d => d.id === platform)
+    if (def === undefined) return
+    if (projectId !== null) setAccountGroups(`own:${platform}`, [projectId])
+    onAdded()
+    onClose()
   }
 
   return (
-    <section style={{ marginTop: 8 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '8px 0 10px' }}>
-        <h3 style={{ ...sectionTitleStyle, margin: 0, flex: 1 }}>额外自有账号</h3>
-        <button type="button" onClick={() => { setAdding(v => !v) }} style={primaryBtnStyle(false)}>
-          {adding ? '收起' : '＋添加账号'}
-        </button>
-      </div>
-      <div style={{ fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary)', marginBottom: 12 }}>
-        同一平台可挂多个自有账号（一个公司多种类型账号）。当前版本添加走「公开数据模式」
-        （DTK 采集，无后台独有指标）；带完播率/粉丝画像的完整模式需额外扫码登录，后续版本开放。
-      </div>
-
-      {adding && (
-        <div style={{ border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 12, padding: 14, marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-            <select value={platform} onChange={(e) => { setPlatform(e.target.value as ProviderId) }} style={{ ...fieldStyle, width: 140 }}>
-              {PROVIDERS.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-            </select>
-            <input
-              type="text"
-              value={link}
-              onChange={(e) => { setLink(e.target.value) }}
-              placeholder="该账号的主页链接"
-              style={{ ...fieldStyle, flex: 1 }}
-            />
-            <button type="button" disabled={busy} onClick={() => { void runAdd() }} style={primaryBtnStyle(busy)}>
-              {busy ? '采集中…' : '采集'}
-            </button>
-          </div>
-          {status !== null && <div style={{ fontSize: 13, color: 'var(--dsw-alias-label-secondary)' }}>{status}</div>}
-        </div>
-      )}
-
-      {accounts.length === 0 && !adding && (
-        <div style={{ ...rowDescStyle, padding: '6px 2px' }}>还没有额外账号——点「＋添加账号」。</div>
-      )}
-
-      {accounts.map(acct => (
-        <div key={acct.id} style={{ border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 12, padding: 12, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 12 }}>
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 300,
+        background: 'rgba(17,17,17,.32)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 20,
+      }}
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => { e.stopPropagation() }}
+        style={{
+          width: 520,
+          maxWidth: '100%',
+          maxHeight: '88vh',
+          overflow: 'auto',
+          background: 'var(--dsw-alias-bg-base)',
+          borderRadius: 16,
+          boxShadow: '0 24px 64px rgba(0,0,0,.24)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '16px 18px 10px' }}>
+          <h3 style={{ margin: 0, flex: 1, fontSize: 15, fontWeight: 600, color: 'var(--dsw-alias-label-primary)' }}>
+            添加账号
+          </h3>
           <button
             type="button"
-            onClick={() => { onOpenDetail(acct) }}
-            style={{ flex: 1, minWidth: 0, textAlign: 'left', border: 'none', background: 'transparent', cursor: 'pointer', padding: 0 }}
+            onClick={onClose}
+            style={{
+              border: 'none',
+              background: 'transparent',
+              cursor: 'pointer',
+              fontSize: 15,
+              color: 'var(--dsw-alias-label-tertiary)',
+              padding: '4px 7px',
+              borderRadius: 6,
+            }}
           >
-            <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--dsw-alias-label-primary)' }}>{acct.nickname}</span>
-            <span style={{ marginLeft: 8, fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' }}>
-              {PROVIDERS.find(d => d.id === acct.platform)?.name ?? acct.platform}
-              · {acct.kind === 'public' ? '公开数据模式' : '会话采集'}
-              · {new Date(acct.snap.syncedAt).toLocaleString('zh-CN')}
-            </span>
-          </button>
-          <button type="button" onClick={() => { remove(acct.id) }} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 12, color: 'var(--dsw-alias-label-tertiary)', padding: 0 }}>
-            删除
+            ✕
           </button>
         </div>
-      ))}
-    </section>
+
+        <div style={{ padding: '0 18px 4px' }}>
+          {/* ① 归属 */}
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 12, color: 'var(--dsw-alias-label-tertiary)', marginBottom: 7 }}>账号归属</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {([
+                { id: 'own' as const, t: '我的账号', d: '扫码登录，拿到后台完整数据' },
+                { id: 'bench' as const, t: '对标账号', d: '粘主页链接，采公开数据' },
+              ]).map((opt) => {
+                const on = kind === opt.id
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => { setKind(opt.id) }}
+                    style={{
+                      flex: 1,
+                      textAlign: 'left',
+                      border: `1px solid ${on ? 'var(--dsw-alias-label-primary)' : 'var(--dsw-alias-border-l2)'}`,
+                      borderRadius: 11,
+                      padding: '10px 12px',
+                      cursor: 'pointer',
+                      font: 'inherit',
+                      background: 'var(--dsw-alias-bg-base)',
+                    }}
+                  >
+                    <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--dsw-alias-label-primary)' }}>{opt.t}</div>
+                    <div style={{ fontSize: 11, lineHeight: '15px', color: 'var(--dsw-alias-label-tertiary)', marginTop: 1 }}>
+                      {opt.d}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* ② 项目 */}
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 12, color: 'var(--dsw-alias-label-tertiary)', marginBottom: 7 }}>
+              放到哪个项目 <span style={{ color: '#b0b4b8' }}>（可不选，默认未分组）</span>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {projects.map((p) => {
+                const on = projectId === p.id
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => { setProjectId(on ? null : p.id) }}
+                    style={{
+                      border: `1px solid ${on ? 'var(--dsw-alias-label-primary)' : 'var(--dsw-alias-border-l2)'}`,
+                      background: on ? 'var(--dsw-alias-label-primary)' : 'var(--dsw-alias-bg-base)',
+                      color: on ? 'var(--dsw-alias-bg-base)' : 'var(--dsw-alias-label-secondary)',
+                      borderRadius: 999,
+                      padding: '5px 13px',
+                      fontSize: 12.5,
+                      cursor: 'pointer',
+                      font: 'inherit',
+                    }}
+                  >
+                    {p.name}
+                  </button>
+                )
+              })}
+              <button
+                type="button"
+                onClick={() => { setProjectId(null) }}
+                style={{
+                  border: `1px solid ${projectId === null ? 'var(--dsw-alias-label-primary)' : 'var(--dsw-alias-border-l2)'}`,
+                  background: projectId === null ? 'var(--dsw-alias-label-primary)' : 'var(--dsw-alias-bg-base)',
+                  color: projectId === null ? 'var(--dsw-alias-bg-base)' : 'var(--dsw-alias-label-secondary)',
+                  borderRadius: 999,
+                  padding: '5px 13px',
+                  fontSize: 12.5,
+                  cursor: 'pointer',
+                  font: 'inherit',
+                }}
+              >
+                未分组
+              </button>
+            </div>
+          </div>
+
+          {/* ③ 平台 / 链接 */}
+          {kind === 'own' ? (
+            <>
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 12, color: 'var(--dsw-alias-label-tertiary)', marginBottom: 7 }}>
+                  选择平台 <span style={{ color: '#b0b4b8' }}>（点一下就开始扫码）</span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                  {PROVIDERS.map((def) => {
+                    const Art = ARTWORK[def.id]
+                    const on = platform === def.id
+                    return (
+                      <button
+                        key={def.id}
+                        type="button"
+                        onClick={() => { setPlatform(def.id) }}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: 6,
+                          border: `1px solid ${on ? 'var(--dsw-alias-label-primary)' : 'var(--dsw-alias-border-l2)'}`,
+                          borderRadius: 11,
+                          padding: '11px 6px 9px',
+                          cursor: 'pointer',
+                          font: 'inherit',
+                          background: 'var(--dsw-alias-bg-base)',
+                        }}
+                      >
+                        <Art uid={`hl_add_${def.id}`} />
+                        <span style={{
+                          fontSize: 12,
+                          color: on ? 'var(--dsw-alias-label-primary)' : 'var(--dsw-alias-label-secondary)',
+                          fontWeight: on ? 500 : 400,
+                        }}>
+                          {def.name}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+              <div style={{ marginBottom: 16 }}>
+                <div style={{
+                  border: '1px dashed var(--dsw-alias-border-l2)',
+                  borderRadius: 12,
+                  padding: 16,
+                  background: 'var(--dsw-alias-bg-base)',
+                }}>
+                  <div style={{ fontSize: 12, lineHeight: '19px', color: 'var(--dsw-alias-label-secondary)' }}>
+                    <b style={{ color: 'var(--dsw-alias-label-primary)' }}>用手机「{platformName(platform)}」扫码登录</b>
+                    <br />
+                    扫码后自动读取账号信息并归位，无需再填任何东西。
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 12, color: 'var(--dsw-alias-label-tertiary)', marginBottom: 7 }}>
+                粘贴对标账号主页链接
+              </div>
+              <input
+                type="text"
+                value={link}
+                onChange={(e) => { setLink(e.target.value) }}
+                placeholder='https://www.douyin.com/user/...'
+                style={fieldStyle}
+              />
+              <div style={{ fontSize: 11, lineHeight: '16px', color: 'var(--dsw-alias-label-tertiary)', marginTop: 6 }}>
+                粘贴后自动识别平台（从域名判断，不用手动选）。
+              </div>
+            </div>
+          )}
+
+          {/* ④ 落位预览 */}
+          <div style={{
+            borderRadius: 11,
+            background: 'rgba(47,109,246,.06)',
+            border: '1px solid rgba(47,109,246,.18)',
+            padding: '10px 12px',
+            fontSize: 12,
+            lineHeight: '18px',
+            color: 'var(--dsw-alias-label-secondary)',
+          }}>
+            将添加到 → <b style={{ color: 'var(--dsw-alias-label-primary)' }}>{previewPath}</b>
+          </div>
+          {status !== null && (
+            <div style={{ marginTop: 10, fontSize: 12, color: 'var(--dsw-alias-label-secondary)' }}>{status}</div>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 18px 16px' }}>
+          <div style={{ flex: 1, fontSize: 11, lineHeight: '16px', color: 'var(--dsw-alias-label-tertiary)' }}>
+            {kind === 'own' ? '扫完码会自动落到上面这个位置' : '采集完成后自动落到上面这个位置'}
+          </div>
+          <button type="button" onClick={onClose} style={secondaryBtnStyle(busy)}>取消</button>
+          {kind === 'own' ? (
+            <button type="button" style={primaryBtnStyle(busy)} onClick={startScan}>开始扫码</button>
+          ) : (
+            <button type="button" disabled={busy} style={primaryBtnStyle(busy)} onClick={() => { void addBench() }}>
+              {busy ? '采集中…' : '开始采集'}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ── 「所有项目」页（v3/v4 设计稿落地）────────────────────────────────── */
+function AccountsSection({ onOpenUnified, onLogin, platformStates }: {
+  onOpenUnified: (acct: UnifiedAccount) => void
+  /** 主平台扫码登录（沿用 HeightLabOpsPage.onCardClick 的同步+自动关窗链路） */
+  onLogin: (def: ProviderDef) => void
+  /** 各平台同步态（busy/error）——显示在页顶 */
+  platformStates: Record<string, PlatformState>
+}): React.JSX.Element {
+  const [projects] = useState<ProjectRecord[]>(loadO56Projects)
+  const [tick, setTick] = useState(0)
+  const [addOpen, setAddOpen] = useState(false)
+  const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
+    try {
+      const raw = window.localStorage.getItem('hl-ops-group-expand')
+      if (raw) return JSON.parse(raw) as Record<string, boolean>
+    } catch { /* 忽略 */ }
+    return {}
+  })
+
+  useEffect(() => {
+    const onChange = (): void => { setTick(v => v + 1) }
+    window.addEventListener('hl-projects-changed', onChange)
+    window.addEventListener('hl-ops-groups-changed', onChange)
+    return () => {
+      window.removeEventListener('hl-projects-changed', onChange)
+      window.removeEventListener('hl-ops-groups-changed', onChange)
+    }
+  }, [])
+
+  const toggle = (key: string, next: boolean): void => {
+    const merged = { ...expanded, [key]: next }
+    setExpanded(merged)
+    try { window.localStorage.setItem('hl-ops-group-expand', JSON.stringify(merged)) } catch { /* 忽略 */ }
+  }
+  void tick
+
+  const snaps = loadSnapshots()
+  const all: UnifiedAccount[] = [
+    ...primaryUnified(snaps),
+    ...extraUnified(loadOwnExtra()),
+    ...benchUnified(loadBench()),
+  ]
+  const pending = pendingUnified(snaps)
+
+  const groupsFor = (projectId: string | null): { own: UnifiedAccount[]; bench: UnifiedAccount[] } => {
+    const match = (key: string): boolean => {
+      const g = accountGroups(key)
+      if (projectId === null) return g.length === 0
+      return g.includes(projectId)
+    }
+    return {
+      own: all.filter(a => a.kind === 'own' && match(a.key)),
+      bench: all.filter(a => a.kind === 'bench' && match(a.key)),
+    }
+  }
+
+  const renderGroup = (key: string, name: string, projectId: string | null, extra?: UnifiedAccount[]): React.JSX.Element => {
+    const { own, bench } = groupsFor(projectId)
+    const pendingIn = projectId === null ? (extra ?? []) : []
+    const isOpen = expanded[key] ?? (projectId === null && own.length + bench.length > 0)
+    return (
+      <div key={key} style={{ marginBottom: 8 }}>
+        <button
+          type="button"
+          onClick={() => { toggle(key, !isOpen) }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            width: '100%',
+            border: 'none',
+            background: 'transparent',
+            cursor: 'pointer',
+            font: 'inherit',
+            padding: '9px 6px',
+            borderRadius: 8,
+            textAlign: 'left',
+          }}
+        >
+          <span style={{
+            width: 0,
+            height: 0,
+            flex: 'none',
+            transition: 'transform .15s ease',
+            transform: isOpen ? 'rotate(90deg)' : 'none',
+            borderLeft: '5px solid var(--dsw-alias-label-tertiary)',
+            borderTop: '4px solid transparent',
+            borderBottom: '4px solid transparent',
+          }} />
+          <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--dsw-alias-label-primary)' }}>{name}</span>
+          <span style={{ fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' }}>
+            {own.length} 个我的账号 · {bench.length} 个对标账号
+            {pendingIn.length > 0 ? ` · ${pendingIn.length} 个未登录` : ''}
+          </span>
+        </button>
+        {isOpen && (
+          <div style={{ padding: '2px 0 8px 14px' }}>
+            <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+              <AccountColumn
+                title='我的账号'
+                items={[...own, ...pendingIn]}
+                projects={projects}
+                onOpen={onOpenUnified}
+                onChanged={() => { setTick(v => v + 1) }}
+                onAdd={() => { setAddOpen(true) }}
+                onLogin={onLogin}
+              />
+              <AccountColumn
+                title='对标账号'
+                items={bench}
+                projects={projects}
+                onOpen={onOpenUnified}
+                onChanged={() => { setTick(v => v + 1) }}
+                onAdd={() => { setAddOpen(true) }}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 0 10px' }}>
+        {Object.entries(platformStates).map(([pid, st]) => {
+          if (st.busy !== true && st.error === undefined) return null
+          const nm = PROVIDERS.find(d => d.id === pid)?.name ?? pid
+          return (
+            <span
+              key={pid}
+              style={{
+                fontSize: 12,
+                color: st.error !== undefined
+                  ? 'var(--dsw-alias-label-warning, #B45309)'
+                  : 'var(--dsw-alias-label-tertiary)',
+              }}
+            >
+              {nm}：{st.busy === true ? '同步中…' : String(st.error).slice(0, 40)}
+            </span>
+          )
+        })}
+        <span style={{ flex: 1 }} />
+        <button type="button" onClick={() => { setAddOpen(true) }} style={primaryBtnStyle(false)}>
+          ＋ 添加账号 ▾
+        </button>
+      </div>
+      {projects.map(p => renderGroup(`proj:${p.id}`, p.name, p.id))}
+      {renderGroup('ungrouped', '未分组', null, pending)}
+      {addOpen && (
+        <AddAccountModal
+          onClose={() => { setAddOpen(false) }}
+          onAdded={() => { setTick(v => v + 1) }}
+        />
+      )}
+    </div>
   )
 }
 
@@ -2223,409 +2928,12 @@ function mergeBenchWorks(
   return { works: [...prevMap.values()], added, updated, missing }
 }
 
-function benchNum(n?: number | null): string {
-  if (n === null || n === undefined) return '—'
-  if (n >= 10000) return `${(n / 10000).toFixed(1)}万`
-  return String(n)
-}
 
 /* ── 项目分组（O57，2026-11-14）────────────────────────────────────────────
  * 一个项目 = 账号容器。与 O56 侧栏项目树共用 hl-projects-v1 的项目清单，
  * 所以「@ 项目」能一次带全（对话 + 我的账号 + 对标账号）。
  * 本页职责：看每个项目下挂了哪些账号；给账号分配/移除项目。
  */
-function GroupsSection() {
-  const [projects] = useState<ProjectRecord[]>(loadO56Projects)
-  const [groupsVersion, setGroupsVersion] = useState(0)
-  const [assigning, setAssigning] = useState<string | null>(null)  // accountKey
-  const [expandProject, setExpandProject] = useState<string | null>(null)
-
-  useEffect(() => {
-    const onChange = (): void => { setGroupsVersion(v => v + 1) }
-    window.addEventListener('hl-ops-groups-changed', onChange)
-    window.addEventListener('hl-projects-changed', onChange)
-    return () => {
-      window.removeEventListener('hl-ops-groups-changed', onChange)
-      window.removeEventListener('hl-projects-changed', onChange)
-    }
-  }, [])
-
-  /* 全部可分组账号：我的账号（每平台一条）+ 对标账号 */
-  const benchAccounts = loadBench()
-  const ownKeys: { key: string; label: string; sub: string }[] = []
-  // 我的账号用平台维度（当前每平台 1 个登录账号）
-  for (const def of PROVIDERS) {
-    ownKeys.push({ key: `own:${def.id}`, label: def.name, sub: '我的账号' })
-  }
-  const benchKeys = benchAccounts.map(a => ({
-    key: `bench:${a.secUid || a.link}`,
-    label: a.nickname,
-    sub: `对标账号 · ${a.works.length} 条作品`,
-  }))
-  const allAccounts = [...ownKeys, ...benchKeys]
-
-  /* 反向索引：projectId → 账号 key 列表 */
-  const byProject = new Map<string, string[]>()
-  for (const a of allAccounts) {
-    for (const pid of accountGroups(a.key)) {
-      const list = byProject.get(pid) ?? []
-      list.push(a.key)
-      byProject.set(pid, list)
-    }
-  }
-  const labelOf = (key: string): string => allAccounts.find(a => a.key === key)?.label ?? key
-  void groupsVersion
-
-  const removeFromProject = (projectId: string, accountKey: string): void => {
-    setAccountGroups(accountKey, accountGroups(accountKey).filter(id => id !== projectId))
-    setGroupsVersion(v => v + 1)
-  }
-
-  return (
-    <section style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ fontSize: 13, lineHeight: '20px', color: 'var(--dsw-alias-label-tertiary)', margin: 0 }}>
-        项目分组 = 账号容器。与侧栏「项目」共用同一份项目清单——在这里挂账号，
-        在侧栏挂对话，@ 项目时两者一起作为上下文。新建项目请在侧栏「项目」视图里操作。
-      </div>
-
-      {projects.length === 0 && (
-        <div style={{ ...rowDescStyle, padding: '12px 2px' }}>
-          还没有项目分组。到侧栏「工作区 | 项目」切到项目视图，点「＋新建项目」创建第一个。
-        </div>
-      )}
-
-      {projects.map((project) => {
-        const members = byProject.get(project.id) ?? []
-        const expanded = expandProject === project.id
-        return (
-          <div key={project.id} style={{ border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 12, padding: 14 }}>
-            <button
-              type="button"
-              onClick={() => { setExpandProject(expanded ? null : project.id) }}
-              style={{ width: '100%', textAlign: 'left', border: 'none', background: 'transparent', cursor: 'pointer', padding: 0 }}
-            >
-              <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--dsw-alias-label-primary)' }}>{project.name}</span>
-              <span style={{ marginLeft: 10, fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' }}>
-                {members.length} 个账号
-              </span>
-            </button>
-            {expanded && (
-              <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {members.length === 0 && (
-                  <div style={{ ...rowDescStyle }}>该项目还没有账号——在下方「账号归属」里分配。</div>
-                )}
-                {members.map(key => (
-                  <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 10, paddingTop: 6, borderTop: '1px solid var(--dsw-alias-border-l2)' }}>
-                    <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: 'var(--dsw-alias-label-primary)' }}>{labelOf(key)}</span>
-                    <button
-                      type="button"
-                      onClick={() => { removeFromProject(project.id, key) }}
-                      style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 12, color: 'var(--dsw-alias-label-tertiary)', padding: 0 }}
-                    >
-                      移出
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )
-      })}
-
-      {/* 账号归属分配 */}
-      <div style={{ marginTop: 8, paddingTop: 16, borderTop: '1px solid var(--dsw-alias-border-l2)' }}>
-        <h3 style={{ ...sectionTitleStyle, margin: '0 0 10px' }}>账号归属</h3>
-        <div style={{ fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary)', marginBottom: 10 }}>
-          点账号行分配项目分组（可多选）。
-        </div>
-        {allAccounts.length === 0 && <div style={{ ...rowDescStyle }}>还没有账号。</div>}
-        {allAccounts.map((acct) => {
-          const assigned = accountGroups(acct.key)
-          const isAssigning = assigning === acct.key
-          return (
-            <div key={acct.key} style={{ borderTop: '1px solid var(--dsw-alias-border-l2)', padding: '8px 0' }}>
-              <button
-                type="button"
-                onClick={() => { setAssigning(isAssigning ? null : acct.key) }}
-                style={{ width: '100%', textAlign: 'left', border: 'none', background: 'transparent', cursor: 'pointer', padding: 0 }}
-              >
-                <span style={{ fontSize: 13, color: 'var(--dsw-alias-label-primary)' }}>{acct.label}</span>
-                <span style={{ marginLeft: 8, fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' }}>{acct.sub}</span>
-                <span style={{ marginLeft: 8, fontSize: 12, color: 'var(--dsw-alias-label-secondary)' }}>
-                  {assigned.length > 0
-                    ? `→ ${assigned.map(id => projects.find(p => p.id === id)?.name ?? id).join('、')}`
-                    : '（未分组）'}
-                </span>
-              </button>
-              {isAssigning && (
-                <div style={{ marginTop: 6, paddingLeft: 8, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                  {projects.map((p) => {
-                    const on = assigned.includes(p.id)
-                    return (
-                      <label key={p.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--dsw-alias-label-secondary)', cursor: 'pointer' }}>
-                        <input
-                          type="checkbox"
-                          checked={on}
-                          onChange={() => {
-                            const next = on ? assigned.filter(id => id !== p.id) : [...assigned, p.id]
-                            setAccountGroups(acct.key, next)
-                            setGroupsVersion(v => v + 1)
-                          }}
-                        />
-                        {p.name}
-                      </label>
-                    )
-                  })}
-                  {projects.length === 0 && <span style={{ fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' }}>先去侧栏建项目</span>}
-                </div>
-              )}
-            </div>
-          )
-        })}
-      </div>
-    </section>
-  )
-}
-
-function BenchSection() {
-  const [accounts, setAccounts] = useState<BenchAccount[]>(loadBench)
-  const [adding, setAdding] = useState(false)
-  const [link, setLink] = useState('')
-  const [count, setCount] = useState(10)
-  const [status, setStatus] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
-  const [expanded, setExpanded] = useState<string | null>(null)
-
-  const runAdd = async (): Promise<void> => {
-    const url = link.trim()
-    if (url === '') { setStatus('请粘贴对标账号的主页链接'); return }
-    setBusy(true)
-    setStatus('采集中：解析对标账号作品…')
-    try {
-      /* O57 D2（2026-11-14 定稿）：引擎换成 DTK 自托管数据 API（服务端 127.0.0.1:8010，
-       * identity pool 自维护 cookie/指纹）。匿名 WebView 方案因抖音匿名首访被重定向首页而弃用。 */
-      const secUidMatch = /\/user\/([A-Za-z0-9_-]{20,})/.exec(url)
-      const secUid = secUidMatch?.[1] ?? ''
-      const resp = await fetch('/hl/ops/bench-posts', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(secUid !== '' ? { sec_user_id: secUid, count } : { url, count }),
-      })
-      const payload = (await resp.json().catch(() => null)) as BenchPostsResponse | null
-      if (payload?.ok !== true) {
-        setStatus(`采集失败：${String(payload?.message ?? `HTTP ${resp.status}`).slice(0, 160)}`)
-        return
-      }
-      const incoming = payload.data?.items ?? []
-      const nickname = incoming[0]?.author ?? ''
-      if (incoming.length === 0) { setStatus('该账号未返回作品（可能隐私设置或链接有误）。'); return }
-
-      /* O57 增量合并（用户明确要求「只在基础上新增，不从头重采」）：
-       * 已有作品的文案(asr)/首见时间保留，仅数据刷新；新作品追加；未返回的标 missing。 */
-      const existing = loadBench().find(a => a.secUid === secUid || a.link === url)
-      const merged = mergeBenchWorks(existing?.works ?? [], incoming)
-      const works = merged.works
-      const toTranscribe = works.filter(w => (w.asr === undefined || w.asr === '') && w.missing !== true && w.playUrl)
-      setStatus(
-        `本次新增 ${merged.added} 条 / 更新 ${merged.updated} 条 / 缺失 ${merged.missing} 条` +
-        (toTranscribe.length > 0 ? `；转写 ${toTranscribe.length} 条新文案…` : '；无新文案需要转写'),
-      )
-      let done = 0
-      for (const w of toTranscribe) {
-        if (w.playUrl) {
-          try {
-            const r = await fetch('/hl/ops/bench-transcribe', {
-              method: 'POST',
-              headers: { 'content-type': 'application/json' },
-              body: JSON.stringify({ video_url: w.playUrl }),
-            })
-            const d = await r.json().catch(() => null)
-            const txt = (d as { data?: { text?: string } } | null)?.data?.text
-            if (d?.ok === true && txt) w.asr = String(txt)
-          } catch { /* 单条失败不阻断 */ }
-        }
-        done += 1
-        setStatus(`转写口播文案 ${done}/${toTranscribe.length}…`)
-      }
-      const run: BenchRun = {
-        at: Date.now(),
-        requested: count,
-        returned: incoming.length,
-        added: merged.added,
-        updated: merged.updated,
-        missing: merged.missing,
-      }
-      const acct: BenchAccount = {
-        link: url,
-        secUid,
-        nickname: nickname || existing?.nickname || `对标 ${url.slice(-12)}`,
-        works,
-        syncedAt: Date.now(),
-        ...(existing?.groups !== undefined ? { groups: existing.groups } : {}),
-        runs: [run, ...(existing?.runs ?? [])].slice(0, 20),
-      }
-      const next = [acct, ...loadBench().filter(a => a.secUid !== secUid && a.link !== url)]
-      setAccounts(next)
-      saveBench(next)
-      setStatus(null)
-      setAdding(false)
-      setLink('')
-    } catch (e) {
-      setStatus(`采集失败：${e instanceof Error ? e.message.slice(0, 140) : String(e)}`)
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const createWith = (acct: BenchAccount): void => {
-    /* 把对标账号的爆款清单+文案编译成上下文，填进输入框（反哺通道） */
-    const sorted = [...acct.works].sort((a, b) => (b.plays ?? 0) - (a.plays ?? 0))
-    const top = sorted.slice(0, 5)
-    const lines = [
-      `【对标账号 · ${acct.nickname}】`,
-      ...top.map((w, i) => `${i + 1}. ${w.desc || '(无标题)'}｜播放 ${benchNum(w.plays)} 赞 ${benchNum(w.diggs)} 评 ${benchNum(w.comments)} 藏 ${benchNum(w.collects)}${w.asr ? `\n   口播：${w.asr.slice(0, 300)}` : ''}`),
-      '',
-      '请基于以上对标账号的爆款表现，为我给出下一批内容的选题与文案建议。',
-    ]
-    window.dispatchEvent(new CustomEvent('hl:fill-draft', { detail: { text: lines.join('\n') } }))
-    window.dispatchEvent(new CustomEvent('hl:close-hub'))
-  }
-
-  const remove = (link: string): void => {
-    const next = loadBench().filter(a => a.link !== link)
-    setAccounts(next)
-    saveBench(next)
-  }
-
-  return (
-    <section style={{ marginTop: 8, paddingBottom: 12 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '8px 0 12px' }}>
-        <h3 style={{ ...sectionTitleStyle, margin: 0, flex: 1 }}>对标账号</h3>
-        <button
-          type="button"
-          onClick={() => { setAdding(v => !v) }}
-          style={primaryBtnStyle(false)}
-        >
-          {adding ? '收起' : '＋添加对标'}
-        </button>
-      </div>
-      <div style={{ fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary)', marginBottom: 12 }}>
-        粘贴对标账号的主页链接（电脑版），自动采集其公开视频数据与口播文案，供创作与差距分析使用。
-      </div>
-
-      {adding && (
-        <div style={{ border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 12, padding: 14, marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <input
-            type="text"
-            value={link}
-            onChange={(e) => { setLink(e.target.value) }}
-            placeholder="对标账号主页链接，如 https://www.douyin.com/user/xxxx"
-            style={fieldStyle}
-          />
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 13, color: 'var(--dsw-alias-label-secondary)' }}>采集条数</span>
-            <select
-              value={count}
-              onChange={(e) => { setCount(Number(e.target.value)) }}
-              style={{ ...fieldStyle, width: 120 }}
-            >
-              {[5, 10, 20, 30, 50].map(n => <option key={n} value={n}>{n} 条</option>)}
-            </select>
-            <button type="button" disabled={busy} onClick={() => { void runAdd() }} style={primaryBtnStyle(busy)}>
-              {busy ? '采集中…' : '开始采集'}
-            </button>
-          </div>
-          {status !== null && (
-            <div style={{ fontSize: 13, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary)' }}>{status}</div>
-          )}
-        </div>
-      )}
-
-      {accounts.length === 0 && !adding && (
-        <div style={{ ...rowDescStyle, padding: '8px 2px' }}>还没有对标账号——点「＋添加对标」开始建立你的对标库。</div>
-      )}
-
-      {accounts.map(acct => (
-        <div key={acct.link} style={{ border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 12, padding: 14, marginBottom: 10 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button
-              type="button"
-              onClick={() => { setExpanded(expanded === acct.link ? null : acct.link) }}
-              style={{ flex: 1, minWidth: 0, textAlign: 'left', border: 'none', background: 'transparent', cursor: 'pointer', padding: 0 }}
-            >
-              <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--dsw-alias-label-primary)' }}>{acct.nickname}</span>
-              <span style={{ marginLeft: 10, fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' }}>
-                {acct.works.length} 条作品 · 同步于 {new Date(acct.syncedAt).toLocaleString('zh-CN')}
-                {(acct.groups ?? []).length > 0 && (
-                  <span style={{ marginLeft: 8, color: 'var(--dsw-alias-label-secondary)' }}>
-                    [{loadO56Projects().filter(p => (acct.groups ?? []).includes(p.id)).map(p => p.name).join('、')}]
-                  </span>
-                )}
-                {acct.runs !== undefined && acct.runs.length > 0 && (
-                  <span style={{ marginLeft: 8 }}>
-                    · 上轮 +{acct.runs[0]?.added ?? 0}/更新 {acct.runs[0]?.updated ?? 0}
-                  </span>
-                )}
-              </span>
-            </button>
-            <button type="button" onClick={() => { createWith(acct) }} style={secondaryBtnStyle(false)}>
-              带对标数据去创作
-            </button>
-            <button
-              type="button"
-              onClick={() => { remove(acct.link) }}
-              style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 12, color: 'var(--dsw-alias-label-tertiary)', padding: 0 }}
-            >
-              删除
-            </button>
-          </div>
-          {expanded === acct.link && (
-            <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {(acct.runs ?? []).length > 0 && (
-                <details>
-                  <summary style={{ fontSize: 12, cursor: 'pointer', color: 'var(--dsw-alias-label-tertiary)' }}>
-                    采集历史（{(acct.runs ?? []).length} 次）
-                  </summary>
-                  <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    {(acct.runs ?? []).map(r => (
-                      <div key={r.at} style={{ fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' }}>
-                        {new Date(r.at).toLocaleString('zh-CN')} · 请求 {r.requested} 条 / 返回 {r.returned} ·
-                        新增 {r.added} / 更新 {r.updated} / 缺失 {r.missing}
-                      </div>
-                    ))}
-                  </div>
-                </details>
-              )}
-              {acct.works.map(w => (
-                <div key={w.awemeId} style={{ borderTop: '1px solid var(--dsw-alias-border-l2)', paddingTop: 8 }}>
-                  <div style={{ fontSize: 13, lineHeight: '19px', color: w.missing === true ? 'var(--dsw-alias-label-tertiary)' : 'var(--dsw-alias-label-primary)' }}>
-                    {w.desc || '(无标题)'}
-                    {w.missing === true && <span style={{ marginLeft: 6, fontSize: 11 }}>（本轮未返回）</span>}
-                  </div>
-                  <div style={{ marginTop: 4, fontSize: 12, color: 'var(--dsw-alias-label-tertiary)', display: 'flex', gap: 14 }}>
-                    <span>播放 {benchNum(w.plays)}</span>
-                    <span>赞 {benchNum(w.diggs)}</span>
-                    <span>评 {benchNum(w.comments)}</span>
-                    <span>藏 {benchNum(w.collects)}</span>
-                    <span>转 {benchNum(w.shares)}</span>
-                  </div>
-                  {w.asr ? (
-                    <div style={{ marginTop: 6, fontSize: 13, lineHeight: '20px', color: 'var(--dsw-alias-label-secondary)', whiteSpace: 'pre-wrap', background: 'var(--dsw-alias-fill-l1, #f7f7f7)', borderRadius: 8, padding: '8px 10px' }}>
-                      口播：{w.asr}
-                    </div>
-                  ) : (
-                    <div style={{ marginTop: 6, fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' }}>（口播文案未转写）</div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      ))}
-    </section>
-  )
-}
-
 /* ── 粉丝画像（2026-11-12，对标抖音数据中心·粉丝数据）──────────────────── */
 
 /** 单组分布的横向条渲染：label + 占比条 + count */
@@ -3190,6 +3498,43 @@ export function HeightLabOpsPage() {
   }, [snapshots, syncPlatform])
 
   const detailDef = detail === null ? null : PROVIDERS.find(p => p.id === detail) ?? null
+  /** O57：统一账号行 → 详情页（三种来源分流） */
+  const openUnified = useCallback((acct: UnifiedAccount) => {
+    if (acct.source.type === 'primary') {
+      setDetail(acct.source.def.id)
+      setDetailTab('数据概览')
+      void syncPlatform(acct.source.def, { silent: true })
+    } else if (acct.source.type === 'extra') {
+      setExtraDetail(acct.source.acct)
+      setDetailTab('数据概览')
+    } else if (acct.source.type === 'bench') {
+      const b = acct.source.acct
+      const live = b.works.filter(w => w.missing !== true)
+      const totalDigg = live.reduce((x, w) => x + (w.diggs ?? 0), 0)
+      setExtraDetail({
+        id: `bench:${b.secUid || b.link}`,
+        platform: 'douyin',
+        nickname: b.nickname,
+        accountRef: b.secUid || b.link,
+        kind: 'public',
+        snap: {
+          nickname: b.nickname,
+          accountId: b.secUid || b.link,
+          highlights: [
+            { label: '作品', metric: { value: live.length } },
+            { label: '总赞', metric: { value: totalDigg } },
+          ],
+          details: [
+            { group: '公开数据汇总', label: '作品数', metric: { value: live.length } },
+            { group: '公开数据汇总', label: '总点赞', metric: { value: totalDigg } },
+          ],
+          syncedAt: b.syncedAt,
+        },
+      })
+      setDetailTab('数据概览')
+    }
+  }, [syncPlatform])
+
   /* O57：额外账号详情——复用详情页布局（detailDef 用其 platform 对应的 ProviderDef） */
   const extraDetailDef = extraDetail === null ? null : PROVIDERS.find(p => p.id === extraDetail.platform) ?? null
   const activeDetailDef = extraDetailDef ?? detailDef
@@ -3229,7 +3574,7 @@ export function HeightLabOpsPage() {
           className={clsx(css.libraryTab, tab === 'accounts' && css.libraryTabActive)}
           onClick={() => { setTab('accounts'); setDetail(null) }}
         >
-          账号
+          所有项目
         </button>
       </div>
 
@@ -3239,88 +3584,13 @@ export function HeightLabOpsPage() {
           tab === 'overview' ? (
             <OverviewSection />
           ) : (
-            <>
-              <div style={{ fontSize: 13, lineHeight: '20px', color: 'var(--dsw-alias-label-tertiary)', margin: 0 }}>
-                登录一次长期有效，数据自动同步；点平台查看完整数据。
-              </div>
-              <section style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 860 }}>
-                {PROVIDERS.map((def) => {
-                  const snap = snapshots[def.id]
-                  const st = states[def.id] ?? {}
-                  const Art = ARTWORK[def.id]
-                  const uid = `hl_ops_${def.id}`
-                  const loggedIn = snap !== undefined
-                  /* ② 陈旧检测：超过 STALE_DAYS 天没成功同步 → 降透明度 + 明确告知
-                 * ③ 待核标记：有可疑指标 → 在名称后加黄色小标 */
-                  const stale = loggedIn && ageDays(snap.syncedAt) > STALE_DAYS
-                  const suspects = snap !== undefined ? suspectsOf(snap) : new Set<string>()
-                  return (
-                    <button
-                      key={def.id}
-                      type="button"
-                      className={css.studioCard}
-                      style={{ ...rowCardStyle, opacity: stale ? 0.6 : 1 }}
-                      onClick={() => { void onCardClick(def) }}
-                    >
-                      <span style={iconWrapStyle} aria-hidden="true">
-                        <Art uid={uid} />
-                      </span>
-                      <span style={rowTextStyle}>
-                        <span style={rowNameStyle}>
-                          {def.name}
-                          {loggedIn && snap.nickname !== undefined ? ` · ${snap.nickname}` : ''}
-                          {stale && (
-                            <span style={{ marginLeft: 8, fontSize: 12, color: 'var(--dsw-alias-label-warning, #B45309)' }}>
-                              数据可能已过期
-                            </span>
-                          )}
-                          {suspects.size > 0 && (
-                            <span style={{ marginLeft: 8, fontSize: 12, color: 'var(--dsw-alias-label-warning, #B45309)' }}>
-                              {suspects.size} 项待核
-                            </span>
-                          )}
-                        </span>
-                        {/* 描述行（原生同款 13/18 tertiary）：有数据时显示场景摘要 + 增长，
-                       * 不重复渲染两遍（用户实测「数据重复」）。 */}
-                        {st.busy === true ? (
-                          <span style={rowDescStyle}>同步中…</span>
-                        ) : st.error !== undefined ? (
-                          <span style={rowDescStyle}>{st.error}</span>
-                        ) : loggedIn ? (
-                          <span
-                            style={{
-                              display: 'flex',
-                              gap: 16,
-                              flexWrap: 'wrap',
-                              fontSize: 13,
-                              lineHeight: '18px',
-                              color: 'var(--dsw-alias-label-tertiary)',
-                            }}
-                          >
-                            {snap.highlights?.map(h => (
-                              <span key={h.label} style={{ display: 'inline-flex', alignItems: 'baseline' }}>
-                                <span style={{ color: 'var(--dsw-alias-label-primary)', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
-                                  {fmtNum(h.metric.value, h.metric.format)}
-                                </span>
-                                <span style={{ marginLeft: 4 }}>{h.label}</span>
-                                <DeltaBadge delta={h.metric.delta} format={h.metric.format} />
-                              </span>
-                            ))}
-                          </span>
-                        ) : (
-                          <span style={rowDescStyle}>{def.loginHint}</span>
-                        )}
-                      </span>
-                    </button>
-                  )
-                })}
-              </section>
-              {/* O57（2026-11-14）：额外自有账号（同一平台多账号，公开数据模式） */}
-              <OwnExtraSection onOpenDetail={(acct) => { setExtraDetail(acct) }} />
-              {/* O57 四轮：对标采集 + 项目分组归属，合并进「账号」页（不再独立分页） */}
-              <BenchSection />
-              <GroupsSection />
-            </>
+            /* O57 五轮（2026-11-14 用户拍板 v3/v4 设计稿）：
+             * 项目手风琴 → 左「我的账号」/ 右「对标账号」→ 列内平台小标题 */
+            <AccountsSection
+              onOpenUnified={(acct) => { openUnified(acct) }}
+              onLogin={(def) => { void onCardClick(def) }}
+              platformStates={states}
+            />
           )
         ) : (
           /* 详情页布局（2026-11-12 用户建议「左侧或右侧放竖边栏专门放发布按钮」）
