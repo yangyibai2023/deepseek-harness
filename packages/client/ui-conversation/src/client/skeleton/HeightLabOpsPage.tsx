@@ -1666,6 +1666,192 @@ function loadBench(): BenchAccount[] {
 function saveBench(list: BenchAccount[]): void {
   try { window.localStorage.setItem(BENCH_KEY, JSON.stringify({ version: 1, accounts: list })) } catch { /* 满 */ }
 }
+/* ── 我的账号·多账号扩展（O57，2026-11-14）────────────────────────────────
+ * 用户诉求「一家公司有 5 种类型账号，不能都放一块儿」。
+ * 现状限制：`hl-ops-snapshots-v2` 是 Record<平台, 快照>——每平台只能 1 个登录会话
+ * （creator 后台采集依赖真实登录 cookie，无法用同一会话采多个号）。
+ * **纯加法设计（零回归）**：主账号沿用原存储不变；额外账号存独立 key
+ * `hl-ops-own-extra-v1`，其中 `kind` 标注数据来源：
+ *   - `'session'`：额外登录会话采集（需扫码；保后台独有指标：完播率/2秒跳出/粉丝画像）
+ *   - `'public'` ：DTK 公开数据兜底（只需 sec_uid，无后台指标，标注「公开数据模式」）
+ * 详情页复用现有 snap 渲染；概览页在主平台卡下方追加额外账号横条。
+ */
+const OWN_EXTRA_KEY = 'hl-ops-own-extra-v1'
+interface OwnExtraAccount {
+  id: string
+  platform: ProviderId
+  /** 账号显示名 */
+  nickname: string
+  /** douyin sec_uid 等平台稳定 id（public 模式必需） */
+  accountRef: string
+  /** 数据来源：会话采集（后台全量） or 公开数据（DTK） */
+  kind: 'session' | 'public'
+  snap: PlatformSnapshot
+}
+function loadOwnExtra(): OwnExtraAccount[] {
+  try {
+    const raw = window.localStorage.getItem(OWN_EXTRA_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw) as { accounts?: OwnExtraAccount[] }
+      if (Array.isArray(parsed.accounts)) return parsed.accounts
+    }
+  } catch { /* 重建 */ }
+  return []
+}
+function saveOwnExtra(list: OwnExtraAccount[]): void {
+  try {
+    window.localStorage.setItem(OWN_EXTRA_KEY, JSON.stringify({ version: 1, accounts: list }))
+  } catch { /* 满 */ }
+}
+
+/* ── 我的账号·额外账号区（O57，2026-11-14）──────────────────────────────
+ * 主平台卡（每平台 1 个登录会话）下方追加：额外自有账号列表 + 添加入口。
+ * 添加支持两种来源：①公开数据（DTK，只需主页链接，立即可用）
+ *                 ②登录会话采集（提示需扫码——后续版本接多会话）
+ */
+function OwnExtraSection({ onOpenDetail }: { onOpenDetail: (acct: OwnExtraAccount) => void }) {
+  const [accounts, setAccounts] = useState<OwnExtraAccount[]>(loadOwnExtra)
+  const [adding, setAdding] = useState(false)
+  const [platform, setPlatform] = useState<ProviderId>('douyin')
+  const [link, setLink] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [status, setStatus] = useState<string | null>(null)
+
+  const runAdd = async (): Promise<void> => {
+    const url = link.trim()
+    if (url === '') { setStatus('请粘贴该账号的主页链接'); return }
+    setBusy(true)
+    setStatus('采集中：公开数据模式（DTK）…')
+    try {
+      const secMatch = /\/user\/([A-Za-z0-9_-]{20,})/.exec(url)
+      const ref = secMatch?.[1] ?? url
+      const resp = await fetch('/hl/ops/bench-posts', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(secMatch !== null ? { sec_user_id: ref, count: 20 } : { url, count: 20 }),
+      })
+      const payload = (await resp.json().catch(() => null)) as BenchPostsResponse | null
+      if (payload?.ok !== true) { setStatus(`采集失败：${String(payload?.message ?? resp.status).slice(0, 140)}`); return }
+      const items = payload.data?.items ?? []
+      if (items.length === 0) { setStatus('该账号未返回作品。'); return }
+      const nickname = items[0]?.author ?? `账号 ${ref.slice(-10)}`
+      /* 汇总成 PlatformSnapshot 形态（复用现有详情页渲染） */
+      const totalDigg = items.reduce((a, b) => a + (b.stats?.digg_count ?? 0), 0)
+      const totalPlay = items.reduce((a, b) => a + (b.stats?.play_count ?? 0), 0)
+      const totalComment = items.reduce((a, b) => a + (b.stats?.comment_count ?? 0), 0)
+      const totalCollect = items.reduce((a, b) => a + (b.stats?.collect_count ?? 0), 0)
+      const snap: PlatformSnapshot = {
+        nickname,
+        accountId: ref,
+        highlights: [
+          { label: '作品', metric: { value: items.length } },
+          { label: '总赞', metric: { value: totalDigg } },
+          { label: '总播放', metric: { value: totalPlay || null } },
+        ],
+        details: [
+          { group: '公开数据汇总', label: '作品数', metric: { value: items.length } },
+          { group: '公开数据汇总', label: '总点赞', metric: { value: totalDigg } },
+          { group: '公开数据汇总', label: '总评论', metric: { value: totalComment } },
+          { group: '公开数据汇总', label: '总收藏', metric: { value: totalCollect } },
+          { group: '公开数据汇总', label: '总播放', metric: { value: totalPlay || null } },
+        ],
+        works: items.map(it => ({
+          awemeId: it.contentId,
+          title: it.title,
+          plays: it.stats?.play_count ?? null,
+          interactions: (it.stats?.digg_count ?? 0) + (it.stats?.comment_count ?? 0) + (it.stats?.collect_count ?? 0),
+          completionRate: undefined,
+        })) as never,
+        syncedAt: Date.now(),
+      }
+      const acct: OwnExtraAccount = {
+        id: `${platform}:${ref}`,
+        platform,
+        nickname,
+        accountRef: ref,
+        kind: 'public',
+        snap,
+      }
+      const next = [acct, ...loadOwnExtra().filter(a => a.id !== acct.id)]
+      setAccounts(next)
+      saveOwnExtra(next)
+      setStatus(null)
+      setAdding(false)
+      setLink('')
+    } catch (e) {
+      setStatus(`采集失败：${e instanceof Error ? e.message.slice(0, 140) : String(e)}`)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const remove = (id: string): void => {
+    const next = loadOwnExtra().filter(a => a.id !== id)
+    setAccounts(next)
+    saveOwnExtra(next)
+  }
+
+  return (
+    <section style={{ marginTop: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '8px 0 10px' }}>
+        <h3 style={{ ...sectionTitleStyle, margin: 0, flex: 1 }}>额外自有账号</h3>
+        <button type="button" onClick={() => { setAdding(v => !v) }} style={primaryBtnStyle(false)}>
+          {adding ? '收起' : '＋添加账号'}
+        </button>
+      </div>
+      <div style={{ fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary)', marginBottom: 12 }}>
+        同一平台可挂多个自有账号（一个公司多种类型账号）。当前版本添加走「公开数据模式」
+        （DTK 采集，无后台独有指标）；带完播率/粉丝画像的完整模式需额外扫码登录，后续版本开放。
+      </div>
+
+      {adding && (
+        <div style={{ border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 12, padding: 14, marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <select value={platform} onChange={(e) => { setPlatform(e.target.value as ProviderId) }} style={{ ...fieldStyle, width: 140 }}>
+              {PROVIDERS.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+            </select>
+            <input
+              type="text"
+              value={link}
+              onChange={(e) => { setLink(e.target.value) }}
+              placeholder="该账号的主页链接"
+              style={{ ...fieldStyle, flex: 1 }}
+            />
+            <button type="button" disabled={busy} onClick={() => { void runAdd() }} style={primaryBtnStyle(busy)}>
+              {busy ? '采集中…' : '采集'}
+            </button>
+          </div>
+          {status !== null && <div style={{ fontSize: 13, color: 'var(--dsw-alias-label-secondary)' }}>{status}</div>}
+        </div>
+      )}
+
+      {accounts.length === 0 && !adding && (
+        <div style={{ ...rowDescStyle, padding: '6px 2px' }}>还没有额外账号——点「＋添加账号」。</div>
+      )}
+
+      {accounts.map(acct => (
+        <div key={acct.id} style={{ border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 12, padding: 12, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button
+            type="button"
+            onClick={() => { onOpenDetail(acct) }}
+            style={{ flex: 1, minWidth: 0, textAlign: 'left', border: 'none', background: 'transparent', cursor: 'pointer', padding: 0 }}
+          >
+            <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--dsw-alias-label-primary)' }}>{acct.nickname}</span>
+            <span style={{ marginLeft: 8, fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' }}>
+              {PROVIDERS.find(d => d.id === acct.platform)?.name ?? acct.platform}
+              · {acct.kind === 'public' ? '公开数据模式' : '会话采集'}
+              · {new Date(acct.snap.syncedAt).toLocaleString('zh-CN')}
+            </span>
+          </button>
+          <button type="button" onClick={() => { remove(acct.id) }} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 12, color: 'var(--dsw-alias-label-tertiary)', padding: 0 }}>
+            删除
+          </button>
+        </div>
+      ))}
+    </section>
+  )
+}
+
 /* ── 项目分组（O57，2026-11-14）：复用 hl-projects-v1，加账号归属 ────────
  * 与 O56 侧栏项目树同一份项目清单——一个项目同时是「对话容器」和「账号容器」，
  * 这样 @ 项目时能一次带全（对话 + 我的账号 + 对标账号 + 品牌档案）。
@@ -2492,6 +2678,8 @@ export function HeightLabOpsPage() {
   const [snapshots, setSnapshots] = useState<Record<string, PlatformSnapshot>>(loadSnapshots)
   const [states, setStates] = useState<Record<string, PlatformState>>({})
   const [detail, setDetail] = useState<ProviderId | null>(null)
+  /** O57：额外自有账号详情 */
+  const [extraDetail, setExtraDetail] = useState<OwnExtraAccount | null>(null)
   const [detailTab, setDetailTab] = useState<DetailTab>('数据概览')
   /* 详情页二级分页（2026-11-12 用户拍板，对标抖音数据中心·信息架构）
    * 顺序 = 抖音官方：总览 → 作品 → 粉丝；发布监控是我们自有能力排最后。 */
@@ -2747,6 +2935,11 @@ export function HeightLabOpsPage() {
   }, [snapshots, syncPlatform])
 
   const detailDef = detail === null ? null : PROVIDERS.find(p => p.id === detail) ?? null
+  /* O57：额外账号详情——复用详情页布局（detailDef 用其 platform 对应的 ProviderDef） */
+  const extraDetailDef = extraDetail === null ? null : PROVIDERS.find(p => p.id === extraDetail.platform) ?? null
+  const activeDetailDef = extraDetailDef ?? detailDef
+  const activeSnapshot = extraDetail !== null ? extraDetail.snap : (detailDef !== null ? snapshots[detailDef.id] : undefined)
+  void activeSnapshot
 
   return (
   /* 布局（2026-11-12 实测两轮修正）
@@ -2878,10 +3071,13 @@ export function HeightLabOpsPage() {
                   )
                 })}
               </section>
+              {/* O57（2026-11-14）：额外自有账号（同一平台多账号，公开数据模式） */}
+              <OwnExtraSection onOpenDetail={(acct) => { setExtraDetail(acct) }} />
             </>
           )
         ) : (
           /* 详情页布局（2026-11-12 用户建议「左侧或右侧放竖边栏专门放发布按钮」）
+           * O57：extraDetail（额外自有账号）复用此布局——下文统一用 activeDetailDef/activeSnap。
            *
            * 为什么这样改：原来是**竖向堆叠**——账号三组 + 近7天 + 作品列表 +
            * 反哺按钮 + 发布监控 + 发布表单，一路排到底，内容高度远超视口，
@@ -2907,25 +3103,25 @@ export function HeightLabOpsPage() {
                   ← 数据概览
                 </button>
                 <span style={{ fontSize: 13, color: 'var(--dsw-alias-label-tertiary)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {detailDef.name}
-                  {snapshots[detailDef.id]?.nickname !== undefined ? ` · ${snapshots[detailDef.id]?.nickname}` : ''}
+                  {activeDetailDef?.name ?? ''}
+                  {activeSnapshot?.nickname !== undefined ? ` · ${activeSnapshot.nickname}` : ''}
                 </span>
                 {/* 2026-11-14 用户拍板：动作收进页头右侧（原 300px 右栏取消）。
                  * 反哺=描边次要钮；发布=实心主钮（点开弹浮层表单）。 */}
                 <FeedbackButton
-                  providerName={detailDef.name}
+                  providerName={activeDetailDef?.name ?? ''}
                   baselineText={(() => {
-                    const snapH = snapshots[detailDef.id]
+                    const snapH = activeSnapshot
                     const w = snapH?.works ?? []
                     if (w.length === 0) return null
-                    const b = buildBaseline(detailDef.id, snapH?.nickname ?? detailDef.name, w)
+                    const b = buildBaseline(activeDetailDef?.id ?? 'douyin', snapH?.nickname ?? activeDetailDef?.name ?? '', w)
                     return renderBaselineForPrompt(b)
                   })()}
                 />
-                {detailDef.id === 'douyin' && (
+                {activeDetailDef?.id === 'douyin' && extraDetail === null && (
                   <PublishPanel
                     provider={detailDef.id}
-                    providerName={detailDef.name}
+                    providerName={activeDetailDef?.name ?? ''}
                     onPublished={(info) => { recordPublish(detailDef.id, info) }}
                   />
                 )}
@@ -2949,7 +3145,7 @@ export function HeightLabOpsPage() {
               </div>
 
               {(() => {
-                const snap = snapshots[detailDef.id]
+                const snap = activeSnapshot
                 if (snap === undefined) {
                   return (
                     <div style={{ fontSize: 13, color: 'var(--dsw-alias-label-tertiary)' }}>
