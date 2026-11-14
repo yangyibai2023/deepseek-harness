@@ -105,6 +105,15 @@ export const zh = {
   'todo.status.completed': '已完成',
   'todo.status.inProgress': '进行中',
   'todo.status.pending': '待处理',
+  /* HeightLab（2026-11-15）任务进度条：分段进度 + 每步结论 + 失败态 + 耗时。
+   * 口径对齐 DSH：短、中性，不用感叹号。 */
+  'todo.status.failed': '失败',
+  'todo.progress.failed': '{failed} 失败',
+  'todo.step.step': '第 {n} 步',
+  'todo.step.failedTitle': '这一步没有完成',
+  'todo.elapsed.seconds': '{n} 秒',
+  'todo.elapsed.minutes': '{m} 分 {s} 秒',
+  'todo.allDone': '{n} 步全部完成',
   'todo.rowTitle': '更新任务清单',
   'tool.title.createGoal': '创建目标',
   'tool.title.getGoal': '查看目标',
@@ -501,6 +510,15 @@ export const en = {
   'todo.status.completed': 'Completed',
   'todo.status.inProgress': 'In progress',
   'todo.status.pending': 'Pending',
+  /* HeightLab（2026-11-15）task progress bar: segmented progress, per-step
+   * conclusion, failure state, elapsed time. */
+  'todo.status.failed': 'Failed',
+  'todo.progress.failed': '{failed} failed',
+  'todo.step.step': 'Step {n}',
+  'todo.step.failedTitle': 'This step did not finish',
+  'todo.elapsed.seconds': '{n}s',
+  'todo.elapsed.minutes': '{m}m {s}s',
+  'todo.allDone': 'All {n} steps done',
   'todo.rowTitle': 'Update to-do list',
   'tool.title.createGoal': 'Create goal',
   'tool.title.getGoal': 'View goal',

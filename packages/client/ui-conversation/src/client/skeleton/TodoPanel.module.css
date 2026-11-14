@@ -121,3 +121,161 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+ * HeightLab（2026-11-15）任务进度条增强
+ *
+ * 用户原话：「任务条我能看到它正在做哪一步」「每完成一小步就输出给我一个
+ * 结论」。三段结构：分段进度条 → 步骤行（标题 + 当前动作/结论/失败原因）
+ * → 每步耗时。全部复用 --dsw-alias-* token，不另起一套色值体系。
+ * ══════════════════════════════════════════════════════════════════════ */
+
+/* 分段进度条：每段 = 一步。比单一百分比直观（一眼看出「5 步做到第 3 步」）。 */
+.segments {
+  display: flex;
+  gap: 3px;
+  margin-top: 6px;
+}
+
+.segment {
+  position: relative;
+  flex: 1 1 0;
+  height: 4px;
+  border-radius: 2px;
+  overflow: hidden;
+  background: var(--dsw-alias-fill-secondary, rgba(127, 127, 127, 0.2));
+}
+
+.segmentDone {
+  background: #27ae60;
+}
+
+.segmentFailed {
+  background: #d14343;
+}
+
+/* 进行中：滑动亮条——静态截图里也能看出「还在跑」。 */
+.segmentActive::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 45%;
+  border-radius: 2px;
+  background: var(--dsw-alias-button-primary-fill, #2eaadc);
+  animation: todoSegmentSlide 1.4s ease-in-out infinite;
+}
+
+@keyframes todoSegmentSlide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(320%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .segmentActive::after { width: 100%; opacity: 0.55; animation: none; }
+}
+
+/* 步骤行：标题 + 副行两段结构，故对齐改为 flex-start。 */
+.step {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  padding: 3px 4px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.stepActive {
+  background: rgba(47, 109, 246, 0.06);
+}
+
+.stepBody {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.stepTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stepTitleActive {
+  color: var(--dsw-alias-label-primary);
+  font-weight: 600;
+}
+
+.stepTitlePending {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.stepTitleFailed {
+  color: #d14343;
+}
+
+/* 每步结论：左侧竖线 + 小一号字，视觉上从属于标题而不抢戏。 */
+.result {
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary);
+  border-left: 2px solid var(--dsw-alias-border-l2);
+  padding-left: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stepActive .result {
+  border-left-color: var(--dsw-alias-button-primary-fill, #2eaadc);
+}
+
+.resultFailed {
+  color: #d14343;
+  border-left-color: #d14343;
+}
+
+/* 当前动作：小圆点 + 微光，明确区分「步骤名」与「此刻在做的事」。 */
+.activeForm {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pulse {
+  flex: none;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--dsw-alias-button-primary-fill, #2eaadc);
+  animation: todoPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes todoPulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse { opacity: 0.8; animation: none; }
+}
+
+/* 每步耗时：右对齐 + tabular-nums 防数字跳动。 */
+.elapsed {
+  flex: none;
+  margin-left: 6px;
+  font-size: 11px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-tertiary);
+  font-variant-numeric: tabular-nums;
+}

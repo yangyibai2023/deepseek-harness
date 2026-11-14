@@ -62,8 +62,18 @@ describe('dsh-tool-todo', () => {
     const todos = props.todos as { type: string; items?: { properties?: Record<string, { type: string; enum?: string[] }> } }
     expect(todos.type).toBe('array')
     const itemProps = todos.items?.properties ?? {}
-    expect(Object.keys(itemProps).sort()).toEqual(['content', 'status'])
+    /* HeightLab（2026-11-15）：原断言是「恰好 content + status」（上游形状）。
+     * 本次受用户要求「每完成一步给我一个结论 / 让我看到正在做哪一步」扩展了三个
+     * **可选**展示字段，因此放宽为「必须包含上游两字段，且新增字段保持可选」——
+     * 后者才是真正的兼容性约束：老存档/老调用方不传新字段仍须通过校验。 */
+    const keys = Object.keys(itemProps).sort()
+    expect(keys).toEqual(['activeForm', 'content', 'error', 'result', 'status'])
     expect(itemProps.status?.enum).toEqual(['pending', 'in_progress', 'completed'])
+    for (const added of ['result', 'activeForm', 'error'] as const) {
+      expect(itemProps[added], `${added} must stay an optional string`).toBeDefined()
+      const spec = (todos.items as { required?: readonly string[] }).required ?? []
+      expect(spec).not.toContain(added)
+    }
   })
 
   it('appends a todo/write event carrying the whole list to the calling session', async () => {
