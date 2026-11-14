@@ -1792,24 +1792,24 @@ function OverviewSection(): React.JSX.Element {
   }
 
   return (
-    <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start', minHeight: 0 }}>
-      {/* ── 左：精简项目树 ── */}
-      <aside style={{ width: 220, flex: 'none', display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <div style={{ fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary)', padding: '0 6px 6px' }}>
-          范围（点选筛选右侧数据）
+    <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', minHeight: 0 }}>
+      {/* ── 左：精简项目树（2026-11-14 用户实测「太宽、左边很空」→ 220 缩到 108）── */}
+      <aside style={{ width: 108, flex: 'none', display: 'flex', flexDirection: 'column', gap: 3 }}>
+        <div style={{ fontSize: 11, lineHeight: '16px', color: 'var(--dsw-alias-label-tertiary)', padding: '0 6px 5px' }}>
+          范围
         </div>
         <button
           type="button"
           onClick={() => { setRange({ kind: 'all', label: '全部账号' }) }}
           style={{
-            display: 'flex', alignItems: 'center', gap: 8, width: '100%', minHeight: 32, padding: '6px 8px',
-            border: 'none', borderRadius: 8, cursor: 'pointer', textAlign: 'left', font: 'inherit',
+            display: 'flex', alignItems: 'center', gap: 6, width: '100%', minHeight: 28, padding: '5px 7px',
+            border: 'none', borderRadius: 7, cursor: 'pointer', textAlign: 'left', font: 'inherit',
             background: range.kind === 'all' ? 'var(--dsw-alias-interactive-bg-active)' : 'transparent',
             color: 'var(--dsw-alias-label-primary)',
           }}
         >
-          <span style={{ flex: 1, fontSize: 13 }}>全部账号</span>
-          <span style={{ fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' }}>
+          <span style={{ flex: 1, fontSize: 12.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>全部账号</span>
+          <span style={{ fontSize: 11, color: 'var(--dsw-alias-label-tertiary)', flex: 'none' }}>
             {PROVIDERS.filter(d => snaps[d.id] !== undefined).length + own.length + bench.length}
           </span>
         </button>
@@ -1821,20 +1821,20 @@ function OverviewSection(): React.JSX.Element {
               type="button"
               onClick={() => { setRange({ kind: 'project', projectId: p.id, label: p.name }) }}
               style={{
-                display: 'flex', alignItems: 'center', gap: 8, width: '100%', minHeight: 32, padding: '6px 8px',
-                border: 'none', borderRadius: 8, cursor: 'pointer', textAlign: 'left', font: 'inherit',
+                display: 'flex', alignItems: 'center', gap: 6, width: '100%', minHeight: 28, padding: '5px 7px',
+                border: 'none', borderRadius: 7, cursor: 'pointer', textAlign: 'left', font: 'inherit',
                 background: active ? 'var(--dsw-alias-interactive-bg-active)' : 'transparent',
                 color: 'var(--dsw-alias-label-primary)', opacity: active ? 1 : 0.85,
               }}
             >
-              <span style={{ flex: 1, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
-              <span style={{ fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' }}>{projCount(p.id)}</span>
+              <span style={{ flex: 1, fontSize: 12.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+              <span style={{ fontSize: 11, color: 'var(--dsw-alias-label-tertiary)', flex: 'none' }}>{projCount(p.id)}</span>
             </button>
           )
         })}
         {projects.length === 0 && (
-          <div style={{ fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary)', padding: '6px' }}>
-            还没有项目——到侧栏「项目」视图新建。
+          <div style={{ fontSize: 11, lineHeight: '16px', color: 'var(--dsw-alias-label-tertiary)', padding: '4px 6px' }}>
+            还没有项目
           </div>
         )}
       </aside>
