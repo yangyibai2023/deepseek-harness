@@ -1375,12 +1375,12 @@ function PublishPanel({
             onClick={() => { setOpen(false) }}
             style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13, color: 'var(--dsw-alias-label-tertiary)', padding: 0 }}
           >
-          关闭
+            关闭
           </button>
         </div>
         <div style={{ fontSize: 13, lineHeight: '20px', color: 'var(--dsw-alias-label-tertiary)', marginBottom: 16 }}>
-        内容会先填进平台页面，确认无误后由你点击发布。<br />
-        平台可能要求完成一次身份验证（如短信验证码），届时窗口会自动出现在最前面。
+          内容会先填进平台页面，确认无误后由你点击发布。<br />
+          平台可能要求完成一次身份验证（如短信验证码），届时窗口会自动出现在最前面。
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 640 }}>
@@ -1427,7 +1427,7 @@ function PublishPanel({
               onClick={() => { void run(true) }}
               style={secondaryBtnStyle(busy)}
             >
-            确认发布
+              确认发布
             </button>
           </div>
           {result !== null && (
@@ -1588,6 +1588,271 @@ const secondaryBtnStyle = (busy: boolean) => ({
   color: 'var(--dsw-alias-label-secondary)',
   cursor: busy ? 'default' : 'pointer',
 } as const)
+
+/* ── 对标库（O57 D2，2026-11-14）──────────────────────────────────────── */
+
+/**
+ * 对标账号公开数据采集与文案转写。
+ *
+ * 数据获取 = **匿名隐藏 WebView**（Tauri `hl_ops_bench_fetch`）：页面 JS 自带全部
+ * 反爬凭证（ttwid/a_bogus/bd_ticket_guard），hook 捕获页面自身的
+ * `user/post/videos` 响应——带登录态访问他人主页 RENDER_DATA 会返回自己的数据
+ * （见 douyin_bypass_technique.md），页面 XHR 按 sec_user_id 参数取目标数据，两者都可用。
+ * 口播文案 = 每条视频音频 URL → 云端 whisper 转写（/hl/ops/asr → 网关 → 8002）。
+ */
+interface BenchWork {
+  awemeId: string
+  desc: string
+  plays?: number | null
+  diggs?: number | null
+  comments?: number | null
+  collects?: number | null
+  shares?: number | null
+  playUrl?: string | null
+  asr?: string
+}
+interface BenchAccount {
+  link: string
+  secUid: string
+  nickname: string
+  works: BenchWork[]
+  syncedAt: number
+}
+/** 网关 /api/content-tools/bench-posts 响应（DTK 引擎结构化输出） */
+interface BenchPostItem {
+  contentId: string
+  title: string
+  tags: string[]
+  webUrl: string
+  stats: Record<string, number | null>
+  videoUrl: string | null
+  author: string
+}
+interface BenchPostsResponse {
+  ok?: boolean
+  message?: string
+  data?: { items?: BenchPostItem[] }
+}
+
+const BENCH_KEY = 'hl-ops-bench-v1'
+function loadBench(): BenchAccount[] {
+  try {
+    const raw = window.localStorage.getItem(BENCH_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw) as { accounts?: BenchAccount[] }
+      if (Array.isArray(parsed.accounts)) return parsed.accounts
+    }
+  } catch { /* 损坏重建 */ }
+  return []
+}
+function saveBench(list: BenchAccount[]): void {
+  try { window.localStorage.setItem(BENCH_KEY, JSON.stringify({ version: 1, accounts: list })) } catch { /* 满 */ }
+}
+function benchNum(n?: number | null): string {
+  if (n === null || n === undefined) return '—'
+  if (n >= 10000) return `${(n / 10000).toFixed(1)}万`
+  return String(n)
+}
+
+function BenchSection() {
+  const [accounts, setAccounts] = useState<BenchAccount[]>(loadBench)
+  const [adding, setAdding] = useState(false)
+  const [link, setLink] = useState('')
+  const [count, setCount] = useState(10)
+  const [status, setStatus] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [expanded, setExpanded] = useState<string | null>(null)
+
+  const runAdd = async (): Promise<void> => {
+    const url = link.trim()
+    if (url === '') { setStatus('请粘贴对标账号的主页链接'); return }
+    setBusy(true)
+    setStatus('采集中：解析对标账号作品…')
+    try {
+      /* O57 D2（2026-11-14 定稿）：引擎换成 DTK 自托管数据 API（服务端 127.0.0.1:8010，
+       * identity pool 自维护 cookie/指纹）。匿名 WebView 方案因抖音匿名首访被重定向首页而弃用。 */
+      const secUidMatch = /\/user\/([A-Za-z0-9_-]{20,})/.exec(url)
+      const secUid = secUidMatch?.[1] ?? ''
+      const resp = await fetch('/hl/ops/bench-posts', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(secUid !== '' ? { sec_user_id: secUid, count } : { url, count }),
+      })
+      const payload = (await resp.json().catch(() => null)) as BenchPostsResponse | null
+      if (payload?.ok !== true) {
+        setStatus(`采集失败：${String(payload?.message ?? `HTTP ${resp.status}`).slice(0, 160)}`)
+        return
+      }
+      const works: BenchWork[] = (payload.data?.items ?? []).map(it => ({
+        awemeId: it.contentId,
+        desc: it.title,
+        plays: it.stats?.play_count ?? null,
+        diggs: it.stats?.digg_count ?? null,
+        comments: it.stats?.comment_count ?? null,
+        collects: it.stats?.collect_count ?? null,
+        shares: it.stats?.share_count ?? null,
+        playUrl: it.videoUrl,
+      }))
+      const nickname = (payload.data?.items ?? [])[0]?.author ?? ''
+      if (works.length === 0) { setStatus('该账号未返回作品（可能隐私设置或链接有误）。'); return }
+      setStatus(`已捕获 ${works.length} 条作品，开始转写口播文案（每条约 10-40 秒）…`)
+      let done = 0
+      for (const w of works) {
+        if (w.playUrl) {
+          try {
+            const r = await fetch('/hl/ops/bench-transcribe', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ video_url: w.playUrl }),
+            })
+            const d = await r.json().catch(() => null)
+            const txt = (d as { data?: { text?: string } } | null)?.data?.text
+            if (d?.ok === true && txt) w.asr = String(txt)
+          } catch { /* 单条失败不阻断 */ }
+        }
+        done += 1
+        setStatus(`转写口播文案 ${done}/${works.length}…`)
+      }
+      const acct: BenchAccount = {
+        link: url,
+        secUid,
+        nickname: nickname || `对标 ${url.slice(-12)}`,
+        works,
+        syncedAt: Date.now(),
+      }
+      const next = [acct, ...loadBench().filter(a => a.link !== url)]
+      setAccounts(next)
+      saveBench(next)
+      setStatus(null)
+      setAdding(false)
+      setLink('')
+    } catch (e) {
+      setStatus(`采集失败：${e instanceof Error ? e.message.slice(0, 140) : String(e)}`)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const createWith = (acct: BenchAccount): void => {
+    /* 把对标账号的爆款清单+文案编译成上下文，填进输入框（反哺通道） */
+    const sorted = [...acct.works].sort((a, b) => (b.plays ?? 0) - (a.plays ?? 0))
+    const top = sorted.slice(0, 5)
+    const lines = [
+      `【对标账号 · ${acct.nickname}】`,
+      ...top.map((w, i) => `${i + 1}. ${w.desc || '(无标题)'}｜播放 ${benchNum(w.plays)} 赞 ${benchNum(w.diggs)} 评 ${benchNum(w.comments)} 藏 ${benchNum(w.collects)}${w.asr ? `\n   口播：${w.asr.slice(0, 300)}` : ''}`),
+      '',
+      '请基于以上对标账号的爆款表现，为我给出下一批内容的选题与文案建议。',
+    ]
+    window.dispatchEvent(new CustomEvent('hl:fill-draft', { detail: { text: lines.join('\n') } }))
+    window.dispatchEvent(new CustomEvent('hl:close-hub'))
+  }
+
+  const remove = (link: string): void => {
+    const next = loadBench().filter(a => a.link !== link)
+    setAccounts(next)
+    saveBench(next)
+  }
+
+  return (
+    <section style={{ marginTop: 8, paddingBottom: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '8px 0 12px' }}>
+        <h3 style={{ ...sectionTitleStyle, margin: 0, flex: 1 }}>对标账号</h3>
+        <button
+          type="button"
+          onClick={() => { setAdding(v => !v) }}
+          style={primaryBtnStyle(false)}
+        >
+          {adding ? '收起' : '＋添加对标'}
+        </button>
+      </div>
+      <div style={{ fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary)', marginBottom: 12 }}>
+        粘贴对标账号的主页链接（电脑版），自动采集其公开视频数据与口播文案，供创作与差距分析使用。
+      </div>
+
+      {adding && (
+        <div style={{ border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 12, padding: 14, marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <input
+            type="text"
+            value={link}
+            onChange={(e) => { setLink(e.target.value) }}
+            placeholder="对标账号主页链接，如 https://www.douyin.com/user/xxxx"
+            style={fieldStyle}
+          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 13, color: 'var(--dsw-alias-label-secondary)' }}>采集条数</span>
+            <select
+              value={count}
+              onChange={(e) => { setCount(Number(e.target.value)) }}
+              style={{ ...fieldStyle, width: 120 }}
+            >
+              {[5, 10, 20, 30, 50].map(n => <option key={n} value={n}>{n} 条</option>)}
+            </select>
+            <button type="button" disabled={busy} onClick={() => { void runAdd() }} style={primaryBtnStyle(busy)}>
+              {busy ? '采集中…' : '开始采集'}
+            </button>
+          </div>
+          {status !== null && (
+            <div style={{ fontSize: 13, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary)' }}>{status}</div>
+          )}
+        </div>
+      )}
+
+      {accounts.length === 0 && !adding && (
+        <div style={{ ...rowDescStyle, padding: '8px 2px' }}>还没有对标账号——点「＋添加对标」开始建立你的对标库。</div>
+      )}
+
+      {accounts.map(acct => (
+        <div key={acct.link} style={{ border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 12, padding: 14, marginBottom: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button
+              type="button"
+              onClick={() => { setExpanded(expanded === acct.link ? null : acct.link) }}
+              style={{ flex: 1, minWidth: 0, textAlign: 'left', border: 'none', background: 'transparent', cursor: 'pointer', padding: 0 }}
+            >
+              <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--dsw-alias-label-primary)' }}>{acct.nickname}</span>
+              <span style={{ marginLeft: 10, fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' }}>
+                {acct.works.length} 条作品 · 同步于 {new Date(acct.syncedAt).toLocaleString('zh-CN')}
+              </span>
+            </button>
+            <button type="button" onClick={() => { createWith(acct) }} style={secondaryBtnStyle(false)}>
+              带对标数据去创作
+            </button>
+            <button
+              type="button"
+              onClick={() => { remove(acct.link) }}
+              style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 12, color: 'var(--dsw-alias-label-tertiary)', padding: 0 }}
+            >
+              删除
+            </button>
+          </div>
+          {expanded === acct.link && (
+            <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {acct.works.map(w => (
+                <div key={w.awemeId} style={{ borderTop: '1px solid var(--dsw-alias-border-l2)', paddingTop: 8 }}>
+                  <div style={{ fontSize: 13, lineHeight: '19px', color: 'var(--dsw-alias-label-primary)' }}>{w.desc || '(无标题)'}</div>
+                  <div style={{ marginTop: 4, fontSize: 12, color: 'var(--dsw-alias-label-tertiary)', display: 'flex', gap: 14 }}>
+                    <span>播放 {benchNum(w.plays)}</span>
+                    <span>赞 {benchNum(w.diggs)}</span>
+                    <span>评 {benchNum(w.comments)}</span>
+                    <span>藏 {benchNum(w.collects)}</span>
+                    <span>转 {benchNum(w.shares)}</span>
+                  </div>
+                  {w.asr ? (
+                    <div style={{ marginTop: 6, fontSize: 13, lineHeight: '20px', color: 'var(--dsw-alias-label-secondary)', whiteSpace: 'pre-wrap', background: 'var(--dsw-alias-fill-l1, #f7f7f7)', borderRadius: 8, padding: '8px 10px' }}>
+                      口播：{w.asr}
+                    </div>
+                  ) : (
+                    <div style={{ marginTop: 6, fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' }}>（口播文案未转写）</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+    </section>
+  )
+}
 
 /* ── 粉丝画像（2026-11-12，对标抖音数据中心·粉丝数据）──────────────────── */
 
@@ -1890,7 +2155,8 @@ interface PlatformState {
 }
 
 export function HeightLabOpsPage() {
-  const [tab] = useState<'overview'>('overview')
+  /* O57 D2（2026-11-14 用户拍板）：页面级双分页——我的账号（原数据概览）/ 对标账号（原对标库） */
+  const [tab, setTab] = useState<'overview' | 'bench'>('overview')
   const [snapshots, setSnapshots] = useState<Record<string, PlatformSnapshot>>(loadSnapshots)
   const [states, setStates] = useState<Record<string, PlatformState>>({})
   const [detail, setDetail] = useState<ProviderId | null>(null)
@@ -2171,93 +2437,106 @@ export function HeightLabOpsPage() {
           type="button"
           role="tab"
           aria-selected={tab === 'overview'}
-          className={clsx(css.libraryTab, css.libraryTabActive)}
-          onClick={() => { setDetail(null) }}
+          className={clsx(css.libraryTab, tab === 'overview' && css.libraryTabActive)}
+          onClick={() => { setTab('overview'); setDetail(null) }}
         >
-          数据概览
+          我的账号
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'bench'}
+          className={clsx(css.libraryTab, tab === 'bench' && css.libraryTabActive)}
+          onClick={() => { setTab('bench'); setDetail(null) }}
+        >
+          对标账号
         </button>
       </div>
 
       {/* 容器严格照抄原生 hubPageStyle：gap 32 / padding 12 clamp(24,4vw,48) 48 */}
       <div className={css.opsScroll}>
         {detailDef === null ? (
-          <>
-            <div style={{ fontSize: 13, lineHeight: '20px', color: 'var(--dsw-alias-label-tertiary)', margin: 0 }}>
-              登录一次长期有效，数据自动同步；点平台查看完整数据。
-            </div>
-            <section style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 860 }}>
-              {PROVIDERS.map((def) => {
-                const snap = snapshots[def.id]
-                const st = states[def.id] ?? {}
-                const Art = ARTWORK[def.id]
-                const uid = `hl_ops_${def.id}`
-                const loggedIn = snap !== undefined
-                /* ② 陈旧检测：超过 STALE_DAYS 天没成功同步 → 降透明度 + 明确告知
+          tab === 'bench' ? (
+            <BenchSection />
+          ) : (
+            <>
+              <div style={{ fontSize: 13, lineHeight: '20px', color: 'var(--dsw-alias-label-tertiary)', margin: 0 }}>
+                登录一次长期有效，数据自动同步；点平台查看完整数据。
+              </div>
+              <section style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 860 }}>
+                {PROVIDERS.map((def) => {
+                  const snap = snapshots[def.id]
+                  const st = states[def.id] ?? {}
+                  const Art = ARTWORK[def.id]
+                  const uid = `hl_ops_${def.id}`
+                  const loggedIn = snap !== undefined
+                  /* ② 陈旧检测：超过 STALE_DAYS 天没成功同步 → 降透明度 + 明确告知
                  * ③ 待核标记：有可疑指标 → 在名称后加黄色小标 */
-                const stale = loggedIn && ageDays(snap.syncedAt) > STALE_DAYS
-                const suspects = snap !== undefined ? suspectsOf(snap) : new Set<string>()
-                return (
-                  <button
-                    key={def.id}
-                    type="button"
-                    className={css.studioCard}
-                    style={{ ...rowCardStyle, opacity: stale ? 0.6 : 1 }}
-                    onClick={() => { void onCardClick(def) }}
-                  >
-                    <span style={iconWrapStyle} aria-hidden="true">
-                      <Art uid={uid} />
-                    </span>
-                    <span style={rowTextStyle}>
-                      <span style={rowNameStyle}>
-                        {def.name}
-                        {loggedIn && snap.nickname !== undefined ? ` · ${snap.nickname}` : ''}
-                        {stale && (
-                          <span style={{ marginLeft: 8, fontSize: 12, color: 'var(--dsw-alias-label-warning, #B45309)' }}>
-                            数据可能已过期
+                  const stale = loggedIn && ageDays(snap.syncedAt) > STALE_DAYS
+                  const suspects = snap !== undefined ? suspectsOf(snap) : new Set<string>()
+                  return (
+                    <button
+                      key={def.id}
+                      type="button"
+                      className={css.studioCard}
+                      style={{ ...rowCardStyle, opacity: stale ? 0.6 : 1 }}
+                      onClick={() => { void onCardClick(def) }}
+                    >
+                      <span style={iconWrapStyle} aria-hidden="true">
+                        <Art uid={uid} />
+                      </span>
+                      <span style={rowTextStyle}>
+                        <span style={rowNameStyle}>
+                          {def.name}
+                          {loggedIn && snap.nickname !== undefined ? ` · ${snap.nickname}` : ''}
+                          {stale && (
+                            <span style={{ marginLeft: 8, fontSize: 12, color: 'var(--dsw-alias-label-warning, #B45309)' }}>
+                              数据可能已过期
+                            </span>
+                          )}
+                          {suspects.size > 0 && (
+                            <span style={{ marginLeft: 8, fontSize: 12, color: 'var(--dsw-alias-label-warning, #B45309)' }}>
+                              {suspects.size} 项待核
+                            </span>
+                          )}
+                        </span>
+                        {/* 描述行（原生同款 13/18 tertiary）：有数据时显示场景摘要 + 增长，
+                       * 不重复渲染两遍（用户实测「数据重复」）。 */}
+                        {st.busy === true ? (
+                          <span style={rowDescStyle}>同步中…</span>
+                        ) : st.error !== undefined ? (
+                          <span style={rowDescStyle}>{st.error}</span>
+                        ) : loggedIn ? (
+                          <span
+                            style={{
+                              display: 'flex',
+                              gap: 16,
+                              flexWrap: 'wrap',
+                              fontSize: 13,
+                              lineHeight: '18px',
+                              color: 'var(--dsw-alias-label-tertiary)',
+                            }}
+                          >
+                            {snap.highlights?.map(h => (
+                              <span key={h.label} style={{ display: 'inline-flex', alignItems: 'baseline' }}>
+                                <span style={{ color: 'var(--dsw-alias-label-primary)', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
+                                  {fmtNum(h.metric.value, h.metric.format)}
+                                </span>
+                                <span style={{ marginLeft: 4 }}>{h.label}</span>
+                                <DeltaBadge delta={h.metric.delta} format={h.metric.format} />
+                              </span>
+                            ))}
                           </span>
-                        )}
-                        {suspects.size > 0 && (
-                          <span style={{ marginLeft: 8, fontSize: 12, color: 'var(--dsw-alias-label-warning, #B45309)' }}>
-                            {suspects.size} 项待核
-                          </span>
+                        ) : (
+                          <span style={rowDescStyle}>{def.loginHint}</span>
                         )}
                       </span>
-                      {/* 描述行（原生同款 13/18 tertiary）：有数据时显示场景摘要 + 增长，
-                       * 不重复渲染两遍（用户实测「数据重复」）。 */}
-                      {st.busy === true ? (
-                        <span style={rowDescStyle}>同步中…</span>
-                      ) : st.error !== undefined ? (
-                        <span style={rowDescStyle}>{st.error}</span>
-                      ) : loggedIn ? (
-                        <span
-                          style={{
-                            display: 'flex',
-                            gap: 16,
-                            flexWrap: 'wrap',
-                            fontSize: 13,
-                            lineHeight: '18px',
-                            color: 'var(--dsw-alias-label-tertiary)',
-                          }}
-                        >
-                          {snap.highlights?.map(h => (
-                            <span key={h.label} style={{ display: 'inline-flex', alignItems: 'baseline' }}>
-                              <span style={{ color: 'var(--dsw-alias-label-primary)', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
-                                {fmtNum(h.metric.value, h.metric.format)}
-                              </span>
-                              <span style={{ marginLeft: 4 }}>{h.label}</span>
-                              <DeltaBadge delta={h.metric.delta} format={h.metric.format} />
-                            </span>
-                          ))}
-                        </span>
-                      ) : (
-                        <span style={rowDescStyle}>{def.loginHint}</span>
-                      )}
-                    </span>
-                  </button>
-                )
-              })}
-            </section>
-          </>
+                    </button>
+                  )
+                })}
+              </section>
+            </>
+          )
         ) : (
           /* 详情页布局（2026-11-12 用户建议「左侧或右侧放竖边栏专门放发布按钮」）
            *
