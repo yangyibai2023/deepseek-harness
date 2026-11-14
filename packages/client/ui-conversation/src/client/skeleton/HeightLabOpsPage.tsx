@@ -2332,9 +2332,11 @@ function AccountColumn({ title, items, projects, onOpen, onChanged, onAdd, onLog
  * 三个决定：①归属（我的/对标）②项目（chips，默认第一个项目）③平台（点即扫码）
  * 底部实时预览最终落位路径。对标账号走粘链接（平台从域名自动识别）。
  */
-function AddAccountModal({ onClose, onAdded, initialKind, initialProjectId }: {
+function AddAccountModal({ onClose, onAdded, onLogin, initialKind, initialProjectId }: {
   onClose: () => void
   onAdded: () => void
+  /** 扫码登录（父级 onCardClick 链路：开窗 → 轮询同步 → 成功自动关窗） */
+  onLogin: (def: ProviderDef) => void
   initialKind?: 'own' | 'bench'
   initialProjectId?: string | null
 }): React.JSX.Element {
@@ -2408,9 +2410,13 @@ function AddAccountModal({ onClose, onAdded, initialKind, initialProjectId }: {
   const startScan = (): void => {
     const def = PROVIDERS.find(d => d.id === platform)
     if (def === undefined) return
+    /* 先把归属写进本地（扫码成功后账号一出现就在正确项目里），再拉起登录窗。
+     * onLogin 走父级 onCardClick：开窗 → 轮询同步（6s 后每 4s，最多 45 次）
+     * → 同步成功自动关窗（全平台通用，不写平台名判断）。 */
     if (projectId !== null) setAccountGroups(`own:${platform}`, [projectId])
     onAdded()
     onClose()
+    onLogin(def)
   }
 
   return (
@@ -2806,6 +2812,7 @@ function AccountsSection({ onOpenUnified, onLogin, platformStates }: {
         <AddAccountModal
           onClose={() => { setAddOpen(false) }}
           onAdded={() => { setTick(v => v + 1) }}
+          onLogin={onLogin}
         />
       )}
     </div>
