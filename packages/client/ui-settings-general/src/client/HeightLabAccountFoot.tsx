@@ -772,7 +772,7 @@ export function HeightLabAccountFoot({ wide, openSettings }: HeightLabAccountFoo
               type="button"
               className={css.sideAction}
               aria-label="连接手机"
-              onClick={() => { window.alert('连接移动端功能待上线') }}
+              onClick={() => { window.dispatchEvent(new CustomEvent('hl:open-pocket')) }}
             >
               <PhoneIcon />
             </button>
