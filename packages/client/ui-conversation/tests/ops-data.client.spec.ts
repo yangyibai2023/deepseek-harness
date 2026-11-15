@@ -272,6 +272,36 @@ describe('buildActionItems（今日行动队列）', () => {
     expect(asr!.title).toContain('3 条')
   })
 
+  it('深链（v2）：T+N 欠采落到该账号的发布监控分页', () => {
+    const due = publishRecord(NOW - 25 * 3_600_000, [
+      { itemId: 'i1', at: NOW - 24 * 3_600_000, ageHours: 1 },
+    ])
+    const items = buildActionItems(input({ records: [due] }), NOW)
+    const tndue = items.find(i => i.id.startsWith('tndue-'))
+    expect(tndue).toBeDefined()
+    expect(tndue!.target).toEqual({ kind: 'detail', provider: 'douyin', tab: '发布监控' })
+  })
+
+  it('深链（v2）：数据陈旧落到该平台详情（数据概览），由父组件静默刷新', () => {
+    const items = buildActionItems(input({
+      syncedAts: { shipinhao: NOW - 72 * 3_600_000 },
+    }), NOW)
+    const stale = items.find(i => i.id.startsWith('stale-'))
+    expect(stale).toBeDefined()
+    expect(stale!.target).toEqual({ kind: 'detail', provider: 'shipinhao', tab: '数据概览' })
+  })
+
+  it('兜底项（无数据/零发布/对标提取）只切账号页，不带深链', () => {
+    const noData = buildActionItems(input({ hasAnyData: false }), NOW)
+    expect(noData[0]!.target).toEqual({ kind: 'accounts' })
+    const noPub = buildActionItems(input({
+      records: [publishRecord(NOW - 10 * 24 * 3_600_000)],
+    }), NOW)
+    expect(noPub.find(i => i.id === 'no-publish-week')!.target).toEqual({ kind: 'accounts' })
+    const asr = buildActionItems(input({ bench: [{ worksTotal: 3, withAsr: 0 }] }), NOW)
+    expect(asr.find(i => i.id === 'bench-pending-asr')!.target).toEqual({ kind: 'accounts' })
+  })
+
   it('确定性：同输入两次生成结果完全一致', () => {
     const a = buildActionItems(input({ records: [publishRecord(NOW - 25 * 3_600_000)] }), NOW)
     const b = buildActionItems(input({ records: [publishRecord(NOW - 25 * 3_600_000)] }), NOW)

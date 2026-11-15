@@ -1758,7 +1758,7 @@ function ActionRow({ item }: { item: OpsActionItem }): React.JSX.Element {
       </div>
       <button
         type="button"
-        onClick={() => { window.dispatchEvent(new CustomEvent('hl-ops-goto-tab', { detail: 'accounts' })) }}
+        onClick={() => { window.dispatchEvent(new CustomEvent('hl-ops-goto-tab', { detail: item.target })) }}
         style={{ flex: 'none', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 12, color: 'var(--dsw-alias-label-secondary)', padding: '4px 6px' }}
       >
         去处理 ›
@@ -3368,20 +3368,6 @@ export function HeightLabOpsPage() {
     [projects],
   )
 
-  /* 今日行动队列「去处理」→ 切到账号 tab（2026-11-16）。
-   * OverviewSection 里的行动项只发事件，tab 状态在父组件，
-   * 与 hl-projects-changed 同模式：自包含子区块 + 父级监听。 */
-  useEffect(() => {
-    const onGoto = (e: Event): void => {
-      const target = (e as CustomEvent<string>).detail
-      if (target === 'accounts') {
-        setTab('accounts')
-        setDetail(null)
-      }
-    }
-    window.addEventListener('hl-ops-goto-tab', onGoto)
-    return () => { window.removeEventListener('hl-ops-goto-tab', onGoto) }
-  }, [])
 
   /** 把账号当前作品数据回填到发布记录里（按标题匹配，作为无 ID 时的兜底） */
   useEffect(() => {
@@ -3552,6 +3538,44 @@ export function HeightLabOpsPage() {
   }, [])
 
   /** 点卡：有快照 → 进详情并刷新；无快照 → 打开登录窗口（只这一次） */
+  /* 今日行动队列「去处理」→ 切页/深链（2026-11-16 v2）。
+   * OverviewSection 里的行动项只发事件，tab/详情状态在父组件。
+   * 两种目标：
+   *  - { kind: 'accounts' }        只切到账号页
+   *  - { kind: 'detail', provider, tab }  直接打开该账号详情 + 二级分页，
+   *    并触发一次静默刷新（陈旧数据点开即拉新，与手动点卡同行为）。
+   * 与 hl-projects-changed 同模式：自包含子区块 + 父级监听。 */
+  useEffect(() => {
+    const onGoto = (e: Event): void => {
+      const target = (e as CustomEvent<unknown>).detail
+      if (target === null || typeof target !== 'object') return
+      const t = target as { kind?: string; provider?: string; tab?: string }
+      if (t.kind === 'accounts') {
+        setTab('accounts')
+        setDetail(null)
+        return
+      }
+      if (t.kind === 'detail' && typeof t.provider === 'string') {
+        const def = PROVIDERS.find(p => p.id === t.provider)
+        if (def === undefined) {
+          /* 平台没有对应账号卡（理论上不发生），兜底切账号页 */
+          setTab('accounts')
+          setDetail(null)
+          return
+        }
+        setTab('accounts')
+        setDetail(def.id)
+        const tab = t.tab
+        if (tab === '数据概览' || tab === '作品表现' || tab === '粉丝画像' || tab === '发布监控') {
+          setDetailTab(tab)
+        }
+        void syncPlatform(def, { silent: true })
+      }
+    }
+    window.addEventListener('hl-ops-goto-tab', onGoto)
+    return () => { window.removeEventListener('hl-ops-goto-tab', onGoto) }
+  }, [syncPlatform])
+
   const onCardClick = useCallback(async (def: ProviderDef) => {
     const hasSnapshot = snapshots[def.id] !== undefined
     if (hasSnapshot) {

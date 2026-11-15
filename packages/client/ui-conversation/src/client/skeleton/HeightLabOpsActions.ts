@@ -34,7 +34,15 @@ import { dueSnapshotHour, type PublishRecord } from './HeightLabOpsData.ts'
 
 export type ActionLevel = 'p0' | 'p1' | 'p2'
 
-export type OpsActionKind = 'goto-accounts'
+/**
+ * 行动目标（v2 深链，2026-11-16）：
+ * - accounts   只切到账号页（兜底）
+ * - detail     直接打开某平台账号详情 + 指定二级分页（T+N 欠采→发布监控、
+ *              数据陈旧→数据概览并静默刷新），父组件 hl-ops-goto-tab 消费
+ */
+export type OpsActionTarget =
+  | { kind: 'accounts' }
+  | { kind: 'detail'; provider: string; tab: '数据概览' | '作品表现' | '粉丝画像' | '发布监控' }
 
 export interface OpsActionItem {
   id: string
@@ -43,7 +51,7 @@ export interface OpsActionItem {
   title: string
   /** 补充数据（多少小时/多少条），可为空 */
   detail?: string
-  action: OpsActionKind
+  target: OpsActionTarget
 }
 
 /** 规则输入：全部取自现有 localStorage 数据层，不新增存储 */
@@ -90,7 +98,7 @@ export function buildActionItems(input: OpsActionInput, now = Date.now()): OpsAc
       level: 'p0',
       title: '还没有任何账号数据',
       detail: '添加第一个账号，扫码登录后开始累积运营数据',
-      action: 'goto-accounts',
+      target: { kind: 'accounts' },
     })
     return items.slice(0, MAX_ACTIONS)
   }
@@ -110,7 +118,8 @@ export function buildActionItems(input: OpsActionInput, now = Date.now()): OpsAc
         level: 'p0',
         title: `《${first.record.title.slice(0, 24) || '未命名'}》的 T+${first.hour}h 快照该采了`,
         detail: `已发布 ${ageH} 小时${due.length > 1 ? `，还有 ${String(due.length - 1)} 条待采` : ''}`,
-        action: 'goto-accounts',
+        /* 深链：直接落到该账号的发布监控分页，少两次点击 */
+        target: { kind: 'detail', provider: first.record.provider, tab: '发布监控' },
       })
     }
   }
@@ -127,7 +136,8 @@ export function buildActionItems(input: OpsActionInput, now = Date.now()): OpsAc
       level: 'p1',
       title: `${PROVIDER_NAMES[staleFirst.id] ?? staleFirst.id}数据已 ${Math.floor(staleFirst.ageH / 24)} 天未更新`,
       detail: stale.length > 1 ? `还有 ${String(stale.length - 1)} 个账号数据陈旧` : '点进账号卡即自动刷新',
-      action: 'goto-accounts',
+      /* 深链：打开详情即触发静默刷新（父组件 syncPlatform silent） */
+      target: { kind: 'detail', provider: staleFirst.id, tab: '数据概览' },
     })
   }
 
@@ -139,7 +149,7 @@ export function buildActionItems(input: OpsActionInput, now = Date.now()): OpsAc
       level: 'p2',
       title: input.records.length === 0 ? '还没有任何发布记录' : '近 7 天没有发布记录',
       detail: '发布入口在账号详情页右上角',
-      action: 'goto-accounts',
+      target: { kind: 'accounts' },
     })
   }
 
@@ -151,7 +161,7 @@ export function buildActionItems(input: OpsActionInput, now = Date.now()): OpsAc
       level: 'p2',
       title: `${String(pendingAsr)} 条对标作品待提取口播文案`,
       detail: '提取后可让 AI 拆解对标的内容公式',
-      action: 'goto-accounts',
+      target: { kind: 'accounts' },
     })
   }
 
