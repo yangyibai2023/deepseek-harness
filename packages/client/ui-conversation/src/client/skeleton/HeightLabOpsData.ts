@@ -166,13 +166,49 @@ export function mergeSnapshot(
 }
 
 /**
+ * 把账号当前作品数据回填到发布记录里（按标题匹配，作为无 ID 时的兜底）。
+ *
+ * 2026-11-16 抽成纯函数：页面 effect 与后台调度器（HeightLabOpsScheduler）
+ * 共用同一份逻辑——定时采 T+N 是「关着面板也在跑」的关键，逻辑必须只有一份。
+ *
+ * 标题匹配用「包含」而不是相等：平台返回的标题可能被截断或改写。
+ *
+ * @returns changed=true 表示有记录被合并了新快照（调用方负责持久化）
+ */
+export function backfillDueRecords(
+  records: PublishRecord[],
+  worksByProvider: Record<string, { itemId: string; title?: string; plays?: number; interactions?: number; completionRate?: number }[]>,
+  now = Date.now(),
+): { next: PublishRecord[]; changed: boolean } {
+  let changed = false
+  const next = records.map((r) => {
+    /* 只处理还没采满的 */
+    if (dueSnapshotHour(r, now) === null) return r
+    const works = worksByProvider[r.provider] ?? []
+    const hit = works.find((w) => {
+      const t = (w.title ?? '').trim()
+      return t !== '' && (t.includes(r.title) || r.title.includes(t.slice(0, 20)))
+    })
+    if (hit === undefined) return r
+    changed = true
+    return mergeSnapshot(r, {
+      itemId: hit.itemId,
+      ...(hit.plays !== undefined ? { plays: hit.plays } : {}),
+      ...(hit.interactions !== undefined ? { interactions: hit.interactions } : {}),
+      ...(hit.completionRate !== undefined ? { completionRate: hit.completionRate } : {}),
+    }, now)
+  })
+  return { next, changed }
+}
+
+/**
  * 体量超限时的压缩：每条记录只保留「最早 + 最新」两个快照。
  *
  * 取舍依据：反哺文案需要的是**趋势**（涨得快还是慢），
  * 首末两点足以判断方向；中间点对文案指导价值低。
  */
 export function compactRecords(list: PublishRecord[]): PublishRecord[] {
-  return list.map(r => {
+  return list.map((r) => {
     if (r.snapshots.length <= 2) return r
     const first = r.snapshots[0]
     const last = r.snapshots[r.snapshots.length - 1]

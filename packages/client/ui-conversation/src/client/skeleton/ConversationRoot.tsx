@@ -10,6 +10,7 @@ import { conversationPhase } from '../contract/snapshot.ts'
 import { ConversationWidthControls } from './ConversationWidthControls.tsx'
 // HeightLab：创意灵感/资料库/技能中心覆盖层页（替换聊天页，侧边栏保留）。
 import { HeightLabHubPage, type HubPage } from './HeightLabHubPage.tsx'
+import { startOpsScheduler } from './HeightLabOpsScheduler.ts'
 import { HeightLabSkillHub } from './HeightLabSkillHub.tsx'
 import css from './ConversationRoot.module.css'
 
@@ -99,6 +100,10 @@ export function ConversationRoot(props: ConversationRootProps) {
   })
   const hubRef = useRef(hub)
   hubRef.current = hub
+
+  /* 运营面板后台调度器（2026-11-16）：应用开着就每 30min 检查 T+N/保鲜，
+   * 关着面板也能采快照。幂等，重复挂载无副作用。 */
+  useEffect(() => { startOpsScheduler() }, [])
 
   useEffect(() => {
     const onOpen = (event: Event): void => {

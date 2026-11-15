@@ -22,11 +22,10 @@ import { IconCheckOutlineRegular, IconCloseOutlineRegular } from '@deepseek-ai/d
 import css from './ConversationRoot.module.css'
 import {
   SNAPSHOT_HOURS,
+  backfillDueRecords,
   buildBaseline,
-  dueSnapshotHour,
   loadProjects,
   loadRecords,
-  mergeSnapshot,
   renderBaselineForPrompt,
   saveRecords,
   type OpsProject,
@@ -47,7 +46,7 @@ interface ProviderDef {
   loginHint: string
 }
 
-const PROVIDERS: readonly ProviderDef[] = [
+export const PROVIDERS: readonly ProviderDef[] = [
   { id: 'douyin', name: '抖音', loginUrl: 'https://www.douyin.com/', loginHint: '扫码登录后自动同步' },
   { id: 'shipinhao', name: '视频号', loginUrl: 'https://channels.weixin.qq.com/', loginHint: '扫码登录后自动同步' },
   /* 小红书登录页用 **creator 域**：账号数据 / 粉丝来源接口都在
@@ -200,7 +199,7 @@ interface Metric {
 
 /* 注意：本仓库开启 `exactOptionalPropertyTypes` —— 可选属性不可显式赋 undefined。
  * 因此下面提供 helper 来构造对象，避免在调用处写字面量时踩这个坑。 */
-interface PlatformSnapshot {
+export interface PlatformSnapshot {
   /** 账号名（已登录时才有） */
   nickname?: string
   /** 账号 ID */
@@ -233,11 +232,11 @@ function makeSnapshot(
 
 /* ── 本地持久化 ────────────────────────────────────────────────────────── */
 
-const STORAGE_KEY = 'hl-ops-snapshots-v2'
+export const STORAGE_KEY = 'hl-ops-snapshots-v2'
 /** v1 旧格式（只有基础字段）——迁移用，避免已有登录数据因换键丢失 */
 const LEGACY_KEY_V1 = 'hl-ops-accounts-v1'
 
-function loadSnapshots(): Record<string, PlatformSnapshot> {
+export function loadSnapshots(): Record<string, PlatformSnapshot> {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY)
     if (raw !== null) {
@@ -290,6 +289,77 @@ function loadSnapshots(): Record<string, PlatformSnapshot> {
     return migrated
   } catch {
     return {}
+  }
+}
+
+/**
+ * 把一次平台同步结果合并进快照表（纯函数，2026-11-16 抽取）。
+ *
+ * 页面 syncPlatform 与后台调度器（HeightLabOpsScheduler）共用：
+ * 定时采 T+N 必须复用同一套 delta/突变守卫/works 保留逻辑，
+ * 否则后台写的数据会静默丢掉作品或与 UI 显示不一致。
+ *
+ * @returns persistable=写缓存版（剥 suspect）；merged=给 UI 版（带 suspect）
+ */
+export function computeSyncedSnapshot(
+  prev: Record<string, PlatformSnapshot>,
+  providerId: string,
+  snap: PlatformSnapshot,
+): { persistable: Record<string, PlatformSnapshot>; merged: Record<string, PlatformSnapshot> } {
+  const old = prev[providerId]
+  const stripSuspect = (m: Metric): Metric => {
+    const out: Metric = { value: m.value }
+    if (m.delta !== undefined) out.delta = m.delta
+    if (m.format !== undefined) out.format = m.format
+    return out
+  }
+  const withDelta = (metric: Metric, label: string, group?: string): Metric => {
+    const oldMetric = group === undefined
+      ? old?.highlights?.find(h => h.label === label)?.metric
+      : old?.details?.find(d => d.label === label && d.group === group)?.metric
+    const before = oldMetric?.value
+    const now = metric.value
+    /* 注意 必须带上 format —— 丢了它「5秒完播率」会显示成 0.241 而不是 24.14%
+     * （2026-11-10 实测发现的真实 bug）。 */
+    const out: Metric = {
+      value: now,
+      delta: before !== null && before !== undefined && now !== null ? now - before : null,
+    }
+    if (metric.format !== undefined) out.format = metric.format
+    if (isSuspect(before, now)) {
+      out.value = before ?? null
+      out.suspect = true
+      out.delta = null
+    }
+    return out
+  }
+  const merged: PlatformSnapshot = makeSnapshot(
+    {
+      nickname: snap.nickname ?? null,
+      accountId: snap.accountId ?? null,
+      syncedAt: snap.syncedAt,
+      /* works 必须在这里就带上 —— 2026-11-12 实测踩过：中间层漏 works，
+       * persistable 写 merged.works ?? [] 拿到空数组，作品数据被静默丢弃。 */
+      works: snap.works ?? [],
+      ...(snap.fans !== undefined ? { fans: snap.fans } : {}),
+    },
+    (snap.highlights ?? []).map(h => ({ label: h.label, metric: withDelta(h.metric, h.label) })),
+    (snap.details ?? []).map(d => ({ group: d.group, label: d.label, metric: withDelta(d.metric, d.label, d.group) })),
+  )
+  const persistable: PlatformSnapshot = makeSnapshot(
+    {
+      nickname: merged.nickname ?? null,
+      accountId: merged.accountId ?? null,
+      syncedAt: merged.syncedAt,
+      works: merged.works ?? [],
+      ...(merged.fans !== undefined ? { fans: merged.fans } : {}),
+    },
+    (merged.highlights ?? []).map(h => ({ label: h.label, metric: stripSuspect(h.metric) })),
+    (merged.details ?? []).map(d => ({ group: d.group, label: d.label, metric: stripSuspect(d.metric) })),
+  )
+  return {
+    persistable: { ...prev, [providerId]: persistable },
+    merged: { ...prev, [providerId]: merged },
   }
 }
 
@@ -1116,7 +1186,7 @@ function prettifyKey(k: string): string {
   return KNOWN[k] ?? k
 }
 
-const FETCHERS: Record<ProviderId, () => Promise<PlatformSnapshot | null>> = {
+export const FETCHERS: Record<ProviderId, () => Promise<PlatformSnapshot | null>> = {
   douyin: fetchDouyin,
   bilibili: fetchBilibili,
   xhs: fetchXhs,
@@ -3369,29 +3439,12 @@ export function HeightLabOpsPage() {
   )
 
 
-  /** 把账号当前作品数据回填到发布记录里（按标题匹配，作为无 ID 时的兜底） */
+  /** 把账号当前作品数据回填到发布记录里（按标题匹配）。
+   * 2026-11-16 逻辑抽成纯函数 backfillDueRecords：页面与后台调度器共用一份。 */
   useEffect(() => {
-    if (records.length === 0) return
-    let changed = false
-    const next = records.map((r) => {
-      /* 只处理还没采满的 */
-      if (dueSnapshotHour(r) === null) return r
-      const snap = snapshots[r.provider]
-      const works = snap?.works ?? []
-      /* 平台返回的标题可能被截断，所以用「包含」而不是相等 */
-      const hit = works.find((w) => {
-        const t = (w.title ?? '').trim()
-        return t !== '' && (t.includes(r.title) || r.title.includes(t.slice(0, 20)))
-      })
-      if (hit === undefined) return r
-      changed = true
-      return mergeSnapshot(r, {
-        itemId: hit.itemId,
-        ...(hit.plays !== undefined ? { plays: hit.plays } : {}),
-        ...(hit.interactions !== undefined ? { interactions: hit.interactions } : {}),
-        ...(hit.completionRate !== undefined ? { completionRate: hit.completionRate } : {}),
-      })
-    })
+    const { next, changed } = backfillDueRecords(records, Object.fromEntries(
+      Object.entries(snapshots).map(([id, snap]) => [id, snap.works ?? []] as const),
+    ))
     if (changed) {
       setRecords(next)
       saveRecords(next)
@@ -3433,82 +3486,15 @@ export function HeightLabOpsPage() {
         setStates(s => ({ ...s, [def.id]: { busy: false } }))
         return false
       }
-      /* 计算增长：与上次快照的同名指标相减（首次无基准 → delta 为 null） */
+      /* 计算增长/突变守卫/works 保留 → 纯函数 computeSyncedSnapshot
+       * （2026-11-16 抽取：页面与后台调度器共用同一份合并逻辑） */
       setSnapshots((prev) => {
-        const old = prev[def.id]
-        const withDelta = (metric: Metric, label: string, group?: string): Metric => {
-          const oldMetric = group === undefined
-            ? old?.highlights?.find(h => h.label === label)?.metric
-            : old?.details?.find(d => d.label === label && d.group === group)?.metric
-          const before = oldMetric?.value
-          const now = metric.value
-          /* 注意 必须带上 format —— 丢了它「5秒完播率」会显示成 0.241 而不是 24.14%
-           * （2026-11-10 实测发现的真实 bug）。 */
-          const out: Metric = {
-            value: now,
-            delta: before !== null && before !== undefined && now !== null ? now - before : null,
-          }
-          if (metric.format !== undefined) out.format = metric.format
-          /* ③ 突变守卫：新值可疑时**保留旧值**并标 suspect，不拿假数字覆盖真数据。
-           * 典型场景：接口改版返回 0/null，若无守卫会把「粉丝 3467」写成 0。 */
-          if (isSuspect(before, now)) {
-            out.value = before ?? null
-            out.suspect = true
-            out.delta = null
-          }
-          return out
-        }
-        const merged: PlatformSnapshot = makeSnapshot(
-          {
-            nickname: snap.nickname ?? null,
-            accountId: snap.accountId ?? null,
-            syncedAt: snap.syncedAt,
-            /* 注意 works 必须在这里就带上 —— 2026-11-12 实测踩了两遍同一个坑：
-             * 这个中间层对象漏了 works，后面 `persistable` 里写
-             * `merged.works ?? []` 拿到的是空数组，作品数据被静默丢弃。
-             * 链路：fetchDouyin → snap(有 works) → merged(错漏了) → persistable(空) */
-            works: snap.works ?? [],
-            ...(snap.fans !== undefined ? { fans: snap.fans } : {}),
-          },
-          (snap.highlights ?? []).map(h => ({
-            label: h.label,
-            metric: withDelta(h.metric, h.label),
-          })),
-          (snap.details ?? []).map(d => ({
-            group: d.group,
-            label: d.label,
-            metric: withDelta(d.metric, d.label, d.group),
-          })),
-        )
-        /* ③ 的补充：`suspect` 是「本次同步此刻」的判断结果，**不写进缓存**。
-         * 否则一旦某次误判，标记会永久留在 localStorage 里，之后即使数据
-         * 恢复正常也一直显示「待核」（2026-11-12 实测踩到）。 */
-        const stripSuspect = (m: Metric): Metric => {
-          const out: Metric = { value: m.value }
-          if (m.delta !== undefined) out.delta = m.delta
-          if (m.format !== undefined) out.format = m.format
-          return out
-        }
-        const persistable: PlatformSnapshot = makeSnapshot(
-          {
-            nickname: merged.nickname ?? null,
-            accountId: merged.accountId ?? null,
-            syncedAt: merged.syncedAt,
-            /* 注意 必须带上 works —— 2026-11-12 实测踩到：这里重建对象时漏了它，
-             * 导致作品级数据在**写缓存前就被丢掉**（接口明明成功、缓存里却没有
-             * works 字段，界面上「近期作品表现」一直不显示）。 */
-            works: merged.works ?? [],
-            ...(merged.fans !== undefined ? { fans: merged.fans } : {}),
-          },
-          (merged.highlights ?? []).map(h => ({ label: h.label, metric: stripSuspect(h.metric) })),
-          (merged.details ?? []).map(d => ({ group: d.group, label: d.label, metric: stripSuspect(d.metric) })),
-        )
-        const next = { ...prev, [def.id]: persistable }
+        const { persistable, merged } = computeSyncedSnapshot(prev, def.id, snap)
         try {
-          window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+          window.localStorage.setItem(STORAGE_KEY, JSON.stringify(persistable))
         } catch { /* 非致命 */ }
         /* 但**返回给 UI 的**要带 suspect，用户才能看到「待核」 */
-        return { ...prev, [def.id]: merged }
+        return merged
       })
       setStates(s => ({ ...s, [def.id]: { busy: false } }))
       return true
@@ -3538,6 +3524,14 @@ export function HeightLabOpsPage() {
   }, [])
 
   /** 点卡：有快照 → 进详情并刷新；无快照 → 打开登录窗口（只这一次） */
+  /* 后台调度器写完 localStorage 后通知：重读快照状态（2026-11-16）。
+   * 面板开着时调度器也在跑，不监听的话 UI 会显示到下次手动刷新前的旧数据。 */
+  useEffect(() => {
+    const onExternal = (): void => { setSnapshots(loadSnapshots()) }
+    window.addEventListener('hl-ops-snapshots-externally-changed', onExternal)
+    return () => { window.removeEventListener('hl-ops-snapshots-externally-changed', onExternal) }
+  }, [])
+
   /* 今日行动队列「去处理」→ 切页/深链（2026-11-16 v2）。
    * OverviewSection 里的行动项只发事件，tab/详情状态在父组件。
    * 两种目标：

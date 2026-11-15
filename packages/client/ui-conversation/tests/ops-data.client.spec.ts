@@ -318,3 +318,111 @@ describe('buildActionItems（今日行动队列）', () => {
     expect(items.length).toBeLessThanOrEqual(MAX_ACTIONS)
   })
 })
+
+/* ── 后台调度器（2026-11-16，O49 P5 定时采集）────────────────────────
+ * 「关着面板也采 T+N」的计划与回填逻辑必须可测——它们决定
+ * 用户不在看的时候数据是否悄悄长出来。 */
+
+import {
+  dueRecordsByProvider,
+  planBackgroundTargets,
+} from '../src/client/skeleton/HeightLabOpsScheduler.ts'
+import { backfillDueRecords } from '../src/client/skeleton/HeightLabOpsData.ts'
+import type { PlatformSnapshot } from '../src/client/skeleton/HeightLabOpsPage.tsx'
+
+const PROVIDER_IDS = [{ id: 'douyin' as const }, { id: 'shipinhao' as const }, { id: 'xhs' as const }]
+
+function snap(syncedAt: number): PlatformSnapshot {
+  return { syncedAt }
+}
+
+describe('planBackgroundTargets（后台同步计划）', () => {
+  it('没快照的平台永远不调度（不替人扫码）', () => {
+    const targets = planBackgroundTargets(PROVIDER_IDS, {}, {}, NOW)
+    expect(targets).toEqual([])
+  })
+
+  it('快照 >24h 触发保鲜同步（有欠采与否都触发）', () => {
+    const targets = planBackgroundTargets(PROVIDER_IDS, {
+      douyin: snap(NOW - 25 * 3_600_000),
+    }, {}, NOW)
+    expect(targets).toEqual(['douyin'])
+  })
+
+  it('24h 内且没有欠采 → 不同步（不空打平台接口）', () => {
+    const targets = planBackgroundTargets(PROVIDER_IDS, {
+      douyin: snap(NOW - 2 * 3_600_000),
+    }, {}, NOW)
+    expect(targets).toEqual([])
+  })
+
+  it('有欠采但快照够新（<15min）→ 不同步（回填 effect 已处理）', () => {
+    const targets = planBackgroundTargets(PROVIDER_IDS, {
+      douyin: snap(NOW - 5 * 60_000),
+    }, { douyin: true }, NOW)
+    expect(targets).toEqual([])
+  })
+
+  it('有欠采且快照 >15min → 触发同步', () => {
+    const targets = planBackgroundTargets(PROVIDER_IDS, {
+      douyin: snap(NOW - 20 * 60_000),
+    }, { douyin: true }, NOW)
+    expect(targets).toEqual(['douyin'])
+  })
+
+  it('多平台同时命中 → 全部列入', () => {
+    const targets = planBackgroundTargets(PROVIDER_IDS, {
+      douyin: snap(NOW - 30 * 3_600_000),
+      shipinhao: snap(NOW - 26 * 3_600_000),
+      xhs: snap(NOW - 1 * 3_600_000),
+    }, {}, NOW)
+    expect(targets).toEqual(['douyin', 'shipinhao'])
+  })
+})
+
+describe('dueRecordsByProvider', () => {
+  it('只有欠采记录的平台标 true', () => {
+    const due = dueRecordsByProvider([
+      publishRecord(NOW - 2 * 3_600_000),                              // 欠 T+1h
+      publishRecord(NOW - 200 * 3_600_000, [                           // 全采满
+        { itemId: 'i', at: 0, ageHours: 1 }, { itemId: 'i', at: 0, ageHours: 6 },
+        { itemId: 'i', at: 0, ageHours: 24 }, { itemId: 'i', at: 0, ageHours: 72 },
+        { itemId: 'i', at: 0, ageHours: 168 },
+      ]),
+    ], NOW)
+    expect(due).toEqual({ douyin: true })
+  })
+})
+
+describe('backfillDueRecords（T+N 回填纯函数）', () => {
+  it('标题包含匹配 → 合并新快照并标 changed', () => {
+    const rec = publishRecord(NOW - 2 * 3_600_000)   // 欠 T+1h
+    const { next, changed } = backfillDueRecords([rec], {
+      douyin: [{ itemId: 'w1', title: '直播背景测试——完整版', plays: 1234 }],
+    }, NOW)
+    expect(changed).toBe(true)
+    expect(next[0]!.snapshots.length).toBe(1)
+    expect(next[0]!.snapshots[0]!.plays).toBe(1234)
+  })
+
+  it('标题匹配不上 → 不动（等下一次同步）', () => {
+    const rec = publishRecord(NOW - 2 * 3_600_000)
+    const { next, changed } = backfillDueRecords([rec], {
+      douyin: [{ itemId: 'w1', title: '完全无关的标题', plays: 999 }],
+    }, NOW)
+    expect(changed).toBe(false)
+    expect(next[0]).toEqual(rec)
+  })
+
+  it('不欠采的记录跳过（不重复计费不重复写）', () => {
+    const full = publishRecord(NOW - 200 * 3_600_000, [
+      { itemId: 'i', at: 0, ageHours: 1 }, { itemId: 'i', at: 0, ageHours: 6 },
+      { itemId: 'i', at: 0, ageHours: 24 }, { itemId: 'i', at: 0, ageHours: 72 },
+      { itemId: 'i', at: 0, ageHours: 168 },
+    ])
+    const { changed } = backfillDueRecords([full], {
+      douyin: [{ itemId: 'w1', title: '直播背景测试', plays: 1 }],
+    }, NOW)
+    expect(changed).toBe(false)
+  })
+})
