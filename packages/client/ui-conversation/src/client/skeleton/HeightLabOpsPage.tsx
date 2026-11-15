@@ -32,6 +32,7 @@ import {
   type OpsProject,
   type PublishRecord,
 } from './HeightLabOpsData.ts'
+import { buildActionItems, type OpsActionItem } from './HeightLabOpsActions.ts'
 
 /* ── 平台定义 ──────────────────────────────────────────────────────────── */
 
@@ -1736,6 +1737,36 @@ const OPS_SUMMARY_PROMPT = [
   '5. **风险提示**：数据里有没有异常信号（缺失/停滞/断崖）',
 ].join('\n')
 
+/* ── 今日行动行（2026-11-16，设计 §2.2 主区的单条渲染）──────────────── */
+
+const ACTION_LEVEL_STYLE: Record<OpsActionItem['level'], { dot: string; label: string }> = {
+  p0: { dot: 'var(--dsw-alias-label-error, #E5484D)', label: '优先' },
+  p1: { dot: '#F5A524', label: '关注' },
+  p2: { dot: 'var(--dsw-alias-label-tertiary)', label: '建议' },
+}
+
+function ActionRow({ item }: { item: OpsActionItem }): React.JSX.Element {
+  const ls = ACTION_LEVEL_STYLE[item.level]
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 10 }}>
+      <span style={{ width: 8, height: 8, borderRadius: 4, background: ls.dot, flex: 'none' }} title={ls.label} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, color: 'var(--dsw-alias-label-primary)' }}>{item.title}</div>
+        {item.detail !== undefined && (
+          <div style={{ fontSize: 11, color: 'var(--dsw-alias-label-tertiary)', marginTop: 2 }}>{item.detail}</div>
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={() => { window.dispatchEvent(new CustomEvent('hl-ops-goto-tab', { detail: 'accounts' })) }}
+        style={{ flex: 'none', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 12, color: 'var(--dsw-alias-label-secondary)', padding: '4px 6px' }}
+      >
+        去处理 ›
+      </button>
+    </div>
+  )
+}
+
 function OverviewSection(): React.JSX.Element {
   const [projects] = useState<ProjectRecord[]>(loadO56Projects)
   const [range, setRange] = useState<OverviewRange>({ kind: 'all', label: '全部账号' })
@@ -1754,6 +1785,25 @@ function OverviewSection(): React.JSX.Element {
   const snaps = loadSnapshots()
   const bench = loadBench()
   const own = loadOwnExtra()
+
+  /* ── 今日行动队列（2026-11-16，O49 总览主区）────────────────
+   * 设计 §2.2：「我现在最该干什么？」——规则在 HeightLabOpsActions.ts，
+   * 纯函数确定性生成；动作统一「去处理」→ 切到账号 tab（hl-ops-goto-tab）。 */
+  const actionItems = buildActionItems({
+    hasAnyData:
+      Object.keys(snaps).length > 0 || bench.length > 0 || own.length > 0,
+    syncedAts: Object.fromEntries(
+      PROVIDERS.flatMap((d) => {
+        const s = snaps[d.id]
+        return s !== undefined ? [[d.id, s.syncedAt] as const] : []
+      }),
+    ),
+    records: loadRecords(),
+    bench: bench.map(b => ({
+      worksTotal: b.works.filter(w => w.missing !== true).length,
+      withAsr: b.works.filter(w => w.asr !== undefined && w.asr !== '').length,
+    })),
+  })
 
   const projCount = (pid: string): number => {
     let n = 0
@@ -1867,6 +1917,20 @@ function OverviewSection(): React.JSX.Element {
         <div style={{ fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary)' }}>
           点「让 AI 分析」→ 新建对话并把这批真实数据交给模型做总结（对话会保留在会话列表）。
         </div>
+
+        {/* ── 今日行动（设计 §2.2 主区：我现在最该干什么？2026-11-16）── */}
+        <section>
+          <h3 style={{ ...sectionTitleStyle, marginBottom: 10 }}>今日行动</h3>
+          {actionItems.length === 0 ? (
+            <div style={rowDescStyle}>数据都在有效期内，暂无待办。保持更新节奏即可。</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {actionItems.map(item => (
+                <ActionRow key={item.id} item={item} />
+              ))}
+            </div>
+          )}
+        </section>
 
         <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
           {[
@@ -3303,6 +3367,21 @@ export function HeightLabOpsPage() {
     },
     [projects],
   )
+
+  /* 今日行动队列「去处理」→ 切到账号 tab（2026-11-16）。
+   * OverviewSection 里的行动项只发事件，tab 状态在父组件，
+   * 与 hl-projects-changed 同模式：自包含子区块 + 父级监听。 */
+  useEffect(() => {
+    const onGoto = (e: Event): void => {
+      const target = (e as CustomEvent<string>).detail
+      if (target === 'accounts') {
+        setTab('accounts')
+        setDetail(null)
+      }
+    }
+    window.addEventListener('hl-ops-goto-tab', onGoto)
+    return () => { window.removeEventListener('hl-ops-goto-tab', onGoto) }
+  }, [])
 
   /** 把账号当前作品数据回填到发布记录里（按标题匹配，作为无 ID 时的兜底） */
   useEffect(() => {

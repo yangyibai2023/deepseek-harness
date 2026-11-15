@@ -164,3 +164,127 @@ describe('renderBaselineForPrompt', () => {
     expect(text).not.toMatch(/均播[:：]/)
   })
 })
+
+/* ── 今日行动队列（2026-11-16，O49 总览主区）────────────────────────
+ * 规则必须确定性：同输入同输出，不许静默漏项——出错会让用户
+ * 错过该采的 T+N 或该刷新的账号，比 UI bug 隐蔽。 */
+
+import {
+  MAX_ACTIONS,
+  STALE_HOURS,
+  buildActionItems,
+  type OpsActionInput,
+} from '../src/client/skeleton/HeightLabOpsActions.ts'
+
+const NOW = 1_000_000_000_000
+
+function input(patch: Partial<OpsActionInput> = {}): OpsActionInput {
+  return {
+    hasAnyData: true,
+    syncedAts: { douyin: NOW - 1 * 3_600_000 },
+    records: [],
+    bench: [],
+    ...patch,
+  }
+}
+
+function publishRecord(publishedAt: number, snapshots: PublishRecord['snapshots'] = []): PublishRecord {
+  return {
+    id: `r-${String(publishedAt)}`,
+    projectId: 'p1',
+    provider: 'douyin',
+    title: '直播背景测试',
+    description: '',
+    tags: [],
+    publishedAt,
+    snapshots,
+  }
+}
+
+describe('buildActionItems（今日行动队列）', () => {
+  it('没有任何数据时，唯一行动是引导添加账号（P0）', () => {
+    const items = buildActionItems(input({ hasAnyData: false }), NOW)
+    expect(items).toHaveLength(1)
+    expect(items[0]!.id).toBe('no-data')
+    expect(items[0]!.level).toBe('p0')
+  })
+
+  it('T+N 到期未采排最前（P0），按欠采小时降序并统计剩余条数', () => {
+    /* due1 已采 T+1h → 欠 T+6h；due2 全新 → 欠 T+1h。降序后 due1 排前。 */
+    const due1 = publishRecord(NOW - 25 * 3_600_000, [
+      { itemId: 'i1', at: NOW - 24 * 3_600_000, ageHours: 1 },
+    ])
+    const due2 = publishRecord(NOW - 2 * 3_600_000)
+    const items = buildActionItems(input({ records: [due2, due1] }), NOW)
+    expect(items[0]!.id).toBe(`tndue-${due1.id}`)
+    expect(items[0]!.level).toBe('p0')
+    expect(items[0]!.title).toContain('T+6h')
+    expect(items[0]!.detail).toContain('还有 1 条待采')
+  })
+
+  it('T+N 全部采满时不出现 tndue 项', () => {
+    const done = publishRecord(NOW - 200 * 3_600_000, [
+      { itemId: 'i1', at: NOW - 199 * 3_600_000, ageHours: 1 },
+      { itemId: 'i1', at: NOW - 194 * 3_600_000, ageHours: 6 },
+      { itemId: 'i1', at: NOW - 176 * 3_600_000, ageHours: 24 },
+      { itemId: 'i1', at: NOW - 128 * 3_600_000, ageHours: 72 },
+      { itemId: 'i1', at: NOW - 32 * 3_600_000, ageHours: 168 },
+    ])
+    const items = buildActionItems(input({ records: [done] }), NOW)
+    expect(items.some(i => i.id.startsWith('tndue-'))).toBe(false)
+  })
+
+  it('快照超过 48h 判陈旧（P1），多账号只报最旧的一个并计数', () => {
+    const items = buildActionItems(input({
+      syncedAts: { douyin: NOW - 72 * 3_600_000, shipinhao: NOW - 96 * 3_600_000 },
+    }), NOW)
+    const stale = items.find(i => i.id.startsWith('stale-'))
+    expect(stale).toBeDefined()
+    expect(stale!.level).toBe('p1')
+    expect(stale!.title).toContain('视频号')
+    expect(stale!.title).toContain('4 天')
+    expect(stale!.detail).toContain('还有 1 个账号数据陈旧')
+  })
+
+  it('48h 以内不判陈旧', () => {
+    const items = buildActionItems(input({
+      syncedAts: { douyin: NOW - (STALE_HOURS - 1) * 3_600_000 },
+    }), NOW)
+    expect(items.some(i => i.id.startsWith('stale-'))).toBe(false)
+  })
+
+  it('有账号但近 7 天零发布 → 提醒（P2）', () => {
+    const items = buildActionItems(input({ records: [publishRecord(NOW - 10 * 24 * 3_600_000)] }), NOW)
+    const noPub = items.find(i => i.id === 'no-publish-week')
+    expect(noPub).toBeDefined()
+    expect(noPub!.level).toBe('p2')
+  })
+
+  it('近 7 天有发布则不提醒', () => {
+    const items = buildActionItems(input({ records: [publishRecord(NOW - 2 * 24 * 3_600_000)] }), NOW)
+    expect(items.some(i => i.id === 'no-publish-week')).toBe(false)
+  })
+
+  it('对标有待提取文案时给出 P2 建议', () => {
+    const items = buildActionItems(input({ bench: [{ worksTotal: 5, withAsr: 2 }] }), NOW)
+    const asr = items.find(i => i.id === 'bench-pending-asr')
+    expect(asr).toBeDefined()
+    expect(asr!.title).toContain('3 条')
+  })
+
+  it('确定性：同输入两次生成结果完全一致', () => {
+    const a = buildActionItems(input({ records: [publishRecord(NOW - 25 * 3_600_000)] }), NOW)
+    const b = buildActionItems(input({ records: [publishRecord(NOW - 25 * 3_600_000)] }), NOW)
+    expect(a).toEqual(b)
+  })
+
+  it('上限 5 条：多条规则同时命中时截断', () => {
+    const records = Array.from({ length: 8 }, (_, i) => publishRecord(NOW - (30 + i * 10) * 3_600_000))
+    const items = buildActionItems(input({
+      records,
+      bench: [{ worksTotal: 9, withAsr: 0 }],
+      syncedAts: { douyin: NOW - 100 * 3_600_000 },
+    }), NOW)
+    expect(items.length).toBeLessThanOrEqual(MAX_ACTIONS)
+  })
+})
