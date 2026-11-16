@@ -4396,6 +4396,66 @@ function RetroSection(): React.JSX.Element {
   )
 }
 
+/* ── 聊天发布执行器（2026-11-17 O49 全功能化）────────────────────────
+ * MCP 工具 heightlab_ops_action(action=publish) → 桥 /hl/app-command →
+ * 注入轮询脚本派生 hl:ops-publish-request → 这里消费。模块级监听
+ * （本文件随会话根装载，不依赖面板是否打开）。
+ * 安全默认对齐设计 §1.2：submit 缺省 false=只填表不点发布，人确认。 */
+if (typeof window !== 'undefined') {
+  window.addEventListener('hl:ops-publish-request', ((e: Event) => {
+    const params = (e as CustomEvent<Record<string, unknown>>).detail ?? {}
+    const filePath = String(params.file_path ?? '')
+    const title = String(params.title ?? '').trim()
+    const submit = params.submit === true
+    if (filePath === '' || title === '') {
+      console.warn('[ops] publish 指令缺 file_path/title，已忽略')
+      return
+    }
+    void (async () => {
+      try {
+        const fileRes = await fetch(`/hl/ops/read-video?path=${encodeURIComponent(filePath)}`, { signal: AbortSignal.timeout(60_000) })
+        const fileData = (await fileRes.json().catch(() => null)) as { ok?: boolean; base64?: string; name?: string; error?: string } | null
+        if (fileRes.ok !== true || fileData?.ok !== true || fileData.base64 === undefined) {
+          console.warn(`[ops] 读视频失败：${String(fileData?.error ?? fileRes.status)}`)
+          return
+        }
+        const res = await invokeWithTimeout<{ ok?: boolean; reason?: string }>('hl_ops_publish', {
+          provider: 'douyin',
+          fileBase64: fileData.base64,
+          fileName: fileData.name ?? 'video.mp4',
+          title,
+          description: String(params.description ?? ''),
+          tags: String(params.tags ?? '').split(/[,，]/).map(t => t.trim()).filter(Boolean),
+          submit,
+        }, 180_000)
+        if (res?.ok === true) {
+          if (submit) {
+            /* 真正提交 → 登记监控记录（复盘 tab 的 T+N 证据链起点） */
+            const now = Date.now()
+            const rec: PublishRecord = {
+              id: `pub-${String(now)}-${Math.random().toString(36).slice(2, 8)}`,
+              projectId: 'default',
+              provider: 'douyin',
+              title,
+              description: String(params.description ?? ''),
+              tags: String(params.tags ?? '').split(/[,，]/).map(t => t.trim()).filter(Boolean),
+              publishedAt: now,
+              snapshots: [],
+            }
+            saveRecords([rec, ...loadRecords()])
+            window.dispatchEvent(new CustomEvent('hl-ops-groups-changed'))
+          }
+          console.info(`[ops] 发布流程完成（submit=${String(submit)}）`)
+        } else {
+          console.warn(`[ops] 发布未完成：${String(res?.reason ?? '未知原因')}`)
+        }
+      } catch (err) {
+        console.warn(`[ops] 发布执行失败：${err instanceof Error ? err.message : String(err)}`)
+      }
+    })()
+  }) as EventListener)
+}
+
 export function HeightLabOpsPage() {
   /* O57 D2（2026-11-14 用户拍板）：页面级双分页——我的账号（原数据概览）/ 对标账号（原对标库） */
   /* O57 四轮（2026-11-14 用户拍板方案 A）：两页——当前概况（洞察优先）/ 账号（我的+对标合并） */
