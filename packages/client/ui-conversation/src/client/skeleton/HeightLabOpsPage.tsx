@@ -39,9 +39,11 @@ import {
   formatHotValue,
   hotSignalsFromBench,
   isHotWork,
+  asrLibrary,
   loadSignals,
   removeFeedback,
   removeWatch,
+  type AsrEntry,
   type HotBoardItem,
 } from './HeightLabOpsBench.ts'
 import {
@@ -3975,10 +3977,116 @@ function PoolSection(): React.JSX.Element {
   )
 }
 
+/* ═══ 内容 tab（2026-11-17，O49 核心④⑤ v1）══════════════════════════
+ * v1 范围（务实）：文案库 = 全部已转写口播文案的聚合视图；
+ * 拆解 = 13 字段结构化提示词走运营胶囊进聊天（结果在对话里迭代）。
+ * 结构化解析入库 + cite 高亮是 v2（需服务端 LLM 管线）。 */
+
+const DECONSTRUCT_PROMPT = `请把上面的口播文案按以下 13 个字段拆解，用 JSON 输出：
+topic（主题）/ target_audience（目标受众）/ user_problem（用户痛点）/
+hook（前3秒钩子：text+mechanism 为什么有效）/ structure（内容结构：name+span+weight）/
+key_turns（关键转折句）/ evidence（论据）/ emotional_mechanisms（情绪机制）/
+golden_quotes（金句）/ cta（行动号召）/ comment_triggers（引发评论的点）/
+reusable（可借鉴的）/ non_reusable（不该照搬的）。
+规则：每个结论必须引用原文片段（cite）；教你学方法，不是抄。`
+
+function ContentSection(): React.JSX.Element {
+  const [query, setQuery] = useState('')
+  const [expanded, setExpanded] = useState<string | null>(null)
+  const [benchTick, setBenchTick] = useState(0)
+  useEffect(() => {
+    const onChange = (): void => { setBenchTick(v => v + 1) }
+    window.addEventListener('hl-ops-groups-changed', onChange)
+    return () => { window.removeEventListener('hl-ops-groups-changed', onChange) }
+  }, [])
+  void benchTick
+
+  const library = asrLibrary(loadBench())
+  const q = query.trim().toLowerCase()
+  const shown = q === ''
+    ? library
+    : library.filter(e => e.asr.toLowerCase().includes(q) || e.desc.toLowerCase().includes(q))
+
+  const deconstruct = (entry: AsrEntry): void => {
+    const stamp = new Date()
+    const hhmm = `${String(stamp.getMonth() + 1).padStart(2, '0')}-${String(stamp.getDate()).padStart(2, '0')} ${String(stamp.getHours()).padStart(2, '0')}:${String(stamp.getMinutes()).padStart(2, '0')}`
+    const prompt = `【口播文案 · ${entry.benchNickname}「${entry.desc || '无标题'}」】\n${entry.asr}\n\n${DECONSTRUCT_PROMPT}`
+    window.dispatchEvent(new CustomEvent('hl:close-hub'))
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('hl:insert-ops-chip', { detail: { label: `拆解 · ${entry.desc.slice(0, 16) || '文案'} · ${hhmm}`, prompt } }))
+      setTimeout(() => { window.dispatchEvent(new CustomEvent('hl:submit-draft')) }, 400)
+    }, 300)
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <h3 style={{ ...sectionTitleStyle, margin: 0, flex: 1 }}>文案库（{library.length}）</h3>
+        <input
+          value={query}
+          onChange={(e) => { setQuery(e.target.value) }}
+          placeholder="搜索文案内容"
+          style={{
+            width: 220, height: 30, padding: '0 10px', font: 'inherit', fontSize: 12,
+            border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 8, background: 'transparent',
+            color: 'var(--dsw-alias-label-primary)', outline: 'none',
+          }}
+        />
+      </div>
+      {library.length === 0 ? (
+        <div style={rowDescStyle}>
+          还没有文案。到「对标」tab 点任意作品的「提取文案」，转写后的口播会汇聚到这里。
+        </div>
+      ) : shown.length === 0 ? (
+        <div style={rowDescStyle}>没有匹配「{query}」的文案。</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {shown.map((entry) => {
+            const open = expanded === entry.awemeId
+            return (
+              <div key={entry.awemeId} style={{ borderTop: '1px solid var(--dsw-alias-border-l2)', padding: '9px 0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5 }}>
+                  <button type="button" onClick={() => { setExpanded(open ? null : entry.awemeId) }}
+                    style={{ flex: 1, minWidth: 0, border: 'none', background: 'transparent', cursor: 'pointer', font: 'inherit', textAlign: 'left', color: 'var(--dsw-alias-label-primary)', padding: 0 }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+                      {entry.desc || '(无标题)'}
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' }}>
+                      {entry.benchNickname} · {entry.asr.length} 字{entry.lastSeenAt > 0 ? ` · ${agoText(entry.lastSeenAt)}` : ''}
+                    </span>
+                  </button>
+                  <button type="button" onClick={() => { deconstruct(entry) }}
+                    style={{ flex: 'none', border: 'none', borderRadius: 6, padding: '3px 9px', font: 'inherit', fontSize: 11, cursor: 'pointer', background: '#1a1a1a', color: '#fff' }}>
+                    拆解
+                  </button>
+                  <button type="button"
+                    onClick={() => { addPoolItem({ title: entry.desc.slice(0, 60) || '口播文案', sourceType: 'bench', sourceRef: entry.awemeId, note: `文案 · ${entry.benchNickname}` }) }}
+                    style={{ flex: 'none', border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 6, padding: '2px 7px', font: 'inherit', fontSize: 10.5, cursor: 'pointer', background: 'transparent', color: 'var(--dsw-alias-label-secondary)' }}>
+                    入池
+                  </button>
+                  <a href={entry.playUrl} target="_blank" rel="noreferrer"
+                    style={{ flex: 'none', fontSize: 11, color: 'var(--dsw-alias-label-tertiary)', textDecoration: 'none' }}>
+                    原作 ↗
+                  </a>
+                </div>
+                {open && (
+                  <div style={{ marginTop: 8, fontSize: 12, lineHeight: 1.7, color: 'var(--dsw-alias-label-secondary)', whiteSpace: 'pre-wrap', maxHeight: 260, overflowY: 'auto' }}>
+                    {entry.asr}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function HeightLabOpsPage() {
   /* O57 D2（2026-11-14 用户拍板）：页面级双分页——我的账号（原数据概览）/ 对标账号（原对标库） */
   /* O57 四轮（2026-11-14 用户拍板方案 A）：两页——当前概况（洞察优先）/ 账号（我的+对标合并） */
-  const [tab, setTab] = useState<'overview' | 'accounts' | 'bench' | 'signals' | 'pool'>('overview')
+  const [tab, setTab] = useState<'overview' | 'accounts' | 'bench' | 'signals' | 'pool' | 'content'>('overview')
   const [snapshots, setSnapshots] = useState<Record<string, PlatformSnapshot>>(loadSnapshots)
   const [states, setStates] = useState<Record<string, PlatformState>>({})
   const [detail, setDetail] = useState<ProviderId | null>(null)
@@ -4307,6 +4415,15 @@ export function HeightLabOpsPage() {
         >
           选题池{poolPendingCount(loadPool()) > 0 ? `（${String(poolPendingCount(loadPool()))}）` : ''}
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'content'}
+          className={clsx(css.libraryTab, tab === 'content' && css.libraryTabActive)}
+          onClick={() => { setTab('content'); setDetail(null) }}
+        >
+          内容
+        </button>
       </div>
 
       {/* 容器严格照抄原生 hubPageStyle：gap 32 / padding 12 clamp(24,4vw,48) 48 */}
@@ -4320,6 +4437,8 @@ export function HeightLabOpsPage() {
             <SignalsSection />
           ) : tab === 'pool' ? (
             <PoolSection />
+          ) : tab === 'content' ? (
+            <ContentSection />
           ) : (
             /* O57 五轮（2026-11-14 用户拍板 v3/v4 设计稿）：
              * 项目手风琴 → 左「我的账号」/ 右「对标账号」→ 列内平台小标题 */

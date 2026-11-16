@@ -113,6 +113,58 @@ export function hotSignalsFromBench(
   return out.sort((a, b) => b.score - a.score)
 }
 
+/* ── 内容 tab：文案库（ASR 聚合）──────────────────────────────────────── */
+
+export interface AsrEntry {
+  /** 对标账号 key（secUid || link） */
+  benchKey: string
+  benchNickname: string
+  awemeId: string
+  desc: string
+  asr: string
+  lastSeenAt: number
+  playUrl: string
+}
+
+/** 全部已转写文案的扁平列表（内容 tab 的文案库），按转写内容长度降序。 */
+/** 文案库聚合所需的作品最小结构 */
+export interface AsrWorkStub {
+  awemeId: string
+  desc?: string
+  asr?: string
+  lastSeenAt?: number
+  playUrl?: string | null
+  missing?: boolean
+}
+
+/** 文案库聚合所需的账号最小结构 */
+export interface AsrBenchStub {
+  link: string
+  secUid: string
+  nickname: string
+  works: AsrWorkStub[]
+}
+
+export function asrLibrary(bench: AsrBenchStub[]): AsrEntry[] {
+  const out: AsrEntry[] = []
+  for (const acct of bench) {
+    for (const w of acct.works) {
+      if (w.missing === true) continue
+      if (w.asr === undefined || w.asr === '') continue
+      out.push({
+        benchKey: acct.secUid || acct.link,
+        benchNickname: acct.nickname,
+        awemeId: w.awemeId,
+        desc: (w.desc ?? '').slice(0, 60),
+        asr: w.asr,
+        lastSeenAt: w.lastSeenAt ?? 0,
+        playUrl: w.playUrl ?? `https://www.douyin.com/video/${w.awemeId}`,
+      })
+    }
+  }
+  return out.sort((a, b) => b.asr.length - a.asr.length)
+}
+
 /* ── 热点 tab 本地存储：手动关注 + 用户反馈 ────────────────────────────── */
 
 export interface WatchItem {

@@ -631,3 +631,33 @@ describe('planBenchCollects（对标自动监控计划）', () => {
     expect(out).toEqual(['due'])
   })
 })
+
+/* ── 内容 tab 文案库（2026-11-17）──────────────────────────────────── */
+
+import { asrLibrary } from '../src/client/skeleton/HeightLabOpsBench.ts'
+
+describe('asrLibrary（文案库聚合）', () => {
+  const bench = [{
+    link: 'l1', secUid: 's1', nickname: '账号A',
+    works: [
+      { awemeId: 'a1', desc: '短的', asr: '短文案', lastSeenAt: NOW, playUrl: 'https://v/1' },
+      { awemeId: 'a2', desc: '长的', asr: '这是一条明显更长的口播文案，应该有更靠前的排序位置。', lastSeenAt: NOW, playUrl: null },
+      { awemeId: 'a3', desc: '没转写', asr: '', lastSeenAt: NOW },
+      { awemeId: 'a4', desc: 'missing', asr: '不应出现', missing: true },
+    ],
+  }]
+
+  it('只收有文案且未 missing 的作品，长度降序，playUrl 兜底拼视频链接', () => {
+    const lib = asrLibrary(bench)
+    expect(lib).toHaveLength(2)
+    expect(lib[0]!.awemeId).toBe('a2')
+    expect(lib[1]!.awemeId).toBe('a1')
+    expect(lib[0]!.playUrl).toBe('https://www.douyin.com/video/a2')  /* playUrl 为 null 时兜底 */
+    expect(lib[1]!.playUrl).toBe('https://v/1')  /* 有值保留 */
+  })
+
+  it('空账号/空库返回空数组', () => {
+    expect(asrLibrary([])).toEqual([])
+    expect(asrLibrary([{ link: 'x', secUid: '', nickname: 'n', works: [] }])).toEqual([])
+  })
+})
