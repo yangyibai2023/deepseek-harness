@@ -165,12 +165,17 @@ export function HeroShell({ t, renderSlot, children }: HeroShellProps) {
       window.removeEventListener('storage', sync)
     }
   }, [])
+  /* 1117 用户实测抓 bug：css.root 是欢迎大标题的壳（height:100% +
+   * margin-bottom:-17px，与 composerSeat 的 hero/active 相位规则配套）。
+   * 模块工作台套同一个壳，整页被顶成「hero 100% + seat」溢出布局，
+   * 输入框被挤到视口外只露上半。模块工作台是顶对齐内容页，不需要
+   * 撑满高度，height 改 auto、吃掉负 margin，seat 回到正常流。 */
   if (!replicationMode && moduleConsole !== null) {
     return (
       <div
         className={css.root}
         data-tauri-drag-region="deep"
-        style={{ alignItems: 'flex-start', justifyContent: 'flex-start', paddingTop: 40 }}
+        style={{ alignItems: 'flex-start', justifyContent: 'flex-start', paddingTop: 40, height: 'auto', marginBottom: 0, flex: '1 1 auto', minHeight: 0 }}
       >
         <div className={css.stack}>
           <div style={{ maxWidth: 640, margin: '0 auto', width: '100%' }}>
