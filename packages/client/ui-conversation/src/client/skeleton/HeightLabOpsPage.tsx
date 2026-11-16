@@ -32,14 +32,20 @@ import {
   type PublishRecord,
 } from './HeightLabOpsData.ts'
 import {
+  PREDICT_TIERS,
   addRule,
+  calibrationStats,
   loadRules,
+  predictionHash,
+  predictionIntact,
+  predictionOpen,
   removeRule,
   retroVerdict,
   ruleSuggestion,
   setRuleStatus,
   snapshotChain,
   verifiedRulesText,
+  type PredictTier,
   type RetroResult,
 } from './HeightLabOpsRetro.ts'
 import { buildActionItems, type OpsActionItem } from './HeightLabOpsActions.ts'
@@ -4014,6 +4020,29 @@ function ContentSection(): React.JSX.Element {
   }, [])
   void benchTick
 
+  /* 结构化拆解入库（v2）：走桥端点调 flash，结果存本地库可复查 */
+  const [analyzing, setAnalyzing] = useState<string | null>(null)
+  const [anaStatus, setAnaStatus] = useState<string | null>(null)
+  const analyzeStore = (entry: AsrEntry): void => {
+    setAnalyzing(entry.awemeId)
+    setAnaStatus(null)
+    fetch('/hl/ops/analyze', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ text: entry.asr, title: entry.desc.slice(0, 40) }),
+    })
+      .then(r => r.json())
+      .then((d) => {
+        if (d?.ok === true) {
+          setAnaStatus(`已入库（${String(d.id)}，${String(d.fields ?? 13)}/13 字段${d.deduped === true ? '，去重命中' : ''}）。面板重启后内容库可见结构化结果。`)
+        } else {
+          setAnaStatus(`入库失败：${String(d?.message ?? d?.error ?? '未知')}`)
+        }
+      })
+      .catch(() => { setAnaStatus('入库失败：宿主不可达') })
+      .finally(() => { setAnalyzing(null) })
+  }
+
   const library = asrLibrary(loadBench())
   const q = query.trim().toLowerCase()
   const shown = q === ''
@@ -4048,7 +4077,7 @@ function ContentSection(): React.JSX.Element {
       </div>
       {library.length === 0 ? (
         <div style={rowDescStyle}>
-          还没有文案。到「对标」tab 点任意作品的「提取文案」，转写后的口播会汇聚到这里。
+          {anaStatus !== null ? anaStatus : '还没有文案。到「对标」tab 点任意作品的「提取文案」，转写后的口播会汇聚到这里。'}
         </div>
       ) : shown.length === 0 ? (
         <div style={rowDescStyle}>没有匹配「{query}」的文案。</div>
@@ -4071,6 +4100,11 @@ function ContentSection(): React.JSX.Element {
                   <button type="button" onClick={() => { deconstruct(entry) }}
                     style={{ flex: 'none', border: 'none', borderRadius: 6, padding: '3px 9px', font: 'inherit', fontSize: 11, cursor: 'pointer', background: '#1a1a1a', color: '#fff' }}>
                     拆解
+                  </button>
+                  <button type="button" disabled={analyzing !== null}
+                    onClick={() => { analyzeStore(entry) }}
+                    style={{ flex: 'none', border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 6, padding: '2px 7px', font: 'inherit', fontSize: 10.5, cursor: 'pointer', background: 'transparent', color: 'var(--dsw-alias-label-secondary)' }}>
+                    {analyzing === entry.awemeId ? '入库中…' : '拆解入库'}
                   </button>
                   <button type="button"
                     onClick={() => { addPoolItem({ title: entry.desc.slice(0, 60) || '口播文案', sourceType: 'bench', sourceRef: entry.awemeId, note: `文案 · ${entry.benchNickname}` }) }}
@@ -4110,6 +4144,12 @@ function RetroSection(): React.JSX.Element {
   const [addProvider, setAddProvider] = useState<ProviderId>('douyin')
   const [addAt, setAddAt] = useState('')
   const [addStatus, setAddStatus] = useState<string | null>(null)
+  /* 盲预测录入（7.9-7.15）：零快照窗口内的四档选择器 */
+  const [predicting, setPredicting] = useState<string | null>(null)
+  const [predStatus, setPredStatus] = useState<string | null>(null)
+
+  /* 防篡改自检：有盲预测的记录逐个验 hash，不符进 broken 集合（徽标变红） */
+  const [brokenPred, setBrokenPred] = useState<ReadonlySet<string>>(new Set())
 
   useEffect(() => {
     const onChange = (): void => {
@@ -4119,6 +4159,18 @@ function RetroSection(): React.JSX.Element {
     window.addEventListener('hl-ops-groups-changed', onChange)
     return () => { window.removeEventListener('hl-ops-groups-changed', onChange) }
   }, [])
+
+  useEffect(() => {
+    let alive = true
+    void (async () => {
+      const broken = new Set<string>()
+      for (const r of records) {
+        if (r.prediction !== undefined && !(await predictionIntact(r))) broken.add(r.id)
+      }
+      if (alive) setBrokenPred(broken)
+    })()
+    return () => { alive = false }
+  }, [records])
 
   /** 账号基线：该平台快照作品的平均播放（无则 null=数据不足口径） */
   const baselineOf = (provider: ProviderId): number | null => {
@@ -4152,6 +4204,18 @@ function RetroSection(): React.JSX.Element {
   }
 
   const retroOf = (rec: PublishRecord): RetroResult => retroVerdict(rec, baselineOf(rec.provider))
+
+  /** 盲预测录入：零快照窗口内允许（7.15 之后永远锁死），写 hash 锁定 */
+  const makePrediction = async (rec: PublishRecord, tier: PredictTier): Promise<void> => {
+    if (!predictionOpen(rec)) { setPredStatus('首个快照已落地，预测锁定不可补录'); return }
+    const madeAt = Date.now()
+    const hash = await predictionHash(rec.id, tier, madeAt)
+    const next = records.map(r => (r.id === rec.id ? { ...r, prediction: { tier, madeAt, hash } } : r))
+    saveRecords(next)
+    setRecords(next)
+    setPredicting(null)
+    setPredStatus(`已锁定预测「${tier}」（integrity_hash ${hash.slice(0, 8)}…）`)
+  }
 
   const suggest = (rec: PublishRecord): void => {
     const item = ruleSuggestion(rec, retroOf(rec))
@@ -4201,6 +4265,32 @@ function RetroSection(): React.JSX.Element {
                           style={{ width: 9, height: 9, borderRadius: 5, background: p.state === 'taken' ? '#30A46C' : p.state === 'due' ? '#F5A524' : p.state === 'missed' ? '#E5484D' : 'var(--dsw-alias-border-l2)' }} />
                       ))}
                     </span>
+                    {/* 盲预测：已锁定显 🔒档；零快照窗口内给录入钮（7.15） */}
+                    {rec.prediction !== undefined && (
+                      <span style={{
+                        flex: 'none', fontSize: 11,
+                        color: brokenPred.has(rec.id) ? '#E5484D' : 'var(--dsw-alias-label-secondary)',
+                      }} title={brokenPred.has(rec.id) ? '⚠️ integrity_hash 校验失败：预测可能被篡改' : '盲预测已锁定（integrity_hash 校验通过）'}>
+                        {brokenPred.has(rec.id) ? '⚠️预测' : '🔒预测'} {rec.prediction.tier}
+                      </span>
+                    )}
+                    {rec.prediction === undefined && predictionOpen(rec) && (
+                      predicting === rec.id ? (
+                        <span style={{ flex: 'none', display: 'flex', gap: 3 }}>
+                          {PREDICT_TIERS.map(t => (
+                            <button key={t} type="button" onClick={() => { void makePrediction(rec, t) }}
+                              style={{ border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 6, padding: '1px 6px', font: 'inherit', fontSize: 10.5, cursor: 'pointer', background: 'transparent', color: 'var(--dsw-alias-label-secondary)' }}>
+                              {t}
+                            </button>
+                          ))}
+                        </span>
+                      ) : (
+                        <button type="button" onClick={() => { setPredicting(rec.id) }}
+                          style={{ flex: 'none', border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 6, padding: '1px 6px', font: 'inherit', fontSize: 10.5, cursor: 'pointer', background: 'transparent', color: 'var(--dsw-alias-label-secondary)' }}>
+                          录预测
+                        </button>
+                      )
+                    )}
                     <span style={{ flex: 'none', fontSize: 11.5, fontWeight: 600, color: VERDICT_COLORS[retro.verdict] ?? 'inherit' }}>
                       {retro.verdict}
                       {retro.heat !== null ? ` · ${retro.heat}` : ''}
@@ -4213,6 +4303,12 @@ function RetroSection(): React.JSX.Element {
                   {open && (
                     <div style={{ marginTop: 8, fontSize: 11.5, color: 'var(--dsw-alias-label-tertiary)', lineHeight: 1.8 }}>
                       <div>{retro.basis}{retro.ratio !== null ? `（${retro.ratio.toFixed(2)}×）` : ''}</div>
+                      {retro.prediction !== null && (
+                        <div>
+                        盲预测对照：预测「{retro.prediction.tier}」vs 实际「{retro.verdict}」——
+                          {retro.prediction.hit ? '✓ 猜中' : `偏差 ${String(retro.prediction.deviation)} 档`}
+                        </div>
+                      )}
                       <div>{chain.map(p => `T+${String(p.hour)}h:${p.state === 'taken' ? `${String(p.plays ?? '—')} 播` : { due: '待采', missed: '错过', future: '未到期' }[p.state]}`).join(' · ')}</div>
                       <div style={{ marginTop: 4 }}>对照锚 = 账号基线（作品均播）。盲预测锁定（integrity_hash）随数据可信体系 v2 上线。</div>
                     </div>
@@ -4236,13 +4332,20 @@ function RetroSection(): React.JSX.Element {
           <button type="button" onClick={addManual} style={primaryBtnStyle(false)}>补录</button>
         </div>
         {addStatus !== null && <div style={{ fontSize: 11.5, color: 'var(--dsw-alias-label-tertiary)', marginTop: 6 }}>{addStatus}</div>}
+        {predStatus !== null && <div style={{ fontSize: 11.5, color: 'var(--dsw-alias-label-tertiary)', marginTop: 4 }}>{predStatus}</div>}
       </section>
 
       {/* ── 经验库（规则建议审批链 11.11）── */}
       <section>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
           <h3 style={{ ...sectionTitleStyle, margin: 0, flex: 1 }}>经验库（{rules.length}）</h3>
-          <span style={{ fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' }}>建议需人工批准才进 AI 分析上下文</span>
+          <span style={{ fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' }}>
+            {(() => {
+              const stats = calibrationStats(records, r => baselineOf(r.provider))
+              return stats.judged > 0 ? `盲预测校准率 ${String(stats.hit)}/${String(stats.judged)}（${String(Math.round((stats.hit / stats.judged) * 100))}%）· ` : ''
+            })()}
+            建议需人工批准才进 AI 分析上下文
+          </span>
         </div>
         {rules.length === 0 ? (
           <div style={rowDescStyle}>复盘后点「生成建议」，规则会进这里等你审批。</div>

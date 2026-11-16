@@ -756,3 +756,62 @@ describe('经验库（规则建议审批链 11.11）', () => {
     expect(loadRules()).toEqual([])
   })
 })
+
+/* ── 盲预测锁定（2026-11-17，设计 7.9-7.15 数据可信体系）────────────── */
+
+import {
+  PREDICT_TIERS,
+  calibrationStats,
+  predictionHash,
+  predictionIntact,
+  predictionOpen,
+} from '../src/client/skeleton/HeightLabOpsRetro.ts'
+
+describe('盲预测锁定', () => {
+  it('hash 确定性 + intact 校验（改一字即破）', async () => {
+    const h1 = await predictionHash('r1', '起量', 1000)
+    const h2 = await predictionHash('r1', '起量', 1000)
+    const h3 = await predictionHash('r1', '高于', 1000)
+    expect(h1).toBe(h2)
+    expect(h1).not.toBe(h3)
+    expect(h1).toMatch(/^[0-9a-f]{64}$/)
+    const rec = publishRecord(NOW - 1 * 3_600_000)
+    const good = await predictionHash(rec.id, '起量', 1000)
+    const bad = await predictionHash(rec.id, '高于', 1000)
+    rec.prediction = { tier: '起量', madeAt: 1000, hash: good }
+    expect(await predictionIntact(rec)).toBe(true)
+    rec.prediction = { tier: '起量', madeAt: 1000, hash: bad }
+    expect(await predictionIntact(rec)).toBe(false)
+    const noPred = publishRecord(NOW)
+    expect(await predictionIntact(noPred)).toBe(true)
+  })
+
+  it('7.15 锁定规则：零快照才可录入，首快照落地即永锁', () => {
+    const fresh = publishRecord(NOW - 1 * 3_600_000)
+    expect(predictionOpen(fresh)).toBe(true)
+    const taken = publishRecord(NOW - 2 * 3_600_000, [
+      { itemId: 'i', at: NOW - 1 * 3_600_000, ageHours: 1, plays: 10 },
+    ])
+    expect(predictionOpen(taken)).toBe(false)
+  })
+
+  it('对照校准：同档猜中、差档计偏差；校准率统计', () => {
+    const mk = (plays: number, tier: (typeof PREDICT_TIERS)[number]): PublishRecord => {
+      const r = publishRecord(NOW - 170 * 3_600_000, [
+        { itemId: 'i', at: NOW - 146 * 3_600_000, ageHours: 24, plays },
+      ])
+      r.prediction = { tier, madeAt: NOW - 170 * 3_600_000, hash: 'x' }   /* hash 不影响 retroVerdict */
+      return r
+    }
+    /* 2500 播 vs 基线 1000 = 起量；预测起量 → 猜中；预测接近 → 偏差 2 档 */
+    const hit = retroVerdict(mk(2500, '起量'), 1000, NOW)
+    expect(hit.prediction).not.toBeNull()
+    expect(hit.prediction!.hit).toBe(true)
+    const miss = retroVerdict(mk(2500, '接近'), 1000, NOW)
+    expect(miss.prediction!.hit).toBe(false)
+    expect(miss.prediction!.deviation).toBe(2)
+    /* 校准率：1/2 */
+    const stats = calibrationStats([mk(2500, '起量'), mk(2500, '接近')], () => 1000, NOW)
+    expect(stats).toEqual({ judged: 2, hit: 1 })
+  })
+})

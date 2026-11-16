@@ -59,6 +59,8 @@ export interface RetroResult {
   heat: '快热' | '慢热' | '平稳' | null
   /** 判定依据文本（给用户看，不给模型编） */
   basis: string
+  /** 盲预测对照（有预测且能判定时给；7.11 AI 预测与人工分离的基座） */
+  prediction: PredictionCheck | null
 }
 
 /**
@@ -77,7 +79,7 @@ export function retroVerdict(
   const actual = lastTaken?.plays ?? null
 
   if (actual === null || baselineAvgPlays === null || baselineAvgPlays <= 0) {
-    return { verdict: '数据不足', ratio: null, growth: null, heat: null, basis: '缺少实际播放或账号基线，不计入校准' }
+    return { verdict: '数据不足', ratio: null, growth: null, heat: null, basis: '缺少实际播放或账号基线，不计入校准', prediction: null }
   }
 
   const ratio = actual / baselineAvgPlays
@@ -88,7 +90,73 @@ export function retroVerdict(
   const heat = growth === null ? null : growth >= 3 ? '快热' : growth <= 1.2 ? '慢热' : '平稳'
 
   const basis = `T+${String(lastTaken?.hour ?? 0)}h 播放 ${String(actual)} ÷ 账号基线 ${String(Math.round(baselineAvgPlays))} = ${ratio.toFixed(2)}`
-  return { verdict, ratio, growth, heat, basis }
+
+  /* 盲预测对照：判定档 vs 预测档。仅同档=猜中（11.7 口径，不放宽）。 */
+  let prediction: PredictionCheck | null = null
+  const p = record.prediction
+  if (p !== undefined && (PREDICT_TIERS as string[]).includes(verdict)) {
+    const dev = Math.abs(TIER_ORDER[verdict as PredictTier] - TIER_ORDER[p.tier])
+    prediction = { tier: p.tier, hit: dev === 0, deviation: dev }
+  }
+  return { verdict, ratio, growth, heat, basis, prediction }
+}
+
+/** 校准率（11.1 概览指标）：有盲预测且已判定的记录里猜中的比例。
+ * 基线解析由调用方注入（与 UI 同口径：该平台快照作品均播）。 */
+export function calibrationStats(
+  records: PublishRecord[],
+  baselineOf: (record: PublishRecord) => number | null,
+  now = Date.now(),
+): { judged: number; hit: number } {
+  let judged = 0
+  let hit = 0
+  for (const r of records) {
+    if (r.prediction === undefined) continue
+    const retro = retroVerdict(r, baselineOf(r), now)
+    if (retro.prediction === null) continue
+    judged += 1
+    if (retro.prediction.hit) hit += 1
+  }
+  return { judged, hit }
+}
+
+/* ── 盲预测锁定（7.9-7.15 数据可信体系）────────────────────────────────── */
+
+export type PredictTier = '起量' | '高于' | '接近' | '低于'
+
+export const PREDICT_TIERS: PredictTier[] = ['起量', '高于', '接近', '低于']
+
+/** integrity_hash：SHA-256(recordId|tier|madeAt) 的十六进制（7.12） */
+export async function predictionHash(recordId: string, tier: string, madeAt: number): Promise<string> {
+  const data = new TextEncoder().encode(`${recordId}|${tier}|${String(madeAt)}`)
+  const digest = await crypto.subtle.digest('SHA-256', data)
+  return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
+/**
+ * 预测是否仍允许录入（7.15 已发布禁止补预测的落地口径）：
+ * **零快照**（一条都没采）才允许——首快照落地即锁定，之后永远不可补。
+ * 这是「盲」的严格保证：预测时连 T+1h 数据都不存在。
+ */
+export function predictionOpen(record: PublishRecord, now = Date.now()): boolean {
+  void now
+  return record.snapshots.length === 0
+}
+
+/** 校验存量预测 hash 未被篡改（打开面板时自检） */
+export async function predictionIntact(record: PublishRecord): Promise<boolean> {
+  if (record.prediction === undefined) return true
+  const expect = await predictionHash(record.id, record.prediction.tier, record.prediction.madeAt)
+  return expect === record.prediction.hash
+}
+
+/** 档位序（对照偏差几档用） */
+const TIER_ORDER: Record<PredictTier, number> = { 起量: 3, 高于: 2, 接近: 1, 低于: 0 }
+
+export interface PredictionCheck {
+  tier: PredictTier
+  hit: boolean
+  deviation: number
 }
 
 /* ── 规则建议 + 经验库 ─────────────────────────────────────────────────── */

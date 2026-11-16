@@ -18,6 +18,7 @@ export const SYNCED_KEYS = [
   'hl-ops-signals-v1',
   'hl-ops-pool-v1',
   'hl-ops-rules-v1',
+  'hl-ops-analysis-v1',
 ] as const
 
 let pushTimer: number | null = null

@@ -55,6 +55,13 @@ export interface PublishRecord {
   publishedAt: number
   /** 多次快照，按 at 升序 */
   snapshots: WorkSnapshot[]
+  /** 盲预测（7.9-7.15 数据可信体系）：首个快照前录入，锁定后不可改不可补 */
+  prediction?: {
+    tier: '起量' | '高于' | '接近' | '低于'
+    madeAt: number
+    /** integrity_hash：SHA-256(recordId|tier|madeAt)，防事后篡改 */
+    hash: string
+  }
 }
 
 /** 一个项目 = 一次营销活动 / 一批内容 */
