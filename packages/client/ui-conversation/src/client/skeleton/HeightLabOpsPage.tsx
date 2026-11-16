@@ -4396,6 +4396,58 @@ function RetroSection(): React.JSX.Element {
   )
 }
 
+/* ── 聊天登录/同步执行器（2026-11-17 O49 全功能化补漏）────────────────
+ * ops_login：打开平台扫码窗（复用 PROVIDERS 的 loginUrl，与面板点卡同链路）；
+ * ops_sync：静默同步某平台账号数据（模块级 FETCHERS+computeSyncedSnapshot，
+ * 与 syncPlatform 同一套合并逻辑——用户此前被告知「物理限制做不到」是误判，
+ * app-command 通道让客户端执行即可）。 */
+if (typeof window !== 'undefined') {
+  window.addEventListener('hl:ops-login-request', ((e: Event) => {
+    const params = (e as CustomEvent<Record<string, unknown>>).detail ?? {}
+    const provider = String(params.provider ?? 'douyin')
+    const def = PROVIDERS.find(d => d.id === provider)
+    if (def === undefined) {
+      console.warn(`[ops] 未知平台 ${provider}（可用：${PROVIDERS.map(d => d.id).join('/')}）`)
+      return
+    }
+    void invokeWithTimeout('hl_ops_open_login', { provider: def.id, url: def.loginUrl }, 15_000)
+      .catch((err) => { console.warn(`[ops] 开登录窗失败：${err instanceof Error ? err.message : String(err)}`) })
+  }) as EventListener)
+
+  window.addEventListener('hl:ops-sync-request', ((e: Event) => {
+    const params = (e as CustomEvent<Record<string, unknown>>).detail ?? {}
+    const provider = String(params.provider ?? '')
+    const def = PROVIDERS.find(d => d.id === provider)
+    if (def === undefined) return
+    void (async () => {
+      try {
+        const snap = await FETCHERS[def.id]()
+        if (snap === null) {
+          console.warn(`[ops] ${def.id} 同步未取到数据（可能未登录）`)
+          return
+        }
+        const metrics = [
+          ...(snap.highlights ?? []).map(h => h.metric),
+          ...(snap.details ?? []).map(d => d.metric),
+        ]
+        if (metrics.filter(m => m.value !== null).length === 0) {
+          console.warn(`[ops] ${def.id} 同步返回结构已变化，需要更新适配`)
+          return
+        }
+        const prev = loadSnapshots()
+        const { persistable, merged } = computeSyncedSnapshot(prev, def.id, snap)
+        try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(persistable)) } catch { /* 非致命 */ }
+        void merged
+        window.dispatchEvent(new CustomEvent('hl-ops-groups-changed'))
+        window.dispatchEvent(new CustomEvent('hl-ops-snapshots-externally-changed'))
+        console.info(`[ops] ${def.id} 同步完成`)
+      } catch (err) {
+        console.warn(`[ops] ${def.id} 同步失败：${err instanceof Error ? err.message : String(err)}`)
+      }
+    })()
+  }) as EventListener)
+}
+
 /* ── 聊天发布执行器（2026-11-17 O49 全功能化）────────────────────────
  * MCP 工具 heightlab_ops_action(action=publish) → 桥 /hl/app-command →
  * 注入轮询脚本派生 hl:ops-publish-request → 这里消费。模块级监听
