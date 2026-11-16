@@ -44,6 +44,15 @@ import {
   removeWatch,
   type HotBoardItem,
 } from './HeightLabOpsBench.ts'
+import {
+  POOL_SOURCE_LABELS,
+  addPoolItem,
+  loadPool,
+  poolPendingCount,
+  removePoolItem,
+  setPoolStatus,
+  type PoolStatus,
+} from './HeightLabOpsPool.ts'
 
 /* ── 平台定义 ──────────────────────────────────────────────────────────── */
 
@@ -1312,8 +1321,8 @@ function PublishPanel({
   const [desc, setDesc] = useState('')
   const [tags, setTags] = useState('')
   const [file, setFile] = useState<File | null>(null)
-  const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
 
   const run = async (submit: boolean): Promise<void> => {
     if (file === null) { setResult('请先选择文件'); return }
@@ -1662,6 +1671,10 @@ interface BenchAccount {
   groups?: string[]
   /** 采集历史（最近在前，最多保留 20 次） */
   runs?: BenchRun[]
+  /** 自动监控开关（对标 tab 可调；调度器按 monitorIntervalH 定时重采） */
+  monitor?: boolean
+  /** 监控频率（小时，默认 6） */
+  monitorIntervalH?: number
 }
 /** 网关 /api/content-tools/bench-posts 响应（DTK 引擎结构化输出） */
 interface BenchPostItem {
@@ -1680,7 +1693,7 @@ interface BenchPostsResponse {
 }
 
 const BENCH_KEY = 'hl-ops-bench-v1'
-function loadBench(): BenchAccount[] {
+export function loadBench(): BenchAccount[] {
   try {
     const raw = window.localStorage.getItem(BENCH_KEY)
     if (raw) {
@@ -2518,57 +2531,21 @@ function AddAccountModal({ onClose, onAdded, onLogin, initialKind, initialProjec
   const projName = projectId === null ? '未分组' : (projects.find(p => p.id === projectId)?.name ?? projectId)
   const previewPath = `${projName} › ${kind === 'own' ? '我的账号' : '对标账号'} › ${kind === 'own' ? platformName(platform) : '（自动识别）'}`
 
-  /** 对标账号：粘链接 → DTK 采集 → 落库（upsert 语义，与 BenchSection 一致） */
+  /** 对标账号：粘链接 → DTK 采集 → 落库（2026-11-17 核心逻辑抽成
+   * collectBenchIntoStore，弹窗与对标 tab 共用一份） */
   const addBench = async (): Promise<void> => {
-    const url = link.trim()
-    if (url === '') { setStatus('请粘贴对标账号主页链接'); return }
     setBusy(true)
-    setStatus('采集中…')
-    try {
-      const secMatch = /\/user\/([A-Za-z0-9_-]{20,})/.exec(url)
+    const result = await collectBenchIntoStore(link)
+    setBusy(false)
+    if (result.ok) {
+      const secMatch = /\/user\/([A-Za-z0-9_-]{20,})/.exec(link.trim())
       const secUid = secMatch?.[1] ?? ''
-      const resp = await fetch('/hl/ops/bench-posts', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(secUid !== '' ? { sec_user_id: secUid, count: 10 } : { url, count: 10 }),
-      })
-      const payload = (await resp.json().catch(() => null)) as BenchPostsResponse | null
-      if (payload?.ok !== true) {
-        setStatus(`采集失败：${String(payload?.message ?? resp.status).slice(0, 140)}`)
-        return
-      }
-      const incoming = payload.data?.items ?? []
-      if (incoming.length === 0) { setStatus('该账号未返回作品。'); return }
-      const existing = loadBench().find(a => a.secUid === secUid || a.link === url)
-      const merged = mergeBenchWorks(existing?.works ?? [], incoming)
-      const acct: BenchAccount = {
-        link: url,
-        secUid,
-        nickname: incoming[0]?.author ?? existing?.nickname ?? `对标 ${url.slice(-10)}`,
-        works: merged.works,
-        syncedAt: Date.now(),
-        ...(existing?.groups !== undefined ? { groups: existing.groups } : {}),
-        runs: [
-          {
-            at: Date.now(),
-            requested: 10,
-            returned: incoming.length,
-            added: merged.added,
-            updated: merged.updated,
-            missing: merged.missing,
-          },
-          ...(existing?.runs ?? []),
-        ].slice(0, 20),
-      }
-      saveBench([acct, ...loadBench().filter(a => a.secUid !== secUid && a.link !== url)])
-      if (projectId !== null) setAccountGroups(`bench:${secUid || url}`, [projectId])
+      if (projectId !== null) setAccountGroups(`bench:${secUid || link.trim()}`, [projectId])
       onAdded()
       onClose()
-    } catch (e) {
-      setStatus(`采集失败：${e instanceof Error ? e.message.slice(0, 140) : String(e)}`)
-    } finally {
-      setBusy(false)
+      return
     }
+    setStatus(result.message)
   }
 
   /** 我的账号：本版跳到「未登录平台」老链路（扫码窗 + 自动同步 + 自动关窗） */
@@ -3102,6 +3079,61 @@ function mergeBenchWorks(
 }
 
 
+/**
+ * 对标采集落库（2026-11-17 抽取：添加弹窗与对标 tab 共用一份）。
+ * 粘链接 → DTK 采集 → mergeBenchWorks 增量合并 → 落 localStorage。
+ * 项目组归属由调用方处理（弹窗写项目分组，对标 tab 不干预）。
+ *
+ * @returns ok=false 时 message 可直接展示给用户
+ */
+export async function collectBenchIntoStore(url: string): Promise<{ ok: boolean; message: string; nickname?: string }> {
+  const trimmed = url.trim()
+  if (trimmed === '') return { ok: false, message: '请粘贴对标账号主页链接' }
+  const secMatch = /\/user\/([A-Za-z0-9_-]{20,})/.exec(trimmed)
+  const secUid = secMatch?.[1] ?? ''
+  try {
+    const resp = await fetch('/hl/ops/bench-posts', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(secUid !== '' ? { sec_user_id: secUid, count: 10 } : { url: trimmed, count: 10 }),
+    })
+    const payload = (await resp.json().catch(() => null)) as BenchPostsResponse | null
+    if (payload?.ok !== true) {
+      return { ok: false, message: `采集失败：${String(payload?.message ?? resp.status).slice(0, 140)}` }
+    }
+    const incoming = payload.data?.items ?? []
+    if (incoming.length === 0) return { ok: false, message: '该账号未返回作品。' }
+    const existing = loadBench().find(a => a.secUid === secUid || a.link === trimmed)
+    const merged = mergeBenchWorks(existing?.works ?? [], incoming)
+    const acct: BenchAccount = {
+      link: trimmed,
+      secUid,
+      nickname: incoming[0]?.author ?? existing?.nickname ?? `对标 ${trimmed.slice(-10)}`,
+      works: merged.works,
+      syncedAt: Date.now(),
+      ...(existing?.groups !== undefined ? { groups: existing.groups } : {}),
+      ...(existing?.monitor !== undefined ? { monitor: existing.monitor } : {}),
+      ...(existing?.monitorIntervalH !== undefined ? { monitorIntervalH: existing.monitorIntervalH } : {}),
+      runs: [
+        {
+          at: Date.now(),
+          requested: 10,
+          returned: incoming.length,
+          added: merged.added,
+          updated: merged.updated,
+          missing: merged.missing,
+        },
+        ...(existing?.runs ?? []),
+      ].slice(0, 20),
+    }
+    saveBench([acct, ...loadBench().filter(a => a.secUid !== secUid && a.link !== trimmed)])
+    window.dispatchEvent(new CustomEvent('hl-ops-groups-changed'))
+    return { ok: true, message: `已采集 ${String(incoming.length)} 条作品`, nickname: acct.nickname }
+  } catch (e) {
+    return { ok: false, message: `采集失败：${e instanceof Error ? e.message.slice(0, 140) : String(e)}` }
+  }
+}
+
 /* ── 项目分组（O57，2026-11-14）────────────────────────────────────────────
  * 一个项目 = 账号容器。与 O56 侧栏项目树共用 hl-projects-v1 的项目清单，
  * 所以「@ 项目」能一次带全（对话 + 我的账号 + 对标账号）。
@@ -3423,12 +3455,61 @@ function BenchSection(): React.JSX.Element {
   const [bench, setBench] = useState<BenchAccount[]>(loadBench)
   const [selected, setSelected] = useState<string | null>(null)
   const [sort, setSort] = useState<'score' | 'new' | 'plays'>('score')
+  /* 2026-11-17：tab 内直接添加 + 自动监控 + 提取文案 */
+  const [addLink, setAddLink] = useState('')
+  const [addBusy, setAddBusy] = useState(false)
+  const [addStatus, setAddStatus] = useState<string | null>(null)
+  const [transcribing, setTranscribing] = useState<string | null>(null)
+  const [trStatus, setTrStatus] = useState<string | null>(null)
 
   useEffect(() => {
     const onChange = (): void => { setBench(loadBench()) }
     window.addEventListener('hl-ops-groups-changed', onChange)
     return () => { window.removeEventListener('hl-ops-groups-changed', onChange) }
   }, [])
+
+  /** 本地改一条对标账号（监控开关/ASR 回填共用），写库+发刷新事件 */
+  const patchBench = (key: string, patch: (acct: BenchAccount) => BenchAccount): void => {
+    const next = loadBench().map(a => ((a.secUid || a.link) === key ? patch(a) : a))
+    saveBench(next)
+    setBench(next)
+    window.dispatchEvent(new CustomEvent('hl-ops-groups-changed'))
+  }
+
+  const addFromLink = async (): Promise<void> => {
+    if (addLink.trim() === '') { setAddStatus('请粘贴对标账号主页链接'); return }
+    setAddBusy(true)
+    setAddStatus('采集中…')
+    const result = await collectBenchIntoStore(addLink)
+    setAddBusy(false)
+    setAddStatus(result.ok ? `${result.message}（${result.nickname ?? ''}）` : result.message)
+    if (result.ok) setAddLink('')
+  }
+
+  /** 提取文案：DTK 视频 URL → 云端 whisper（600s 上限，按钮转圈不阻塞界面） */
+  const transcribe = (acct: BenchAccount, awemeId: string): void => {
+    const work = acct.works.find(w => w.awemeId === awemeId)
+    const videoUrl = work?.playUrl ?? null
+    if (videoUrl === null || videoUrl === '') { setTrStatus('这条作品没有视频地址'); return }
+    setTranscribing(awemeId)
+    setTrStatus(null)
+    fetch('/hl/ops/bench-transcribe', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ video_url: videoUrl }),
+    })
+      .then(r => r.json())
+      .then((d) => {
+        const text = String(d?.data?.text ?? '').trim()
+        if (text === '') { setTrStatus('转写结果为空，可能音频不可用'); return }
+        patchBench(acct.secUid || acct.link, a => ({
+          ...a,
+          works: a.works.map(w => (w.awemeId === awemeId ? { ...w, asr: text.slice(0, 20_000) } : w)),
+        }))
+      })
+      .catch(() => { setTrStatus('转写失败，请稍后重试') })
+      .finally(() => { setTranscribing(null) })
+  }
 
   const analyze = (acct: BenchAccount): void => {
     const live = acct.works.filter(w => w.missing !== true)
@@ -3448,98 +3529,149 @@ function BenchSection(): React.JSX.Element {
 
   const sel = bench.find(b => (b.secUid || b.link) === selected) ?? null
 
-  return (
-    <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', minHeight: 0 }}>
-      <aside style={{ width: 200, flex: 'none', display: 'flex', flexDirection: 'column', gap: 3 }}>
-        <div style={{ fontSize: 11, lineHeight: '16px', color: 'var(--dsw-alias-label-tertiary)', padding: '0 6px 5px' }}>
-          对标账号（{bench.length}）
-        </div>
-        {bench.length === 0 && (
-          <div style={{ fontSize: 11, lineHeight: '16px', color: 'var(--dsw-alias-label-tertiary)', padding: '4px 6px' }}>
-            还没有对标。到「所有项目」页粘贴对标主页链接添加。
-          </div>
-        )}
-        {bench.map((acct) => {
-          const key = acct.secUid || acct.link
-          const live = acct.works.filter(w => w.missing !== true)
-          const hotCount = live.filter(w => isHotWork(w, live)).length
-          const active = selected === key
-          return (
-            <button
-              key={key}
-              type="button"
-              onClick={() => { setSelected(active ? null : key) }}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 6, width: '100%', minHeight: 30, padding: '6px 7px',
-                border: 'none', borderRadius: 7, cursor: 'pointer', textAlign: 'left', font: 'inherit',
-                background: active ? 'var(--dsw-alias-interactive-bg-active)' : 'transparent',
-                color: 'var(--dsw-alias-label-primary)',
-              }}
-            >
-              <span style={{ flex: 1, fontSize: 12.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{acct.nickname}</span>
-              {hotCount > 0 && <span style={{ fontSize: 10.5, color: '#F5A524', flex: 'none' }}>🔥{hotCount}</span>}
-            </button>
-          )
-        })}
-      </aside>
+  const addInputStyle: React.CSSProperties = {
+    flex: 1, minWidth: 0, height: 32, padding: '0 10px', font: 'inherit', fontSize: 12.5,
+    border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 8, background: 'transparent',
+    color: 'var(--dsw-alias-label-primary)', outline: 'none',
+  }
 
-      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
-        {sel === null ? (
-          <div style={rowDescStyle}>
-            点左侧账号看作品墙（爆款角标 = 综合分 ≥ 全账号中位数×2，公式：赞×1+评×3+藏×4+转×5）。添加对标在「所有项目」页。
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, minHeight: 0 }}>
+      {/* ── 直接添加（不用跳「所有项目」）── */}
+      <div style={{ display: 'flex', gap: 6 }}>
+        <input value={addLink} onChange={(e) => { setAddLink(e.target.value) }}
+          onKeyDown={(e) => { if (e.key === 'Enter') void addFromLink() }}
+          placeholder="粘贴对标账号主页链接，回车采集" style={addInputStyle} />
+        <button type="button" disabled={addBusy} onClick={() => { void addFromLink() }} style={primaryBtnStyle(addBusy)}>
+          {addBusy ? '采集中…' : '添加对标'}
+        </button>
+      </div>
+      {addStatus !== null && (
+        <div style={{ fontSize: 11.5, color: 'var(--dsw-alias-label-tertiary)' }}>{addStatus}</div>
+      )}
+      {trStatus !== null && (
+        <div style={{ fontSize: 11.5, color: 'var(--dsw-alias-label-tertiary)' }}>{trStatus}</div>
+      )}
+
+      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', minHeight: 0 }}>
+        <aside style={{ width: 200, flex: 'none', display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <div style={{ fontSize: 11, lineHeight: '16px', color: 'var(--dsw-alias-label-tertiary)', padding: '0 6px 5px' }}>
+            对标账号（{bench.length}）
           </div>
-        ) : (
-          (() => {
-            const live = sel.works.filter(w => w.missing !== true)
-            const sorted = [...live].sort((a, b) => {
-              if (sort === 'score') return benchWorkScore(b) - benchWorkScore(a)
-              if (sort === 'plays') return (b.plays ?? 0) - (a.plays ?? 0)
-              return (b.firstSeenAt ?? b.lastSeenAt ?? 0) - (a.firstSeenAt ?? a.lastSeenAt ?? 0)
-            })
+          {bench.length === 0 && (
+            <div style={{ fontSize: 11, lineHeight: '16px', color: 'var(--dsw-alias-label-tertiary)', padding: '4px 6px' }}>
+              粘贴链接添加第一个对标。
+            </div>
+          )}
+          {bench.map((acct) => {
+            const key = acct.secUid || acct.link
+            const live = acct.works.filter(w => w.missing !== true)
+            const hotCount = live.filter(w => isHotWork(w, live)).length
+            const active = selected === key
             return (
-              <>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <h3 style={{ ...sectionTitleStyle, margin: 0, flex: 1 }}>{sel.nickname}</h3>
-                  <span style={{ fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' }}>{agoText(sel.syncedAt)} · {live.length} 条作品</span>
-                  <button type="button" onClick={() => { analyze(sel) }} style={primaryBtnStyle(false)}>分析作者</button>
-                </div>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  {([['score', '综合分'], ['new', '最新'], ['plays', '播放']] as const).map(([k, label]) => (
-                    <button key={k} type="button" onClick={() => { setSort(k) }}
-                      style={{
-                        border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 999, padding: '3px 10px',
-                        font: 'inherit', fontSize: 11.5, cursor: 'pointer',
-                        background: sort === k ? 'var(--dsw-alias-interactive-bg-active)' : 'transparent',
-                        color: sort === k ? 'var(--dsw-alias-label-primary)' : 'var(--dsw-alias-label-tertiary)',
-                      }}>
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  {sorted.map((w) => {
-                    const hot = isHotWork(w, live)
-                    return (
-                      <div key={w.awemeId} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderTop: '1px solid var(--dsw-alias-border-l2)', fontSize: 12 }}>
-                        {hot && <span style={{ flex: 'none', fontSize: 10.5 }}>🔥</span>}
-                        <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--dsw-alias-label-primary)' }}>
-                          {(w.desc ?? '').slice(0, 44) || '(无标题)'}
-                          {w.asr !== undefined && w.asr !== '' && <span style={{ marginLeft: 6, fontSize: 10.5, color: 'var(--dsw-alias-label-tertiary)' }}>文案✓</span>}
-                        </span>
-                        <span style={{ flex: 'none', width: 64, textAlign: 'right', color: 'var(--dsw-alias-label-tertiary)', fontVariantNumeric: 'tabular-nums' }}>播 {(w.plays ?? 0).toLocaleString('zh-CN')}</span>
-                        <span style={{ flex: 'none', width: 44, textAlign: 'right', color: 'var(--dsw-alias-label-tertiary)', fontVariantNumeric: 'tabular-nums' }}>赞 {String(w.diggs ?? 0)}</span>
-                        <span style={{ flex: 'none', width: 40, textAlign: 'right', color: 'var(--dsw-alias-label-tertiary)', fontVariantNumeric: 'tabular-nums' }}>评 {String(w.comments ?? 0)}</span>
-                        <span style={{ flex: 'none', width: 40, textAlign: 'right', color: 'var(--dsw-alias-label-tertiary)', fontVariantNumeric: 'tabular-nums' }}>藏 {String(w.collects ?? 0)}</span>
-                        <span style={{ flex: 'none', width: 40, textAlign: 'right', color: 'var(--dsw-alias-label-tertiary)', fontVariantNumeric: 'tabular-nums' }}>转 {String(w.shares ?? 0)}</span>
-                      </div>
-                    )
-                  })}
-                  {sorted.length === 0 && <div style={rowDescStyle}>这个账号还没有作品数据。</div>}
-                </div>
-              </>
+              <div key={key}>
+                <button
+                  type="button"
+                  onClick={() => { setSelected(active ? null : key) }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 6, width: '100%', minHeight: 30, padding: '6px 7px',
+                    border: 'none', borderRadius: 7, cursor: 'pointer', textAlign: 'left', font: 'inherit',
+                    background: active ? 'var(--dsw-alias-interactive-bg-active)' : 'transparent',
+                    color: 'var(--dsw-alias-label-primary)',
+                  }}
+                >
+                  <span style={{ flex: 1, fontSize: 12.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{acct.nickname}</span>
+                  {hotCount > 0 && <span style={{ fontSize: 10.5, color: '#F5A524', flex: 'none' }}>🔥{hotCount}</span>}
+                </button>
+                {/* 自动监控开关（调度器按 monitorIntervalH 定时重采） */}
+                <label style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '0 7px 4px', fontSize: 10.5, color: 'var(--dsw-alias-label-tertiary)', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={acct.monitor === true}
+                    onChange={(e) => { patchBench(key, a => ({ ...a, monitor: e.target.checked })) }}
+                  />
+                  自动监控{acct.monitor === true ? ` · 每 ${String(acct.monitorIntervalH ?? 6)}h` : ''}
+                </label>
+              </div>
             )
-          })()
-        )}
+          })}
+        </aside>
+
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {sel === null ? (
+            <div style={rowDescStyle}>
+              点左侧账号看作品墙（爆款角标 = 综合分 ≥ 全账号中位数×2，公式：赞×1+评×3+藏×4+转×5）。
+            </div>
+          ) : (
+            (() => {
+              const live = sel.works.filter(w => w.missing !== true)
+              const sorted = [...live].sort((a, b) => {
+                if (sort === 'score') return benchWorkScore(b) - benchWorkScore(a)
+                if (sort === 'plays') return (b.plays ?? 0) - (a.plays ?? 0)
+                return (b.firstSeenAt ?? b.lastSeenAt ?? 0) - (a.firstSeenAt ?? a.lastSeenAt ?? 0)
+              })
+              return (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <h3 style={{ ...sectionTitleStyle, margin: 0, flex: 1 }}>{sel.nickname}</h3>
+                    <span style={{ fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' }}>{agoText(sel.syncedAt)} · {live.length} 条作品</span>
+                    <button type="button" onClick={() => { analyze(sel) }} style={primaryBtnStyle(false)}>分析作者</button>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {([['score', '综合分'], ['new', '最新'], ['plays', '播放']] as const).map(([k, label]) => (
+                      <button key={k} type="button" onClick={() => { setSort(k) }}
+                        style={{
+                          border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 999, padding: '3px 10px',
+                          font: 'inherit', fontSize: 11.5, cursor: 'pointer',
+                          background: sort === k ? 'var(--dsw-alias-interactive-bg-active)' : 'transparent',
+                          color: sort === k ? 'var(--dsw-alias-label-primary)' : 'var(--dsw-alias-label-tertiary)',
+                        }}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    {sorted.map((w) => {
+                      const hot = isHotWork(w, live)
+                      const hasAsr = w.asr !== undefined && w.asr !== ''
+                      const canTranscribe = (w.playUrl ?? '') !== '' && !hasAsr
+                      return (
+                        <div key={w.awemeId} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderTop: '1px solid var(--dsw-alias-border-l2)', fontSize: 12 }}>
+                          {hot && <span style={{ flex: 'none', fontSize: 10.5 }}>🔥</span>}
+                          <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--dsw-alias-label-primary)' }}>
+                            {(w.desc ?? '').slice(0, 40) || '(无标题)'}
+                            {hasAsr && <span style={{ marginLeft: 6, fontSize: 10.5, color: 'var(--dsw-alias-label-tertiary)' }}>文案✓</span>}
+                          </span>
+                          <span style={{ flex: 'none', width: 64, textAlign: 'right', color: 'var(--dsw-alias-label-tertiary)', fontVariantNumeric: 'tabular-nums' }}>播 {(w.plays ?? 0).toLocaleString('zh-CN')}</span>
+                          <span style={{ flex: 'none', width: 44, textAlign: 'right', color: 'var(--dsw-alias-label-tertiary)', fontVariantNumeric: 'tabular-nums' }}>赞 {String(w.diggs ?? 0)}</span>
+                          <span style={{ flex: 'none', width: 40, textAlign: 'right', color: 'var(--dsw-alias-label-tertiary)', fontVariantNumeric: 'tabular-nums' }}>评 {String(w.comments ?? 0)}</span>
+                          <span style={{ flex: 'none', width: 40, textAlign: 'right', color: 'var(--dsw-alias-label-tertiary)', fontVariantNumeric: 'tabular-nums' }}>藏 {String(w.collects ?? 0)}</span>
+                          <span style={{ flex: 'none', width: 40, textAlign: 'right', color: 'var(--dsw-alias-label-tertiary)', fontVariantNumeric: 'tabular-nums' }}>转 {String(w.shares ?? 0)}</span>
+                          <span style={{ flex: 'none', display: 'flex', gap: 4 }}>
+                            {canTranscribe && (
+                              <button type="button"
+                                disabled={transcribing !== null}
+                                onClick={() => { transcribe(sel, w.awemeId) }}
+                                style={{ border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 6, padding: '2px 7px', font: 'inherit', fontSize: 10.5, cursor: 'pointer', background: 'transparent', color: 'var(--dsw-alias-label-secondary)' }}>
+                                {transcribing === w.awemeId ? '转写中…' : '提取文案'}
+                              </button>
+                            )}
+                            <button type="button"
+                              onClick={() => { addPoolItem({ title: (w.desc ?? '').slice(0, 60) || '(无标题)', sourceType: 'bench', sourceRef: w.awemeId, note: `对标「${sel.nickname}」` }) }}
+                              style={{ border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 6, padding: '2px 7px', font: 'inherit', fontSize: 10.5, cursor: 'pointer', background: 'transparent', color: 'var(--dsw-alias-label-secondary)' }}>
+                              入池
+                            </button>
+                          </span>
+                        </div>
+                      )
+                    })}
+                    {sorted.length === 0 && <div style={rowDescStyle}>这个账号还没有作品数据。</div>}
+                  </div>
+                </>
+              )
+            })()
+          )}
+        </div>
       </div>
     </div>
   )
@@ -3653,6 +3785,11 @@ function SignalsSection(): React.JSX.Element {
                 </span>
                 <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.word}</span>
                 {it.hotValue !== null && <span style={{ flex: 'none', fontSize: 11, color: 'var(--dsw-alias-label-tertiary)', fontVariantNumeric: 'tabular-nums' }}>{formatHotValue(it.hotValue)}</span>}
+                <button type="button"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); addPoolItem({ title: it.word, sourceType: 'hot', sourceRef: it.webUrl }) }}
+                  style={{ flex: 'none', border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 6, padding: '1px 6px', font: 'inherit', fontSize: 10.5, cursor: 'pointer', background: 'transparent', color: 'var(--dsw-alias-label-secondary)' }}>
+                  入池
+                </button>
               </a>
             ))}
           </div>
@@ -3680,6 +3817,10 @@ function SignalsSection(): React.JSX.Element {
                   {w.note !== '' ? w.note : w.url}
                 </a>
                 <span style={{ flex: 'none', fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' }}>{agoText(w.at)}</span>
+                <button type="button" onClick={() => { addPoolItem({ title: w.note !== '' ? w.note : w.url, sourceType: 'watch', sourceRef: w.id }) }}
+                  style={{ flex: 'none', border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 6, padding: '1px 6px', font: 'inherit', fontSize: 10.5, cursor: 'pointer', background: 'transparent', color: 'var(--dsw-alias-label-secondary)' }}>
+                  入池
+                </button>
                 <button type="button" onClick={() => { setSignals(removeWatch(w.id)) }}
                   style={{ flex: 'none', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 11, color: 'var(--dsw-alias-label-tertiary)', padding: '2px 4px' }}>
                   删除
@@ -3708,6 +3849,10 @@ function SignalsSection(): React.JSX.Element {
               <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 0', borderTop: '1px solid var(--dsw-alias-border-l2)', fontSize: 12.5 }}>
                 <span style={{ flex: 1, minWidth: 0, color: 'var(--dsw-alias-label-primary)' }}>{f.text}</span>
                 <span style={{ flex: 'none', fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' }}>{agoText(f.at)}</span>
+                <button type="button" onClick={() => { addPoolItem({ title: f.text.slice(0, 60), sourceType: 'feedback', sourceRef: f.id, note: '用户反馈' }) }}
+                  style={{ flex: 'none', border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 6, padding: '1px 6px', font: 'inherit', fontSize: 10.5, cursor: 'pointer', background: 'transparent', color: 'var(--dsw-alias-label-secondary)' }}>
+                  入池
+                </button>
                 <button type="button" onClick={() => { setSignals(removeFeedback(f.id)) }}
                   style={{ flex: 'none', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 11, color: 'var(--dsw-alias-label-tertiary)', padding: '2px 4px' }}>
                   删除
@@ -3721,10 +3866,119 @@ function SignalsSection(): React.JSX.Element {
   )
 }
 
+/* ═══ 选题池 tab（2026-11-17，O49 设计 §2.3 贯穿对象）══════════════ */
+
+function PoolSection(): React.JSX.Element {
+  const [pool, setPool] = useState(loadPool)
+  const [filter, setFilter] = useState<PoolStatus | '全部'>('候选')
+
+  useEffect(() => {
+    const onChange = (): void => { setPool(loadPool()) }
+    window.addEventListener('hl-ops-groups-changed', onChange)
+    return () => { window.removeEventListener('hl-ops-groups-changed', onChange) }
+  }, [])
+
+  /* 「去创作」：运营胶囊链路——选题+备注进聊天，用户确认后 AI 开工 */
+  const createFrom = (item: { title: string; note: string }): void => {
+    const stamp = new Date()
+    const hhmm = `${String(stamp.getMonth() + 1).padStart(2, '0')}-${String(stamp.getDate()).padStart(2, '0')} ${String(stamp.getHours()).padStart(2, '0')}:${String(stamp.getMinutes()).padStart(2, '0')}`
+    const prompt = `请围绕这个选题帮我创作内容：${item.title}${item.note !== '' ? `\n补充说明：${item.note}` : ''}`
+    window.dispatchEvent(new CustomEvent('hl:close-hub'))
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('hl:insert-ops-chip', { detail: { label: `选题 · ${item.title.slice(0, 18)} · ${hhmm}`, prompt } }))
+      setTimeout(() => { window.dispatchEvent(new CustomEvent('hl:submit-draft')) }, 400)
+    }, 300)
+  }
+
+  const shown = pool.filter(i => filter === '全部' || i.status === filter)
+  const pending = poolPendingCount(pool)
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <h3 style={{ ...sectionTitleStyle, margin: 0, flex: 1 }}>选题池{pending > 0 ? ` · ${String(pending)} 个候选` : ''}</h3>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {(['候选', '已用', '放弃', '全部'] as const).map(k => (
+            <button key={k} type="button" onClick={() => { setFilter(k) }}
+              style={{
+                border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 999, padding: '3px 10px',
+                font: 'inherit', fontSize: 11.5, cursor: 'pointer',
+                background: filter === k ? 'var(--dsw-alias-interactive-bg-active)' : 'transparent',
+                color: filter === k ? 'var(--dsw-alias-label-primary)' : 'var(--dsw-alias-label-tertiary)',
+              }}>
+              {k}
+            </button>
+          ))}
+        </div>
+      </div>
+      {pool.length === 0 ? (
+        <div style={rowDescStyle}>
+          选题池是空的。在对标作品、热榜、手动关注、用户反馈上点「入池」，好点子会汇聚到这里。
+        </div>
+      ) : shown.length === 0 ? (
+        <div style={rowDescStyle}>这个状态下还没有选题。</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {shown.map(item => (
+            <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 0', borderTop: '1px solid var(--dsw-alias-border-l2)', fontSize: 12.5 }}>
+              <span style={{
+                flex: 'none', fontSize: 10.5, padding: '1px 7px', borderRadius: 999,
+                border: '1px solid var(--dsw-alias-border-l2)',
+                color: item.status === '候选' ? 'var(--dsw-alias-label-primary)' : 'var(--dsw-alias-label-tertiary)',
+              }}>
+                {POOL_SOURCE_LABELS[item.sourceType]} · {item.status}
+              </span>
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ color: 'var(--dsw-alias-label-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+                  {item.title}
+                </span>
+                {item.note !== '' && (
+                  <span style={{ fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' }}>{item.note}</span>
+                )}
+              </span>
+              <span style={{ flex: 'none', fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' }}>{agoText(item.createdAt)}</span>
+              <span style={{ flex: 'none', display: 'flex', gap: 4 }}>
+                {item.status === '候选' && (
+                  <button type="button" onClick={() => { createFrom(item) }}
+                    style={{ border: 'none', borderRadius: 6, padding: '3px 9px', font: 'inherit', fontSize: 11, cursor: 'pointer', background: '#1a1a1a', color: '#fff' }}>
+                    去创作
+                  </button>
+                )}
+                {item.status !== '已用' && (
+                  <button type="button" onClick={() => { setPool(setPoolStatus(item.id, '已用')) }}
+                    style={{ border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 6, padding: '3px 7px', font: 'inherit', fontSize: 11, cursor: 'pointer', background: 'transparent', color: 'var(--dsw-alias-label-secondary)' }}>
+                    已用
+                  </button>
+                )}
+                {item.status !== '放弃' && (
+                  <button type="button" onClick={() => { setPool(setPoolStatus(item.id, '放弃')) }}
+                    style={{ border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 6, padding: '3px 7px', font: 'inherit', fontSize: 11, cursor: 'pointer', background: 'transparent', color: 'var(--dsw-alias-label-secondary)' }}>
+                    放弃
+                  </button>
+                )}
+                {item.status !== '候选' && (
+                  <button type="button" onClick={() => { setPool(setPoolStatus(item.id, '候选')) }}
+                    style={{ border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 6, padding: '3px 7px', font: 'inherit', fontSize: 11, cursor: 'pointer', background: 'transparent', color: 'var(--dsw-alias-label-secondary)' }}>
+                    恢复
+                  </button>
+                )}
+                <button type="button" onClick={() => { setPool(removePoolItem(item.id)) }}
+                  style={{ border: 'none', borderRadius: 6, padding: '3px 6px', font: 'inherit', fontSize: 11, cursor: 'pointer', background: 'transparent', color: 'var(--dsw-alias-label-tertiary)' }}>
+                  删
+                </button>
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function HeightLabOpsPage() {
   /* O57 D2（2026-11-14 用户拍板）：页面级双分页——我的账号（原数据概览）/ 对标账号（原对标库） */
   /* O57 四轮（2026-11-14 用户拍板方案 A）：两页——当前概况（洞察优先）/ 账号（我的+对标合并） */
-  const [tab, setTab] = useState<'overview' | 'accounts' | 'bench' | 'signals'>('overview')
+  const [tab, setTab] = useState<'overview' | 'accounts' | 'bench' | 'signals' | 'pool'>('overview')
   const [snapshots, setSnapshots] = useState<Record<string, PlatformSnapshot>>(loadSnapshots)
   const [states, setStates] = useState<Record<string, PlatformState>>({})
   const [detail, setDetail] = useState<ProviderId | null>(null)
@@ -4044,6 +4298,15 @@ export function HeightLabOpsPage() {
         >
           热点
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'pool'}
+          className={clsx(css.libraryTab, tab === 'pool' && css.libraryTabActive)}
+          onClick={() => { setTab('pool'); setDetail(null) }}
+        >
+          选题池{poolPendingCount(loadPool()) > 0 ? `（${String(poolPendingCount(loadPool()))}）` : ''}
+        </button>
       </div>
 
       {/* 容器严格照抄原生 hubPageStyle：gap 32 / padding 12 clamp(24,4vw,48) 48 */}
@@ -4055,6 +4318,8 @@ export function HeightLabOpsPage() {
             <BenchSection />
           ) : tab === 'signals' ? (
             <SignalsSection />
+          ) : tab === 'pool' ? (
+            <PoolSection />
           ) : (
             /* O57 五轮（2026-11-14 用户拍板 v3/v4 设计稿）：
              * 项目手风琴 → 左「我的账号」/ 右「对标账号」→ 列内平台小标题 */

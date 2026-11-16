@@ -4,7 +4,7 @@
  * 为什么这些必须测：T+N 快照与反哺基线是纯逻辑，出错会**静默产生错误的
  * 上下文喂给 Agent**——比 UI bug 危险得多（文案会照着错数据写）。
  */
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import {
   SNAPSHOT_HOURS,
   buildBaseline,
@@ -536,5 +536,98 @@ describe('formatHotValue', () => {
     expect(formatHotValue(12_097_246)).toBe('1209.7万')
     expect(formatHotValue(9999)).toBe('9999')
     expect(formatHotValue(null)).toBe('')
+  })
+})
+
+/* ── 选题池 + 对标自动监控（2026-11-17）──────────────────────────── */
+
+import {
+  addPoolItem,
+  loadPool,
+  poolPendingCount,
+  removePoolItem,
+  setPoolStatus,
+} from '../src/client/skeleton/HeightLabOpsPool.ts'
+import { BENCH_MONITOR_DEFAULT_H, planBenchCollects } from '../src/client/skeleton/HeightLabOpsScheduler.ts'
+
+/* 本文件跑在 node 环境（无 window/localStorage）——存储层函数靠 window.localStorage
+ * 持久化，这里给一个 Map 支撑的最小 mock，让「写入→重读」路径真实可测。 */
+let resetStorage: () => void = () => {}
+function mockLocalStorage(): void {
+  let map = new Map<string, string>()
+  resetStorage = () => { map = new Map<string, string>() }
+  ;(globalThis as Record<string, unknown>).window = {
+    localStorage: {
+      getItem: (k: string) => (map.has(k) ? map.get(k)! : null),
+      setItem: (k: string, v: string) => { map.set(k, v) },
+      removeItem: (k: string) => { map.delete(k) },
+    },
+  }
+}
+
+describe('选题池（O49 §2.3 贯穿对象）', () => {
+  mockLocalStorage()
+  beforeEach(() => { resetStorage() })
+  it('入池→候选态；同 sourceRef 重复入池只更新 note（幂等）', () => {
+    const a = addPoolItem({ title: 'AI 工具实测', sourceType: 'bench', sourceRef: 'aw1', note: '对标A' }, NOW)
+    expect(a).toHaveLength(1)
+    expect(a[0]!.status).toBe('候选')
+    const b = addPoolItem({ title: '改名后的标题', sourceType: 'bench', sourceRef: 'aw1', note: '新备注' }, NOW + 1)
+    expect(b).toHaveLength(1)
+    expect(b[0]!.note).toBe('新备注')
+    expect(b[0]!.title).toBe('AI 工具实测')
+  })
+
+  it('三态流转 + 计数', () => {
+    const a = addPoolItem({ title: 't1', sourceType: 'hot', sourceRef: 'h1' }, NOW)
+    const id = a[0]!.id
+    expect(poolPendingCount(a)).toBe(1)
+    const b = setPoolStatus(id, '已用')
+    expect(b[0]!.status).toBe('已用')
+    expect(poolPendingCount(b)).toBe(0)
+    const c = setPoolStatus(id, '放弃')
+    expect(c[0]!.status).toBe('放弃')
+    const d = setPoolStatus(id, '候选')
+    expect(d[0]!.status).toBe('候选')
+  })
+
+  it('删除 + 空存储骨架', () => {
+    const a = addPoolItem({ title: 'x', sourceType: 'feedback', sourceRef: 'f1' }, NOW)
+    const b = removePoolItem(a[0]!.id)
+    expect(b).toHaveLength(0)
+    expect(loadPool()).toEqual([])
+  })
+})
+
+describe('planBenchCollects（对标自动监控计划）', () => {
+  interface AcctStub { link: string; syncedAt: number; monitor?: boolean; monitorIntervalH?: number }
+  const acct = (link: string, syncedAt: number, monitor = true, intervalH?: number): AcctStub => ({
+    link,
+    syncedAt,
+    ...(monitor ? { monitor: true } : {}),
+    ...(intervalH !== undefined ? { monitorIntervalH: intervalH } : {}),
+  })
+
+  it('monitor 关闭不采，无论多久没同步', () => {
+    expect(planBenchCollects([acct('a', NOW - 100 * 3_600_000, false)], NOW)).toEqual([])
+  })
+
+  it('默认 6h：6h 内不采，超过才采', () => {
+    expect(planBenchCollects([acct('a', NOW - (BENCH_MONITOR_DEFAULT_H - 1) * 3_600_000)], NOW)).toEqual([])
+    expect(planBenchCollects([acct('a', NOW - (BENCH_MONITOR_DEFAULT_H + 1) * 3_600_000)], NOW)).toEqual(['a'])
+  })
+
+  it('自定义频率优先', () => {
+    expect(planBenchCollects([acct('a', NOW - 2 * 3_600_000, true, 1)], NOW)).toEqual(['a'])
+    expect(planBenchCollects([acct('a', NOW - 2 * 3_600_000, true, 24)], NOW)).toEqual([])
+  })
+
+  it('多账号混合：只回到期的', () => {
+    const out = planBenchCollects([
+      acct('due', NOW - 10 * 3_600_000),
+      acct('fresh', NOW - 1 * 3_600_000),
+      acct('off', NOW - 100 * 3_600_000, false),
+    ], NOW)
+    expect(out).toEqual(['due'])
   })
 })

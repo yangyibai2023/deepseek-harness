@@ -34,7 +34,7 @@
  */
 
 import { backfillDueRecords, dueSnapshotHour, loadRecords, saveRecords } from './HeightLabOpsData.ts'
-import { FETCHERS, PROVIDERS, STORAGE_KEY, computeSyncedSnapshot, loadSnapshots } from './HeightLabOpsPage.tsx'
+import { FETCHERS, PROVIDERS, STORAGE_KEY, collectBenchIntoStore, computeSyncedSnapshot, loadBench, loadSnapshots } from './HeightLabOpsPage.tsx'
 import type { PlatformSnapshot } from './HeightLabOpsPage.tsx'
 import type { ProviderId } from './HeightLabOpsData.ts'
 
@@ -71,6 +71,22 @@ export function planBackgroundTargets(
     if (dueTrigger || freshTrigger) targets.push(def.id)
   }
   return targets
+}
+
+/** 对标自动监控默认频率（小时） */
+export const BENCH_MONITOR_DEFAULT_H = 6
+
+/**
+ * 哪些对标账号本轮该重采：monitor 开启 且距上次同步超过 monitorIntervalH。
+ * 纯函数（输入/出都可测）。返回账号 link（采集以 link 为入参）。
+ */
+export function planBenchCollects(
+  accounts: { link: string; syncedAt: number; monitor?: boolean; monitorIntervalH?: number }[],
+  now = Date.now(),
+): string[] {
+  return accounts
+    .filter(a => a.monitor === true && now - a.syncedAt > (a.monitorIntervalH ?? BENCH_MONITOR_DEFAULT_H) * 3_600_000)
+    .map(a => a.link)
 }
 
 /** 哪些平台有 T+N 欠采的发布记录（planBackgroundTargets 的输入预处理） */
@@ -123,6 +139,12 @@ export async function runOpsBackgroundSync(now = Date.now()): Promise<number> {
       } catch {
         /* 单平台失败不影响其他平台；浏览器预览（无 Tauri）也走这里 */
       }
+    }
+
+    /* 对标自动监控：到期的账号重采（服务端 DTK，复用 collectBenchIntoStore
+     * 的 upsert 语义；单账号失败不影响其他） */
+    for (const link of planBenchCollects(loadBench(), now)) {
+      try { await collectBenchIntoStore(link) } catch { /* 单账号失败跳过 */ }
     }
 
     /* T+N 回填：与页面同一个纯函数 */
