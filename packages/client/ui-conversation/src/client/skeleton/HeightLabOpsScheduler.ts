@@ -34,6 +34,7 @@
  */
 
 import { backfillDueRecords, dueSnapshotHour, loadRecords, saveRecords } from './HeightLabOpsData.ts'
+import { startOpsDurability } from './HeightLabOpsDurability.ts'
 import { FETCHERS, PROVIDERS, STORAGE_KEY, collectBenchIntoStore, computeSyncedSnapshot, loadBench, loadSnapshots } from './HeightLabOpsPage.tsx'
 import type { PlatformSnapshot } from './HeightLabOpsPage.tsx'
 import type { ProviderId } from './HeightLabOpsData.ts'
@@ -169,6 +170,8 @@ export function startOpsScheduler(): void {
   if (started) return
   started = true
   if (typeof window === 'undefined') return
+  /* 持久层随调度器一起启动：先拉回宿主文件（远端为尊），此后任何存盘点防抖推送 */
+  startOpsDurability()
   const timer = window.setInterval(() => { void runOpsBackgroundSync() }, TICK_INTERVAL_MS)
   /* 页面关闭即随之消失，无需清理；卸载保护用 beforeunload 取消非必需 */
   void timer
