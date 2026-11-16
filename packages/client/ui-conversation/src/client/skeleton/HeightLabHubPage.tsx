@@ -738,6 +738,32 @@ const cardDescStyle: CSSProperties = {
 }
 
 /** Render the page in the main content area (replaces chat view). */
+/* ── 聊天启动创作执行器（2026-11-17 O49 万能操控）────────────────────
+ * MCP heightlab_start_module(action=start) → app-command start_module →
+ * hl:ops-start-module → 这里组装 templates（MODULE_TEMPLATE_IDS×VIDEO_CATALOG，
+ * 与分类卡点击同一份目录）→ 派生原生 hl:start-module（ui-workspace 消费）。 */
+if (typeof window !== 'undefined') {
+  window.addEventListener('hl:ops-start-module', ((e: Event) => {
+    const params = (e as CustomEvent<Record<string, unknown>>).detail ?? {}
+    const moduleId = String(params.module ?? '').trim()
+    if (moduleId === '') return
+    const templateName = String(params.template_name ?? '').trim()
+    const templates = (MODULE_TEMPLATE_IDS[moduleId] ?? [])
+      .map(id => VIDEO_CATALOG.find(item => item.id === id))
+      .filter((item): item is (typeof VIDEO_CATALOG)[number] => item !== undefined)
+      .map(item => ({ id: item.id, name: item.name, tagline: item.tagline ?? '', cover: item.cover ?? '', skill: item.skill }))
+    const target = templateName === '' ? undefined : templates.find(t => t.name.includes(templateName) || t.id.includes(templateName))
+    window.dispatchEvent(new CustomEvent('hl:start-module', {
+      detail: {
+        moduleId,
+        name: moduleId,
+        templates,
+        ...(target !== undefined ? { template: { id: target.id, name: target.name, skill: target.skill } } : {}),
+      },
+    }))
+  }) as EventListener)
+}
+
 export function HeightLabHubPage({ page, onClose }: { page: HubPage; onClose: () => void }) {
   const [preview, setPreview] = useState<{ item: Recommendation; category: TemplateCategory } | null>(null)
   const [cards, setCards] = useState<Record<TemplateCategory, Recommendation[]>>(TEMPLATE_CARDS)
