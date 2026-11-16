@@ -661,3 +661,98 @@ describe('asrLibrary（文案库聚合）', () => {
     expect(asrLibrary([{ link: 'x', secUid: '', nickname: 'n', works: [] }])).toEqual([])
   })
 })
+
+/* ── 复盘（2026-11-17，O49 核心⑥，设计 §11 纯规则）────────────────── */
+
+import {
+  addRule,
+  loadRules,
+  removeRule,
+  retroVerdict,
+  ruleSuggestion,
+  setRuleStatus,
+  snapshotChain,
+  verifiedRulesText,
+} from '../src/client/skeleton/HeightLabOpsRetro.ts'
+
+describe('snapshotChain（T+N 证据链）', () => {
+  const rec = publishRecord(NOW - 26 * 3_600_000, [
+    { itemId: 'i', at: NOW - 25 * 3_600_000, ageHours: 1, plays: 100 },
+    { itemId: 'i', at: NOW - 20 * 3_600_000, ageHours: 6, plays: 300 },
+  ])
+  it('已采/到点/错过/未到期四态齐全（miss 有 1h 宽限窗）', () => {
+    const chain = snapshotChain(rec, NOW)
+    const by = (h: number) => chain.find(p => p.hour === h)!
+    expect(by(1).state).toBe('taken')
+    expect(by(1).plays).toBe(100)
+    expect(by(6).state).toBe('taken')
+    /* 26h：24h 点已过 1h 宽限窗 → missed */
+    expect(by(24).state).toBe('missed')
+    expect(by(72).state).toBe('future')   /* 还没到 72h：是 future 不是 missed */
+    expect(by(168).state).toBe('future')
+  })
+
+  it('宽限窗内是 due 不是 missed', () => {
+    const fresh = publishRecord(NOW - 24.5 * 3_600_000, [])
+    const chain = snapshotChain(fresh, NOW)
+    const by = (h: number) => chain.find(p => p.hour === h)!
+    expect(by(24).state).toBe('due')
+    expect(by(6).state).toBe('missed')
+    expect(by(168).state).toBe('future')
+  })
+})
+
+describe('retroVerdict（纯规则判定，§11.7 档位）', () => {
+  const rec7d = (plays: number): PublishRecord =>
+    publishRecord(NOW - 170 * 3_600_000, [
+      { itemId: 'i', at: NOW - 169 * 3_600_000, ageHours: 1, plays: Math.round(plays / 4) },
+      { itemId: 'i', at: NOW - 164 * 3_600_000, ageHours: 6, plays: Math.round(plays / 2) },
+      { itemId: 'i', at: NOW - 146 * 3_600_000, ageHours: 24, plays: plays },
+      { itemId: 'i', at: NOW - 98 * 3_600_000, ageHours: 72, plays: plays },
+      { itemId: 'i', at: NOW - 2 * 3_600_000, ageHours: 168, plays: plays },
+    ])
+
+  it('四档边界 + 快热判定', () => {
+    expect(retroVerdict(rec7d(2500), 1000, NOW).verdict).toBe('起量')
+    expect(retroVerdict(rec7d(1500), 1000, NOW).verdict).toBe('高于')
+    expect(retroVerdict(rec7d(900), 1000, NOW).verdict).toBe('接近')
+    expect(retroVerdict(rec7d(300), 1000, NOW).verdict).toBe('低于')
+    /* 首快照 → 末快照 ≥3× = 快热 */
+    expect(retroVerdict(rec7d(2400), 1000, NOW).heat).toBe('快热')
+  })
+
+  it('无基线 = 数据不足（11.9 诚实口径）', () => {
+    const r = retroVerdict(rec7d(2000), null, NOW)
+    expect(r.verdict).toBe('数据不足')
+    expect(r.ratio).toBeNull()
+  })
+})
+
+describe('经验库（规则建议审批链 11.11）', () => {
+  it('生成建议→待审→批准→注入文本；同记录去重', () => {
+    const rec = publishRecord(NOW - 170 * 3_600_000, [
+      { itemId: 'i', at: NOW - 2 * 3_600_000, ageHours: 168, plays: 2500 },
+    ])
+    const retro = retroVerdict(rec, 1000, NOW)
+    const item = ruleSuggestion(rec, retro, NOW)
+    expect(item).not.toBeNull()
+    expect(item!.status).toBe('待审')
+    const a = addRule(item!)
+    expect(a).toHaveLength(1)
+    expect(addRule(item!)).toHaveLength(1)   /* 同 sourceRef 去重 */
+    expect(verifiedRulesText()).toBe('')     /* 未批准不进上下文 */
+    const b = setRuleStatus(item!.id, '已验证')
+    expect(b[0]!.status).toBe('已验证')
+    expect(verifiedRulesText()).toContain(item!.text.slice(0, 10))
+    expect(removeRule(item!.id)).toHaveLength(0)
+  })
+
+  it('数据不足不生成建议', () => {
+    const rec = publishRecord(NOW - 10 * 3_600_000, [])
+    expect(ruleSuggestion(rec, retroVerdict(rec, null, NOW), NOW)).toBeNull()
+  })
+
+  it('loadRules 空骨架', () => {
+    expect(loadRules()).toEqual([])
+  })
+})

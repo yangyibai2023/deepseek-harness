@@ -31,6 +31,17 @@ import {
   type OpsProject,
   type PublishRecord,
 } from './HeightLabOpsData.ts'
+import {
+  addRule,
+  loadRules,
+  removeRule,
+  retroVerdict,
+  ruleSuggestion,
+  setRuleStatus,
+  snapshotChain,
+  verifiedRulesText,
+  type RetroResult,
+} from './HeightLabOpsRetro.ts'
 import { buildActionItems, type OpsActionItem } from './HeightLabOpsActions.ts'
 import {
   addFeedback,
@@ -1946,7 +1957,9 @@ function OverviewSection(): React.JSX.Element {
     const stamp = new Date()
     const hhmm = `${String(stamp.getMonth() + 1).padStart(2, '0')}-${String(stamp.getDate()).padStart(2, '0')} ${String(stamp.getHours()).padStart(2, '0')}:${String(stamp.getMinutes()).padStart(2, '0')}`
     const label = `运营快照 · ${range.label} · ${hhmm}`
-    const prompt = `${ctx}\n\n${OPS_SUMMARY_PROMPT}`
+    /* 11.13 闭环最后一环：已验证经验注入分析上下文 */
+    const rules = verifiedRulesText()
+    const prompt = `${ctx}${rules !== '' ? `\n\n${rules}` : ''}\n\n${OPS_SUMMARY_PROMPT}`
     window.dispatchEvent(new CustomEvent('hl:close-hub'))
     setTimeout(() => {
       window.dispatchEvent(new CustomEvent('hl:insert-ops-chip', { detail: { label, prompt } }))
@@ -4083,10 +4096,199 @@ function ContentSection(): React.JSX.Element {
   )
 }
 
+/* ═══ 复盘 tab（2026-11-17，O49 核心⑥）══════════════════════════════
+ * 设计 §11：发布证据链 + 补录 + 纯规则复盘 + 规则建议审批链 + 经验库。
+ * 盲预测锁定（integrity_hash 数据可信体系）诚实留 v2——v1 用账号基线
+ * 做对照锚并明确标注。 */
+
+function RetroSection(): React.JSX.Element {
+  const [records, setRecords] = useState<PublishRecord[]>(loadRecords)
+  const [rules, setRules] = useState(loadRules)
+  const [expanded, setExpanded] = useState<string | null>(null)
+  /* 补录表单（9.6 工作台外已发布内容） */
+  const [addTitle, setAddTitle] = useState('')
+  const [addProvider, setAddProvider] = useState<ProviderId>('douyin')
+  const [addAt, setAddAt] = useState('')
+  const [addStatus, setAddStatus] = useState<string | null>(null)
+
+  useEffect(() => {
+    const onChange = (): void => {
+      setRecords(loadRecords())
+      setRules(loadRules())
+    }
+    window.addEventListener('hl-ops-groups-changed', onChange)
+    return () => { window.removeEventListener('hl-ops-groups-changed', onChange) }
+  }, [])
+
+  /** 账号基线：该平台快照作品的平均播放（无则 null=数据不足口径） */
+  const baselineOf = (provider: ProviderId): number | null => {
+    const works = loadSnapshots()[provider]?.works ?? []
+    const withPlays = works.filter(w => typeof w.plays === 'number' && (w.plays ?? 0) > 0)
+    if (withPlays.length === 0) return null
+    return withPlays.reduce((sum, w) => sum + (w.plays ?? 0), 0) / withPlays.length
+  }
+
+  const addManual = (): void => {
+    if (addTitle.trim() === '') { setAddStatus('请填标题'); return }
+    if (addAt === '') { setAddStatus('请选择发布时间'); return }
+    const publishedAt = new Date(addAt).getTime()
+    if (!Number.isFinite(publishedAt)) { setAddStatus('时间格式不对'); return }
+    const rec: PublishRecord = {
+      id: `pub-${String(Date.now())}-${Math.random().toString(36).slice(2, 8)}`,
+      projectId: 'default',
+      provider: addProvider,
+      title: addTitle.trim(),
+      description: '',
+      tags: [],
+      publishedAt,
+      snapshots: [],
+    }
+    const next = [rec, ...records]
+    saveRecords(next)
+    setRecords(next)
+    setAddTitle('')
+    setAddAt('')
+    setAddStatus('已补录，T+N 快照会随账号同步自动回填')
+  }
+
+  const retroOf = (rec: PublishRecord): RetroResult => retroVerdict(rec, baselineOf(rec.provider))
+
+  const suggest = (rec: PublishRecord): void => {
+    const item = ruleSuggestion(rec, retroOf(rec))
+    if (item === null) { setAddStatus('数据不足，生成不了建议'); return }
+    setRules(addRule(item))
+  }
+
+  const VERDICT_COLORS: Record<string, string> = {
+    起量: '#F5A524', 高于: '#30A46C', 接近: 'var(--dsw-alias-label-secondary)', 低于: '#E5484D', 数据不足: 'var(--dsw-alias-label-tertiary)',
+  }
+
+  const inputStyleR: React.CSSProperties = {
+    height: 30, padding: '0 10px', font: 'inherit', fontSize: 12,
+    border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 8, background: 'transparent',
+    color: 'var(--dsw-alias-label-primary)', outline: 'none',
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      {/* ── 发布证据链 + 复盘报告 ── */}
+      <section>
+        <h3 style={{ ...sectionTitleStyle, marginBottom: 10 }}>发布证据链（{records.length}）</h3>
+        {records.length === 0 ? (
+          <div style={rowDescStyle}>还没有发布记录。发布后（或下方补录）会按 T+1h/6h/24h/72h/168h 自动采快照。</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {records.map((rec) => {
+              const chain = snapshotChain(rec)
+              const retro = retroOf(rec)
+              const open = expanded === rec.id
+              return (
+                <div key={rec.id} style={{ borderTop: '1px solid var(--dsw-alias-border-l2)', padding: '9px 0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5 }}>
+                    <button type="button" onClick={() => { setExpanded(open ? null : rec.id) }}
+                      style={{ flex: 1, minWidth: 0, border: 'none', background: 'transparent', cursor: 'pointer', font: 'inherit', textAlign: 'left', color: 'var(--dsw-alias-label-primary)', padding: 0 }}>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+                        {rec.title || '(无标题)'}
+                      </span>
+                      <span style={{ fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' }}>
+                        {PROVIDERS.find(d => d.id === rec.provider)?.name ?? rec.provider} · {agoText(rec.publishedAt)}发布
+                      </span>
+                    </button>
+                    {/* T+N 证据链圆点：绿=已采 黄=到点待采 灰=未到期 红=错过 */}
+                    <span style={{ flex: 'none', display: 'flex', gap: 4 }}>
+                      {chain.map(p => (
+                        <span key={p.hour} title={`T+${String(p.hour)}h ${p.state}${p.plays !== null ? ` · ${String(p.plays)} 播` : ''}`}
+                          style={{ width: 9, height: 9, borderRadius: 5, background: p.state === 'taken' ? '#30A46C' : p.state === 'due' ? '#F5A524' : p.state === 'missed' ? '#E5484D' : 'var(--dsw-alias-border-l2)' }} />
+                      ))}
+                    </span>
+                    <span style={{ flex: 'none', fontSize: 11.5, fontWeight: 600, color: VERDICT_COLORS[retro.verdict] ?? 'inherit' }}>
+                      {retro.verdict}
+                      {retro.heat !== null ? ` · ${retro.heat}` : ''}
+                    </span>
+                    <button type="button" onClick={() => { suggest(rec) }}
+                      style={{ flex: 'none', border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 6, padding: '2px 7px', font: 'inherit', fontSize: 10.5, cursor: 'pointer', background: 'transparent', color: 'var(--dsw-alias-label-secondary)' }}>
+                      生成建议
+                    </button>
+                  </div>
+                  {open && (
+                    <div style={{ marginTop: 8, fontSize: 11.5, color: 'var(--dsw-alias-label-tertiary)', lineHeight: 1.8 }}>
+                      <div>{retro.basis}{retro.ratio !== null ? `（${retro.ratio.toFixed(2)}×）` : ''}</div>
+                      <div>{chain.map(p => `T+${String(p.hour)}h:${p.state === 'taken' ? `${String(p.plays ?? '—')} 播` : { due: '待采', missed: '错过', future: '未到期' }[p.state]}`).join(' · ')}</div>
+                      <div style={{ marginTop: 4 }}>对照锚 = 账号基线（作品均播）。盲预测锁定（integrity_hash）随数据可信体系 v2 上线。</div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </section>
+
+      {/* ── 补录 ── */}
+      <section>
+        <h3 style={{ ...sectionTitleStyle, marginBottom: 10 }}>补录已发布内容</h3>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <input value={addTitle} onChange={(e) => { setAddTitle(e.target.value) }} placeholder="标题" style={{ ...inputStyleR, flex: 2, minWidth: 0 }} />
+          <select value={addProvider} onChange={(e) => { setAddProvider(e.target.value as ProviderId) }} style={{ ...inputStyleR, flex: 'none' }}>
+            {PROVIDERS.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+          </select>
+          <input type="datetime-local" value={addAt} onChange={(e) => { setAddAt(e.target.value) }} style={{ ...inputStyleR, flex: 'none' }} />
+          <button type="button" onClick={addManual} style={primaryBtnStyle(false)}>补录</button>
+        </div>
+        {addStatus !== null && <div style={{ fontSize: 11.5, color: 'var(--dsw-alias-label-tertiary)', marginTop: 6 }}>{addStatus}</div>}
+      </section>
+
+      {/* ── 经验库（规则建议审批链 11.11）── */}
+      <section>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+          <h3 style={{ ...sectionTitleStyle, margin: 0, flex: 1 }}>经验库（{rules.length}）</h3>
+          <span style={{ fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' }}>建议需人工批准才进 AI 分析上下文</span>
+        </div>
+        {rules.length === 0 ? (
+          <div style={rowDescStyle}>复盘后点「生成建议」，规则会进这里等你审批。</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {rules.map(r => (
+              <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderTop: '1px solid var(--dsw-alias-border-l2)', fontSize: 12.5 }}>
+                <span style={{
+                  flex: 'none', fontSize: 10.5, padding: '1px 7px', borderRadius: 999,
+                  border: '1px solid var(--dsw-alias-border-l2)',
+                  color: r.status === '已验证' ? '#30A46C' : r.status === '待审' ? '#F5A524' : 'var(--dsw-alias-label-tertiary)',
+                }}>
+                  {r.status}
+                </span>
+                <span style={{ flex: 1, minWidth: 0, color: 'var(--dsw-alias-label-primary)' }}>{r.text}</span>
+                <span style={{ flex: 'none', display: 'flex', gap: 4 }}>
+                  {r.status === '待审' && (
+                    <button type="button" onClick={() => { setRules(setRuleStatus(r.id, '已验证')) }}
+                      style={{ border: 'none', borderRadius: 6, padding: '2px 8px', font: 'inherit', fontSize: 10.5, cursor: 'pointer', background: '#1a1a1a', color: '#fff' }}>
+                      批准
+                    </button>
+                  )}
+                  {r.status !== '已失效' && (
+                    <button type="button" onClick={() => { setRules(setRuleStatus(r.id, '已失效')) }}
+                      style={{ border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 6, padding: '2px 7px', font: 'inherit', fontSize: 10.5, cursor: 'pointer', background: 'transparent', color: 'var(--dsw-alias-label-secondary)' }}>
+                      失效
+                    </button>
+                  )}
+                  <button type="button" onClick={() => { setRules(removeRule(r.id)) }}
+                    style={{ border: 'none', borderRadius: 6, padding: '2px 6px', font: 'inherit', fontSize: 10.5, cursor: 'pointer', background: 'transparent', color: 'var(--dsw-alias-label-tertiary)' }}>
+                    删
+                  </button>
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+  )
+}
+
 export function HeightLabOpsPage() {
   /* O57 D2（2026-11-14 用户拍板）：页面级双分页——我的账号（原数据概览）/ 对标账号（原对标库） */
   /* O57 四轮（2026-11-14 用户拍板方案 A）：两页——当前概况（洞察优先）/ 账号（我的+对标合并） */
-  const [tab, setTab] = useState<'overview' | 'accounts' | 'bench' | 'signals' | 'pool' | 'content'>('overview')
+  const [tab, setTab] = useState<'overview' | 'accounts' | 'bench' | 'signals' | 'pool' | 'content' | 'retro'>('overview')
   const [snapshots, setSnapshots] = useState<Record<string, PlatformSnapshot>>(loadSnapshots)
   const [states, setStates] = useState<Record<string, PlatformState>>({})
   const [detail, setDetail] = useState<ProviderId | null>(null)
@@ -4424,6 +4626,15 @@ export function HeightLabOpsPage() {
         >
           内容
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'retro'}
+          className={clsx(css.libraryTab, tab === 'retro' && css.libraryTabActive)}
+          onClick={() => { setTab('retro'); setDetail(null) }}
+        >
+          复盘
+        </button>
       </div>
 
       {/* 容器严格照抄原生 hubPageStyle：gap 32 / padding 12 clamp(24,4vw,48) 48 */}
@@ -4439,6 +4650,8 @@ export function HeightLabOpsPage() {
             <PoolSection />
           ) : tab === 'content' ? (
             <ContentSection />
+          ) : tab === 'retro' ? (
+            <RetroSection />
           ) : (
             /* O57 五轮（2026-11-14 用户拍板 v3/v4 设计稿）：
              * 项目手风琴 → 左「我的账号」/ 右「对标账号」→ 列内平台小标题 */
