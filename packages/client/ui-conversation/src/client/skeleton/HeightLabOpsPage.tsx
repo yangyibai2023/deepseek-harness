@@ -181,6 +181,11 @@ const ARTWORK: Record<ProviderId, (p: { uid: string }) => ReactNode> = {
  * 即：**独立卡片**（有边框、有圆角、有内距、有卡片间隙），而不是原生那种
  * 贴边透明的行。纵向一列排下去，卡片之间留出明显间距。 */
 /** 原生图标容器：48×48 / radius lg / 0.5px 描边 */
+/* 爆款/警示数据色（功能色例外，集中定义；token 未定义时回落原字面值） */
+const HOT_COLOR = 'var(--dsw-alias-label-warning, #F5A524)'
+const DANGER_COLOR = 'var(--dsw-alias-label-error, #E5484D)'
+const SUCCESS_COLOR = 'var(--dsw-alias-label-success, #30A46C)'
+
 const rowDescStyle = {
   fontSize: 13,
   lineHeight: '18px',
@@ -1855,7 +1860,7 @@ const OPS_SUMMARY_PROMPT = [
 
 const ACTION_LEVEL_STYLE: Record<OpsActionItem['level'], { dot: string; label: string }> = {
   p0: { dot: 'var(--dsw-alias-label-error, #E5484D)', label: '优先' },
-  p1: { dot: '#F5A524', label: '关注' },
+  p1: { dot: HOT_COLOR, label: '关注' },
   p2: { dot: 'var(--dsw-alias-label-tertiary)', label: '建议' },
 }
 
@@ -1974,27 +1979,30 @@ function OverviewSection(): React.JSX.Element {
     }, 300)
   }
 
+  /* 范围选择（2026-11-17 改版）：左侧分组树改顶部 chips 行——账号少时左栏大片
+   * 空白（用户实测「太丑太占空间」），chips 含计数、换行自适应，同资产中心
+   * 分类栏模式（1108 美观版定稿）。 */
+  const chipBase: React.CSSProperties = {
+    border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 999, padding: '3px 11px',
+    font: 'inherit', fontSize: 12, cursor: 'pointer', background: 'transparent',
+    color: 'var(--dsw-alias-label-tertiary)',
+  }
+  const chipActive: React.CSSProperties = {
+    ...chipBase,
+    background: 'var(--dsw-alias-interactive-bg-active)',
+    color: 'var(--dsw-alias-label-primary)',
+    borderColor: 'transparent',
+  }
+
   return (
-    <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', minHeight: 0 }}>
-      {/* ── 左：精简项目树（2026-11-14 用户实测「太宽、左边很空」→ 220 缩到 108）── */}
-      <aside style={{ width: 108, flex: 'none', display: 'flex', flexDirection: 'column', gap: 3 }}>
-        <div style={{ fontSize: 11, lineHeight: '16px', color: 'var(--dsw-alias-label-tertiary)', padding: '0 6px 5px' }}>
-          范围
-        </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minHeight: 0 }}>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
         <button
           type="button"
           onClick={() => { setRange({ kind: 'all', label: '全部账号' }) }}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 6, width: '100%', minHeight: 28, padding: '5px 7px',
-            border: 'none', borderRadius: 7, cursor: 'pointer', textAlign: 'left', font: 'inherit',
-            background: range.kind === 'all' ? 'var(--dsw-alias-interactive-bg-active)' : 'transparent',
-            color: 'var(--dsw-alias-label-primary)',
-          }}
+          style={range.kind === 'all' ? chipActive : chipBase}
         >
-          <span style={{ flex: 1, fontSize: 12.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>全部账号</span>
-          <span style={{ fontSize: 11, color: 'var(--dsw-alias-label-tertiary)', flex: 'none' }}>
-            {PROVIDERS.filter(d => snaps[d.id] !== undefined).length + own.length + bench.length}
-          </span>
+          全部账号 {PROVIDERS.filter(d => snaps[d.id] !== undefined).length + own.length + bench.length}
         </button>
         {projects.map((p) => {
           const active = range.kind === 'project' && range.projectId === p.id
@@ -2003,26 +2011,16 @@ function OverviewSection(): React.JSX.Element {
               key={p.id}
               type="button"
               onClick={() => { setRange({ kind: 'project', projectId: p.id, label: p.name }) }}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 6, width: '100%', minHeight: 28, padding: '5px 7px',
-                border: 'none', borderRadius: 7, cursor: 'pointer', textAlign: 'left', font: 'inherit',
-                background: active ? 'var(--dsw-alias-interactive-bg-active)' : 'transparent',
-                color: 'var(--dsw-alias-label-primary)', opacity: active ? 1 : 0.85,
-              }}
+              style={active ? chipActive : chipBase}
             >
-              <span style={{ flex: 1, fontSize: 12.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
-              <span style={{ fontSize: 11, color: 'var(--dsw-alias-label-tertiary)', flex: 'none' }}>{projCount(p.id)}</span>
+              {p.name} {projCount(p.id)}
             </button>
           )
         })}
         {projects.length === 0 && (
-          <div style={{ fontSize: 11, lineHeight: '16px', color: 'var(--dsw-alias-label-tertiary)', padding: '4px 6px' }}>
-            还没有项目
-          </div>
+          <span style={{ fontSize: 11.5, color: 'var(--dsw-alias-label-tertiary)' }}>还没有项目分组（在「所有项目」页创建）</span>
         )}
-      </aside>
-
-      {/* ── 右：数据摘要 + AI 总结 ── */}
+      </div>
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <h3 style={{ ...sectionTitleStyle, margin: 0, flex: 1 }}>{range.label}</h3>
@@ -3589,30 +3587,40 @@ function BenchSection(): React.JSX.Element {
             const live = acct.works.filter(w => w.missing !== true)
             const hotCount = live.filter(w => isHotWork(w, live)).length
             const active = selected === key
+            const monitoring = acct.monitor === true
             return (
-              <div key={key}>
-                <button
-                  type="button"
-                  onClick={() => { setSelected(active ? null : key) }}
+              <div
+                key={key}
+                role="button"
+                tabIndex={0}
+                onClick={() => { setSelected(active ? null : key) }}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelected(active ? null : key) }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6, width: '100%', minHeight: 32, padding: '6px 7px',
+                  border: 'none', borderRadius: 7, cursor: 'pointer', textAlign: 'left', font: 'inherit',
+                  background: active ? 'var(--dsw-alias-interactive-bg-active)' : 'transparent',
+                  color: 'var(--dsw-alias-label-primary)',
+                }}
+              >
+                <span style={{ flex: 1, fontSize: 12.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{acct.nickname}</span>
+                {/* 自动监控开关（行内小钮；调度器按 monitorIntervalH 定时重采） */}
+                <span
+                  role="checkbox"
+                  aria-checked={monitoring}
+                  tabIndex={-1}
+                  title={monitoring ? `自动监控中 · 每 ${String(acct.monitorIntervalH ?? 6)}h 重采` : '开启自动监控（默认每 6h 重采）'}
+                  onClick={(e) => { e.stopPropagation(); patchBench(key, a => ({ ...a, monitor: !monitoring })) }}
                   style={{
-                    display: 'flex', alignItems: 'center', gap: 6, width: '100%', minHeight: 30, padding: '6px 7px',
-                    border: 'none', borderRadius: 7, cursor: 'pointer', textAlign: 'left', font: 'inherit',
-                    background: active ? 'var(--dsw-alias-interactive-bg-active)' : 'transparent',
-                    color: 'var(--dsw-alias-label-primary)',
+                    flex: 'none', fontSize: 10.5, padding: '1px 7px', borderRadius: 999,
+                    border: `1px solid ${monitoring ? 'transparent' : 'var(--dsw-alias-border-l2)'}`,
+                    background: monitoring ? 'var(--dsw-alias-interactive-bg-active)' : 'transparent',
+                    color: monitoring ? 'var(--dsw-alias-label-primary)' : 'var(--dsw-alias-label-tertiary)',
+                    cursor: 'pointer', userSelect: 'none',
                   }}
                 >
-                  <span style={{ flex: 1, fontSize: 12.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{acct.nickname}</span>
-                  {hotCount > 0 && <span style={{ fontSize: 10.5, color: '#F5A524', flex: 'none' }}>🔥{hotCount}</span>}
-                </button>
-                {/* 自动监控开关（调度器按 monitorIntervalH 定时重采） */}
-                <label style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '0 7px 4px', fontSize: 10.5, color: 'var(--dsw-alias-label-tertiary)', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={acct.monitor === true}
-                    onChange={(e) => { patchBench(key, a => ({ ...a, monitor: e.target.checked })) }}
-                  />
-                  自动监控{acct.monitor === true ? ` · 每 ${String(acct.monitorIntervalH ?? 6)}h` : ''}
-                </label>
+                  ⏰{monitoring ? `${String(acct.monitorIntervalH ?? 6)}h` : '关'}
+                </span>
+                {hotCount > 0 && <span style={{ fontSize: 10.5, color: HOT_COLOR, flex: 'none' }}>🔥{hotCount}</span>}
               </div>
             )
           })}
@@ -3775,7 +3783,7 @@ function SignalsSection(): React.JSX.Element {
             {benchSignals.slice(0, 10).map(sig => (
               <a key={sig.awemeId} href={sig.webUrl} target="_blank" rel="noreferrer"
                 style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderTop: '1px solid var(--dsw-alias-border-l2)', fontSize: 12.5, textDecoration: 'none', color: 'var(--dsw-alias-label-primary)' }}>
-                <span style={{ flex: 'none', fontSize: 10.5, color: '#F5A524' }}>🔥 {sig.score}</span>
+                <span style={{ flex: 'none', fontSize: 10.5, color: HOT_COLOR }}>🔥 {sig.score}</span>
                 <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sig.desc || '(无标题)'}</span>
                 <span style={{ flex: 'none', fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' }}>{sig.benchNickname} · 播 {(sig.plays ?? 0).toLocaleString('zh-CN')}</span>
               </a>
@@ -3801,7 +3809,7 @@ function SignalsSection(): React.JSX.Element {
             {hot.items.slice(0, 20).map((it, i) => (
               <a key={it.webUrl || i} href={it.webUrl} target="_blank" rel="noreferrer"
                 style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 0', borderTop: '1px solid var(--dsw-alias-border-l2)', fontSize: 12.5, textDecoration: 'none', color: 'var(--dsw-alias-label-primary)' }}>
-                <span style={{ flex: 'none', width: 22, fontSize: 11, color: (it.rank ?? 99) <= 3 ? '#E5484D' : 'var(--dsw-alias-label-tertiary)', fontVariantNumeric: 'tabular-nums' }}>
+                <span style={{ flex: 'none', width: 22, fontSize: 11, color: (it.rank ?? 99) <= 3 ? DANGER_COLOR : 'var(--dsw-alias-label-tertiary)', fontVariantNumeric: 'tabular-nums' }}>
                   {it.rank === null ? '—' : String(it.rank)}
                 </span>
                 <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.word}</span>
@@ -3961,7 +3969,7 @@ function PoolSection(): React.JSX.Element {
               <span style={{ flex: 'none', display: 'flex', gap: 4 }}>
                 {item.status === '候选' && (
                   <button type="button" onClick={() => { createFrom(item) }}
-                    style={{ border: 'none', borderRadius: 6, padding: '3px 9px', font: 'inherit', fontSize: 11, cursor: 'pointer', background: '#1a1a1a', color: '#fff' }}>
+                    style={{ border: 'none', borderRadius: 6, padding: '3px 9px', font: 'inherit', fontSize: 11, cursor: 'pointer', background: 'var(--dsw-alias-label-primary)', color: 'var(--dsw-alias-bg-base)' }}>
                     去创作
                   </button>
                 )}
@@ -4098,7 +4106,7 @@ function ContentSection(): React.JSX.Element {
                     </span>
                   </button>
                   <button type="button" onClick={() => { deconstruct(entry) }}
-                    style={{ flex: 'none', border: 'none', borderRadius: 6, padding: '3px 9px', font: 'inherit', fontSize: 11, cursor: 'pointer', background: '#1a1a1a', color: '#fff' }}>
+                    style={{ flex: 'none', border: 'none', borderRadius: 6, padding: '3px 9px', font: 'inherit', fontSize: 11, cursor: 'pointer', background: 'var(--dsw-alias-label-primary)', color: 'var(--dsw-alias-bg-base)' }}>
                     拆解
                   </button>
                   <button type="button" disabled={analyzing !== null}
@@ -4224,7 +4232,7 @@ function RetroSection(): React.JSX.Element {
   }
 
   const VERDICT_COLORS: Record<string, string> = {
-    起量: '#F5A524', 高于: '#30A46C', 接近: 'var(--dsw-alias-label-secondary)', 低于: '#E5484D', 数据不足: 'var(--dsw-alias-label-tertiary)',
+    起量: HOT_COLOR, 高于: SUCCESS_COLOR, 接近: 'var(--dsw-alias-label-secondary)', 低于: DANGER_COLOR, 数据不足: 'var(--dsw-alias-label-tertiary)',
   }
 
   const inputStyleR: React.CSSProperties = {
@@ -4262,14 +4270,14 @@ function RetroSection(): React.JSX.Element {
                     <span style={{ flex: 'none', display: 'flex', gap: 4 }}>
                       {chain.map(p => (
                         <span key={p.hour} title={`T+${String(p.hour)}h ${p.state}${p.plays !== null ? ` · ${String(p.plays)} 播` : ''}`}
-                          style={{ width: 9, height: 9, borderRadius: 5, background: p.state === 'taken' ? '#30A46C' : p.state === 'due' ? '#F5A524' : p.state === 'missed' ? '#E5484D' : 'var(--dsw-alias-border-l2)' }} />
+                          style={{ width: 9, height: 9, borderRadius: 5, background: p.state === 'taken' ? SUCCESS_COLOR : p.state === 'due' ? HOT_COLOR : p.state === 'missed' ? DANGER_COLOR : 'var(--dsw-alias-border-l2)' }} />
                       ))}
                     </span>
                     {/* 盲预测：已锁定显 🔒档；零快照窗口内给录入钮（7.15） */}
                     {rec.prediction !== undefined && (
                       <span style={{
                         flex: 'none', fontSize: 11,
-                        color: brokenPred.has(rec.id) ? '#E5484D' : 'var(--dsw-alias-label-secondary)',
+                        color: brokenPred.has(rec.id) ? DANGER_COLOR : 'var(--dsw-alias-label-secondary)',
                       }} title={brokenPred.has(rec.id) ? '⚠️ integrity_hash 校验失败：预测可能被篡改' : '盲预测已锁定（integrity_hash 校验通过）'}>
                         {brokenPred.has(rec.id) ? '⚠️预测' : '🔒预测'} {rec.prediction.tier}
                       </span>
@@ -4305,7 +4313,7 @@ function RetroSection(): React.JSX.Element {
                       <div>{retro.basis}{retro.ratio !== null ? `（${retro.ratio.toFixed(2)}×）` : ''}</div>
                       {retro.prediction !== null && (
                         <div>
-                        盲预测对照：预测「{retro.prediction.tier}」vs 实际「{retro.verdict}」——
+                          盲预测对照：预测「{retro.prediction.tier}」vs 实际「{retro.verdict}」——
                           {retro.prediction.hit ? '✓ 猜中' : `偏差 ${String(retro.prediction.deviation)} 档`}
                         </div>
                       )}
@@ -4356,7 +4364,7 @@ function RetroSection(): React.JSX.Element {
                 <span style={{
                   flex: 'none', fontSize: 10.5, padding: '1px 7px', borderRadius: 999,
                   border: '1px solid var(--dsw-alias-border-l2)',
-                  color: r.status === '已验证' ? '#30A46C' : r.status === '待审' ? '#F5A524' : 'var(--dsw-alias-label-tertiary)',
+                  color: r.status === '已验证' ? SUCCESS_COLOR : r.status === '待审' ? HOT_COLOR : 'var(--dsw-alias-label-tertiary)',
                 }}>
                   {r.status}
                 </span>
@@ -4364,7 +4372,7 @@ function RetroSection(): React.JSX.Element {
                 <span style={{ flex: 'none', display: 'flex', gap: 4 }}>
                   {r.status === '待审' && (
                     <button type="button" onClick={() => { setRules(setRuleStatus(r.id, '已验证')) }}
-                      style={{ border: 'none', borderRadius: 6, padding: '2px 8px', font: 'inherit', fontSize: 10.5, cursor: 'pointer', background: '#1a1a1a', color: '#fff' }}>
+                      style={{ border: 'none', borderRadius: 6, padding: '2px 8px', font: 'inherit', fontSize: 10.5, cursor: 'pointer', background: 'var(--dsw-alias-label-primary)', color: 'var(--dsw-alias-bg-base)' }}>
                       批准
                     </button>
                   )}
