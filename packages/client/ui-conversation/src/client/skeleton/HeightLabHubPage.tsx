@@ -741,22 +741,44 @@ const cardDescStyle: CSSProperties = {
 /* ── 聊天启动创作执行器（2026-11-17 O49 万能操控）────────────────────
  * MCP heightlab_start_module(action=start) → app-command start_module →
  * hl:ops-start-module → 这里组装 templates（MODULE_TEMPLATE_IDS×VIDEO_CATALOG，
- * 与分类卡点击同一份目录）→ 派生原生 hl:start-module（ui-workspace 消费）。 */
+ * 与分类卡点击同一份目录）→ 派生原生 hl:start-module（ui-workspace 消费）。
+ *
+ * 1117 用户实测抓 bug：module 传了页面级 id（video-studio）而非模块 id，
+ * MODULE_TEMPLATE_IDS 查空 → 右侧控制台模板网格全空（「模板集整理中」）
+ * + 中间标题降级显示原始 id。现在：STUDIO_CARDS 权威注册表做 id/中文名
+ * 双向匹配；查不到拒绝执行（不再静默开出空控制台）；爆款复刻走原生
+ * hl:start-replication（与分类卡同链路）。 */
 if (typeof window !== 'undefined') {
   window.addEventListener('hl:ops-start-module', ((e: Event) => {
     const params = (e as CustomEvent<Record<string, unknown>>).detail ?? {}
-    const moduleId = String(params.module ?? '').trim()
-    if (moduleId === '') return
+    const raw = String(params.module ?? '').trim()
+    if (raw === '') return
+    const card = STUDIO_CARDS.find(c =>
+      c.moduleId === raw || c.name === raw || c.name.includes(raw) || c.moduleId.includes(raw.toLowerCase()))
+    if (card === undefined) {
+      console.warn(`[ops] 未知创作模块「${raw}」（可用：${STUDIO_CARDS.map(c => `${c.name}(${c.moduleId})`).join(' / ')}）`)
+      return
+    }
+    /* 爆款复刻：原生走复刻链路（与分类卡点击一致），不经模块网格 */
+    if (card.moduleId === 'replication') {
+      window.dispatchEvent(new CustomEvent('hl:start-replication'))
+      return
+    }
     const templateName = String(params.template_name ?? '').trim()
-    const templates = (MODULE_TEMPLATE_IDS[moduleId] ?? [])
+    const templates = (MODULE_TEMPLATE_IDS[card.moduleId] ?? [])
       .map(id => VIDEO_CATALOG.find(item => item.id === id))
       .filter((item): item is (typeof VIDEO_CATALOG)[number] => item !== undefined)
       .map(item => ({ id: item.id, name: item.name, tagline: item.tagline ?? '', cover: item.cover ?? '', skill: item.skill }))
+    if (templates.length === 0) {
+      console.warn(`[ops] 模块「${card.name}」模板目录为空，拒绝开出空控制台`)
+      return
+    }
     const target = templateName === '' ? undefined : templates.find(t => t.name.includes(templateName) || t.id.includes(templateName))
     window.dispatchEvent(new CustomEvent('hl:start-module', {
       detail: {
-        moduleId,
-        name: moduleId,
+        moduleId: card.moduleId,
+        name: card.name,
+        desc: card.desc,
         templates,
         ...(target !== undefined ? { template: { id: target.id, name: target.name, skill: target.skill } } : {}),
       },
