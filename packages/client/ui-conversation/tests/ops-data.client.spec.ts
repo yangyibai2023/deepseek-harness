@@ -426,3 +426,115 @@ describe('backfillDueRecords（T+N 回填纯函数）', () => {
     expect(changed).toBe(false)
   })
 })
+
+/* ── 对标与热点纯函数（2026-11-16，O49 对标/热点 tab）────────────────── */
+
+import {
+  addFeedback,
+  addWatch,
+  benchWorkScore,
+  formatHotValue,
+  hotSignalsFromBench,
+  hotThreshold,
+  isHotWork,
+  loadSignals,
+  median,
+  removeFeedback,
+  removeWatch,
+} from '../src/client/skeleton/HeightLabOpsBench.ts'
+
+describe('benchWorkScore（爆款判定公式 §4.22）', () => {
+  it('赞×1 + 评×3 + 藏×4 + 转×5', () => {
+    expect(benchWorkScore({ diggs: 10, comments: 2, collects: 3, shares: 1 })).toBe(10 + 6 + 12 + 5)
+  })
+  it('缺项按 0 计', () => {
+    expect(benchWorkScore({ diggs: 5 })).toBe(5)
+    expect(benchWorkScore({})).toBe(0)
+  })
+})
+
+describe('median / hotThreshold', () => {
+  it('奇偶中位数', () => {
+    expect(median([1, 5, 9])).toBe(5)
+    expect(median([1, 5, 9, 20])).toBe(7)
+    expect(median([])).toBe(0)
+  })
+  it('阈值 = 中位数×2；空账号阈值无穷大（无爆款）', () => {
+    expect(hotThreshold([{ diggs: 1 }, { diggs: 3 }, { diggs: 5 }])).toBe(6)
+    expect(hotThreshold([])).toBe(Number.POSITIVE_INFINITY)
+  })
+})
+
+describe('isHotWork', () => {
+  const works = [
+    { diggs: 10 },   // score 10
+    { diggs: 20 },   // score 20
+    { diggs: 30 },   // score 30 → median(10,20,30)=20, 阈值 40
+  ]
+  it('高于 2×中位数判爆款', () => {
+    expect(isHotWork({ diggs: 45 }, works)).toBe(true)
+    expect(isHotWork({ diggs: 30 }, works)).toBe(false)
+  })
+  it('零分不算爆款（防全员 0 全灭/全爆）', () => {
+    expect(isHotWork({}, works)).toBe(false)
+  })
+})
+
+describe('hotSignalsFromBench（对标高表现信号）', () => {
+  const bench = [{
+    link: 'https://x', secUid: 's1', nickname: '对标A',
+    works: [
+      { awemeId: 'a1', desc: '新爆款', diggs: 100, firstSeenAt: NOW - 2 * 24 * 3_600_000, playUrl: 'https://v/1' },
+      { awemeId: 'a2', desc: '老作品', diggs: 5, firstSeenAt: NOW - 30 * 24 * 3_600_000, playUrl: null },
+      { awemeId: 'a3', desc: '新普通', diggs: 1, firstSeenAt: NOW - 1 * 24 * 3_600_000, playUrl: null },
+      { awemeId: 'a4', desc: '垫中位', diggs: 2, firstSeenAt: NOW - 1 * 24 * 3_600_000, playUrl: null },
+    ],
+  }]
+  it('只有近 7 天新出现的爆款进信号，分数降序', () => {
+    const signals = hotSignalsFromBench(bench, NOW)
+    expect(signals).toHaveLength(1)
+    expect(signals[0]!.awemeId).toBe('a1')
+    expect(signals[0]!.benchNickname).toBe('对标A')
+    expect(signals[0]!.score).toBe(100)
+  })
+  it('missing 作品不参与判定', () => {
+    const withMissing = [{
+      link: 'l', secUid: 's', nickname: 'n',
+      works: [
+        { awemeId: 'm1', desc: '', diggs: 0, missing: true },
+        { awemeId: 'm2', desc: '', diggs: 10, firstSeenAt: NOW - 1 * 24 * 3_600_000 },
+      ],
+    }]
+    const signals = hotSignalsFromBench(withMissing, NOW)
+    expect(signals.some(s => s.awemeId === 'm1')).toBe(false)
+  })
+})
+
+describe('关注与反馈存储（localStorage 往返）', () => {
+  it('addWatch/removeWatch 往返一致', () => {
+    const s1 = addWatch('https://douyin.com/video/1', '好案例', NOW)
+    expect(s1.watch).toHaveLength(1)
+    expect(s1.watch[0]!.note).toBe('好案例')
+    const s2 = removeWatch(s1.watch[0]!.id)
+    expect(s2.watch).toHaveLength(0)
+  })
+  it('addFeedback/removeFeedback 往返一致', () => {
+    const s1 = addFeedback('用户问怎么设置', NOW)
+    expect(s1.feedback[0]!.text).toBe('用户问怎么设置')
+    const s2 = removeFeedback(s1.feedback[0]!.id)
+    expect(s2.feedback).toHaveLength(0)
+  })
+  it('loadSignals 空存储返回空骨架', () => {
+    const s = loadSignals()
+    expect(s.watch).toEqual([])
+    expect(s.feedback).toEqual([])
+  })
+})
+
+describe('formatHotValue', () => {
+  it('≥1万 → xx万；否则原值；null 空串', () => {
+    expect(formatHotValue(12_097_246)).toBe('1209.7万')
+    expect(formatHotValue(9999)).toBe('9999')
+    expect(formatHotValue(null)).toBe('')
+  })
+})

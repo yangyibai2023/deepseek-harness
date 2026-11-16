@@ -32,6 +32,18 @@ import {
   type PublishRecord,
 } from './HeightLabOpsData.ts'
 import { buildActionItems, type OpsActionItem } from './HeightLabOpsActions.ts'
+import {
+  addFeedback,
+  addWatch,
+  benchWorkScore,
+  formatHotValue,
+  hotSignalsFromBench,
+  isHotWork,
+  loadSignals,
+  removeFeedback,
+  removeWatch,
+  type HotBoardItem,
+} from './HeightLabOpsBench.ts'
 
 /* ── 平台定义 ──────────────────────────────────────────────────────────── */
 
@@ -3395,10 +3407,324 @@ interface PlatformState {
   error?: string
 }
 
+
+/* ═══ 对标 tab（2026-11-16，O49 核心②）══════════════════════════════ */
+
+const BENCH_ANALYZE_PROMPT = '请分析这个对标账号：1）账号定位与目标受众 2）内容公式（选题/结构/钩子规律）3）优势与可复制点 4）照搬风险与我的差异化建议'
+
+function agoText(at: number): string {
+  const h = Math.floor((Date.now() - at) / 3_600_000)
+  if (h < 1) return '刚同步'
+  if (h < 24) return `${String(h)} 小时前`
+  return `${String(Math.floor(h / 24))} 天前`
+}
+
+function BenchSection(): React.JSX.Element {
+  const [bench, setBench] = useState<BenchAccount[]>(loadBench)
+  const [selected, setSelected] = useState<string | null>(null)
+  const [sort, setSort] = useState<'score' | 'new' | 'plays'>('score')
+
+  useEffect(() => {
+    const onChange = (): void => { setBench(loadBench()) }
+    window.addEventListener('hl-ops-groups-changed', onChange)
+    return () => { window.removeEventListener('hl-ops-groups-changed', onChange) }
+  }, [])
+
+  const analyze = (acct: BenchAccount): void => {
+    const live = acct.works.filter(w => w.missing !== true)
+    const lines = [...live]
+      .sort((a, b) => benchWorkScore(b) - benchWorkScore(a))
+      .slice(0, 15)
+      .map((w, i) => `${String(i + 1)}. ${(w.desc ?? '').slice(0, 40) || '(无标题)'} — 播放 ${String(w.plays ?? '—')} · 赞 ${String(w.diggs ?? '—')} · 评 ${String(w.comments ?? '—')} · 藏 ${String(w.collects ?? '—')} · 转 ${String(w.shares ?? '—')}（综合分 ${String(benchWorkScore(w))}）`)
+    const stamp = new Date()
+    const hhmm = `${String(stamp.getMonth() + 1).padStart(2, '0')}-${String(stamp.getDate()).padStart(2, '0')} ${String(stamp.getHours()).padStart(2, '0')}:${String(stamp.getMinutes()).padStart(2, '0')}`
+    const prompt = `【对标账号 · ${acct.nickname}】共 ${String(live.length)} 条作品，按综合分排序：\n${lines.join('\n')}\n\n${BENCH_ANALYZE_PROMPT}`
+    window.dispatchEvent(new CustomEvent('hl:close-hub'))
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('hl:insert-ops-chip', { detail: { label: `对标分析 · ${acct.nickname} · ${hhmm}`, prompt } }))
+      setTimeout(() => { window.dispatchEvent(new CustomEvent('hl:submit-draft')) }, 400)
+    }, 300)
+  }
+
+  const sel = bench.find(b => (b.secUid || b.link) === selected) ?? null
+
+  return (
+    <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', minHeight: 0 }}>
+      <aside style={{ width: 200, flex: 'none', display: 'flex', flexDirection: 'column', gap: 3 }}>
+        <div style={{ fontSize: 11, lineHeight: '16px', color: 'var(--dsw-alias-label-tertiary)', padding: '0 6px 5px' }}>
+          对标账号（{bench.length}）
+        </div>
+        {bench.length === 0 && (
+          <div style={{ fontSize: 11, lineHeight: '16px', color: 'var(--dsw-alias-label-tertiary)', padding: '4px 6px' }}>
+            还没有对标。到「所有项目」页粘贴对标主页链接添加。
+          </div>
+        )}
+        {bench.map((acct) => {
+          const key = acct.secUid || acct.link
+          const live = acct.works.filter(w => w.missing !== true)
+          const hotCount = live.filter(w => isHotWork(w, live)).length
+          const active = selected === key
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => { setSelected(active ? null : key) }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6, width: '100%', minHeight: 30, padding: '6px 7px',
+                border: 'none', borderRadius: 7, cursor: 'pointer', textAlign: 'left', font: 'inherit',
+                background: active ? 'var(--dsw-alias-interactive-bg-active)' : 'transparent',
+                color: 'var(--dsw-alias-label-primary)',
+              }}
+            >
+              <span style={{ flex: 1, fontSize: 12.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{acct.nickname}</span>
+              {hotCount > 0 && <span style={{ fontSize: 10.5, color: '#F5A524', flex: 'none' }}>🔥{hotCount}</span>}
+            </button>
+          )
+        })}
+      </aside>
+
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {sel === null ? (
+          <div style={rowDescStyle}>
+            点左侧账号看作品墙（爆款角标 = 综合分 ≥ 全账号中位数×2，公式：赞×1+评×3+藏×4+转×5）。添加对标在「所有项目」页。
+          </div>
+        ) : (
+          (() => {
+            const live = sel.works.filter(w => w.missing !== true)
+            const sorted = [...live].sort((a, b) => {
+              if (sort === 'score') return benchWorkScore(b) - benchWorkScore(a)
+              if (sort === 'plays') return (b.plays ?? 0) - (a.plays ?? 0)
+              return (b.firstSeenAt ?? b.lastSeenAt ?? 0) - (a.firstSeenAt ?? a.lastSeenAt ?? 0)
+            })
+            return (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <h3 style={{ ...sectionTitleStyle, margin: 0, flex: 1 }}>{sel.nickname}</h3>
+                  <span style={{ fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' }}>{agoText(sel.syncedAt)} · {live.length} 条作品</span>
+                  <button type="button" onClick={() => { analyze(sel) }} style={primaryBtnStyle(false)}>分析作者</button>
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {([['score', '综合分'], ['new', '最新'], ['plays', '播放']] as const).map(([k, label]) => (
+                    <button key={k} type="button" onClick={() => { setSort(k) }}
+                      style={{
+                        border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 999, padding: '3px 10px',
+                        font: 'inherit', fontSize: 11.5, cursor: 'pointer',
+                        background: sort === k ? 'var(--dsw-alias-interactive-bg-active)' : 'transparent',
+                        color: sort === k ? 'var(--dsw-alias-label-primary)' : 'var(--dsw-alias-label-tertiary)',
+                      }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  {sorted.map((w) => {
+                    const hot = isHotWork(w, live)
+                    return (
+                      <div key={w.awemeId} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderTop: '1px solid var(--dsw-alias-border-l2)', fontSize: 12 }}>
+                        {hot && <span style={{ flex: 'none', fontSize: 10.5 }}>🔥</span>}
+                        <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--dsw-alias-label-primary)' }}>
+                          {(w.desc ?? '').slice(0, 44) || '(无标题)'}
+                          {w.asr !== undefined && w.asr !== '' && <span style={{ marginLeft: 6, fontSize: 10.5, color: 'var(--dsw-alias-label-tertiary)' }}>文案✓</span>}
+                        </span>
+                        <span style={{ flex: 'none', width: 64, textAlign: 'right', color: 'var(--dsw-alias-label-tertiary)', fontVariantNumeric: 'tabular-nums' }}>播 {(w.plays ?? 0).toLocaleString('zh-CN')}</span>
+                        <span style={{ flex: 'none', width: 44, textAlign: 'right', color: 'var(--dsw-alias-label-tertiary)', fontVariantNumeric: 'tabular-nums' }}>赞 {String(w.diggs ?? 0)}</span>
+                        <span style={{ flex: 'none', width: 40, textAlign: 'right', color: 'var(--dsw-alias-label-tertiary)', fontVariantNumeric: 'tabular-nums' }}>评 {String(w.comments ?? 0)}</span>
+                        <span style={{ flex: 'none', width: 40, textAlign: 'right', color: 'var(--dsw-alias-label-tertiary)', fontVariantNumeric: 'tabular-nums' }}>藏 {String(w.collects ?? 0)}</span>
+                        <span style={{ flex: 'none', width: 40, textAlign: 'right', color: 'var(--dsw-alias-label-tertiary)', fontVariantNumeric: 'tabular-nums' }}>转 {String(w.shares ?? 0)}</span>
+                      </div>
+                    )
+                  })}
+                  {sorted.length === 0 && <div style={rowDescStyle}>这个账号还没有作品数据。</div>}
+                </div>
+              </>
+            )
+          })()
+        )}
+      </div>
+    </div>
+  )
+}
+
+/* ═══ 热点 tab（2026-11-16，O49 核心③）══════════════════════════════ */
+
+const HOTBOARD_CACHE_KEY = 'hl-ops-hotboard-v1'
+const HOTBOARD_TTL_MS = 30 * 60_000
+
+function loadHotBoardCache(): { at: number; items: HotBoardItem[] } | null {
+  try {
+    const raw = window.localStorage.getItem(HOTBOARD_CACHE_KEY)
+    if (raw === null) return null
+    const parsed = JSON.parse(raw) as { at: number; items: HotBoardItem[] }
+    return typeof parsed.at === 'number' && Array.isArray(parsed.items) ? parsed : null
+  } catch { return null }
+}
+
+function SignalsSection(): React.JSX.Element {
+  const [signals, setSignals] = useState(loadSignals)
+  const [hot, setHot] = useState<{ at: number; items: HotBoardItem[] } | null>(loadHotBoardCache)
+  const [hotState, setHotState] = useState<'idle' | 'loading' | 'error'>('idle')
+  const [watchUrl, setWatchUrl] = useState('')
+  const [watchNote, setWatchNote] = useState('')
+  const [feedbackText, setFeedbackText] = useState('')
+
+  const [benchTick, setBenchTick] = useState(0)
+  useEffect(() => {
+    const onChange = (): void => { setBenchTick(v => v + 1) }
+    window.addEventListener('hl-ops-groups-changed', onChange)
+    return () => { window.removeEventListener('hl-ops-groups-changed', onChange) }
+  }, [])
+  void benchTick   /* 事件驱动的重渲染计数：对标库随 tick 重读 */
+  const benchSignals = hotSignalsFromBench(loadBench())
+
+  const refreshHot = (): void => {
+    const cached = loadHotBoardCache()
+    if (cached !== null && Date.now() - cached.at < HOTBOARD_TTL_MS) {
+      setHot(cached)
+      return
+    }
+    setHotState('loading')
+    fetch('/hl/ops/hot-board', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ platform: 'douyin' }),
+    })
+      .then(r => r.json())
+      .then((d) => {
+        const items = (d?.data?.items ?? []) as HotBoardItem[]
+        const next = { at: Date.now(), items }
+        setHot(next)
+        setHotState('idle')
+        try { window.localStorage.setItem(HOTBOARD_CACHE_KEY, JSON.stringify(next)) } catch { /* 满 */ }
+      })
+      .catch(() => { setHotState('error') })
+  }
+
+  useEffect(() => {
+    const cached = loadHotBoardCache()
+    if (cached === null || Date.now() - cached.at >= HOTBOARD_TTL_MS) refreshHot()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const inputStyle: React.CSSProperties = {
+    flex: 1, minWidth: 0, height: 32, padding: '0 10px', font: 'inherit', fontSize: 12.5,
+    border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 8, background: 'transparent',
+    color: 'var(--dsw-alias-label-primary)', outline: 'none',
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      <section>
+        <h3 style={{ ...sectionTitleStyle, marginBottom: 10 }}>对标高表现</h3>
+        {benchSignals.length === 0 ? (
+          <div style={rowDescStyle}>近 7 天对标账号没有新爆款。在对标 tab 添加账号并采集后，这里会自动出现信号。</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {benchSignals.slice(0, 10).map(sig => (
+              <a key={sig.awemeId} href={sig.webUrl} target="_blank" rel="noreferrer"
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderTop: '1px solid var(--dsw-alias-border-l2)', fontSize: 12.5, textDecoration: 'none', color: 'var(--dsw-alias-label-primary)' }}>
+                <span style={{ flex: 'none', fontSize: 10.5, color: '#F5A524' }}>🔥 {sig.score}</span>
+                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sig.desc || '(无标题)'}</span>
+                <span style={{ flex: 'none', fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' }}>{sig.benchNickname} · 播 {(sig.plays ?? 0).toLocaleString('zh-CN')}</span>
+              </a>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+          <h3 style={{ ...sectionTitleStyle, margin: 0, flex: 1 }}>抖音热榜</h3>
+          {hot !== null && <span style={{ fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' }}>更新于 {agoText(hot.at)}</span>}
+          <button type="button" onClick={refreshHot} style={primaryBtnStyle(false)}>
+            {hotState === 'loading' ? '拉取中…' : '刷新'}
+          </button>
+        </div>
+        {hotState === 'error' ? (
+          <div style={rowDescStyle}>热榜暂时拉不到（服务端接口未部署或网络问题）。手动关注和用户反馈不受影响。</div>
+        ) : hot === null || hot.items.length === 0 ? (
+          <div style={rowDescStyle}>{hotState === 'loading' ? '正在拉取热榜…' : '还没有热榜数据，点右上角刷新。'}</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {hot.items.slice(0, 20).map((it, i) => (
+              <a key={it.webUrl || i} href={it.webUrl} target="_blank" rel="noreferrer"
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 0', borderTop: '1px solid var(--dsw-alias-border-l2)', fontSize: 12.5, textDecoration: 'none', color: 'var(--dsw-alias-label-primary)' }}>
+                <span style={{ flex: 'none', width: 22, fontSize: 11, color: (it.rank ?? 99) <= 3 ? '#E5484D' : 'var(--dsw-alias-label-tertiary)', fontVariantNumeric: 'tabular-nums' }}>
+                  {it.rank === null ? '—' : String(it.rank)}
+                </span>
+                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.word}</span>
+                {it.hotValue !== null && <span style={{ flex: 'none', fontSize: 11, color: 'var(--dsw-alias-label-tertiary)', fontVariantNumeric: 'tabular-nums' }}>{formatHotValue(it.hotValue)}</span>}
+              </a>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section>
+        <h3 style={{ ...sectionTitleStyle, marginBottom: 10 }}>手动关注</h3>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+          <input value={watchUrl} onChange={(e) => { setWatchUrl(e.target.value) }} placeholder="作品/账号链接" style={inputStyle} />
+          <input value={watchNote} onChange={(e) => { setWatchNote(e.target.value) }} placeholder="备注（可选）" style={{ ...inputStyle, maxWidth: 140 }} />
+          <button type="button" disabled={watchUrl.trim() === ''}
+            onClick={() => { setSignals(addWatch(watchUrl, watchNote)); setWatchUrl(''); setWatchNote('') }}
+            style={primaryBtnStyle(watchUrl.trim() === '')}>
+            添加
+          </button>
+        </div>
+        {signals.watch.length === 0 ? (
+          <div style={rowDescStyle}>刷到好东西随手贴进来，攒选题时用。</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {signals.watch.map(w => (
+              <div key={w.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 0', borderTop: '1px solid var(--dsw-alias-border-l2)', fontSize: 12.5 }}>
+                <a href={w.url} target="_blank" rel="noreferrer" style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--dsw-alias-label-primary)', textDecoration: 'none' }}>
+                  {w.note !== '' ? w.note : w.url}
+                </a>
+                <span style={{ flex: 'none', fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' }}>{agoText(w.at)}</span>
+                <button type="button" onClick={() => { setSignals(removeWatch(w.id)) }}
+                  style={{ flex: 'none', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 11, color: 'var(--dsw-alias-label-tertiary)', padding: '2px 4px' }}>
+                  删除
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section>
+        <h3 style={{ ...sectionTitleStyle, marginBottom: 10 }}>用户反馈</h3>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+          <input value={feedbackText} onChange={(e) => { setFeedbackText(e.target.value) }} placeholder="评论/私信里的真实需求，随手记下来" style={inputStyle} />
+          <button type="button" disabled={feedbackText.trim() === ''}
+            onClick={() => { setSignals(addFeedback(feedbackText)); setFeedbackText('') }}
+            style={primaryBtnStyle(feedbackText.trim() === '')}>
+            记下
+          </button>
+        </div>
+        {signals.feedback.length === 0 ? (
+          <div style={rowDescStyle}>用户的原话是最真实的选题来源。</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {signals.feedback.map(f => (
+              <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 0', borderTop: '1px solid var(--dsw-alias-border-l2)', fontSize: 12.5 }}>
+                <span style={{ flex: 1, minWidth: 0, color: 'var(--dsw-alias-label-primary)' }}>{f.text}</span>
+                <span style={{ flex: 'none', fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' }}>{agoText(f.at)}</span>
+                <button type="button" onClick={() => { setSignals(removeFeedback(f.id)) }}
+                  style={{ flex: 'none', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 11, color: 'var(--dsw-alias-label-tertiary)', padding: '2px 4px' }}>
+                  删除
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+  )
+}
+
 export function HeightLabOpsPage() {
   /* O57 D2（2026-11-14 用户拍板）：页面级双分页——我的账号（原数据概览）/ 对标账号（原对标库） */
   /* O57 四轮（2026-11-14 用户拍板方案 A）：两页——当前概况（洞察优先）/ 账号（我的+对标合并） */
-  const [tab, setTab] = useState<'overview' | 'accounts'>('overview')
+  const [tab, setTab] = useState<'overview' | 'accounts' | 'bench' | 'signals'>('overview')
   const [snapshots, setSnapshots] = useState<Record<string, PlatformSnapshot>>(loadSnapshots)
   const [states, setStates] = useState<Record<string, PlatformState>>({})
   const [detail, setDetail] = useState<ProviderId | null>(null)
@@ -3700,6 +4026,24 @@ export function HeightLabOpsPage() {
         >
           所有项目
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'bench'}
+          className={clsx(css.libraryTab, tab === 'bench' && css.libraryTabActive)}
+          onClick={() => { setTab('bench'); setDetail(null) }}
+        >
+          对标
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'signals'}
+          className={clsx(css.libraryTab, tab === 'signals' && css.libraryTabActive)}
+          onClick={() => { setTab('signals'); setDetail(null) }}
+        >
+          热点
+        </button>
       </div>
 
       {/* 容器严格照抄原生 hubPageStyle：gap 32 / padding 12 clamp(24,4vw,48) 48 */}
@@ -3707,6 +4051,10 @@ export function HeightLabOpsPage() {
         {detailDef === null ? (
           tab === 'overview' ? (
             <OverviewSection />
+          ) : tab === 'bench' ? (
+            <BenchSection />
+          ) : tab === 'signals' ? (
+            <SignalsSection />
           ) : (
             /* O57 五轮（2026-11-14 用户拍板 v3/v4 设计稿）：
              * 项目手风琴 → 左「我的账号」/ 右「对标账号」→ 列内平台小标题 */
