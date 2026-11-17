@@ -226,8 +226,11 @@ export function HeroShell({ t, renderSlot, children }: HeroShellProps) {
         data-tauri-drag-region="deep"
         /* HeightLab V24b 用户反馈：复刻模式下引导贴顶、输入框必须贴底
            （与正常聊天一致）。原 root 是垂直居中容器——改为顶部对齐，
-           并让 stack 之后的弹性空间把 composer 推到底部。 */
-        style={{ alignItems: 'flex-start', justifyContent: 'flex-start', paddingTop: 40 }}
+           并让 stack 之后的弹性空间把 composer 推到底部。
+           1117 F6 同族审计：与模块工作台同款根修——root 壳的 height:100% +
+           负 margin 会整页溢出把输入框挤出视口，这里同样吃掉（该分支此前
+           只改了对齐没改壳，风险未排除，按模块分支已验证的修法对齐）。 */
+        style={{ alignItems: 'flex-start', justifyContent: 'flex-start', paddingTop: 40, height: 'auto', marginBottom: 0, flex: '1 1 auto', minHeight: 0 }}
       >
         <div className={css.stack}>
           <div style={{ maxWidth: 640, margin: '0 auto', width: '100%' }}>
