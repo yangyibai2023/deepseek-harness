@@ -235,6 +235,35 @@ export function apply(ctx: Context): void {
     return () => { window.removeEventListener('hl:start-replication', onStart) }
   }, 'ui-workspace: replication entry')
 
+  // HeightLab O73（2026-11-17）：聊天会话管理执行器——hl:ops-session-op
+  // （MCP heightlab_sessions 经桥 app-command 下发）。五个操作全部走
+  // uiWorkspace 原生方法（与侧栏右键菜单同款 API），失败 console.warn
+  // 不静默（写入类操作失败会在下次 list 里显形）。
+  ctx.effect(() => {
+    if (typeof window === 'undefined') return () => {}
+    const onSessionOp = (event: Event): void => {
+      const detail = (event as CustomEvent<{ op?: unknown; session_id?: unknown }>).detail ?? {}
+      const op = typeof detail.op === 'string' ? detail.op : ''
+      const sessionId = typeof detail.session_id === 'string' ? detail.session_id : ''
+      if (sessionId === '') return
+      const fail = (what: string): void => { console.warn(`[session-op] ${what} 失败：`, sessionId) }
+      if (op === 'open') {
+        try { uiWorkspace.openSession(sessionId as SessionId) } catch { fail('open') }
+        return
+      }
+      const run: (() => Promise<void>) | undefined = {
+        archive: () => uiWorkspace.archiveSession(sessionId as SessionId, { stopActivity: true }),
+        unarchive: () => uiWorkspace.unarchiveSession(sessionId as SessionId),
+        pin: () => uiWorkspace.pinSession(sessionId as SessionId),
+        unpin: () => uiWorkspace.unpinSession(sessionId as SessionId),
+      }[op]
+      if (run === undefined) { console.warn('[session-op] 未知 op：', op); return }
+      run().catch(() => { fail(op) })
+    }
+    window.addEventListener('hl:ops-session-op', onSessionOp)
+    return () => { window.removeEventListener('hl:ops-session-op', onSessionOp) }
+  }, 'ui-workspace: session-op executor')
+
   // HeightLab 0.5.7 模块创作台（2026-11-08 用户拍板「一个功能驾驭多个模板」）：
   // 视频创作一级页其余七模块（hl:start-module）——与爆款复刻共用「新建会话 +
   // 创作模式标记 + 右栏消费」链路，模式值='module'；模板集由入口侧（HubPage，
