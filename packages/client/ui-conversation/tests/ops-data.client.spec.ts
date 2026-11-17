@@ -171,7 +171,7 @@ describe('renderBaselineForPrompt', () => {
 
 import {
   MAX_ACTIONS,
-  STALE_HOURS,
+  STALE_HOURS_DEFAULT,
   buildActionItems,
   type OpsActionInput,
 } from '../src/client/skeleton/HeightLabOpsActions.ts'
@@ -248,7 +248,7 @@ describe('buildActionItems（今日行动队列）', () => {
 
   it('48h 以内不判陈旧', () => {
     const items = buildActionItems(input({
-      syncedAts: { douyin: NOW - (STALE_HOURS - 1) * 3_600_000 },
+      syncedAts: { douyin: NOW - (STALE_HOURS_DEFAULT - 1) * 3_600_000 },
     }), NOW)
     expect(items.some(i => i.id.startsWith('stale-'))).toBe(false)
   })
