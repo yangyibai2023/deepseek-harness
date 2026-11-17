@@ -3105,7 +3105,8 @@ function mergeBenchWorks(
  *
  * @returns ok=false 时 message 可直接展示给用户
  */
-export async function collectBenchIntoStore(url: string): Promise<{ ok: boolean; message: string; nickname?: string }> {
+/* F8（1117 同族审计）：条数参数化，设计 §4.12 为 1-500 可调 */
+export async function collectBenchIntoStore(url: string, count = 10): Promise<{ ok: boolean; message: string; nickname?: string }> {
   const trimmed = url.trim()
   if (trimmed === '') return { ok: false, message: '请粘贴对标账号主页链接' }
   const secMatch = /\/user\/([A-Za-z0-9_-]{20,})/.exec(trimmed)
@@ -3114,7 +3115,7 @@ export async function collectBenchIntoStore(url: string): Promise<{ ok: boolean;
     const resp = await fetch('/hl/ops/bench-posts', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(secUid !== '' ? { sec_user_id: secUid, count: 10 } : { url: trimmed, count: 10 }),
+      body: JSON.stringify(secUid !== '' ? { sec_user_id: secUid, count } : { url: trimmed, count }),
     })
     const payload = (await resp.json().catch(() => null)) as BenchPostsResponse | null
     if (payload?.ok !== true) {
@@ -3136,7 +3137,7 @@ export async function collectBenchIntoStore(url: string): Promise<{ ok: boolean;
       runs: [
         {
           at: Date.now(),
-          requested: 10,
+          requested: count,
           returned: incoming.length,
           added: merged.added,
           updated: merged.updated,
@@ -3763,7 +3764,7 @@ function SignalsSection(): React.JSX.Element {
   useEffect(() => {
     const cached = loadHotBoardCache()
     if (cached === null || Date.now() - cached.at >= HOTBOARD_TTL_MS) refreshHot()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    /* deps 刻意为空：仅挂载时预热一次，TTL 内不重复拉（oxlint 无需 disable） */
   }, [])
 
   const inputStyle: React.CSSProperties = {
@@ -4562,8 +4563,7 @@ export function HeightLabOpsPage() {
       setRecords(next)
       saveRecords(next)
     }
-    /* 只在快照数据变化时跑，避免死循环 */
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    /* 只在快照数据变化时跑，避免死循环（deps 已覆盖引用，oxlint 无需 disable） */
   }, [JSON.stringify(snapshots), records.length])
 
   /**

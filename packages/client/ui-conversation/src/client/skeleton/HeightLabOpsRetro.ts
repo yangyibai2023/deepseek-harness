@@ -10,6 +10,7 @@
  */
 
 import { SNAPSHOT_HOURS, type PublishRecord } from './HeightLabOpsData.ts'
+import { thr } from './HeightLabOpsActions.ts'
 
 /* ── T+N 证据链状态 ────────────────────────────────────────────────────── */
 
@@ -83,7 +84,8 @@ export function retroVerdict(
   }
 
   const ratio = actual / baselineAvgPlays
-  const verdict: RetroVerdict = ratio >= 2 ? '起量' : ratio >= 1.2 ? '高于' : ratio >= 0.8 ? '接近' : '低于'
+  const bands = thr().verdictBands
+  const verdict: RetroVerdict = ratio >= bands.viral ? '起量' : ratio >= bands.above ? '高于' : ratio >= bands.close ? '接近' : '低于'
 
   const first = taken[0] ?? null
   const growth = first !== null && first.plays !== null && first.plays > 0 ? actual / first.plays : null

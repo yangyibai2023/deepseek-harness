@@ -19,6 +19,10 @@ export const SYNCED_KEYS = [
   'hl-ops-pool-v1',
   'hl-ops-rules-v1',
   'hl-ops-analysis-v1',
+  /* F2（1117 同族审计）：分组映射曾漏镜像——面板分组不备份且与 MCP
+   * 直写 store 各写各的。键集合完整性由 verify-home-isolation 同款
+   * 思路在 ops 契约门禁断言（面板全部存键 ⊆ SYNCED_KEYS）。 */
+  'hl-ops-groups-v1',
 ] as const
 
 let pushTimer: number | null = null

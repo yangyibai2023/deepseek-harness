@@ -65,10 +65,42 @@ export interface OpsActionInput {
   bench: { worksTotal: number; withAsr: number }[]
 }
 
+/* ── F5 阈值单源 ─────────────────────────────────────────────────────────
+ * 判定阈值的唯一权威在桥（GET /hl/ops/thresholds，OPS_THRESHOLDS）。调度器/
+ * 持久层启动时拉取写入 window.__hlOpsThresholds；本模块所有阈值消费点读
+ * thr()（覆盖值或下方默认——默认必须与桥字面量一致，改一边必须改另一边，
+ * verify-mcp-coverage 的门禁断言对两侧字面量做一致性比对）。 */
+interface OpsThresholds {
+  staleHours: number
+  dueGraceHours: number
+  verdictBands: { viral: number; above: number; close: number }
+  maxActions: number
+  benchMonitorDefaultH: number
+}
+declare global { interface Window { __hlOpsThresholds?: Partial<OpsThresholds> } }
+export function thr(): OpsThresholds {
+  const o = (typeof window !== 'undefined' ? window.__hlOpsThresholds : undefined) ?? {}
+  return {
+    staleHours: o.staleHours ?? 48,
+    dueGraceHours: o.dueGraceHours ?? 1,
+    verdictBands: { viral: 2, above: 1.2, close: 0.8, ...(o.verdictBands ?? {}) },
+    maxActions: o.maxActions ?? 5,
+    benchMonitorDefaultH: o.benchMonitorDefaultH ?? 6,
+  }
+}
+export async function pullOpsThresholds(): Promise<void> {
+  if (typeof window === 'undefined') return
+  try {
+    const res = await fetch('/hl/ops/thresholds', { signal: AbortSignal.timeout(5_000) })
+    const d = (await res.json().catch(() => null)) as { ok?: boolean; thresholds?: Partial<OpsThresholds> } | null
+    if (res.ok && d?.ok === true && d.thresholds !== undefined) window.__hlOpsThresholds = d.thresholds
+  } catch { /* 桥不可达用兜底 */ }
+}
+
 /* ── 阈值 ──────────────────────────────────────────────────────────────── */
 
 /** 快照超过 48h 视为陈旧（两天一更是运营数据的合理下限） */
-export const STALE_HOURS = 48
+export const STALE_HOURS_DEFAULT = 48
 /** 「本周零发布」的判定窗口 */
 export const PUBLISH_WINDOW_MS = 7 * 24 * 3_600_000
 /** 设计上限：今日行动最多 5 条 */
@@ -127,7 +159,7 @@ export function buildActionItems(input: OpsActionInput, now = Date.now()): OpsAc
   /* P1 数据陈旧：任一账号快照超过 48h。按陈旧时长降序，最多报第一个。 */
   const stale = Object.entries(input.syncedAts)
     .map(([id, at]) => ({ id, at, ageH: (now - at) / 3_600_000 }))
-    .filter(x => x.ageH >= STALE_HOURS)
+    .filter(x => x.ageH >= thr().staleHours)
     .sort((a, b) => b.ageH - a.ageH)
   const staleFirst = stale[0]
   if (staleFirst !== undefined) {
