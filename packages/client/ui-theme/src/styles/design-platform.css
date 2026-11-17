@@ -220,6 +220,8 @@ body {
   --dsw-alias-label-primary-foreground: var(--dsw-static-neutral-bluish-00);
   --dsw-alias-label-primary-inverted: var(--dsw-static-neutral-bluish-00);
   --dsw-alias-label-primary: var(--dsw-static-neutral-bluish-1000);
+  --dsw-alias-label-success: var(--dsw-alias-state-success-primary);
+  --dsw-alias-label-warning: var(--dsw-static-amber-400);
   --dsw-alias-label-secondary: var(--dsw-static-neutral-bluish-700);
   --dsw-alias-label-shimmer: color-mix(in srgb, var(--dsw-static-neutral-1000) 30%, transparent);
   --dsw-alias-label-tertiary: var(--dsw-static-neutral-bluish-600);
@@ -310,6 +312,8 @@ body {
   --dsw-alias-fill-tsp-secondary: var(--dsw-alias-bg-overlay);
   --dsw-alias-label-quaternary: var(--dsw-alias-label-tertiary);
   --dsw-alias-label-error: var(--dsw-alias-state-error-primary);
+  --dsw-alias-label-success: var(--dsw-alias-state-success-primary);
+  --dsw-alias-label-warning: var(--dsw-static-amber-500);
   --dsw-alias-danger: var(--dsw-alias-state-error-primary);
   --dsw-alias-border-focus: var(--dsw-alias-border-l3);
 

@@ -3621,7 +3621,7 @@ function BenchSection(): React.JSX.Element {
                 >
                   ⏰{monitoring ? `${String(acct.monitorIntervalH ?? 6)}h` : '关'}
                 </span>
-                {hotCount > 0 && <span style={{ fontSize: 10.5, color: HOT_COLOR, flex: 'none' }}>🔥{hotCount}</span>}
+                {hotCount > 0 && <span style={{ fontSize: 10.5, color: HOT_COLOR, flex: 'none' }}>热 {hotCount}</span>}
               </div>
             )
           })}
@@ -3667,10 +3667,10 @@ function BenchSection(): React.JSX.Element {
                       const canTranscribe = (w.playUrl ?? '') !== '' && !hasAsr
                       return (
                         <div key={w.awemeId} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderTop: '1px solid var(--dsw-alias-border-l2)', fontSize: 12 }}>
-                          {hot && <span style={{ flex: 'none', fontSize: 10.5 }}>🔥</span>}
+                          {hot && <span style={{ flex: 'none', fontSize: 10.5, color: HOT_COLOR }}>热</span>}
                           <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--dsw-alias-label-primary)' }}>
                             {(w.desc ?? '').slice(0, 40) || '(无标题)'}
-                            {hasAsr && <span style={{ marginLeft: 6, fontSize: 10.5, color: 'var(--dsw-alias-label-tertiary)' }}>文案✓</span>}
+                            {hasAsr && <span style={{ marginLeft: 6, fontSize: 10.5, color: 'var(--dsw-alias-label-tertiary)' }}>已转写</span>}
                           </span>
                           <span style={{ flex: 'none', width: 64, textAlign: 'right', color: 'var(--dsw-alias-label-tertiary)', fontVariantNumeric: 'tabular-nums' }}>播 {(w.plays ?? 0).toLocaleString('zh-CN')}</span>
                           <span style={{ flex: 'none', width: 44, textAlign: 'right', color: 'var(--dsw-alias-label-tertiary)', fontVariantNumeric: 'tabular-nums' }}>赞 {String(w.diggs ?? 0)}</span>
@@ -3784,7 +3784,7 @@ function SignalsSection(): React.JSX.Element {
             {benchSignals.slice(0, 10).map(sig => (
               <a key={sig.awemeId} href={sig.webUrl} target="_blank" rel="noreferrer"
                 style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderTop: '1px solid var(--dsw-alias-border-l2)', fontSize: 12.5, textDecoration: 'none', color: 'var(--dsw-alias-label-primary)' }}>
-                <span style={{ flex: 'none', fontSize: 10.5, color: HOT_COLOR }}>🔥 {sig.score}</span>
+                <span style={{ flex: 'none', fontSize: 10.5, color: HOT_COLOR }}>热 {sig.score}</span>
                 <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sig.desc || '(无标题)'}</span>
                 <span style={{ flex: 'none', fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' }}>{sig.benchNickname} · 播 {(sig.plays ?? 0).toLocaleString('zh-CN')}</span>
               </a>
@@ -4274,13 +4274,13 @@ function RetroSection(): React.JSX.Element {
                           style={{ width: 9, height: 9, borderRadius: 5, background: p.state === 'taken' ? SUCCESS_COLOR : p.state === 'due' ? HOT_COLOR : p.state === 'missed' ? DANGER_COLOR : 'var(--dsw-alias-border-l2)' }} />
                       ))}
                     </span>
-                    {/* 盲预测：已锁定显 🔒档；零快照窗口内给录入钮（7.15） */}
+                    {/* 盲预测：已锁定显锁定档；零快照窗口内给录入钮（7.15） */}
                     {rec.prediction !== undefined && (
                       <span style={{
                         flex: 'none', fontSize: 11,
                         color: brokenPred.has(rec.id) ? DANGER_COLOR : 'var(--dsw-alias-label-secondary)',
-                      }} title={brokenPred.has(rec.id) ? '⚠️ integrity_hash 校验失败：预测可能被篡改' : '盲预测已锁定（integrity_hash 校验通过）'}>
-                        {brokenPred.has(rec.id) ? '⚠️预测' : '🔒预测'} {rec.prediction.tier}
+                      }} title={brokenPred.has(rec.id) ? 'integrity_hash 校验失败：预测可能被篡改' : '盲预测已锁定（integrity_hash 校验通过）'}>
+                        {brokenPred.has(rec.id) ? '预测·失效' : '预测·锁定'} {rec.prediction.tier}
                       </span>
                     )}
                     {rec.prediction === undefined && predictionOpen(rec) && (
@@ -4315,7 +4315,7 @@ function RetroSection(): React.JSX.Element {
                       {retro.prediction !== null && (
                         <div>
                           盲预测对照：预测「{retro.prediction.tier}」vs 实际「{retro.verdict}」——
-                          {retro.prediction.hit ? '✓ 猜中' : `偏差 ${String(retro.prediction.deviation)} 档`}
+                          {retro.prediction.hit ? '猜中' : `偏差 ${String(retro.prediction.deviation)} 档`}
                         </div>
                       )}
                       <div>{chain.map(p => `T+${String(p.hour)}h:${p.state === 'taken' ? `${String(p.plays ?? '—')} 播` : { due: '待采', missed: '错过', future: '未到期' }[p.state]}`).join(' · ')}</div>
