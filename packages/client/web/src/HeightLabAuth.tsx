@@ -6,10 +6,7 @@
  * stored in localStorage and pushed to the Host via /hl/auth so the
  * heightlab-host-api routes (balance/recharge) can call the cloud with it.
  *
- * 内测邀请码（2026-08-18）：
- *   - 仅在“注册”时需要；一码一账号，注册成功即绑定；
- *   - “登录”不需要邀请码；绑定后该账号以后登录永久免码；
- *   - 内置邀请码 HLBETA-20260818（不限邮箱，拿到有效码即可注册）。
+ * 邀请码（O78，2026-11-20 用户拍板「取消邀请码限制」）：注册/登录均不再需要邀请码。
  */
 import { useEffect, useRef, useState } from 'react'
 
@@ -19,8 +16,6 @@ const TOKEN_KEY = 'heightlab-token'
 const REFRESH_TOKEN_KEY = 'heightlab-refresh-token'
 const ACCOUNT_TOKEN_KEY = 'heightlab-account-token'
 const PKCE_VERIFIER_KEY = 'heightlab-pkce-verifier'
-const INVITE_CODE_KEY = 'heightlab-invite-code'
-const INVITE_MODE_KEY = 'heightlab-invite-mode'
 const REDIRECT_URI = `${window.location.origin}/callback`
 
 type AuthState = 'checking' | 'signed-out' | 'signed-in'
@@ -70,15 +65,6 @@ body[data-hl-auth='out'] [data-dsh-panel-host] {
   border: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.14));
 }
 .hl-auth-btn-ghost:hover:not(:disabled) { border-color: var(--dsw-alias-border-l3, rgba(0, 0, 0, 0.32)); }
-#hl-invite-code {
-  /* 2026-10-23：原来写死 #fff，暗色下登录框是一片白。改用语义面 token。 */
-  background: var(--dsw-alias-surface-primary, #fff);
-}
-#hl-invite-code:focus {
-  border-color: var(--dsw-alias-label-primary, #0f1115);
-  box-shadow: 0 0 0 3px var(--dsw-alias-border-l2, rgba(15, 17, 21, 0.08));
-}
-#hl-invite-code::placeholder { color: var(--dsw-alias-label-tertiary, rgba(0, 0, 0, 0.28)); }
 `
 
 function ensureAuthCss(): void {
@@ -129,24 +115,6 @@ function storedAccountToken(): string | null {
 
 function setStoredAccountToken(token: string): void {
   try { localStorage.setItem(ACCOUNT_TOKEN_KEY, token) } catch { /* ignore */ }
-}
-
-function storedInviteCode(): string | null {
-  try { return localStorage.getItem(INVITE_CODE_KEY) } catch { return null }
-}
-
-function storedInviteMode(): InteractionMode | null {
-  try {
-    const mode = localStorage.getItem(INVITE_MODE_KEY)
-    return mode === 'signUp' || mode === 'signIn' ? mode : null
-  } catch { return null }
-}
-
-function clearInviteState(): void {
-  try {
-    localStorage.removeItem(INVITE_CODE_KEY)
-    localStorage.removeItem(INVITE_MODE_KEY)
-  } catch { /* ignore */ }
 }
 
 async function pushTokenToHost(token: string, refreshToken?: string, accountToken?: string): Promise<{ restartExpected: boolean }> {
@@ -238,41 +206,7 @@ async function waitForHostReady(timeoutMs = 15_000): Promise<boolean> {
   }
 }
 
-/**
- * HeightLab 2026-09-11：从宿主响应提取精确错误信息。
- * 宿主未就绪时该路由会落到静态页回退（返回 HTML），此时给出"服务正在
- * 初始化"而不是把 HTML 误当成邀请码校验失败。
- * @param res - 宿主响应。
- * @returns 面向用户的错误文案。
- */
-async function hostErrorMessage(res: Response): Promise<string> {
-  const type = res.headers.get('content-type') ?? ''
-  if (!type.includes('application/json')) {
-    return '服务正在初始化，请稍候几秒后重试'
-  }
-  const data = await res.json().catch(() => null)
-  if (typeof data?.message === 'string' && data.message !== '') return data.message
-  return '邀请码校验失败，请稍后重试'
-}
-
 /** 注册成功后把邀请码绑定到当前账号（宿主代理云端，失败则拒绝进入）。 */
-async function bindInviteToHost(token: string, code: string): Promise<string | null> {
-  try {
-    const res = await fetch('/hl/invite/bind', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ code }),
-    })
-    const data = await res.json().catch(() => null)
-    if (res.ok && data?.ok) return null
-    return typeof data?.message === 'string' ? data.message : '邀请码绑定失败，请重新注册'
-  } catch {
-    return '网络异常，邀请码绑定失败，请稍后重试'
-  }
-}
 
 function base64Url(bytes: Uint8Array): string {
   let bin = ''
@@ -378,18 +312,6 @@ const cardStyle: React.CSSProperties = {
   animation: 'hl-auth-fade-up 0.45s cubic-bezier(0.22, 1, 0.36, 1) both',
 }
 
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  boxSizing: 'border-box',
-  padding: '12px 14px',
-  borderRadius: '12px',
-  border: '1px solid var(--dsw-alias-border-l2, rgba(0,0,0,0.1))',
-  background: 'var(--dsw-alias-surface-primary, #fff)',
-  color: 'var(--dsw-alias-label-primary, #111)',
-  fontSize: 14,
-  outline: 'none',
-  transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
-}
 
 const errorStyle: React.CSSProperties = {
   fontSize: 12,
@@ -400,7 +322,6 @@ const errorStyle: React.CSSProperties = {
 
 export function HeightLabLoginPage({ initialError }: { initialError?: string | null }) {
   const [devMode, setDevMode] = useState(false)
-  const [invite, setInvite] = useState('')
   const [error, setError] = useState<string | null>(initialError ?? null)
   const [busy, setBusy] = useState(false)
   /* 2026-11-05（0.5.5 用户实测「登录页 logo 破图」）：
@@ -433,38 +354,15 @@ export function HeightLabLoginPage({ initialError }: { initialError?: string | n
   }, [])
 
   const startRegister = async () => {
-    const code = invite.trim().toUpperCase()
-    if (!code) {
-      setError('请输入注册邀请码')
-      return
-    }
+    /* O78：注册不再校验邀请码——服务端已恒放行，这里直接走注册跳转。
+     * 保留宿主就绪等待（干净机器首次启动需完成初始化）。 */
     setBusy(true)
     setError(null)
     try {
-      // 宿主未就绪时先等待（干净机器首次启动需完成初始化），
-      // 避免把初始化过程误报为"邀请码无效"。
       if (!(await waitForHostReady())) {
         setError('服务正在初始化，请稍候几秒后重试')
         return
       }
-      const res = await fetch('/hl/invite/verify', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ code }),
-      })
-      if (!res.ok) {
-        setError(await hostErrorMessage(res))
-        return
-      }
-      const data = await res.json().catch(() => null)
-      if (!data?.ok) {
-        setError(await hostErrorMessage(res))
-        return
-      }
-      try {
-        localStorage.setItem(INVITE_CODE_KEY, code)
-        localStorage.setItem(INVITE_MODE_KEY, 'signUp')
-      } catch { /* ignore */ }
       await signInRedirect('signUp')
     } catch {
       setError('网络异常，请稍后重试')
@@ -473,11 +371,11 @@ export function HeightLabLoginPage({ initialError }: { initialError?: string | n
     }
   }
 
+
   const startLogin = async () => {
     setError(null)
     setBusy(true)
     try {
-      clearInviteState()
       await signInRedirect('signIn')
     } catch {
       setError('网络异常，请稍后重试')
@@ -548,30 +446,6 @@ export function HeightLabLoginPage({ initialError }: { initialError?: string | n
           <div role="alert" style={{ ...errorStyle, textAlign: 'center' }}>{error}</div>
         )}
 
-        {/* HeightLab V30：邀请码从最上方移到最下方并弱化（仅注册需要；
-            校验/绑定逻辑不变）。 */}
-        <div style={{ marginTop: 18, paddingTop: 18, borderTop: '1px solid var(--dsw-alias-border-l2, rgba(0,0,0,0.08))' }}>
-          <label
-            htmlFor="hl-invite-code"
-            style={{ display: 'block', fontSize: 12, marginBottom: 8, color: 'var(--dsw-alias-label-secondary, #8a9097)' }}
-          >
-            新用户注册需要邀请码
-          </label>
-          <input
-            id="hl-invite-code"
-            type="text"
-            value={invite}
-            autoComplete="off"
-            spellCheck={false}
-            placeholder="请输入邀请码"
-            style={inputStyle}
-            onChange={(e) => {
-              setInvite(e.target.value.toUpperCase())
-              if (error) setError(null)
-            }}
-            onKeyDown={(e) => { if (e.key === 'Enter') void startRegister() }}
-          />
-        </div>
 
         {devMode && (
           <button
@@ -632,22 +506,7 @@ export function HeightLabAuthGate({
           const auth = await exchangeCode(code)
           console.log('[hl/auth] exchangeCode result:', auth ? 'success' : 'null')
           if (auth && await hostAcceptsToken(auth.token)) {
-            const inviteCode = storedInviteCode()
-            const inviteMode = storedInviteMode()
-            if (inviteMode === 'signUp' && inviteCode) {
-              const bindError = await bindInviteToHost(auth.token, inviteCode)
-              if (bindError !== null) {
-                try {
-                  localStorage.removeItem(TOKEN_KEY)
-                  localStorage.removeItem(ACCOUNT_TOKEN_KEY)
-                } catch { /* ignore */ }
-                clearInviteState()
-                window.history.replaceState({}, '', window.location.pathname)
-                finish('signed-out', bindError)
-                return
-              }
-            }
-            clearInviteState()
+            /* O78：注册后不再绑定邀请码（限制已取消）。 */
             setStoredToken(auth.token)
             if (auth.refreshToken) setStoredRefreshToken(auth.refreshToken)
             if (auth.accountToken) setStoredAccountToken(auth.accountToken)
@@ -680,7 +539,6 @@ export function HeightLabAuthGate({
         const existing = storedToken()
         if (existing) {
           if (await hostAcceptsToken(existing)) {
-            clearInviteState()
             await pushTokenToHost(existing, storedRefreshToken() ?? undefined, storedAccountToken() ?? undefined)
             finish('signed-in')
             return
@@ -691,7 +549,6 @@ export function HeightLabAuthGate({
             localStorage.removeItem(ACCOUNT_TOKEN_KEY)
           } catch { /* ignore */ }
         }
-        clearInviteState()
         window.history.replaceState({}, '', window.location.pathname)
         finish('signed-out')
       } catch (error) {
