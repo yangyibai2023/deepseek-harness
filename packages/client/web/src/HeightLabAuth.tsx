@@ -35,7 +35,7 @@ body[data-hl-auth='out'] [data-dsh-panel-host] {
 }
 /* HeightLab 2026-09-20（V30b）：登录页质感——参考现代 SaaS 登录页
    （Linear/Vercel 式极简单列）：高按钮大圆角、输入框白底浮起+focus 光晕、
-   邀请码弱化置底。登录卡本身无底色（嵌在页面背景上）。 */
+   按钮纵排极简布局。登录卡本身无底色（嵌在页面背景上）。 */
 @keyframes hl-auth-fade-up {
   from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: none; }
@@ -205,8 +205,6 @@ async function waitForHostReady(timeoutMs = 15_000): Promise<boolean> {
     await new Promise<void>((resolve) => { window.setTimeout(resolve, 400) })
   }
 }
-
-/** 注册成功后把邀请码绑定到当前账号（宿主代理云端，失败则拒绝进入）。 */
 
 function base64Url(bytes: Uint8Array): string {
   let bin = ''
