@@ -26,8 +26,19 @@ export const ROLE_OVERHEAD = 4
  * @param block - block to price without mutation.
  * @returns heuristic tokens for the block's JSON structure.
  */
+/**
+ * O77 R1（2026-11-20 用户拍板）：图片本地计价写实。原实现按「引用的 JSON
+ * 长度」计价（几十 token），路由真实成本为千级/张 → 圆环与压缩计量在媒体
+ * 会话系统性偏低（生产实证 40 万真实 prompt vs 13 万估算）。按 Anthropic
+ * hi-res 档典型值给固定估算价；已 offload 的占位图仍按参考价（占位符无视觉
+ * 成本）。路由精确计价在场时仍以路由价为准，本值只兜底本地估算路径。
+ */
+export const IMAGE_TOKEN_ESTIMATE = 1150
+
 export function estimateStructuralBlock(block: ContentBlock): number {
   if (block.type === 'image') {
+    const offloaded = (block as { offloaded?: boolean }).offloaded === true
+    if (!offloaded) return IMAGE_TOKEN_ESTIMATE + BLOCK_OVERHEAD
     const { offloaded: _offloaded, ...reference } = block
     return BLOCK_OVERHEAD + Math.ceil(JSON.stringify(reference).length / CHARS_PER_TOKEN)
   }

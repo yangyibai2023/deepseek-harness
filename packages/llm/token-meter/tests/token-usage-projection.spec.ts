@@ -528,6 +528,42 @@ describe('contextPressure session projection', () => {
     expect(pressure(ctx, session)).toEqual(before)
   })
 
+  it('O77 R2: floors a frozen provider sample to the local estimate past the growth threshold', async () => {
+    /* 贵州系路由流式响应不带 usage → 样本冻结在旧值。采样后本地增量超
+     * STALE_SAMPLE_GROWTH_TOKENS(32K) 即视为不可信：投影地板到本地全量估算
+     * （R1 写实图片价），并暴露 sampleStale 标记。 */
+    const { ctx, session } = await harness()
+    recordContext(session, 'large', 1_000_000)
+    appendUser(session, 'seed')
+    startStep(session, 1, 1)
+    appendAssistant(session, 'ok', { inputTokens: 1_000, outputTokens: 1 }, 1, 1)
+    const sampled = pressure(ctx, session)
+    expect(sampled.pressureTokens).toBe(1_000)
+    expect(sampled.contextWindow).toBe(1_000_000)
+    // 样本后本地增量 ~40K（>32K 阈值），无新样本 → 冻结检测触发。
+    session.append('user/message', createUserMessage({
+      content: [{ type: 'text', text: 'x'.repeat(160_000) }],
+      source: { kind: 'user' },
+    }), { surfaceOp: 'append' })
+    const floored = pressure(ctx, session)
+    expect(floored.sampleStale).toBe(true)
+    expect(floored.projectedTokens).toBeGreaterThanOrEqual(40_000)
+  })
+
+  it('O77 R2: keeps trusting a fresh sample below the growth threshold', async () => {
+    const { ctx, session } = await harness()
+    recordContext(session, 'large', 1_000_000)
+    appendUser(session, 'seed')
+    startStep(session, 1, 1)
+    appendAssistant(session, 'ok', { inputTokens: 1_000, outputTokens: 1 }, 1, 1)
+    session.append('user/message', createUserMessage({
+      content: [{ type: 'text', text: 'x'.repeat(4_000) }],
+      source: { kind: 'user' },
+    }), { surfaceOp: 'append' })
+    const fresh = pressure(ctx, session)
+    expect(fresh.sampleStale).toBeUndefined()
+  })
+
   it('clamps a projection that heuristic error drove below zero', async () => {
     const { ctx, session } = await harness()
     recordContext(session, 'large', 128_000)

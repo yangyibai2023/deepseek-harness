@@ -28,6 +28,8 @@ export interface TokenUsageProjection {
  * the token-meter README for the full rationale.
  */
 export interface ContextPressureProjection {
+  /** O77 R2：provider usage 样本冻结标记（采样后本地增量超阈值，投影已地板到本地全量估算）。 */
+  sampleStale?: boolean
   /**
    * Provider-reported prompt size of the most recent request: uncached input
    * plus cache reads and writes. Response output is excluded, so this does not

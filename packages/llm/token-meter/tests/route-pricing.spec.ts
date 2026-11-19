@@ -11,7 +11,7 @@ import { Session, SessionId, canonicalHeader } from '@deepseek-ai/dsh-session'
 import type { EpochHeader } from '@deepseek-ai/dsh-session'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import TokenMeter from '@deepseek-ai/dsh-token-meter'
-import { estimateContent, estimateMessage } from '../src/estimate.ts'
+import { estimateContent, estimateMessage, ROLE_OVERHEAD } from '../src/estimate.ts'
 
 /** Adapter double declaring fixed per-occurrence image prices for one route. */
 class PricingAdapter extends LlmAdapter {
@@ -28,7 +28,7 @@ class PricingAdapter extends LlmAdapter {
   }
 }
 
-const VISUAL_TOKENS = 100
+const VISUAL_TOKENS = 1600
 const HANDLE_TEXT = 'Image handle text'
 
 const fixedPricing: LlmImageRequestPricing = {
@@ -265,10 +265,17 @@ describe('request projection pricing', () => {
       expect(after.baseline).toEqual(before.baseline)
       expect(after.surfaceDeltaTokens - before.surfaceDeltaTokens).toBe(-saving)
       expect(after.totalTokens).toBe(before.totalTokens - saving)
+      /* O77 R1：图片启发价写实（1150/张）后，heuristic 仍是 offload 不变的缓存锚
+       *（image/offload 是 log-only 事件不触发重折——这是防计费锚漂移的设计），
+       * 而 estimateMessage 对投影内容按 offload 感知计价（占位符≈参考价）。
+       * 双计价各有语义，不再要求相等；改为分别断言：
+       * - 节点启发价保持 offload 前数值（缓存锚稳定）
+       * - 投影内容的 offload 感知估算 = 一张全价 + 一张占位价 */
       expect(after.nodes[0]?.heuristicTokens).toBe(before.nodes[0]?.heuristicTokens)
       const projection = session.deriveMessages()[0]!
       expect(projection.content).toEqual([{ type: 'image', attachment: ref, offloaded: true }, { type: 'image', attachment: ref }])
-      expect(estimateMessage(projection)).toBe(after.nodes[0]?.heuristicTokens)
+      const expectedOffloadAware = estimateContent([{ type: 'image', attachment: ref }, { type: 'image', attachment: ref, offloaded: true }])
+      expect(estimateMessage(projection)).toBe(expectedOffloadAware + ROLE_OVERHEAD)
     } finally {
       await ctx.fiber.dispose()
     }

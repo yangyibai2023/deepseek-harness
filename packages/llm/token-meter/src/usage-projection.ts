@@ -68,10 +68,12 @@ const pressureSchema: z.ZodType<ContextPressureProjection> = z.object({
   pressureTokens: z.number().int().nonnegative().optional(),
   projectedTokens: z.number().int().nonnegative().optional(),
   contextWindow: z.number().int().positive().optional(),
-}).strict().transform(({ pressureTokens, projectedTokens, contextWindow }) => ({
+  sampleStale: z.boolean().optional(),
+}).strict().transform(({ pressureTokens, projectedTokens, contextWindow, sampleStale }) => ({
   ...pressureTokens === undefined ? {} : { pressureTokens },
   ...projectedTokens === undefined ? {} : { projectedTokens },
   ...contextWindow === undefined ? {} : { contextWindow },
+  ...sampleStale === undefined ? {} : { sampleStale },
 }))
 
 /** Prompt-side pressure of one request: input plus cache traffic, no output. */
@@ -91,6 +93,9 @@ declare module '@deepseek-ai/dsh-session-projection/types' {
     contextPressure: ContextPressureState
   }
 }
+
+/** O77 R2：采样后本地估算增量超过该值即视为 usage 样本冻结（圆环地板到本地全量估算）。 */
+const STALE_SAMPLE_GROWTH_TOKENS = 32_768
 
 /** The context-pressure state schema and source of its inferred type. */
 const contextPressureStateSchema = z.object({
@@ -207,12 +212,22 @@ export const contextPressureProjectionDefinition = {
   },
   wire: {
     viewSchema: pressureSchema,
-    view: ({ contextWindow, pressureTokens, surfaceTokens, sampledSurfaceTokens }) => ({
-      ...contextWindow === undefined ? {} : { contextWindow },
-      ...pressureTokens === undefined ? {} : { pressureTokens },
-      ...pressureTokens === undefined || sampledSurfaceTokens === undefined
-        ? {}
-        : { projectedTokens: Math.max(0, pressureTokens + surfaceTokens - sampledSurfaceTokens) },
-    }),
+    /* O77 R2：圆环保险——provider usage 样本冻结检测（贵州系路由流式响应
+     * 不带 usage 时样本永久停在旧值，圆环严重低估）。用「采样后本地估算
+     * 增量」作滞后代理（不新增状态字段，零幻影推送）：增量超阈值即视为
+     * 样本不可信，投影值地板到本地全量估算（R1 已含写实图片价）。 */
+    view: ({ contextWindow, pressureTokens, surfaceTokens, sampledSurfaceTokens }) => {
+      const projected = pressureTokens === undefined || sampledSurfaceTokens === undefined
+        ? undefined
+        : Math.max(0, pressureTokens + surfaceTokens - sampledSurfaceTokens)
+      const stale = pressureTokens !== undefined
+        && surfaceTokens - sampledSurfaceTokens > STALE_SAMPLE_GROWTH_TOKENS
+      return {
+        ...contextWindow === undefined ? {} : { contextWindow },
+        ...pressureTokens === undefined ? {} : { pressureTokens },
+        ...projected === undefined ? {} : { projectedTokens: stale ? Math.max(projected, surfaceTokens) : projected },
+        ...stale ? { sampleStale: true } : {},
+      }
+    },
   },
 } satisfies ProjectionDefinition<'contextPressure', ContextPressureState>
