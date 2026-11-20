@@ -4454,6 +4454,42 @@ if (typeof window !== 'undefined') {
  * 注入轮询脚本派生 hl:ops-publish-request → 这里消费。模块级监听
  * （本文件随会话根装载，不依赖面板是否打开）。
  * 安全默认对齐设计 §1.2：submit 缺省 false=只填表不点发布，人确认。 */
+/* ── O81 P2：共享会话消息投递执行器（2026-11-22）────────────────────
+ * 注入轮询脚本派发 hl:space-message-deliver（网关→所有者客户端）。
+ * 消息文本经 hl:fill-draft 灌入当前输入框并派发 Enter 语义（复用 InputBar
+ * 既有注入契约），宿主以所有者身份执行模型流。落库/广播由网关侧
+ * spaceSessions API+SyncRealtime 房间负责，此处只做「宿主执行」一环。 */
+/* O81 P2：SyncRealtime space_event 里的 co-drive 消息 → 转发 hl:space-message-deliver。
+ * 所有者客户端收房间广播后按 sender/userId 过滤；连接建立走 /hl/sync-ws（既有）。 */
+if (typeof window !== 'undefined') {
+  window.addEventListener('hl:space-event', ((e: Event) => {
+    const detail = (e as CustomEvent<{ event?: { kind?: string; message?: { contentJson?: string }; coDrive?: boolean } }>).detail ?? {}
+    if (detail.event?.kind !== 'message' || detail.event.coDrive !== true) return
+    try {
+      const blocks = JSON.parse(detail.event.message?.contentJson ?? '[]') as Array<{ type?: string; text?: string }>
+      const text = blocks.filter(b => b.type === 'text').map(b => b.text ?? '').join('\n')
+      if (text.trim() === '') return
+      window.dispatchEvent(new CustomEvent('hl:space-message-deliver', { detail: { text } }))
+    } catch { /* 忽略解析失败 */ }
+  }) as EventListener)
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('hl:space-message-deliver', ((e: Event) => {
+    const params = (e as CustomEvent<Record<string, unknown>>).detail ?? {}
+    const text = String(params.text ?? '').trim()
+    const senderName = String(params.senderName ?? '').trim()
+    if (text === '') return
+    const prefixed = senderName !== '' ? `[${senderName}] ${text}` : text
+    window.dispatchEvent(new CustomEvent('hl:fill-draft', { detail: { text: prefixed } }))
+    /* 灌入后自动发送（co-drive 语义=成员消息即用户消息）。 */
+    window.setTimeout(() => {
+      const editor = document.querySelector('[contenteditable="true"]')
+      editor?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    }, 400)
+  }) as EventListener)
+}
+
 if (typeof window !== 'undefined') {
   window.addEventListener('hl:ops-publish-request', ((e: Event) => {
     const params = (e as CustomEvent<Record<string, unknown>>).detail ?? {}
