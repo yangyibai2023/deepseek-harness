@@ -6,7 +6,7 @@ import { NS } from '../locale.ts'
 import { AssistantNodeView } from './AssistantNodeView.tsx'
 import { CommandNodeView, ManualCompactionNodeView } from './CommandNodeView.tsx'
 import {
-  CompactionNodeView, ContextMessageNodeView, RetryNodeView, TurnErrorNodeView,
+  CompactionNodeView, CompactionWarnNodeView, ContextMessageNodeView, RetryNodeView, TurnErrorNodeView,
   TurnMaxTokensNodeView, UnknownNodeView, UserMessageNodeView,
 } from './MessageItem.tsx'
 import { DefaultReasoningBody, ReasoningContent } from './ReasoningContent.tsx'
@@ -64,6 +64,8 @@ export function registerChatNodeRenderers(
     { name: 'conversation.chat.node', key: 'manual-compaction', locale: NS }, ManualCompactionNodeView))
   ctx.slots.inject('conversation.chat.node', () => ctx.slots.register(
     { name: 'conversation.chat.node', key: 'compaction', locale: NS }, CompactionNodeView))
+  ctx.slots.inject('conversation.chat.node', () => ctx.slots.register(
+    { name: 'conversation.chat.node', key: 'compaction-warn', locale: NS }, CompactionWarnNodeView))
   ctx.slots.inject('conversation.chat.node', () => ctx.slots.register(
     { name: 'conversation.chat.node', key: 'model-retry', locale: NS }, RetryNodeView))
   ctx.slots.inject('conversation.chat.node', () => ctx.slots.register(

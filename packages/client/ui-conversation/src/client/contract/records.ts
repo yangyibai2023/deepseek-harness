@@ -202,6 +202,24 @@ export interface CompactionSummaryNode {
 }
 
 /**
+ * O77 R3：压缩前预警节点（compaction/warn 事件的可见形态）。log-only 事件
+ * 不进模型上下文；该节点提醒用户上下文将满，建议开新会话或 @ 引用关键内容。
+ */
+export interface CompactionWarnNode {
+  kind: 'compaction-warn'
+  /** Seq of the warn event. */
+  seq: number
+  /** Unix epoch ms of the warn event. */
+  time: number
+  /** Estimated tokens at warn time. */
+  estimatedTokens: number
+  /** Compaction threshold tokens (warn = 0.7 × threshold). */
+  thresholdTokens: number
+  /** Route context window when advertised. */
+  contextWindow: number | null
+}
+
+/**
  * Fallback for unclaimed append-surface events. The merge-extensible
  * SessionEventMap permits unfamiliar events to retain a raw presentation.
  * Known unsupported developer events throw before fallback selection.

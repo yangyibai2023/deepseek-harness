@@ -70,6 +70,18 @@ declare module '@deepseek-ai/dsh-session/types' {
      * matches `compaction/start`; `error` records an unsuccessful attempt.
      */
     'compaction/end': { compactionId: CompactionId; sourceCommandId?: CommandId; turn: number | null; error?: string }
+
+    /**
+     * O77 R3（2026-11-20）：压缩前预警——log-only、无 surfaceOp（不进模型上下文）。
+     * 自动压缩检查发现估算达预警线（thresholdRatio×warnRatio，默认 0.56×窗口）
+     * 时发出一次（服务内存按分档去抖），客户端渲染为提醒条：建议开新会话或
+     * @ 引用关键内容，避免「圆环还一半就被压」的突袭感。
+     */
+    'compaction/warn': {
+      estimatedTokens: number
+      thresholdTokens: number
+      contextWindow?: number
+    }
     /**
      * Shadow price of one model-free prune replacement — log-only, no
      * surfaceOp. The shared shadow-price protocol: a surface `replace` event

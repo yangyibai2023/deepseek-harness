@@ -29,7 +29,7 @@ export type {
 } from './contract/snapshot.ts'
 export type {
   AssistantBlock, AssistantMessageNode, AssistantProviderMetadataView, AssistantRequestConfig,
-  AssistantTiming, CommandNode, CompactionSummaryNode, ContextMessageNode, ConversationNode,
+  AssistantTiming, CommandNode, CompactionSummaryNode, CompactionWarnNode, ContextMessageNode, ConversationNode,
   ModelRetryNode, PartialAssistant, PreparingToolCall, RunningToolCall, StartedToolCall, SteeringMessageNode, TodoItem,
   ToolCallBlock, ToolArgs, ToolResultNode, TurnErrorNode, TurnMaxTokensNode, UnknownSurfaceNode,
   UserMessageNode,

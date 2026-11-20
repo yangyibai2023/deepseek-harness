@@ -6,6 +6,7 @@ import { fileExtension, FileTypeIcon, fileSizeText, JsonBlock, projectUserText, 
 import type { ChatNodeOwnerProps, ChatNodeViewProps, ChatViewSlotProps } from '../contract/slots.ts'
 import type { ModelRetryNode, TurnErrorNode, UserMessageNode } from '../contract/snapshot.ts'
 import { CompactionItem } from './CompactionItem.tsx'
+import { CompactionWarnItem } from './CompactionWarnItem.tsx'
 import { ContextInjectionRow } from './ContextInjectionRow.tsx'
 import { MessageIconActions } from './MessageIconActions.tsx'
 import { HEIGHTLAB_UNKNOWN_BLOCK_TEXT, heightlabFriendlyErrorText } from './heightlab-friendly.ts'
@@ -540,6 +541,11 @@ export const ContextMessageNodeView = memo(function ContextMessageNodeView({ nod
 /** Automatic compaction keyed Chat renderer. */
 export const CompactionNodeView = memo(function CompactionNodeView({ node, t }: ChatNodeViewProps<'compaction'>) {
   return <CompactionItem node={node.data} t={t} />
+})
+
+/** O77 R3：压缩前预警 keyed Chat renderer。 */
+export const CompactionWarnNodeView = memo(function CompactionWarnNodeView({ node, t }: ChatNodeViewProps<'compaction-warn'>) {
+  return <CompactionWarnItem node={node.data} t={t} />
 })
 
 /** Correlated retry-chain keyed Chat renderer. */

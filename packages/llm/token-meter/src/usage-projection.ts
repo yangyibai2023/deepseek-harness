@@ -221,7 +221,7 @@ export const contextPressureProjectionDefinition = {
         ? undefined
         : Math.max(0, pressureTokens + surfaceTokens - sampledSurfaceTokens)
       const stale = pressureTokens !== undefined
-        && surfaceTokens - sampledSurfaceTokens > STALE_SAMPLE_GROWTH_TOKENS
+        && surfaceTokens - (sampledSurfaceTokens ?? surfaceTokens) > STALE_SAMPLE_GROWTH_TOKENS
       return {
         ...contextWindow === undefined ? {} : { contextWindow },
         ...pressureTokens === undefined ? {} : { pressureTokens },

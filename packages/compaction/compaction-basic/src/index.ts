@@ -102,6 +102,9 @@ const modelPolicy: z<ModelCompactPolicyConfig> = z.object({
   maxOverflowRetries: maxOverflowRetriesSchema,
 })
 
+/** O77 R3：预警线=压缩阈值的该比例（0.7）——到线先提醒，0.8 才动手压。 */
+const WARN_THRESHOLD_RATIO = 0.7
+
 /**
  * Dependency-light compaction backend using `ctx.tokenMeter` for pressure,
  * retention, cited source events, and summary-convergence pricing.
@@ -131,6 +134,8 @@ export class BasicCompactionEngine extends CompactionEngine {
   readonly config: ResolvedConfig
 
   private readonly warnedPressureConfigTargets = new Set<string>()
+  /** O77 R3：压缩预警去抖——按 session 记最后预警的阈值百分比分档（25% 一档）。 */
+  private readonly warnBuckets = new WeakMap<Session, number>()
   private readonly overflowRetries = new WeakMap<Agent, number>()
   private readonly overflowAgents = new WeakMap<Session, Agent>()
 
@@ -316,6 +321,22 @@ export class BasicCompactionEngine extends CompactionEngine {
       info.context.contextWindow,
       reservedCompletionTokens(agent, info.defaultMaxTokens),
     )
+    /* O77 R3：压缩前预警。估算达预警线（threshold×0.7）即向日志插一条
+     * compaction/warn（log-only 不进模型上下文），客户端渲染提醒条。
+     * 按 25% 分档去抖——同档不重复发，跨档再发。 */
+    const warnThreshold = Math.floor(spec.thresholdTokens * WARN_THRESHOLD_RATIO)
+    if (trigger === 'pressure' && measurement.totalTokens >= warnThreshold) {
+      const bucket = Math.floor((measurement.totalTokens / spec.thresholdTokens) / 0.25)
+      const last = this.warnBuckets.get(agent.session) ?? -1
+      if (bucket > last) {
+        this.warnBuckets.set(agent.session, bucket)
+        agent.session.append('compaction/warn', {
+          estimatedTokens: measurement.totalTokens,
+          thresholdTokens: spec.thresholdTokens,
+          contextWindow: info.context.contextWindow,
+        })
+      }
+    }
     if (measurement.totalTokens < spec.thresholdTokens) return null
 
     // Once pressure qualifies, land the model-free pass before choosing a
