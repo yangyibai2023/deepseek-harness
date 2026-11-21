@@ -24,7 +24,7 @@ import clsx from 'clsx'
 // 原实现「视频创作」用实心 IconSparkleRegular、「资产中心」用
 // IconLibraryStroke16（不同族），折叠后三项观感明显不一致。
 import {
-  IconBrowseOutlineRegular, IconGaugeOutlineRegular, IconNewChatOutlineRegular,
+  IconBrowseOutlineRegular, IconGaugeOutlineRegular, IconNewChatOutlineRegular, IconShareOutlineRegular,
   IconPlanOutlineRegular, IconWorkspaceTreeOutlineRegular, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
@@ -356,6 +356,9 @@ export function SidebarRoot({
             //（不删除；回滚开关 = localStorage SHOW_FILM_STUDIO_ROW=1 恢复本行）。
             ...(showFilmStudioRow ? [{ key: 'film-studio', label: '智能剪辑台', Icon: IconBrowseOutlineRegular, page: 'film-studio' }] : []),
             { key: 'library', label: '资产空间', Icon: IconWorkspaceTreeOutlineRegular, page: 'library' },
+            /* O81 R3（2026-11-22 用户拍板）：共享空间=主区独立面板入口（像
+               运营面板；WorkBuddy 同款形态），不占侧栏 tab。 */
+            { key: 'shared-space', label: '共享空间', Icon: IconShareOutlineRegular, page: 'shared-space' },
           ]
           return (
             <>

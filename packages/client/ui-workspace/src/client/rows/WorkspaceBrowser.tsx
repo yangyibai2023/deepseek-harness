@@ -42,7 +42,6 @@ import { AnimatedRows } from './AnimatedRows.tsx'
 import { FLAT_SESSION_ORDER_KEY, type SessionGroupBy } from '../stores.ts'
 import { WorkspacePickFlow } from '../WorkspacePicker.tsx'
 import { HeightLabProjectTree } from './HeightLabProjectTree.tsx'
-import { HeightLabSpacesPage } from './HeightLabSpacesPage.tsx'
 import css from './WorkspaceBrowser.module.css'
 
 /**
@@ -1265,16 +1264,13 @@ export function WorkspaceBrowser({
             {([
               { id: 'workspace', label: t('section.workspaces') },
               { id: 'projects', label: '项目' },
-              /* HeightLab（2026-11-22 R3）：共享空间独立 tab——与工作区/项目
-                 并列，内容整页渲染（不再只是悬浮窗）。 */
-              { id: 'shared', label: '共享空间' },
             ]).map(({ id, label }) => {
-              const active = groupBy === id || (id === 'workspace' && groupBy !== 'projects' && groupBy !== 'shared')
+              const active = id === 'projects' ? groupBy === 'projects' : groupBy !== 'projects'
               return (
                 <button
                   key={id}
                   type="button"
-                  onClick={() => { actions.setGroupBy((id === 'projects' || id === 'shared') ? id : 'workspace') }}
+                  onClick={() => { actions.setGroupBy(id === 'projects' ? 'projects' : 'workspace') }}
                   style={{
                     border: 'none',
                     background: 'transparent',
@@ -1351,7 +1347,7 @@ export function WorkspaceBrowser({
           </div>
         )}
         <div className={clsx(css.headerActions, wide && searchExpanded && css.headerActionsHidden)}>
-          {wide && groupBy !== 'projects' && groupBy !== 'shared' && (
+          {wide && groupBy !== 'projects' && (
             <ViewOptionsMenu
               groupBy={groupBy}
               orderBy={orderBy}
@@ -1439,87 +1435,81 @@ export function WorkspaceBrowser({
               t={t}
             />
           )
-          : groupBy === 'shared'
+          : groupBy === 'projects'
             ? (
-              /* 共享空间整页：空壳组件——把容器交给 space-collab 插件接管渲染
-                 （空间列表/详情/聊天/接入本机全在插件内，vendor 只给挂载点） */
-              <HeightLabSpacesPage />
+              <HeightLabProjectTree
+                list={list}
+                statuses={statuses}
+                rowState={rowState}
+                groupExpansion={groupExpansion}
+                setGroupExpanded={actions.setGroupExpanded}
+                query={normalizedQuery}
+                open={guardedOpen}
+                onSessionRenameRequest={requestSessionRename}
+                renderSlot={renderSlot}
+                startSession={startSession}
+                t={t}
+              />
             )
-            : groupBy === 'projects'
+            : groupBy === 'flat'
               ? (
-                <HeightLabProjectTree
+                <FlatList
+                  usePanelInfo={usePanelInfo}
                   list={list}
-                  statuses={statuses}
+                  sessionIds={orderedFlatSessionIds}
                   rowState={rowState}
-                  groupExpansion={groupExpansion}
-                  setGroupExpanded={actions.setGroupExpanded}
-                  query={normalizedQuery}
+                  onLeaveArchivedOnly={leaveArchivedOnly}
+                  workspaceReady={workspaceReady}
+                  animationResetKey={`${groupBy}/${orderBy}/${archivedFilter}`}
+                  useSessionStatus={useSessionStatus}
                   open={guardedOpen}
                   onSessionRenameRequest={requestSessionRename}
                   renderSlot={renderSlot}
-                  startSession={startSession}
+                  setSessionOrder={saveSessionOrder}
+                  revealSessionId={revealSessionId}
+                  onSessionRevealed={acknowledgeSessionReveal}
                   t={t}
                 />
               )
-              : groupBy === 'flat'
-                ? (
-                  <FlatList
-                    usePanelInfo={usePanelInfo}
-                    list={list}
-                    sessionIds={orderedFlatSessionIds}
-                    rowState={rowState}
-                    onLeaveArchivedOnly={leaveArchivedOnly}
-                    workspaceReady={workspaceReady}
-                    animationResetKey={`${groupBy}/${orderBy}/${archivedFilter}`}
-                    useSessionStatus={useSessionStatus}
-                    open={guardedOpen}
-                    onSessionRenameRequest={requestSessionRename}
-                    renderSlot={renderSlot}
-                    setSessionOrder={saveSessionOrder}
-                    revealSessionId={revealSessionId}
-                    onSessionRevealed={acknowledgeSessionReveal}
-                    t={t}
-                  />
-                )
-                : (
-                  <SessionTree
-                    usePanelInfo={usePanelInfo}
-                    list={list}
-                    shortcuts={shortcuts}
-                    useSessionStatus={useSessionStatus}
-                    onSessionRenameRequest={requestSessionRename}
-                    renderSlot={renderSlot}
-                    workspaces={orderedWorkspaces}
-                    ungroupedSessionIds={orderedUngroupedSessionIds}
-                    workspaceReady={workspaceReady}
-                    nestWorkspaces={groupBy === 'workspace-tree'}
-                    animationResetKey={`${groupBy}/${orderBy}/${archivedFilter}`}
-                    groupExpansion={groupExpansion}
-                    setGroupExpanded={actions.setGroupExpanded}
-                    setSessionOrder={saveSessionOrder}
-                    rowState={rowState}
-                    onLeaveArchivedOnly={leaveArchivedOnly}
-                    startSession={startSession}
-                    open={guardedOpen}
-                    insertWorkspaceBefore={insertWorkspaceBefore}
-                    revealSessionId={revealSessionId}
-                    onSessionRevealed={acknowledgeSessionReveal}
-                    home={home}
-                    t={t}
-                    onRenameRequest={(workspaceId, displayTitle) => {
-                      setRenameTarget({
-                        workspaceId,
-                        storedTitle: storedWorkspaces.find(w => w.workspaceId === workspaceId)?.title ?? displayTitle,
-                      })
-                      setRenameDraft(displayTitle)
-                      setRenameError(null)
-                    }}
-                    onDeleteRequest={(workspaceId, title) => {
-                      setDeleteTarget({ workspaceId, title })
-                      setDeleteError(null)
-                    }}
-                  />
-                ))}
+              : (
+                <SessionTree
+                  usePanelInfo={usePanelInfo}
+                  list={list}
+                  shortcuts={shortcuts}
+                  useSessionStatus={useSessionStatus}
+                  onSessionRenameRequest={requestSessionRename}
+                  renderSlot={renderSlot}
+                  workspaces={orderedWorkspaces}
+                  ungroupedSessionIds={orderedUngroupedSessionIds}
+                  workspaceReady={workspaceReady}
+                  nestWorkspaces={groupBy === 'workspace-tree'}
+                  animationResetKey={`${groupBy}/${orderBy}/${archivedFilter}`}
+                  groupExpansion={groupExpansion}
+                  setGroupExpanded={actions.setGroupExpanded}
+                  setSessionOrder={saveSessionOrder}
+                  rowState={rowState}
+                  onLeaveArchivedOnly={leaveArchivedOnly}
+                  startSession={startSession}
+                  open={guardedOpen}
+                  insertWorkspaceBefore={insertWorkspaceBefore}
+                  revealSessionId={revealSessionId}
+                  onSessionRevealed={acknowledgeSessionReveal}
+                  home={home}
+                  t={t}
+                  onRenameRequest={(workspaceId, displayTitle) => {
+                    setRenameTarget({
+                      workspaceId,
+                      storedTitle: storedWorkspaces.find(w => w.workspaceId === workspaceId)?.title ?? displayTitle,
+                    })
+                    setRenameDraft(displayTitle)
+                    setRenameError(null)
+                  }}
+                  onDeleteRequest={(workspaceId, title) => {
+                    setDeleteTarget({ workspaceId, title })
+                    setDeleteError(null)
+                  }}
+                />
+              ))}
       </div>
 
       <Modal

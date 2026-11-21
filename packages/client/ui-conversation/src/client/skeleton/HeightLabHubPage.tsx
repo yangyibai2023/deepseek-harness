@@ -17,7 +17,7 @@ import css from './ConversationRoot.module.css'
 
 /* O44：'automation' 是死值（探索证实无人派发、白名单不收）——从联合类型删除。 */
 /* O49（2026-11-10 用户拍板）：新增 'ops'（运营面板）。*/
-export type HubPage = 'inspiration' | 'library' | 'video-studio' | 'skill-hub' | 'film-studio' | 'lab' | 'ops'
+export type HubPage = 'inspiration' | 'library' | 'video-studio' | 'skill-hub' | 'film-studio' | 'lab' | 'ops' | 'shared-space'
 
 /** HeightLab V24b：视频创作一级页的 8 个模块卡片（第一排流量转化/第二排人设内容）。
  * 0.5.7 模块创作台（2026-11-08 用户拍板「一个功能驾驭多个模板」）：8 模块全部
@@ -786,6 +786,28 @@ if (typeof window !== 'undefined') {
   }) as EventListener)
 }
 
+/* 共享空间主区壳：挂载点 + 生命周期广播（插件接管渲染，与侧栏版同协议）。 */
+function SharedSpaceShell() {
+  const ref = { current: null as HTMLDivElement | null }
+  const setRef = (el: HTMLDivElement | null): void => {
+    if (ref.current === el) return
+    if (ref.current !== null) {
+      window.dispatchEvent(new CustomEvent('hl:spaces-page-unmount', { detail: { container: ref.current } }))
+    }
+    ref.current = el
+    if (el !== null) {
+      window.dispatchEvent(new CustomEvent('hl:spaces-page-mount', { detail: { container: el } }))
+    }
+  }
+  return (
+    <div
+      ref={setRef}
+      data-hl-spaces-page='1'
+      style={{ flex: 1, minHeight: 0, overflowY: 'auto', position: 'relative' }}
+    />
+  )
+}
+
 export function HeightLabHubPage({ page, onClose }: { page: HubPage; onClose: () => void }) {
   const [preview, setPreview] = useState<{ item: Recommendation; category: TemplateCategory } | null>(null)
   const [cards, setCards] = useState<Record<TemplateCategory, Recommendation[]>>(TEMPLATE_CARDS)
@@ -1017,6 +1039,11 @@ export function HeightLabHubPage({ page, onClose }: { page: HubPage; onClose: ()
         <HeightLabFilmStudio onClose={onClose} opensChat />
       ) : page === 'ops' ? (
         <HeightLabOpsPage />
+      ) : page === 'shared-space' ? (
+        /* O81 R3（2026-11-22 用户拍板修正）：共享空间=主区独立面板（像运营
+           面板），不是侧栏 tab。壳只给挂载容器，业务全在 space-collab 插件
+           （hl:spaces-page-mount 协议复用，宽容器下插件自适应限宽布局）。 */
+        <SharedSpaceShell />
       ) : page === 'library' ? (
         <HeightLabLibraryPage />
       ) : (
