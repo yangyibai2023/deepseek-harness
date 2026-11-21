@@ -14,7 +14,7 @@ import { reconcileManualOrder, type ArchivedFilter, type SessionRowState } from 
 export const FLAT_SESSION_ORDER_KEY = '__flat_session_order__'
 
 /** Session-list grouping mode: sibling Workspace sections, a Workspace tree, or one flat list. */
-export type SessionGroupBy = 'workspace' | 'workspace-tree' | 'flat' | 'projects'
+export type SessionGroupBy = 'workspace' | 'workspace-tree' | 'flat' | 'projects' | 'shared'
 /* HeightLab（2026-11-14，O56）：'projects' = 按项目分组——项目层（引用标签，
  * localStorage hl-projects-v1，与 web-plugin heightlab-projects 同一份 schema），
  * 与目录语义的 workspace 完全解耦。*/
