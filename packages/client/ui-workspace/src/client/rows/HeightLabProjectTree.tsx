@@ -195,8 +195,13 @@ export function HeightLabProjectTree({
             <ProjectRowItem
               group={group}
               onToggle={() => { setGroupExpanded(key, !expanded) }}
-              /* 项目内开新对话：新建空白会话（加入项目走三点菜单「加入项目…」） */
-              onCreate={() => { startSession() }}
+              /* 项目内开新对话：先广播意图（projects 插件捕获新会话 id 后自动
+               * 写入项目成员关系），再建空白会话——修复原生 ⊕「点了不进项目」
+               *（2026-11-22 用户实测报障）。加入既有项目走三点菜单「加入项目…」。 */
+              onCreate={() => {
+                window.dispatchEvent(new CustomEvent('hl:project-quick-create', { detail: { projectId: project.id } }))
+                startSession()
+              }}
               actions={{
                 rename: () => { setRenaming({ id: project.id, name: project.name }) },
                 delete: () => { setDeleting({ id: project.id, name: project.name }) },
