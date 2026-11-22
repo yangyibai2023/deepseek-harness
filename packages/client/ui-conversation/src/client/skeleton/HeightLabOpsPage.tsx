@@ -909,6 +909,12 @@ async function fetchDouyinWorks(recentDays = 7): Promise<WorkItem[]> {
 
 /** B站：官方 `/x/web-interface/nav` 返回 isLogin + uname + mid */
 async function fetchBilibili(): Promise<PlatformSnapshot | null> {
+  /* O58（2026-11-22）：曾怀疑 Rust 磁盘 cookie 看不到 webview 会话（小红书
+   * 同族），实测**反向**——B站磁盘 cookie 完整（17 条含 SESSDATA），nav
+   * isLogin:true 实证（[ops-api-bili] src=disk n=17）。且 B站页面 CSP 把
+   * 注入脚本/connect-src 全掐死，页面上下文通道**全部不可用**（主回调/
+   * title-eval/原生标题/post-back 五级实测全断）。结论：B站走 Rust 直连
+   * 唯一正道，页面上下文尝试已删除。 */
   const res = await invokeWithTimeout<{
     needLogin?: boolean
     data?: { code?: number; data?: Record<string, unknown> }
@@ -917,11 +923,38 @@ async function fetchBilibili(): Promise<PlatformSnapshot | null> {
   if (res.needLogin === true) return null
   const body = res.data
   if (body?.code !== 0 || body.data?.isLogin !== true) return null
-  const d = body.data
+  const nav = body.data
+  /* 粉丝/关注：relation/stat（公开接口，匿名可查；nav 无此两字段） */
+  let follower: number | null = null
+  let following: number | null = null
+  if (typeof nav.mid === 'number') {
+    try {
+      const stat = await invokeWithTimeout<{
+        needLogin?: boolean
+        data?: { code?: number; data?: { follower?: unknown; following?: unknown } }
+      }>('hl_ops_api', { provider: 'bilibili', path: `/x/relation/stat?vmid=${String(nav.mid)}` })
+      if (stat.data?.code === 0 && stat.data.data !== undefined) {
+        follower = typeof stat.data.data.follower === 'number' ? stat.data.data.follower : null
+        following = typeof stat.data.data.following === 'number' ? stat.data.data.following : null
+      }
+    } catch { /* 粉丝拿不到不阻断——等级/硬币仍可成快照 */ }
+  }
+  return bilibiliSnapshotFromNav(nav, follower, following)
+}
+
+/** 从 nav JSON 构造快照（page/Rust 两路共用） */
+function bilibiliSnapshotFromNav(
+  d: Record<string, unknown>,
+  follower: number | null,
+  following: number | null,
+): PlatformSnapshot {
+  /* O58 实测：nav 接口**不含** follower/following/like_num（旧代码按这三个
+   * 字段建指标 → 全 null → 契约检查判「接口结构已变化」拒收快照，面板永远
+   * 显示未登录）。粉丝/关注走 relation/stat（入参传入）；nav 自带 level
+   * （等级）与 money（硬币）保底非空。 */
   const num = (v: unknown): number | null => (typeof v === 'number' ? v : null)
-  const fans = num(d.follower)
-  const following = num(d.following)
-  const likes = num(d.like_num)
+  const level = num(d.level)
+  const coins = num(d.money)
   return makeSnapshot(
     {
       nickname: typeof d.uname === 'string' ? d.uname : null,
@@ -929,17 +962,19 @@ async function fetchBilibili(): Promise<PlatformSnapshot | null> {
       syncedAt: Date.now(),
     },
     [
-      { label: '粉丝', metric: { value: fans } },
+      { label: '粉丝', metric: { value: follower } },
       { label: '关注', metric: { value: following } },
-      { label: '获赞', metric: { value: likes } },
+      { label: '等级', metric: { value: level } },
     ],
     [
-      { group: '账号概览', label: '粉丝', metric: { value: fans } },
+      { group: '账号概览', label: '粉丝', metric: { value: follower } },
       { group: '账号概览', label: '关注', metric: { value: following } },
-      { group: '账号概览', label: '获赞', metric: { value: likes } },
+      { group: '账号概览', label: '等级', metric: { value: level } },
+      { group: '账号概览', label: '硬币', metric: { value: coins } },
     ],
   )
 }
+
 
 /**
  * 视频号（2026-11-10 抓包定位，全部实测 errCode:0）
@@ -4784,8 +4819,11 @@ export function HeightLabOpsPage() {
     const FRESH_MS = 5 * 60 * 1000
     for (const def of PROVIDERS) {
       const snap = snapshots[def.id]
-      if (snap === undefined) continue
-      if (typeof snap.syncedAt === 'number' && Date.now() - snap.syncedAt < FRESH_MS) continue
+      if (snap !== undefined && typeof snap.syncedAt === 'number' && Date.now() - snap.syncedAt < FRESH_MS) continue
+      /* O58：无快照平台里，B站是唯一「Rust 磁盘 cookie 直读即可判登录」的
+       * （nav 单请求、零窗口、秒回；实测 isLogin:true src=disk n=17）。其余
+       * 无快照平台（真未登录）静默拉只会浪费请求，仍等用户点卡。 */
+      if (snap === undefined && def.id !== 'bilibili') continue
       void syncPlatform(def, { silent: true })
     }
     // 仅挂载时执行一次（快照初始值来自 localStorage，不参与依赖）
