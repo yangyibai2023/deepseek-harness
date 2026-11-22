@@ -295,8 +295,13 @@ export const assistantDefinition: ConversationNodeDefinition<AssistantState> = {
   target: 'chat',
   match: (event) => {
     if (event.type === 'step/start') return { id: `${event.data.turn}:${event.data.step}`, role: 'start' }
-    if (event.type === 'assistant/live-chunk'
-      || (event.type === 'assistant/message' && event.surfaceOp === 'append')) {
+    if (event.type === 'assistant/live-chunk') {
+      return { id: `${event.data.turn}:${event.data.step}`, role: 'update' }
+    }
+    if (event.type === 'assistant/message' && event.surfaceOp === 'append') {
+      /* O81 R4：隐藏历史（message.hidden）不建 assistant 节点——页面不可见，
+       * 模型上下文照常包含。 */
+      if ((event.data as { hidden?: unknown }).hidden === true) return null
       return { id: `${event.data.turn}:${event.data.step}`, role: 'update' }
     }
     if (event.type === 'llm/retry') {
