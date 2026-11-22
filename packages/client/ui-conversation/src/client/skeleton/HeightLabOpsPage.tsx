@@ -1097,29 +1097,20 @@ async function fetchShipinhao(): Promise<PlatformSnapshot | null> {
  *      所以数据层必须走**页面内 fetch**（`hl_ops_fetch`），不能走 Rust。
  */
 async function fetchXhs(): Promise<PlatformSnapshot | null> {
-  /* 账号身份：直连（无需签名） */
-  const res = await invokeWithTimeout<{
-    needLogin?: boolean
-    data?: {
-      success?: boolean
-      data?: { userName?: string; redId?: string; userId?: string; userDesc?: string }
-    }
-  }>('hl_ops_api', { provider: 'xhs', path: '/api/galaxy/user/info', host: 'creator' })
-  markOpsNeedLogin('xhs')
-  if (res.needLogin === true) return null
-  const info = res.data?.data
-  if (res.data?.success !== true || info === undefined) return null
+  /* O58 修正（2026-11-22）：旧链路先用 Rust 直连 /api/galaxy/user/info 判
+   * 登录态——但 Rust 只读磁盘 binarycookies，webview 的会话 cookie（常
+   * httpOnly）不落盘 → 后台同步永远拿到 needLogin → 面板误报「登录过期」
+   * （用户实测：创作服务平台明明登录正常，重登也没用）。
+   * 现改为**身份+数据都走页面上下文**（hl_ops_fetch_headless 隐藏窗，
+   * 会话真实、签名由页面 JS 补）：只有页面上下文里身份也失败，才算真过期。 */
+  const page = await fetchXhsViaPage()
+  if (page === null) return null /* 隐藏窗起不来等基础设施问题——静默不标过期 */
+  if (page.identityOk !== true) { markOpsNeedLogin('xhs'); return null }
+  const info = page.info
+  const stats = page.stats
 
-  /* 数据层：签名接口，走页面内 fetch。
-   *
-   * 2026-11-11 用户拍板方案 A：「数据取完后关窗就行了」——
-   * 所以**统计没拿到就返回 null**（= 未完成），前端不会关窗、继续轮询；
-   * 拿到统计才视为成功并自动关窗。这样保证「窗口关了 = 数据齐了」，
-   * 不会出现「登录窗已收，但详情页空空」的观感。
-   *
-   * 兜底：前端最多轮询 45 次（约 3 分钟），超时后停轮询、窗口留给用户手动关，
-   * 不会无限挂着。 */
-  const stats = await fetchXhsStatsViaPage()
+  /* 方案 A 语义保留（2026-11-11 用户拍板）：统计没拿到 = 未完成（返回 null，
+   * 登录窗轮询不关窗）；但这不属于登录过期，不能标 needLogin。 */
   if (stats === null || stats.length === 0) return null
 
   const details: { group: string; label: string; metric: Metric }[] = []
@@ -1146,41 +1137,61 @@ async function fetchXhs(): Promise<PlatformSnapshot | null> {
 }
 
 /**
- * 小红书数据接口（签名）——必须在**页面上下文**里 fetch。
- *
- * `hl_ops_fetch` 的 kickoff 脚本在 xiaohongshu 页面里执行，页面自带的
- * 请求拦截器会自动补 `x-s`/`x-t`，因此能拿到 200。
- * 两段式回传：kickoff 写 window.__hlOps，readback 同步读回。
+ * 小红书页面上下文抓取（O58，2026-11-22）：身份走页面会话 fetch（/user/info
+ * 无需签名）；**数据改 DOM 抓取**——2026-11-22 实测 datacenter 签名接口对
+ * eval 发起的 fetch/XHR 一律 406（页面拦截器不再给外部请求签名），但页面
+ * 自身的数据卡渲染正常（它自己的 JS 带签名），所以让页面自己加载、我们从
+ * innerText 读数。平台再改签名算法也不影响这条道（取的是渲染结果）。
+ * 返回 identityOk=false 才代表真·登录过期（页面会话也拿不到身份）。
  */
-async function fetchXhsStatsViaPage(): Promise<
-  { group: string; label: string; value: number | null; format?: Metric['format'] }[] | null
-> {
-  /* 2026-11-11 定案：用**隐藏窗口**取数（hl_ops_fetch_headless）。
-   *
-   * 为什么不用 hl_ops_fetch：那个要求登录窗已经开着。但用户要求
-   * 「登录一次后不再弹窗」——已登录时根本不会开窗，于是拿不到签名上下文。
-   * 隐藏窗口正好满足两边：用户看不见，但页面上下文真实、签名照常生成。 */
+async function fetchXhsViaPage(): Promise<{
+  identityOk: boolean
+  info: { userName?: string; redId?: string; userId?: string; userDesc?: string }
+  stats: { group: string; label: string; value: number | null; format?: Metric['format'] }[] | null
+} | null> {
   const ORIGIN = 'https://creator.xiaohongshu.com'
-  const endpoints: { group: string; path: string }[] = [
-    { group: '账号数据', path: '/api/galaxy/v2/creator/datacenter/account/base' },
-    { group: '粉丝来源', path: '/api/galaxy/v2/creator/datacenter/audience/source/account' },
-  ]
+  const IDENTITY_PATH = '/api/galaxy/user/info'
+  const DOM_PATH = '/dom-stats'
   const originJs = JSON.stringify(ORIGIN)
   const kickoff = `
 (function () {
   window.__hlOps = { pending: true };
   var parts = [];
   var done = 0;
-  var total = ${endpoints.length};
+  var total = 2;
   function finish() { window.__hlOps = { parts: parts }; }
-  function grab(i, path) {
-    fetch(${originJs} + path, { credentials: 'include', headers: { Accept: 'application/json' } })
-      .then(function (r) { return r.json(); })
-      .then(function (j) { parts[i] = { path: path, ok: !!(j && j.success), data: j && j.data }; })
-      .catch(function (e) { parts[i] = { path: path, ok: false, error: String(e) }; })
-      .then(function () { done += 1; if (done >= total) finish(); });
+  /* ① 身份：页面会话 fetch（无签名要求） */
+  fetch(${originJs} + ${JSON.stringify(IDENTITY_PATH)}, { credentials: 'include', headers: { Accept: 'application/json' } })
+    .then(function (r) { return r.json(); })
+    .then(function (j) { parts[0] = { path: ${JSON.stringify(IDENTITY_PATH)}, ok: !!(j && j.success), data: j && j.data }; })
+    .catch(function (e) { parts[0] = { path: ${JSON.stringify(IDENTITY_PATH)}, ok: false, error: String(e) }; })
+    .then(function () { done += 1; if (done >= total) finish(); });
+  /* ② 数据：DOM 抓取——页面自己加载的统计卡（含签名），读渲染文本 */
+  var WANT = {'观看':1,'播放':1,'点赞':1,'评论':1,'分享':1,'收藏':1,'涨粉':1,'粉丝':1,'获赞':1,'笔记':1,'关注':1,'主页访问':1,'净增粉丝':1,'新增粉丝':1,'总曝光':1};
+  function scrape() {
+    var lines = (document.body.innerText || '').split('\\n').map(function (s) { return s.trim(); }).filter(Boolean);
+    var pairs = [];
+    for (var i = 0; i < lines.length; i++) {
+      if (!WANT[lines[i]]) continue;
+      for (var j = i + 1; j < Math.min(i + 5, lines.length); j++) {
+        var m = lines[j].match(/^([0-9][0-9,]*(?:\\.[0-9]+)?万?)$/);
+        if (m) { pairs.push({ label: lines[i], value: m[1] }); break; }
+      }
+    }
+    /* 同标签去重（近7天/近30天卡片会重复出同一标签，保留首个） */
+    var seen = {};
+    return pairs.filter(function (p) { if (seen[p.label]) return false; seen[p.label] = 1; return true; });
   }
-  ${endpoints.map((e, i) => `grab(${i}, ${JSON.stringify(e.path)});`).join('\n  ')}
+  var tries = 0;
+  var iv = setInterval(function () {
+    tries++;
+    var pairs = scrape();
+    if (pairs.length >= 2 || tries >= 9) {
+      clearInterval(iv);
+      parts[1] = { path: ${JSON.stringify(DOM_PATH)}, ok: pairs.length > 0, data: { pairs: pairs } };
+      done += 1; if (done >= total) finish();
+    }
+  }, 300);
   return 'kicked';
 })()`
 
@@ -1198,45 +1209,25 @@ async function fetchXhsStatsViaPage(): Promise<
   const parts = (parsed as { parts?: { path?: string; ok?: boolean; data?: unknown }[] } | null)?.parts
   if (!Array.isArray(parts)) return null
 
-  const out: { group: string; label: string; value: number | null; format?: Metric['format'] }[] = []
-  for (const part of parts) {
-    if (part.ok !== true || part.data === undefined) continue
-    const group = endpoints.find(e => e.path === part.path)?.group ?? '账号数据'
-    /* 数据结构未知时做保守展平：只取「数字」叶子，用父级键当标签。
-     * 这样即使接口改版也不会崩，只是标签变技术化。 */
-    flattenNumbers(part.data, group, out, 0)
+  const identityPart = parts.find(p => p.path === IDENTITY_PATH)
+  const identityOk = identityPart?.ok === true
+  const info = (identityPart?.data ?? {}) as { userName?: string; redId?: string; userId?: string; userDesc?: string }
+
+  /* DOM 对：'1.6万'→16000、'2,224'→2224 */
+  const parseCnNum = (raw: string): number | null => {
+    const wan = /万$/.test(raw)
+    const n = Number.parseFloat(raw.replace(/[,万]/g, ''))
+    return Number.isFinite(n) ? Math.round(n * (wan ? 10000 : 1)) : null
   }
-  return out.length > 0 ? out : null
+  const domPairs = (parts.find(p => p.path === DOM_PATH)?.data as { pairs?: { label: string; value: string }[] } | undefined)?.pairs ?? []
+  const stats: { group: string; label: string; value: number | null; format?: Metric['format'] }[] = []
+  for (const p of domPairs) {
+    const value = parseCnNum(p.value)
+    if (value !== null) stats.push({ group: '账号数据', label: p.label, value })
+  }
+  return { identityOk, info, stats: stats.length > 0 ? stats : null }
 }
 
-/** 把嵌套 JSON 里的数字叶子展平（限深度 3，避免把嵌套数组展开成一堆噪声） */
-function flattenNumbers(
-  node: unknown,
-  group: string,
-  out: { group: string; label: string; value: number | null }[],
-  depth: number,
-): void {
-  if (depth > 3 || node === null || typeof node !== 'object') return
-  for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
-    if (typeof v === 'number' && Number.isFinite(v)) {
-      out.push({ group, label: prettifyKey(k), value: v })
-    } else if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
-      flattenNumbers(v, group, out, depth + 1)
-    }
-  }
-}
-
-/** 把 camelCase / snake_case 的接口字段名转成可读中文（未知字段保留原名） */
-function prettifyKey(k: string): string {
-  const KNOWN: Record<string, string> = {
-    fansCount: '粉丝', fansTotal: '粉丝总数', fans: '粉丝',
-    followCount: '关注', likesCount: '获赞', likeCount: '获赞',
-    noteCount: '笔记数', notesCount: '笔记数', viewsCount: '观看',
-    viewCount: '观看', readCount: '阅读', playCount: '播放',
-    collectCount: '收藏', commentCount: '评论', shareCount: '分享',
-  }
-  return KNOWN[k] ?? k
-}
 
 export const FETCHERS: Record<ProviderId, () => Promise<PlatformSnapshot | null>> = {
   douyin: fetchDouyin,
