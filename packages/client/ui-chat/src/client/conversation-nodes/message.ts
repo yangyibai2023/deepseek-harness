@@ -64,10 +64,15 @@ export const messageDefinition: ConversationNodeDefinition<MessageNode> = {
   target: 'chat',
   match: (event) => {
     if (event.type === 'user/message') {
-      /* HeightLab O81 R4（2026-11-22）：协作者移交的「隐藏历史」消息
-       *（message.hidden）——不进聊天节点：页面不可见，但事件仍在流中，
-       * 模型上下文照常包含（用户拍板：隐藏=页面不可见≠上下文丢失）。 */
-      if ((event.data as { hidden?: unknown }).hidden === true) return null
+      /* HeightLab O81 R4（2026-11-22）：协作者移交的「隐藏历史」消息——
+       * 标记在 data.hidden 或 content block.hidden（live-append 通道写在
+       * block 层）：不进聊天节点——页面不可见，但事件在流中，模型上下文
+       * 照常包含（用户拍板：隐藏=页面不可见≠上下文丢失）。 */
+      const data = event.data as unknown as { hidden?: unknown; content?: unknown }
+      const blocks = Array.isArray(data.content) ? data.content : []
+      if (data.hidden === true || blocks.some(b => (b as { hidden?: unknown })?.hidden === true)) {
+        return null
+      }
       return isAppendSurfaceEvent(event) && !isCompactionCheckpoint(event)
         ? { id: String(event.data.id), role: 'start' }
         : null

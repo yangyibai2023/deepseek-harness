@@ -299,9 +299,16 @@ export const assistantDefinition: ConversationNodeDefinition<AssistantState> = {
       return { id: `${event.data.turn}:${event.data.step}`, role: 'update' }
     }
     if (event.type === 'assistant/message' && event.surfaceOp === 'append') {
-      /* O81 R4：隐藏历史（message.hidden）不建 assistant 节点——页面不可见，
-       * 模型上下文照常包含。 */
-      if ((event.data as { hidden?: unknown }).hidden === true) return null
+      /* O81 R4：隐藏历史（data.hidden 或 content block.hidden）不建
+       * assistant 节点——页面不可见，模型上下文照常包含。 */
+      const data = event.data as unknown as {
+        hidden?: unknown
+        message?: { content?: unknown }
+      }
+      const blocks = Array.isArray(data.message?.content) ? data.message.content : []
+      if (data.hidden === true || blocks.some(b => (b as { hidden?: unknown })?.hidden === true)) {
+        return null
+      }
       return { id: `${event.data.turn}:${event.data.step}`, role: 'update' }
     }
     if (event.type === 'llm/retry') {
