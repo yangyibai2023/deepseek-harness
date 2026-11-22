@@ -791,12 +791,14 @@ function SharedSpaceShell() {
   const ref = { current: null as HTMLDivElement | null }
   const setRef = (el: HTMLDivElement | null): void => {
     if (ref.current === el) return
+    /* 插件接管渲染可能在 ref 回调里抛错——React 会把它当渲染错误整树崩
+     * （2026-11-22 实测白屏根因）。壳只传播挂载点，业务异常不该炸 hub。 */
     if (ref.current !== null) {
-      window.dispatchEvent(new CustomEvent('hl:spaces-page-unmount', { detail: { container: ref.current } }))
+      try { window.dispatchEvent(new CustomEvent('hl:spaces-page-unmount', { detail: { container: ref.current } })) } catch { /* 插件清理异常忽略 */ }
     }
     ref.current = el
     if (el !== null) {
-      window.dispatchEvent(new CustomEvent('hl:spaces-page-mount', { detail: { container: el } }))
+      try { window.dispatchEvent(new CustomEvent('hl:spaces-page-mount', { detail: { container: el } })) } catch { /* 插件初始化异常忽略 */ }
     }
   }
   return (
