@@ -427,6 +427,7 @@ async function fetchDouyin(): Promise<PlatformSnapshot | null> {
     status?: number
     data?: Record<string, unknown>
   }>('hl_ops_api', { provider: 'douyin', path: `/aweme/v1/web/user/profile/self/?${q}` })
+  markOpsNeedLogin('douyin')
   if (res.needLogin === true) return null
   const user = res.data?.user as Record<string, unknown> | undefined
   if (user === undefined) return null
@@ -534,6 +535,7 @@ async function fetchDouyinCreator(recentDays = 7): Promise<{
     body: JSON.stringify({ recent_days: recentDays }),
     host: 'creator',
   })
+  markOpsNeedLogin('douyin')
   if (res.needLogin === true) return []
   const metrics = res.data?.metrics ?? []
   /* 2026-11-13 用户要求「有多少展示多少」：**取消白名单过滤**。
@@ -655,6 +657,7 @@ async function fetchDouyinFans(): Promise<FanPortrait | null> {
     path: '/janus/douyin/creator/bff/data/fans/summary/v2',
     host: 'creator',
   })
+  markOpsNeedLogin('douyin')
   if (res.needLogin === true) return null
   const d = res.data
   if (d === undefined || d === null || typeof d !== 'object') return null
@@ -856,6 +859,7 @@ async function fetchDouyinWorks(recentDays = 7): Promise<WorkItem[]> {
         })
         window.localStorage.setItem('hl-ops-diag', JSON.stringify(diag.slice(-9)))
       } catch { /* 诊断失败不影响主流程 */ }
+      markOpsNeedLogin('douyin')
       if (res.needLogin === true) continue
       for (const it of res.data?.items ?? []) {
         const id = it.item_id ?? ''
@@ -909,6 +913,7 @@ async function fetchBilibili(): Promise<PlatformSnapshot | null> {
     needLogin?: boolean
     data?: { code?: number; data?: Record<string, unknown> }
   }>('hl_ops_api', { provider: 'bilibili', path: '/x/web-interface/nav' })
+  markOpsNeedLogin('bilibili')
   if (res.needLogin === true) return null
   const body = res.data
   if (body?.code !== 0 || body.data?.isLogin !== true) return null
@@ -966,6 +971,7 @@ async function fetchShipinhao(): Promise<PlatformSnapshot | null> {
         body: JSON.stringify(body),
         host: 'channels',
       })
+      markOpsNeedLogin('shipinhao')
       if (res.needLogin === true) return null
       return (res.data ?? null) as T | null
     } catch {
@@ -1099,6 +1105,7 @@ async function fetchXhs(): Promise<PlatformSnapshot | null> {
       data?: { userName?: string; redId?: string; userId?: string; userDesc?: string }
     }
   }>('hl_ops_api', { provider: 'xhs', path: '/api/galaxy/user/info', host: 'creator' })
+  markOpsNeedLogin('xhs')
   if (res.needLogin === true) return null
   const info = res.data?.data
   if (res.data?.success !== true || info === undefined) return null
@@ -1236,6 +1243,19 @@ export const FETCHERS: Record<ProviderId, () => Promise<PlatformSnapshot | null>
   bilibili: fetchBilibili,
   xhs: fetchXhs,
   shipinhao: fetchShipinhao,
+}
+
+/* O58 会话过期信号（2026-11-22）：fetcher 内任何 needLogin 分支打标，
+ * syncPlatform 取标后给 UI「重新扫码」入口。背景：hl_ops_api 对 cookie
+ * 过期返回 needLogin:true，而 fetcher 一律返回 null——与「从未登录」
+ * （首登轮询的正常中间态）不可区分，导致面板只剩「可能已过期」徽标、
+ * 无任何可操作出口（用户 1122 投诉根因）。有快照+needLogin=登录已过期。 */
+const OPS_NEED_LOGIN: Record<string, boolean> = {}
+function markOpsNeedLogin(provider: string): void { OPS_NEED_LOGIN[provider] = true }
+function takeOpsNeedLogin(provider: string): boolean {
+  const hit = OPS_NEED_LOGIN[provider] === true
+  OPS_NEED_LOGIN[provider] = false
+  return hit
 }
 
 /* ── 数据可靠性三层防护（2026-11-12） ────────────────────────────────────
@@ -2293,12 +2313,16 @@ function AccountRowMenu({ acct, projects, onMove, onRemove, onClose }: {
 }
 
 /* ── 单个账号行（原生 Artwork + 数据 + hover ⋯） ─────────────────────── */
-function AccountRow({ acct, projects, onOpen, onChanged, onLogin }: {
+function AccountRow({ acct, projects, onOpen, onChanged, onLogin, platformState, onRefresh, onRelogin }: {
   acct: UnifiedAccount
   projects: ProjectRecord[]
   onOpen: (acct: UnifiedAccount) => void
   onChanged: () => void
   onLogin?: (def: ProviderDef) => void
+  /** O58：该平台同步态（仅主平台登录行传入）——过期重登/刷新/同步中/失败 */
+  platformState?: PlatformState
+  onRefresh?: () => void
+  onRelogin?: () => void
 }): React.JSX.Element {
   const [menuOpen, setMenuOpen] = useState(false)
   const [hover, setHover] = useState(false)
@@ -2387,6 +2411,49 @@ function AccountRow({ acct, projects, onOpen, onChanged, onLogin }: {
           {acct.stats}
         </span>
       </span>
+      {acct.source.type === 'primary' && platformState?.needLogin === true && (
+        /* O58：登录过期=可操作状态，常驻重登按钮（不 hover 隐藏——过期必须
+         * 有出口，这正是「只显示过期啥也没有」投诉的修复点） */
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onRelogin?.() }}
+          style={{
+            flex: 'none',
+            fontSize: 11,
+            lineHeight: '20px',
+            padding: '0 8px',
+            borderRadius: 6,
+            border: '1px solid rgba(180,83,9,.35)',
+            background: 'rgba(180,83,9,.10)',
+            color: 'var(--dsw-alias-label-warning, #B45309)',
+            cursor: 'pointer',
+            fontWeight: 500,
+          }}
+        >
+          登录过期 · 重新扫码
+        </button>
+      )}
+      {acct.source.type === 'primary' && platformState?.busy === true && (
+        <span style={{ flex: 'none', fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' }}>同步中…</span>
+      )}
+      {acct.source.type === 'primary' && platformState?.error !== undefined && platformState?.busy !== true && (
+        <span
+          title={platformState.error}
+          style={{ flex: 'none', fontSize: 11, color: 'var(--dsw-alias-label-danger, #B42318)' }}
+        >
+          同步失败
+        </span>
+      )}
+      {acct.source.type === 'primary' && (platformState === undefined || (platformState.busy !== true && platformState.error === undefined && platformState.needLogin !== true)) && onRefresh !== undefined && (
+        <button
+          type="button"
+          aria-label='刷新该平台数据'
+          onClick={(e) => { e.stopPropagation(); onRefresh() }}
+          style={{ border: 'none', background: 'transparent', cursor: 'pointer', flex: 'none', color: 'var(--dsw-alias-label-tertiary)', fontSize: 14, lineHeight: 1, padding: '3px 6px', borderRadius: 6, opacity: (hover || menuOpen) ? 1 : 0 }}
+        >
+          ↻
+        </button>
+      )}
       {acct.kind !== 'pending' && (
         <button
           type="button"
@@ -2411,13 +2478,17 @@ function AccountRow({ acct, projects, onOpen, onChanged, onLogin }: {
 }
 
 /** 列内平台小标题 + 该平台账号 */
-function PlatformGroup({ platform, items, projects, onOpen, onChanged, onLogin }: {
+function PlatformGroup({ platform, items, projects, onOpen, onChanged, onLogin, platformStates, onRefreshPlatform, onReloginPlatform }: {
   platform: ProviderId
   items: UnifiedAccount[]
   projects: ProjectRecord[]
   onOpen: (acct: UnifiedAccount) => void
   onChanged: () => void
   onLogin?: (def: ProviderDef) => void
+  /** O58 透传：行内过期重登/刷新（按平台取态） */
+  platformStates?: Record<string, PlatformState>
+  onRefreshPlatform?: (p: ProviderId) => void
+  onReloginPlatform?: (p: ProviderId) => void
 }): React.JSX.Element {
   return (
     <div style={{ marginBottom: 12 }}>
@@ -2442,6 +2513,9 @@ function PlatformGroup({ platform, items, projects, onOpen, onChanged, onLogin }
           onOpen={onOpen}
           onChanged={onChanged}
           {...(onLogin !== undefined ? { onLogin } : {})}
+          {...(platformStates !== undefined ? { platformState: platformStates[platform] } : {})}
+          {...(onRefreshPlatform !== undefined ? { onRefresh: () => { onRefreshPlatform(platform) } } : {})}
+          {...(onReloginPlatform !== undefined ? { onRelogin: () => { onReloginPlatform(platform) } } : {})}
         />
       ))}
     </div>
@@ -2449,7 +2523,8 @@ function PlatformGroup({ platform, items, projects, onOpen, onChanged, onLogin }
 }
 
 /** 左右一列（我的 / 对标），内部按平台分组 */
-function AccountColumn({ title, items, projects, onOpen, onChanged, onAdd, onLogin }: {
+function AccountColumn({ title, items, projects, onOpen, onChanged, onAdd, onLogin,
+  platformStates, onRefreshPlatform, onReloginPlatform }: {
   title: string
   items: UnifiedAccount[]
   projects: ProjectRecord[]
@@ -2457,6 +2532,9 @@ function AccountColumn({ title, items, projects, onOpen, onChanged, onAdd, onLog
   onChanged: () => void
   onAdd?: () => void
   onLogin?: (def: ProviderDef) => void
+  platformStates?: Record<string, PlatformState>
+  onRefreshPlatform?: (p: ProviderId) => void
+  onReloginPlatform?: (p: ProviderId) => void
 }): React.JSX.Element {
   const byPlat = new Map<ProviderId, UnifiedAccount[]>()
   for (const a of items) {
@@ -2506,6 +2584,9 @@ function AccountColumn({ title, items, projects, onOpen, onChanged, onAdd, onLog
           onOpen={onOpen}
           onChanged={onChanged}
           {...(onLogin !== undefined ? { onLogin } : {})}
+          {...(platformStates !== undefined ? { platformStates } : {})}
+          {...(onRefreshPlatform !== undefined ? { onRefreshPlatform } : {})}
+          {...(onReloginPlatform !== undefined ? { onReloginPlatform } : {})}
         />
       ))}
       {items.length === 0 && (
@@ -2822,12 +2903,18 @@ function AddAccountModal({ onClose, onAdded, onLogin, initialKind, initialProjec
 }
 
 /* ── 「所有项目」页（v3/v4 设计稿落地）────────────────────────────────── */
-function AccountsSection({ onOpenUnified, onLogin, platformStates }: {
+function AccountsSection({ onOpenUnified, onLogin, platformStates, onRefreshPlatform, onReloginPlatform, onRefreshAll }: {
   onOpenUnified: (acct: UnifiedAccount) => void
   /** 主平台扫码登录（沿用 HeightLabOpsPage.onCardClick 的同步+自动关窗链路） */
   onLogin: (def: ProviderDef) => void
-  /** 各平台同步态（busy/error）——显示在页顶 */
+  /** 各平台同步态（busy/error/needLogin）——显示在页顶 */
   platformStates: Record<string, PlatformState>
+  /** O58：行内 ↻ 刷新（主平台登录行） */
+  onRefreshPlatform: (p: ProviderId) => void
+  /** O58：登录过期 → 重新扫码（不清旧数据，扫码成功即刷新） */
+  onReloginPlatform: (p: ProviderId) => void
+  /** O58：全部刷新（有快照的平台逐个静默重拉） */
+  onRefreshAll: () => void
 }): React.JSX.Element {
   const [projects] = useState<ProjectRecord[]>(loadO56Projects)
   const [tick, setTick] = useState(0)
@@ -2927,6 +3014,9 @@ function AccountsSection({ onOpenUnified, onLogin, platformStates }: {
                 onChanged={() => { setTick(v => v + 1) }}
                 onAdd={() => { setAddOpen(true) }}
                 onLogin={onLogin}
+                platformStates={platformStates}
+                onRefreshPlatform={onRefreshPlatform}
+                onReloginPlatform={onReloginPlatform}
               />
               <AccountColumn
                 title='对标账号'
@@ -2943,15 +3033,30 @@ function AccountsSection({ onOpenUnified, onLogin, platformStates }: {
     )
   }
 
+  const expiredCount = Object.values(platformStates).filter(st => st.needLogin === true).length
+
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 0 10px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 0 10px', flexWrap: 'wrap' }}>
+        {expiredCount > 0 && (
+          <span style={{ fontSize: 12, color: 'var(--dsw-alias-label-warning, #B45309)', fontWeight: 500 }}>
+            {expiredCount} 个平台登录已过期，请重新扫码
+          </span>
+        )}
         {Object.entries(platformStates).map(([pid, st]) => {
-          if (st.busy !== true && st.error === undefined) return null
+          if (st.busy !== true && st.error === undefined && st.needLogin !== true) return null
           const nm = PROVIDERS.find(d => d.id === pid)?.name ?? pid
+          if (st.needLogin === true) {
+            return (
+              <span key={pid} style={{ fontSize: 12, color: 'var(--dsw-alias-label-warning, #B45309)' }}>
+                {nm}：登录已过期
+              </span>
+            )
+          }
           return (
             <span
               key={pid}
+              title={st.error !== undefined ? st.error : undefined}
               style={{
                 fontSize: 12,
                 color: st.error !== undefined
@@ -2964,6 +3069,22 @@ function AccountsSection({ onOpenUnified, onLogin, platformStates }: {
           )
         })}
         <span style={{ flex: 1 }} />
+        <button
+          type="button"
+          onClick={onRefreshAll}
+          style={{
+            border: '1px solid var(--dsw-alias-border-l2)',
+            background: 'var(--dsw-alias-bg-base)',
+            cursor: 'pointer',
+            font: 'inherit',
+            fontSize: 12,
+            padding: '4px 10px',
+            borderRadius: 8,
+            color: 'var(--dsw-alias-label-secondary)',
+          }}
+        >
+          ↻ 全部刷新
+        </button>
         <button type="button" onClick={() => { setAddOpen(true) }} style={primaryBtnStyle(false)}>
           ＋ 添加账号 ▾
         </button>
@@ -3457,6 +3578,8 @@ function FanPortraitPanel({ fans }: { fans: FanPortrait }) {
 interface PlatformState {
   busy?: boolean
   error?: string
+  /** O58：cookie 过期（有历史快照但平台要求重新登录）——UI 给「重新扫码」出口 */
+  needLogin?: boolean
 }
 
 
@@ -4612,6 +4735,8 @@ export function HeightLabOpsPage() {
    */
   const syncPlatform = useCallback(async (def: ProviderDef, opts?: { silent?: boolean }) => {
     if (opts?.silent !== true) setStates(s => ({ ...s, [def.id]: { busy: true } }))
+    /* O58：取数前快照存在性——needLogin+有快照=登录已过期；无快照=首登轮询中 */
+    const hadSnapshot = loadSnapshots()[def.id] !== undefined
     try {
       const snap = await FETCHERS[def.id]()
       /* ① 契约检查：不只看「有没有返回」，还要看**结构是否仍有意义**。
@@ -4626,13 +4751,16 @@ export function HeightLabOpsPage() {
         if (nonNull === 0) {
           setStates(st => ({
             ...st,
-            [def.id]: { ...st[def.id], busy: false, error: '接口返回结构已变化，需要更新适配' },
+            [def.id]: { ...st[def.id], busy: false, needLogin: false, error: '接口返回结构已变化，需要更新适配' },
           }))
           return false
         }
       }
       if (snap === null) {
-        setStates(s => ({ ...s, [def.id]: { busy: false } }))
+        /* O58：null 有两种——未登录（首登轮询中间态，静默）与登录已过期
+         * （有快照+needLogin 打标，必须给重登出口，否则面板只剩过期徽标） */
+        const expired = takeOpsNeedLogin(def.id) && hadSnapshot
+        setStates(s => ({ ...s, [def.id]: { busy: false, needLogin: expired } }))
         return false
       }
       /* 计算增长/突变守卫/works 保留 → 纯函数 computeSyncedSnapshot
@@ -4645,11 +4773,11 @@ export function HeightLabOpsPage() {
         /* 但**返回给 UI 的**要带 suspect，用户才能看到「待核」 */
         return merged
       })
-      setStates(s => ({ ...s, [def.id]: { busy: false } }))
+      setStates(s => ({ ...s, [def.id]: { busy: false, needLogin: false } }))
       return true
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
-      setStates(s => ({ ...s, [def.id]: { busy: false, error: msg.slice(0, 100) } }))
+      setStates(s => ({ ...s, [def.id]: { busy: false, needLogin: false, error: msg.slice(0, 100) } }))
       return false
     }
   }, [])
@@ -4719,14 +4847,9 @@ export function HeightLabOpsPage() {
     return () => { window.removeEventListener('hl-ops-goto-tab', onGoto) }
   }, [syncPlatform])
 
-  const onCardClick = useCallback(async (def: ProviderDef) => {
-    const hasSnapshot = snapshots[def.id] !== undefined
-    if (hasSnapshot) {
-      setDetail(def.id)
-      setDetailTab('数据概览')
-      void syncPlatform(def)
-      return
-    }
+  /** O58：开窗扫码登录流（首登与「登录已过期」重登共用——重登不清旧数据，
+   * 扫码成功即刷新并自动关窗）。从 onCardClick 抽出以便多处入口复用。 */
+  const startLoginFlow = useCallback(async (def: ProviderDef) => {
     try {
       await invokeWithTimeout('hl_ops_open_login', { provider: def.id, url: def.loginUrl })
       loginPromptedRef.current.add(def.id)
@@ -4768,7 +4891,18 @@ export function HeightLabOpsPage() {
       const msg = e instanceof Error ? e.message : String(e)
       setStates(s => ({ ...s, [def.id]: { busy: false, error: `开窗失败：${msg.slice(0, 80)}` } }))
     }
-  }, [snapshots, syncPlatform])
+  }, [syncPlatform])
+
+  const onCardClick = useCallback(async (def: ProviderDef) => {
+    const hasSnapshot = snapshots[def.id] !== undefined
+    if (hasSnapshot) {
+      setDetail(def.id)
+      setDetailTab('数据概览')
+      void syncPlatform(def)
+      return
+    }
+    await startLoginFlow(def)
+  }, [snapshots, syncPlatform, startLoginFlow])
 
   const detailDef = detail === null ? null : PROVIDERS.find(p => p.id === detail) ?? null
   /** O57：统一账号行 → 详情页（三种来源分流） */
@@ -4918,6 +5052,20 @@ export function HeightLabOpsPage() {
               onOpenUnified={(acct) => { openUnified(acct) }}
               onLogin={(def) => { void onCardClick(def) }}
               platformStates={states}
+              onRefreshPlatform={(pid) => {
+                const def = PROVIDERS.find(p => p.id === pid)
+                if (def !== undefined) void syncPlatform(def)
+              }}
+              onReloginPlatform={(pid) => {
+                const def = PROVIDERS.find(p => p.id === pid)
+                if (def !== undefined) void startLoginFlow(def)
+              }}
+              onRefreshAll={() => {
+                const snaps = loadSnapshots()
+                for (const def of PROVIDERS) {
+                  if (snaps[def.id] !== undefined) void syncPlatform(def, { silent: true })
+                }
+              }}
             />
           )
         ) : (
@@ -5118,12 +5266,52 @@ export function HeightLabOpsPage() {
                       <MonitorPanel records={records.filter(r => r.provider === detailDef.id)} />
                     )}
 
-                    <div style={{ fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary)', marginTop: 16 }}>
-                      同步于 {new Date(snap.syncedAt).toLocaleString('zh-CN')}
+                    <div style={{ fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary)', marginTop: 16, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span>同步于 {new Date(snap.syncedAt).toLocaleString('zh-CN')}</span>
                       {ageDays(snap.syncedAt) > STALE_DAYS && (
-                        <span style={{ marginLeft: 8, color: 'var(--dsw-alias-label-warning, #B45309)' }}>
+                        <span style={{ color: 'var(--dsw-alias-label-warning, #B45309)' }}>
                           · 已 {Math.floor(ageDays(snap.syncedAt))} 天未更新，数据可能已过期
                         </span>
+                      )}
+                      {/* O58：详情页也给出口——刷新 / 登录过期重新扫码（行内同链路口径） */}
+                      {detailDef !== null && states[detailDef.id]?.needLogin === true && (
+                        <button
+                          type="button"
+                          onClick={() => { void startLoginFlow(detailDef) }}
+                          style={{
+                            fontSize: 11,
+                            lineHeight: '20px',
+                            padding: '0 8px',
+                            borderRadius: 6,
+                            border: '1px solid rgba(180,83,9,.35)',
+                            background: 'rgba(180,83,9,.10)',
+                            color: 'var(--dsw-alias-label-warning, #B45309)',
+                            cursor: 'pointer',
+                            fontWeight: 500,
+                          }}
+                        >
+                          登录过期 · 重新扫码
+                        </button>
+                      )}
+                      {detailDef !== null && (
+                        <button
+                          type="button"
+                          onClick={() => { void syncPlatform(detailDef) }}
+                          disabled={states[detailDef.id]?.busy === true}
+                          style={{
+                            fontSize: 11,
+                            lineHeight: '20px',
+                            padding: '0 8px',
+                            borderRadius: 6,
+                            border: '1px solid var(--dsw-alias-border-l2)',
+                            background: 'transparent',
+                            color: 'var(--dsw-alias-label-secondary)',
+                            cursor: states[detailDef.id]?.busy === true ? 'default' : 'pointer',
+                            opacity: states[detailDef.id]?.busy === true ? 0.6 : 1,
+                          }}
+                        >
+                          {states[detailDef.id]?.busy === true ? '同步中…' : '↻ 刷新'}
+                        </button>
                       )}
                     </div>
                   </>
