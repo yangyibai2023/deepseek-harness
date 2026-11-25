@@ -207,16 +207,19 @@ export class WorkspaceRegistry extends Service {
      * 校验器直接 throw → workspaceRegistry 拒绝 init → 7 个下游服务全体
      * pending → 目录服务不可用 → 界面自动开会话重试 15 次全败 → 永远停在
      * 粒子页（且重装无效，因为坏的是用户数据不是程序文件）。
-     * 自愈策略：跨工作区重复的会话按 updatedAt 较新的工作区优先保留，
-     * 从较旧的记录里摘除该会话 id 并回写。幂等：干净数据零改动直接通过。 */
+     *
+     * 归属裁决必须**先建会话头索引**：heal 依赖 `sessionPaths`（会话 cwd）判断
+     * 谁是合法归属；索引没建时 cwd 一律 undefined，只能退化成按时间戳盲选
+     * （会把会话判给时间戳更新但 cwd 不匹配的错误工作区）。索引本身不依赖
+     * workspace 记录是否合法，可以安全地提到校验与自愈之前。 */
+    const headers = (this.table.size > 0 || !this.state.initialized)
+      ? await this.listStoredHeaders()
+      : []
+    await this.replaceHeaderIndex(headers)
     await this.healDuplicateSessionOwnership()
     this.validateStoredState(this.state)
     if (!this.state.initialized) {
-      const headers = await this.listStoredHeaders()
-      await this.replaceHeaderIndex(headers)
       await this.bootstrap(headers)
-    } else if (this.table.size > 0) {
-      await this.replaceHeaderIndex(await this.listStoredHeaders())
     }
 
     await this.indexLiveSessions()
@@ -758,10 +761,26 @@ export class WorkspaceRegistry extends Service {
    * 文件——所以必须在启动时把它修好，而不是让用户去手改 JSON。
    *
    * 两种形态都处理，且互不干扰：
-   *   1) 跨工作区重复：保留 `updatedAt`（缺失退回 `createdAt`）最新的那个
-   *      工作区，从其余每个记录里摘掉该会话（同一记录里的多次重复一并摘除）。
+   *   1) 跨工作区重复：裁决出唯一归属，从其余每个记录里摘掉该会话
+   *      （同一记录里的多次重复一并摘除）。
    *   2) 单记录内重复：同一工作区把同一会话登记了多次，只保留首次出现的位
    *      置（数组顺序即展示顺序）。
+   *
+   * ## 归属裁决顺序（cwd 优先，不看时间戳）
+   *
+   * `attachSession` 的合法前提是「会话 header 的 cwd 解析后严格等于工作区的
+   * path」。因此**会话的 cwd 才是归属的权威事实**，`updatedAt` 只是工作区记录
+   * 的最后修改时间，与归属合法性无关。用时间戳裁决会选错人：
+   *
+   *   实测（用户 Mac 生产数据）：会话 2190bd43 / 4599639a 的 cwd 都是
+   *   `.../dsh-home/bot/workspace`，同时被登记在 bot 工作区 8400e2d5
+   *   （updated 11-04）与个人工作区 53c0c8f7（updated 11-07）里。
+   *   按 updatedAt 会把它们判给个人工作区 —— 而那正是**错误**的归属。
+   *
+   * 裁决顺序：
+   *   ① cwd 严格等于该工作区 path（唯一合法归属；path 已由校验器保证互异）
+   *   ② 否则取 `updatedAt`（缺失退回 `createdAt`）最新的
+   *   ③ 再否则按 registry order，最后按 id 字典序稳定裁决
    *
    * 严格幂等：干净数据零改动、零写入。只覆盖"会话重复归属"这一种损坏形态；
    * 路径冲突与 registry order 错乱仍由 {@link validateStoredState} 硬失败——
@@ -772,7 +791,7 @@ export class WorkspaceRegistry extends Service {
     if (table.size === 0) return
     const freshness = (record: WorkspaceRecord): number =>
       Date.parse(record.updatedAt) || Date.parse(record.createdAt) || 0
-    /** 谁是某个会话的合法归属：最新记录优先，同刻按 registry order 稳定裁决。 */
+    /** 谁是某个会话的合法归属：cwd 匹配 > 最新记录 > registry order > id。 */
     const rank = new Map<WorkspaceId, number>()
     for (const [index, id] of this.requireState().workspaceIds.entries()) rank.set(id, index)
 
@@ -786,21 +805,52 @@ export class WorkspaceRegistry extends Service {
       }
     }
 
-    /* 第 2 步：逐记录算出「应保留的 sessionIds」——去自身重复 + 让出非最新归属。 */
+    /* 第 2 步：逐记录算出「应保留的 sessionIds」——去自身重复 + 让出非法归属。 */
     const nextIds = new Map<WorkspaceId, readonly SessionId[]>()
+    /** 逐条决策留痕：改数据的操作必须可事后审计，不能只报「删了几条」。 */
+    const decisions: string[] = []
     for (const [id, record] of table.entries()) {
       const seen = new Set<SessionId>()
       const kept: SessionId[] = []
       for (const sessionId of record.sessionIds) {
-        if (seen.has(sessionId)) continue // 形态 2：单记录内重复，保留首次位置
+        if (seen.has(sessionId)) {
+          decisions.push(`drop ${sessionId} from ${id}: repeated within the same record`)
+          continue // 形态 2：单记录内重复，保留首次位置
+        }
         seen.add(sessionId)
         const claimants = owners.get(sessionId) ?? []
         if (claimants.length > 1) {
-          const winner = [...claimants].sort((a, b) =>
-            freshness(b.record) - freshness(a.record)
-            || (rank.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (rank.get(b.id) ?? Number.MAX_SAFE_INTEGER)
-            || String(a.id).localeCompare(String(b.id)))[0] as { id: WorkspaceId }
-          if (winner.id !== id) continue // 形态 1：让给更新的工作区
+          // 归属事实来自**会话自身的 cwd**（与 attachSession 的合法前提同源）：
+          // 先查头索引，再直接读会话头兜底——只靠索引会在「会话文件暂不可读」
+          // 时退化成时间戳盲选，可能把正确归属当成重复删掉。
+          const cwd = await this.resolveSessionCwd(sessionId)
+          /* cwd 未知（会话文件已丢失 / 不可解析）时无法用 cwd 裁决合法性。
+           * 但**不能就此放手**：校验器会拿索引到的 id 判双归属并抛错，把它留在
+           * 两个工作区里等于让启动继续失败（用户看到的就是「升级后永远粒子页」）。
+           * 这种"幽灵归属"（指向已不存在的会话）的正确处理是**所有记录一并摘除**
+           * ——它不会让用户丢任何可见内容（会话本身已不在），却能让归属唯一化。
+           * 若会话之后重新出现，它的 cwd 会在下次启动时重新决定归属。 */
+          if (cwd === undefined) {
+            decisions.push(`drop ${sessionId} from ${id}: ghost ownership (session is gone); no cwd to adjudicate`)
+            continue
+          }
+          const winner = [...claimants].sort((a, b) => {
+            // ① cwd 严格匹配工作区 path 者优先（唯一合法归属）
+            const aCwdMatch = a.record.path === cwd
+            const bCwdMatch = b.record.path === cwd
+            if (aCwdMatch !== bCwdMatch) return aCwdMatch ? -1 : 1
+            // ② 都匹配不上 / 都匹配时，时间戳较新者优先
+            return freshness(b.record) - freshness(a.record)
+              // ③ registry order，最后 id 字典序
+              || (rank.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (rank.get(b.id) ?? Number.MAX_SAFE_INTEGER)
+              || String(a.id).localeCompare(String(b.id))
+          })[0] as { id: WorkspaceId; record: WorkspaceRecord }
+          if (winner.id !== id) {
+            const why = winner.record.path === cwd ? 'cwd match' : 'freshest record'
+            decisions.push(`drop ${sessionId} from ${id}: winner ${winner.id} (${why}); cwd=${cwd}`)
+            continue // 形态 1：让给合法/更新的工作区
+          }
+          decisions.push(`keep ${sessionId} in ${id}: winner by itself; cwd=${cwd}`)
         }
         kept.push(sessionId)
       }
@@ -819,6 +869,30 @@ export class WorkspaceRegistry extends Service {
       `[workspace-heal] removed duplicate session ownership from ${healed.length} workspace(s): `
       + healed.join(', '),
     )
+    for (const decision of decisions) console.warn(`[workspace-heal]   ${decision}`)
+  }
+
+  /**
+   * 归属裁决用的会话 cwd：索引优先，读会话头兜底，最后做 realpath 归一化
+   * （工作区 path 在创建时已 realpath 归一，两边必须同口径才能严格比较）。
+   * 取不到就返回 `undefined`——调用方据此**放弃裁决**，绝不盲选。
+   */
+  private async resolveSessionCwd(sessionId: SessionId): Promise<string | undefined> {
+    const indexed = this.sessionPaths.get(sessionId)
+    if (indexed !== undefined) return indexed
+    let header: SessionHeader
+    try {
+      header = await this.readSessionHeader(sessionId)
+    } catch {
+      return undefined
+    }
+    if (header.cwd === undefined) return undefined
+    try {
+      return await realpathNormalize(header.cwd)
+    } catch {
+      // cwd 目录已不存在：仍可做字符串比较（归一化失败不等于归属未知）
+      return header.cwd
+    }
   }
 
   private validateStoredState(state: WorkspaceDomainState): void {

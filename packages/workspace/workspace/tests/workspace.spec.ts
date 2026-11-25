@@ -771,6 +771,32 @@ describe('Workspace session ordering', () => {
  * 期望：启动时把重复归属修掉并通过校验；干净数据零写入（幂等）。
  * ═══════════════════════════════════════════════════════════════════════════ */
 describe('duplicate session ownership healing', () => {
+  /* 这条是**最关键**的一条：cwd 必须压过时间戳。
+   * 用户 Mac 生产数据的真实形态——会话 cwd = .../bot/workspace，同时登记在
+   * bot 工作区（updated 11-04）与个人工作区（updated 11-07）里。按时间戳会把
+   * 它判给个人工作区，而那正是**错误**的归属（attachSession 的合法前提就是
+   * cwd 严格等于工作区 path）。 */
+  it('decides ownership by cwd before timestamps', async () => {
+    const personal = await makeDir('heal-cwd-personal')
+    const bot = await makeDir('heal-cwd-bot')
+    const personalId = WorkspaceId('00000000-0000-4000-8000-0000000000e1')
+    const botId = WorkspaceId('00000000-0000-4000-8000-0000000000e2')
+    const pool = storedPool(
+      [
+        // 个人工作区时间戳**更新**，但会话 cwd 在 bot 工作区下
+        [personalId, { ...record(personal, ['dup']), createdAt: '2026-11-07T00:00:00.000Z', updatedAt: '2026-11-07T00:00:00.000Z' }],
+        [botId, { ...record(bot, ['dup']), createdAt: '2026-11-04T00:00:00.000Z', updatedAt: '2026-11-04T00:00:00.000Z' }],
+      ],
+      { initialized: true, workspaceIds: [personalId, botId] },
+    )
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await harness({ pool, sessions: [header('dup', bot)] })
+    warn.mockRestore()
+
+    expect(storedRecord(pool, botId).sessionIds).toEqual(['dup'])   // cwd 匹配者保留
+    expect(storedRecord(pool, personalId).sessionIds).toEqual([])   // 时间戳更新但 cwd 不符者让位
+  })
+
   it('keeps the newest owner and drops the session from older records', async () => {
     const older = await makeDir('heal-older')
     const newer = await makeDir('heal-newer')
@@ -830,6 +856,32 @@ describe('duplicate session ownership healing', () => {
     expect(JSON.stringify([storedRecord(pool, firstId), storedRecord(pool, secondId)])).toBe(before)
   })
 
+  /* 幽灵归属：会话文件已不存在（无 session header），却被两个工作区同时登记。
+   * 无法用 cwd 裁决 → 必须**两边都摘除**，否则校验器仍判双归属、启动继续失败。
+   * 用户 Mac 生产数据里就有一条这种（session-4599639a 只有 projcache 残留）。 */
+  it('drops ghost ownership from every record when no cwd can be resolved', async () => {
+    const first = await makeDir('heal-ghost-a')
+    const second = await makeDir('heal-ghost-b')
+    const firstId = WorkspaceId('00000000-0000-4000-8000-0000000000f1')
+    const secondId = WorkspaceId('00000000-0000-4000-8000-0000000000f2')
+    const pool = storedPool(
+      [
+        [firstId, record(first, ['ghost', 'alive-a'])],
+        [secondId, record(second, ['ghost', 'alive-b'])],
+      ],
+      { initialized: true, workspaceIds: [firstId, secondId] },
+    )
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    // 只提供 alive-a / alive-b 的会话头；'ghost' 故意不给 → cwd 未知
+    await harness({ pool, sessions: [header('alive-a', first), header('alive-b', second)] })
+    const healedLog = warn.mock.calls.map(c => String(c[0])).filter(l => l.includes('workspace-heal'))
+    warn.mockRestore()
+
+    expect(storedRecord(pool, firstId).sessionIds).toEqual(['alive-a'])
+    expect(storedRecord(pool, secondId).sessionIds).toEqual(['alive-b'])
+    expect(healedLog.some(l => l.includes('ghost ownership'))).toBe(true)
+  })
+
   it('heals once then reports nothing on the next boot', async () => {
     const older = await makeDir('heal-twice-older')
     const newer = await makeDir('heal-twice-newer')
@@ -842,14 +894,16 @@ describe('duplicate session ownership healing', () => {
       ],
       { initialized: true, workspaceIds: [olderId, newerId] },
     )
+    // 必须给会话头：cwd 未知时自愈器拒绝裁决（宁可报错也不猜），不会留痕。
+    const sessions = [header('dup', older)]
     const firstWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    await harness({ pool })
+    await harness({ pool, sessions })
     const firstHealed = firstWarn.mock.calls.some(call => String(call[0]).includes('workspace-heal'))
     firstWarn.mockRestore()
     expect(firstHealed).toBe(true)
 
     const secondWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    await harness({ pool })
+    await harness({ pool, sessions })
     const secondHealed = secondWarn.mock.calls.some(call => String(call[0]).includes('workspace-heal'))
     secondWarn.mockRestore()
     expect(secondHealed).toBe(false)
