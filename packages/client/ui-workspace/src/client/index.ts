@@ -386,19 +386,16 @@ export function apply(ctx: Context): void {
         if (hasSession()) return
         let workspaceId = workspaceList.items[0]?.workspaceId
         if (workspaceId === undefined && workspaceList.items.length === 0) {
-          // 兜底：初始化脚本没种成功时，客户端自己建默认工作区。
-          const listingResult = await ctx.remote.directoryPicker.list(undefined, new AbortController().signal)
-          if (!listingResult.ok) throw new Error(listingResult.error.message)
-          const listing = listingResult.value
-          let dir = ''
-          try {
-            const created2 = await ctx.remote.directoryPicker.createDirectory(listing.home, 'HeightLab')
-            if (!created2.ok) throw new Error(created2.error.message)
-            dir = created2.value
-          } catch {
-            dir = `${listing.home.replace(/\/+$/, '')}/HeightLab`
-          }
-          const created = await workspaces.create({ path: dir })
+          // 兜底：初始化脚本没种成功时，走宿主端默认工作区初始化。
+          // 1126 修（用户 Windows 实机实锤的粒子页第二层根因）：原实现调
+          // directoryPicker.list/createDirectory——wire 层 requireCapability
+          // 要求 browse 能力，桌面端组合器解析为 native 后必然拒绝 →
+          // 卸载重装（空注册表 wsCount=0）→ 自动进入死循环 → 粒子页。
+          // initializeDefault 走宿主端 Documents 目录解析（native-command
+          // 通道，免 browse），幂等且仅在空注册表生效——与 navigation 流
+          // （initializeDefaultWorkspace）同款机制。
+          const created = await workspaces.initializeDefault(new AbortController().signal)
+          if (created === undefined) throw new Error('默认工作区初始化不可用（注册表/会话历史非空）')
           workspaceId = created.workspaceId
           try {
             await workspaces.rename(workspaceId, '我的工作区')
