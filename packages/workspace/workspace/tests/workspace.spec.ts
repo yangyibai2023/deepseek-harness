@@ -763,6 +763,99 @@ describe('Workspace session ordering', () => {
 
 })
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ * HeightLab 0.5.9 升级自愈（用户 Windows 实证的升级事故）
+ *
+ * 事故形态：0.4.28 时代的旧数据里同一会话被多个工作区登记 → 校验器 throw →
+ * registry 拒绝 init → 下游 7 服务 pending → 粒子页死锁，重装无效。
+ * 期望：启动时把重复归属修掉并通过校验；干净数据零写入（幂等）。
+ * ═══════════════════════════════════════════════════════════════════════════ */
+describe('duplicate session ownership healing', () => {
+  it('keeps the newest owner and drops the session from older records', async () => {
+    const older = await makeDir('heal-older')
+    const newer = await makeDir('heal-newer')
+    const olderId = WorkspaceId('00000000-0000-4000-8000-0000000000a1')
+    const newerId = WorkspaceId('00000000-0000-4000-8000-0000000000a2')
+    const pool = storedPool(
+      [
+        [olderId, { ...record(older, ['dup', 'older-only']), createdAt: '2026-08-01T00:00:00.000Z', updatedAt: '2026-08-01T00:00:00.000Z' }],
+        [newerId, { ...record(newer, ['dup', 'newer-only']), createdAt: '2026-08-02T00:00:00.000Z', updatedAt: '2026-08-02T00:00:00.000Z' }],
+      ],
+      { initialized: true, workspaceIds: [olderId, newerId] },
+    )
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    // 会话头必须一起给：entity.sessionIds 会按「header.cwd == 工作区 path」投影，
+    // 不给就等于所有会话都不可见，验不出内存态是否同步。
+    const result = await harness({
+      pool,
+      sessions: [header('dup', newer), header('newer-only', newer), header('older-only', older)],
+    })
+    warn.mockRestore()
+
+    // 较新工作区保留，较旧工作区被摘除；各自独有会话一个不少
+    expect(storedRecord(pool, newerId).sessionIds).toEqual(['dup', 'newer-only'])
+    expect(storedRecord(pool, olderId).sessionIds).toEqual(['older-only'])
+    // 内存态与落盘一致（没有「文件对了但列表还是旧的」）
+    expect(result.registry.get(newerId)!.sessionIds).toEqual(['dup', 'newer-only'])
+    expect(result.registry.get(olderId)!.sessionIds).toEqual(['older-only'])
+  })
+
+  it('dedupes repeated ids inside a single record without losing other sessions', async () => {
+    const dir = await makeDir('heal-intra')
+    const id = WorkspaceId('00000000-0000-4000-8000-0000000000b1')
+    const pool = storedPool(
+      [[id, record(dir, ['twice', 'keep', 'twice'])]],
+      { initialized: true, workspaceIds: [id] },
+    )
+    await harness({ pool })
+    // 只留首次出现的位置，顺序保持
+    expect(storedRecord(pool, id).sessionIds).toEqual(['twice', 'keep'])
+  })
+
+  it('is idempotent: a clean registry is never written', async () => {
+    const first = await makeDir('heal-clean-a')
+    const second = await makeDir('heal-clean-b')
+    const firstId = WorkspaceId('00000000-0000-4000-8000-0000000000c1')
+    const secondId = WorkspaceId('00000000-0000-4000-8000-0000000000c2')
+    const pool = storedPool(
+      [[firstId, record(first, ['s1'])], [secondId, record(second, ['s2'])]],
+      { initialized: true, workspaceIds: [firstId, secondId] },
+    )
+    const before = JSON.stringify([storedRecord(pool, firstId), storedRecord(pool, secondId)])
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await harness({ pool })
+    const healWarnings = warn.mock.calls.filter(call => String(call[0]).includes('workspace-heal'))
+    warn.mockRestore()
+    expect(healWarnings).toEqual([])
+    expect(JSON.stringify([storedRecord(pool, firstId), storedRecord(pool, secondId)])).toBe(before)
+  })
+
+  it('heals once then reports nothing on the next boot', async () => {
+    const older = await makeDir('heal-twice-older')
+    const newer = await makeDir('heal-twice-newer')
+    const olderId = WorkspaceId('00000000-0000-4000-8000-0000000000d1')
+    const newerId = WorkspaceId('00000000-0000-4000-8000-0000000000d2')
+    const pool = storedPool(
+      [
+        [olderId, { ...record(older, ['dup']), createdAt: '2026-08-01T00:00:00.000Z', updatedAt: '2026-08-01T00:00:00.000Z' }],
+        [newerId, { ...record(newer, ['dup']), createdAt: '2026-08-02T00:00:00.000Z', updatedAt: '2026-08-02T00:00:00.000Z' }],
+      ],
+      { initialized: true, workspaceIds: [olderId, newerId] },
+    )
+    const firstWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await harness({ pool })
+    const firstHealed = firstWarn.mock.calls.some(call => String(call[0]).includes('workspace-heal'))
+    firstWarn.mockRestore()
+    expect(firstHealed).toBe(true)
+
+    const secondWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await harness({ pool })
+    const secondHealed = secondWarn.mock.calls.some(call => String(call[0]).includes('workspace-heal'))
+    secondWarn.mockRestore()
+    expect(secondHealed).toBe(false)
+  })
+})
+
 describe('header-validated membership projection', () => {
   it('requires both candidate id and matching canonical cwd without re-reading on list()', async () => {
     const owned = await makeDir('owned')
@@ -791,16 +884,14 @@ describe('header-validated membership projection', () => {
     expect(workspace.sessionIds).not.toContain('cwd-only')
   })
 
-  it('rejects duplicate candidate ownership, duplicate paths, and initialized order drift', async () => {
+  /* HeightLab 0.5.9：双归属不再抛错，改由 healDuplicateSessionOwnership 自愈
+   * （见 'duplicate session ownership healing' 组）。路径冲突与 order 错乱
+   * 仍是硬失败——那两类静默「修」掉会掩盖真正的损坏。 */
+  it('rejects duplicate paths and initialized order drift', async () => {
     const first = await makeDir('corrupt-first')
     const second = await makeDir('corrupt-second')
     const firstId = '00000000-0000-4000-8000-000000000002'
     const secondId = '00000000-0000-4000-8000-000000000003'
-    const duplicateSession = storedPool(
-      [[firstId, record(first, ['dup'])], [secondId, record(second, ['dup'])]],
-      { initialized: true, workspaceIds: [WorkspaceId(firstId), WorkspaceId(secondId)] },
-    )
-    await expect(harness({ pool: duplicateSession })).rejects.toThrow(/accounted/)
 
     const duplicatePath = storedPool(
       [[firstId, record(first, [])], [secondId, record(first, [])]],

@@ -748,46 +748,76 @@ export class WorkspaceRegistry extends Service {
   }
 
   /**
-   * HeightLab 0.5.9 升级自愈：摘除跨工作区的重复会话归属。
-   * 一个会话出现在多个工作区的 `sessionIds` 里时，保留 `updatedAt`（不足时
-   * 退回 `createdAt`）较新的工作区，从其余记录里删除该会话并回写。严格幂等：
-   * 无双归属时零写入。仅覆盖"会话双归属"这一种损坏形态；路径冲突/registry
-   * order 错乱仍由 {@link validateStoredState} 硬失败（那是另一类损坏，静默
-   * "修"掉反而危险）。
+   * HeightLab 0.5.9 升级自愈：摘除重复的会话归属。
+   *
+   * 背景（用户 Windows 实证）：0.4.28 时代的旧数据里，同一会话被两个工作区
+   * 同时登记。0.5.8 的 {@link validateStoredState} 遇到这种形态直接 throw →
+   * workspaceRegistry 拒绝 init → 7 个下游服务全体 pending（session-controller
+   * / schedule / workspace-controller / … ）→ 目录服务不可用 → 界面自动开会话
+   * 重试 15 次全败 → 永远停在粒子页。重装无效，因为坏的是用户数据而不是程序
+   * 文件——所以必须在启动时把它修好，而不是让用户去手改 JSON。
+   *
+   * 两种形态都处理，且互不干扰：
+   *   1) 跨工作区重复：保留 `updatedAt`（缺失退回 `createdAt`）最新的那个
+   *      工作区，从其余每个记录里摘掉该会话（同一记录里的多次重复一并摘除）。
+   *   2) 单记录内重复：同一工作区把同一会话登记了多次，只保留首次出现的位
+   *      置（数组顺序即展示顺序）。
+   *
+   * 严格幂等：干净数据零改动、零写入。只覆盖"会话重复归属"这一种损坏形态；
+   * 路径冲突与 registry order 错乱仍由 {@link validateStoredState} 硬失败——
+   * 那两类静默"修"掉会掩盖真正的损坏，反而危险。
    */
   private async healDuplicateSessionOwnership(): Promise<void> {
     const table = this.requireTable()
     if (table.size === 0) return
-    // 收集重复：sessionId → 出现过它的工作区记录列表
+    const freshness = (record: WorkspaceRecord): number =>
+      Date.parse(record.updatedAt) || Date.parse(record.createdAt) || 0
+    /** 谁是某个会话的合法归属：最新记录优先，同刻按 registry order 稳定裁决。 */
+    const rank = new Map<WorkspaceId, number>()
+    for (const [index, id] of this.requireState().workspaceIds.entries()) rank.set(id, index)
+
+    /* 第 1 步：谁拥有哪个会话（每个会话在每个工作区里最多记一次，便于裁决）。 */
     const owners = new Map<SessionId, { id: WorkspaceId; record: WorkspaceRecord }[]>()
     for (const [id, record] of table.entries()) {
-      for (const sessionId of record.sessionIds) {
+      for (const sessionId of new Set(record.sessionIds)) {
         const list = owners.get(sessionId) ?? []
         list.push({ id, record })
         owners.set(sessionId, list)
       }
     }
-    const freshness = (record: WorkspaceRecord): number =>
-      Date.parse(record.updatedAt) || Date.parse(record.createdAt) || 0
-    const dirty: { id: WorkspaceId; record: WorkspaceRecord }[] = []
-    for (const [sessionId, list] of owners.entries()) {
-      if (list.length < 2) continue
-      const sorted = [...list].sort((a, b) => freshness(b.record) - freshness(a.record))
-      for (const loser of sorted.slice(1)) {
-        const next = loser.record.sessionIds.filter(sid => sid !== sessionId)
-        if (next.length === loser.record.sessionIds.length) continue
-        loser.record.sessionIds = next
-        if (!dirty.some(d => d.id === loser.id)) dirty.push(loser)
+
+    /* 第 2 步：逐记录算出「应保留的 sessionIds」——去自身重复 + 让出非最新归属。 */
+    const nextIds = new Map<WorkspaceId, readonly SessionId[]>()
+    for (const [id, record] of table.entries()) {
+      const seen = new Set<SessionId>()
+      const kept: SessionId[] = []
+      for (const sessionId of record.sessionIds) {
+        if (seen.has(sessionId)) continue // 形态 2：单记录内重复，保留首次位置
+        seen.add(sessionId)
+        const claimants = owners.get(sessionId) ?? []
+        if (claimants.length > 1) {
+          const winner = [...claimants].sort((a, b) =>
+            freshness(b.record) - freshness(a.record)
+            || (rank.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (rank.get(b.id) ?? Number.MAX_SAFE_INTEGER)
+            || String(a.id).localeCompare(String(b.id)))[0] as { id: WorkspaceId }
+          if (winner.id !== id) continue // 形态 1：让给更新的工作区
+        }
+        kept.push(sessionId)
       }
+      if (kept.length !== record.sessionIds.length) nextIds.set(id, kept)
     }
-    if (dirty.length === 0) return
-    for (const { id, record } of dirty) {
-      await table.put(id, record)
+    if (nextIds.size === 0) return
+
+    /* 第 3 步：写回。只写会话清单变化的记录，并在日志里留下可核对的痕迹。 */
+    const healed: string[] = []
+    for (const [id, sessionIds] of nextIds) {
+      const record = table.get(id) as WorkspaceRecord
+      await table.put(id, { ...record, sessionIds: [...sessionIds], updatedAt: new Date().toISOString() })
+      healed.push(`${id}(${record.sessionIds.length}→${sessionIds.length})`)
     }
-    // 同步内存态（state.global 里没有 sessionIds，records 即真相），并留痕。
     console.warn(
-      `[workspace-heal] removed duplicate session ownership across ${dirty.length} workspace(s): `
-      + dirty.map(d => `${d.id}(${d.record.sessionIds.length} sessions)`).join(', '),
+      `[workspace-heal] removed duplicate session ownership from ${healed.length} workspace(s): `
+      + healed.join(', '),
     )
   }
 
