@@ -373,7 +373,37 @@ export function apply(ctx: Context): void {
         // 非致命
       }
     }
-    const hasSession = (): boolean => sessions.list.getSnapshot().ids.length > 0
+    /* 1126 第三层根因（用户 Windows 0.5.10 实机 boot 06:20 实锤）：
+     * 原判定 `sessions.list.ids.length > 0` = 「磁盘上存在会话」，被误当成
+     * 「界面已打开会话」。130 条历史会话的机器上：首次尝试时工作区清单尚未
+     * 就绪（wsCount:0）→ 兜底 initializeDefault 在竞态窗口内报「注册表非空」
+     * → 2 秒后重试时会话清单恰好加载完 → 判定「已有会话」→ 静默 return，
+     * 永远不 connectWorkspace/openSession → 主界面容器不渲染
+     * （diag hostDisplay:no-host）→ 用户死等粒子页。机器快时首次尝试即胜出，
+     * 故历史上时好时坏（Mac 大注册表未复现）。
+     * 权威信号 = 会话详情页当前挂载的会话 id（dsh.sessions.current，会话页
+     * 挂载时写入）；openedOnce 兜住「openSession 后 localStorage 尚未落盘」
+     * 的 2 秒轮询窗口，避免重复 connect 建出双会话。基线比对见下。 */
+    let openedOnce = false
+    const readCurrentSessionId = (): string | undefined => {
+      try {
+        const raw = localStorage.getItem('dsh.sessions.current')
+        const parsed = raw === null ? undefined : JSON.parse(raw) as { sessionId?: unknown }
+        return typeof parsed?.sessionId === 'string' ? parsed.sessionId : undefined
+      } catch {
+        return undefined
+      }
+    }
+    /* 基线 = 本 effect 启动瞬间持久化的选择。它可能是**上一进程遗留的陈旧值**
+     * （只有带 ?hl_boot 的启动会清它；watcher-restart 走 ?token= 不清），
+     * 所以「值存在」不等于「本界面已打开会话」。只有值相对基线发生变化，
+     * 或我们自己的 openSession 已成功（openedOnce），才算真的打开了。 */
+    const baselineSessionId = readCurrentSessionId()
+    const hasOpenedSession = (): boolean => {
+      if (openedOnce) return true
+      const current = readCurrentSessionId()
+      return current !== undefined && current !== baselineSessionId
+    }
     const tryAutoStart = async (): Promise<void> => {
       if (attempts >= 15) return
       // 未登录（登录门 out/未判定）绝不自动开会话——否则登录页背后会
@@ -383,7 +413,7 @@ export function apply(ctx: Context): void {
       try {
         let workspaceList = workspaces.list.getSnapshot()
         debug({ at: 'enter', attempts, wsCount: workspaceList.items.length })
-        if (hasSession()) return
+        if (hasOpenedSession()) return
         let workspaceId = workspaceList.items[0]?.workspaceId
         if (workspaceId === undefined && workspaceList.items.length === 0) {
           // 兜底：初始化脚本没种成功时，走宿主端默认工作区初始化。
@@ -395,7 +425,13 @@ export function apply(ctx: Context): void {
           // 通道，免 browse），幂等且仅在空注册表生效——与 navigation 流
           // （initializeDefaultWorkspace）同款机制。
           const created = await workspaces.initializeDefault(new AbortController().signal)
-          if (created === undefined) throw new Error('默认工作区初始化不可用（注册表/会话历史非空）')
+          if (created === undefined) {
+            // 竞态（非错误）：本次 wsCount 快照滞后于真实注册表——宿主端
+            // 看到注册表非空/已有会话历史而拒绝初始化。2 秒后重试会读到
+            // 真实工作区清单并直接开会话；这里绝不能当成「已有会话」退出。
+            debug({ at: 'retry', reason: 'initializeDefault-not-applicable' })
+            return
+          }
           workspaceId = created.workspaceId
           try {
             await workspaces.rename(workspaceId, '我的工作区')
@@ -405,11 +441,12 @@ export function apply(ctx: Context): void {
           workspaceList = workspaces.list.getSnapshot()
         }
         workspaceId = workspaceId ?? workspaceList.items[0]?.workspaceId
-        if (workspaceId !== undefined && !hasSession()) {
+        if (workspaceId !== undefined && !hasOpenedSession()) {
           debug({ at: 'startSession', workspaceId })
           try {
             const sessionId = await uiWorkspace.connectWorkspace(workspaceId)
             debug({ at: 'connected', sessionId })
+            openedOnce = true
             uiWorkspace.openSession(sessionId)
             debug({ at: 'opened' })
           } catch (error) {
@@ -422,7 +459,10 @@ export function apply(ctx: Context): void {
     }
     const run = (): void => {
       void tryAutoStart().then(() => {
-        if (hasSession() || attempts >= 15) {
+        /* 停机条件同源：只有「界面真的打开了会话」才算完成。用 sessions.list
+         * 判停会在 130 条历史会话的机器上首轮就停（磁盘有会话≠界面已打开），
+         * 正是 06:20 卡死那次的直接原因。 */
+        if (hasOpenedSession() || attempts >= 15) {
           window.clearInterval(timer)
         }
       })
