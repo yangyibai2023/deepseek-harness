@@ -128,6 +128,28 @@
   background: var(--dsw-alias-bg-base, #fff);
 }
 
+/* 卡片头行：档位名 + 省多少钱角标（2026-11-25 角标从切换条移到卡片） */
+.cardHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cardBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #fee2e2;
+  /* hl-dark-ok: 浅红 chip 上的深红字，双主题皆可读（2026-11-25 用户要求角标突出） */
+  color: #b91c1c;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
 .cardName {
   margin: 0;
   font-size: 16px;

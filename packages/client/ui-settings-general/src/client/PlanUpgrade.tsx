@@ -18,6 +18,9 @@ type PlanCycle = 'monthly' | 'yearly'
 interface PlanPrice {
   amount: number
   includedTokens: number
+  /** 基础 / 赠送拆分（网关 2026-11-25 起下发；旧网关无此字段时回退到 credits × 周期）。 */
+  baseCredits?: number
+  bonusCredits?: number
   displayCycle: '月' | '年'
   badge?: string
 }
@@ -28,10 +31,23 @@ interface PlanCapacity {
 }
 
 interface PlanPresentation {
-  creditMultiple?: string
+  /**
+   * 「积分相当于 N 倍轻量版」。网关可能给字符串（当前只展示年付）或
+   * 按月付/年付分别给的对象（月付恢复展示时）。两种都要能吃。
+   */
+  creditMultiple?: string | Record<PlanCycle, string>
   capacityMonthly: PlanCapacity
   capacityYearly: PlanCapacity
   features: string[]
+}
+
+/** creditMultiple 归一化：字符串直接用，对象按周期取。 */
+function creditMultipleText(
+  value: PlanPresentation['creditMultiple'],
+  cycle: PlanCycle,
+): string | undefined {
+  if (value === undefined) return undefined
+  return typeof value === 'string' ? value : value[cycle]
 }
 
 interface PlanTier {
@@ -66,6 +82,14 @@ function formatCny(amount: number): string {
 
 /** 2026-11-01：个人/团队页签开关——团队档位上线后改 true 恢复。 */
 const SHOW_TEAM_TAB = false
+
+/**
+ * 2026-11-25 用户拍板：当前**只展示年付档**，月付档隐藏。
+ *
+ * 月付档位在 planCatalog / checkout / 媒体定价里都是完整可用的（六档），
+ * 只是前端不展示。后期要推月付时把这个开关改 true 即恢复「按月付费 ｜ 按年付费」切换条。
+ */
+const SHOW_MONTHLY_CYCLE = false
 
 export interface PlanUpgradeProps {
   readonly close: () => void
@@ -159,10 +183,19 @@ export function PlanUpgrade({ close }: PlanUpgradeProps) {
     }
   }, [cycle])
 
-  const cycleOptions = useMemo(() => ([
-    { id: 'monthly' as const, label: '按月付费' },
-    { id: 'yearly' as const, label: '按年付费', badge: tiers[0]?.prices.yearly.badge },
-  ]), [tiers])
+  /**
+   * 周期选项。2026-11-25：月付隐藏时这里为空数组（不渲染切换条，改渲染「套餐」静态标签）；
+   * 打开 SHOW_MONTHLY_CYCLE 即恢复两项切换。
+   *
+   * 角标从切换条移到卡片上（每档省的钱数不同，切换条上写不下）。
+   */
+  const cycleOptions = useMemo(() => {
+    const options: Array<{ id: PlanCycle; label: string }> = [
+      { id: 'monthly', label: '按月付费' },
+      { id: 'yearly', label: '按年付费' },
+    ]
+    return SHOW_MONTHLY_CYCLE ? options : []
+  }, [])
 
   return (
     <div className={css.overlay} role="dialog" aria-modal="true" aria-label="升级套餐">
@@ -198,16 +231,24 @@ export function PlanUpgrade({ close }: PlanUpgradeProps) {
           )
           : (
             <>
-              <div className={css.cycles} role="radiogroup" aria-label="计费周期">
-                {cycleOptions.map(option => (
-                  <button key={option.id} type="button" role="radio" aria-checked={cycle === option.id}
-                    className={cycle === option.id ? css.cycleActive : css.cycle}
-                    onClick={() => { setCycle(option.id) }}>
-                    {option.label}
-                    {option.badge !== undefined && <span className={css.cycleBadge}>{option.badge}</span>}
-                  </button>
-                ))}
-              </div>
+              {/* 2026-11-25：只展示年付 → 不渲染切换条，改为静态「套餐」标签（用户要求不出现「年付」字样） */}
+              {SHOW_MONTHLY_CYCLE
+                ? (
+                  <div className={css.cycles} role="radiogroup" aria-label="计费周期">
+                    {cycleOptions.map(option => (
+                      <button key={option.id} type="button" role="radio" aria-checked={cycle === option.id}
+                        className={cycle === option.id ? css.cycleActive : css.cycle}
+                        onClick={() => { setCycle(option.id) }}>
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                )
+                : (
+                  <div className={css.cycles}>
+                    <span className={css.cycleActive}>套餐</span>
+                  </div>
+                )}
 
               {error !== undefined && <p className={css.error} role="alert">下单失败：{error}</p>}
 
@@ -218,23 +259,27 @@ export function PlanUpgrade({ close }: PlanUpgradeProps) {
                   const busy = busyTier === tier.id
                   return (
                     <article key={tier.id} className={css.card}>
-                      <h2 className={css.cardName}>{tier.name}</h2>
-                      <p className={css.audience}>{(price.displayCycle === '年' ? tier.credits.total * 12 : tier.credits.total).toLocaleString('zh-CN')} 积分/{price.displayCycle}，{tier.slogan}</p>
+                      <div className={css.cardHead}>
+                        <h2 className={css.cardName}>{tier.name}</h2>
+                        {price.badge !== undefined && <span className={css.cardBadge}>{price.badge}</span>}
+                      </div>
+                      <p className={css.audience}>{price.includedTokens.toLocaleString('zh-CN')} 积分，{tier.slogan}</p>
                       <p className={css.price}>
                         {formatCny(price.amount)}
-                        <span className={css.per}>/{price.displayCycle}</span>
                       </p>
                       <p className={css.included}>
-                        {price.displayCycle === '年' ? '年度基础' : '每月基础'} <strong>{(price.displayCycle === '年' ? tier.credits.base * 12 : tier.credits.base).toLocaleString('zh-CN')}</strong> 积分
+                        基础 <strong>{(price.baseCredits ?? (price.displayCycle === '年' ? tier.credits.base * 12 : tier.credits.base)).toLocaleString('zh-CN')}</strong> 积分
                       </p>
                       <p className={css.included}>
-                        {price.displayCycle === '年' ? '年度赠送' : '每月赠送'} <strong>{(price.displayCycle === '年' ? tier.credits.bonus * 12 : tier.credits.bonus).toLocaleString('zh-CN')}</strong> 积分
+                        赠送 <strong>{(price.bonusCredits ?? (price.displayCycle === '年' ? tier.credits.bonus * 12 : tier.credits.bonus)).toLocaleString('zh-CN')}</strong> 积分
                       </p>
                       <p className={css.included}>
-                        {price.displayCycle === '年' ? '每年约' : '每月约'} <strong>{(price.displayCycle === '年' ? tier.presentation?.capacityYearly.images ?? 0 : tier.presentation?.capacityMonthly.images ?? 0).toLocaleString('zh-CN')}</strong> 张高清图片，或 <strong>{(price.displayCycle === '年' ? tier.presentation?.capacityYearly.videoSeconds ?? 0 : tier.presentation?.capacityMonthly.videoSeconds ?? 0).toLocaleString('zh-CN')}</strong> 秒高清视频
+                        约 <strong>{(price.displayCycle === '年' ? tier.presentation?.capacityYearly.images ?? 0 : tier.presentation?.capacityMonthly.images ?? 0).toLocaleString('zh-CN')}</strong> 张高清图片，或 <strong>{(price.displayCycle === '年' ? tier.presentation?.capacityYearly.videoSeconds ?? 0 : tier.presentation?.capacityMonthly.videoSeconds ?? 0).toLocaleString('zh-CN')}</strong> 秒高清视频
                       </p>
-                      {tier.presentation?.creditMultiple && (
-                        <p className={css.included}>积分相当于 {tier.presentation.creditMultiple}</p>
+                      {creditMultipleText(tier.presentation?.creditMultiple, cycle) !== undefined && (
+                        <p className={css.included}>
+                          积分相当于 {creditMultipleText(tier.presentation?.creditMultiple, cycle)}
+                        </p>
                       )}
                       <p className={css.audience}>{tier.audience}</p>
                       <ul className={css.features}>
