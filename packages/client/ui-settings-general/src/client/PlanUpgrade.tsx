@@ -231,24 +231,21 @@ export function PlanUpgrade({ close }: PlanUpgradeProps) {
           )
           : (
             <>
-              {/* 2026-11-25：只展示年付 → 不渲染切换条，改为静态「套餐」标签（用户要求不出现「年付」字样） */}
-              {SHOW_MONTHLY_CYCLE
-                ? (
-                  <div className={css.cycles} role="radiogroup" aria-label="计费周期">
-                    {cycleOptions.map(option => (
-                      <button key={option.id} type="button" role="radio" aria-checked={cycle === option.id}
-                        className={cycle === option.id ? css.cycleActive : css.cycle}
-                        onClick={() => { setCycle(option.id) }}>
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                )
-                : (
-                  <div className={css.cycles}>
-                    <span className={css.cycleActive}>套餐</span>
-                  </div>
-                )}
+              {/* 2026-11-25：只展示年付 → **完全不渲染**周期行。
+               * 中途曾放一个静态「套餐」chip 占位，用户反馈「没有月付/年付之分，
+               * 它白占一行，导致必须滚动」——那行整个去掉，卡片区随之上移。
+               * 恢复月付时把 SHOW_MONTHLY_CYCLE 改 true，切换条会自动回到这里。 */}
+              {SHOW_MONTHLY_CYCLE && (
+                <div className={css.cycles} role="radiogroup" aria-label="计费周期">
+                  {cycleOptions.map(option => (
+                    <button key={option.id} type="button" role="radio" aria-checked={cycle === option.id}
+                      className={cycle === option.id ? css.cycleActive : css.cycle}
+                      onClick={() => { setCycle(option.id) }}>
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               {error !== undefined && <p className={css.error} role="alert">下单失败：{error}</p>}
 
@@ -296,7 +293,7 @@ export function PlanUpgrade({ close }: PlanUpgradeProps) {
                       <ul className={css.features}>
                         {(tier.presentation?.features ?? tier.features).map(feature => <li key={feature}>{feature}</li>)}
                       </ul>
-                      <p className={css.slogan}>{tier.slogan}</p>
+                      {/* slogan 已在首行（…积分，{tier.slogan}），此处不再重复 —— 省一行高度 */}
                       <button type="button" className={css.buy} disabled={busy || !tier.purchasable || !agreementAccepted}
                         onClick={() => { void startCheckout(tier) }}>
                         {busy ? '正在下单…' : tier.purchasable ? '升级订阅' : '暂不可购'}
