@@ -8,8 +8,15 @@
   justify-content: center;
   overflow-y: auto;
   /* 2026-11-25（用户要求「往上移，一页看完」）：上下留白收紧，
-   * 配合移除周期行，三档卡片 + 购买按钮在一屏内可见。 */
-  padding: 20px 16px 32px;
+   * 配合移除周期行，三档卡片 + 购买按钮在一屏内可见。
+   *
+   * ⚠️ padding-top 不能小于 44px：本 App 是透明标题栏，macOS 的
+   * 关闭/最小化/全屏三个按钮浮在内容之上（约 y=8~30，x=10~80）。
+   * 20px 时「升级套餐」标题左端几乎压在按钮上（用户实测反馈
+   * 「和 macOS 的三个按钮有一点点快重合了」）。52px 让标题与按钮
+   * 之间留出约 22px 净空。改小前请先看这条注释。
+   * 下边距相应收到 20px 以保住「一页看完」。 */
+  padding: 52px 16px 20px;
   background: color-mix(in srgb, var(--dsw-alias-bg-base, #fff) 88%, transparent);
   backdrop-filter: blur(6px);
 }
@@ -194,7 +201,7 @@
   padding: 0 0 0 18px;
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 4px;
   font-size: 13px;
   line-height: 1.5;
   color: var(--dsw-alias-text-secondary, #3f3f46);
