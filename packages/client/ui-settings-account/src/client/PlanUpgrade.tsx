@@ -239,6 +239,13 @@ export function PlanUpgrade({ close }: PlanUpgradeProps) {
                 {tiers.map((tier) => {
                   const price = tier.prices[cycle]
                   const busy = busyTier === tier.id
+                  /* 基础/赠送拆分。网关 2026-11-25 起直接下发 baseCredits/bonusCredits；
+                   * 旧网关没有这两个字段时按周期回退（年=×12 的旧口径，仅兼容用）。 */
+                  const isYearly = price.displayCycle === '年'
+                  const baseCredits = price.baseCredits
+                    ?? (isYearly ? tier.credits.base * 12 : tier.credits.base)
+                  const bonusCredits = price.bonusCredits
+                    ?? (isYearly ? tier.credits.bonus * 12 : tier.credits.bonus)
                   return (
                     <article key={tier.id} className={css.card}>
                       <div className={css.cardHead}>
@@ -250,13 +257,17 @@ export function PlanUpgrade({ close }: PlanUpgradeProps) {
                         {formatCny(price.amount)}
                       </p>
                       <p className={css.included}>
-                        基础 <strong>{(price.baseCredits ?? (price.displayCycle === '年' ? tier.credits.base * 12 : tier.credits.base)).toLocaleString('zh-CN')}</strong> 积分
+                        基础 <strong>{baseCredits.toLocaleString('zh-CN')}</strong> 积分
                       </p>
+                      {/* 2026-11-25（用户拍板）：赠送为 0 时整行不显示——「不赠送就不用写」。
+                          不要显示「赠送 0 积分」，那是负数信息。 */}
+                      {bonusCredits > 0 && (
+                        <p className={css.included}>
+                          赠送 <strong>{bonusCredits.toLocaleString('zh-CN')}</strong> 积分
+                        </p>
+                      )}
                       <p className={css.included}>
-                        赠送 <strong>{(price.bonusCredits ?? (price.displayCycle === '年' ? tier.credits.bonus * 12 : tier.credits.bonus)).toLocaleString('zh-CN')}</strong> 积分
-                      </p>
-                      <p className={css.included}>
-                        约 <strong>{(price.displayCycle === '年' ? tier.presentation?.capacityYearly.images ?? 0 : tier.presentation?.capacityMonthly.images ?? 0).toLocaleString('zh-CN')}</strong> 张高清图片，或 <strong>{(price.displayCycle === '年' ? tier.presentation?.capacityYearly.videoSeconds ?? 0 : tier.presentation?.capacityMonthly.videoSeconds ?? 0).toLocaleString('zh-CN')}</strong> 秒高清视频
+                        约 <strong>{(isYearly ? tier.presentation?.capacityYearly.images ?? 0 : tier.presentation?.capacityMonthly.images ?? 0).toLocaleString('zh-CN')}</strong> 张高清图片，或 <strong>{(isYearly ? tier.presentation?.capacityYearly.videoSeconds ?? 0 : tier.presentation?.capacityMonthly.videoSeconds ?? 0).toLocaleString('zh-CN')}</strong> 秒高清视频
                       </p>
                       {creditMultipleText(tier.presentation?.creditMultiple, cycle) !== undefined && (
                         <p className={css.included}>

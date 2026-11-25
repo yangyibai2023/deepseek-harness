@@ -109,6 +109,18 @@ function AnnouncementCenter({
  *  后期可能启用——改回 true 即整体恢复（渲染代码保留在原位）。 */
 const SHOW_MORE_PLUGINS = false
 
+/**
+ * 2026-11-25（用户拍板）：侧栏底部「连接手机」按钮隐藏。
+ *
+ * 原因：Pocket（手机端配对）当前不对外，按钮留在底栏会让用户点开一个
+ * 用不了的功能。配套：侧栏 Pocket 入口由插件侧控制（dsh-pocket-glide
+ * 未随包时自然不出现）。
+ *
+ * 恢复：改成 true，并确认 Pocket 配对链可用（docs/30-GUIDES/
+ * 2026-11-15-手机远程Pocket中继运维手册.md）。
+ */
+const SHOW_PHONE_BUTTON = false
+
 /** HeightLab：账户余额（/hl/balance 的形状，只取展示需要的字段）。 */
 interface BalanceInfo {
   balance: number
@@ -768,14 +780,16 @@ export function HeightLabAccountFoot({ wide, openSettings }: HeightLabAccountFoo
               <BellIcon />
               {notices.some(item => !item.read) && <span className={css.bellDot} />}
             </button>
-            <button
-              type="button"
-              className={css.sideAction}
-              aria-label="连接手机"
-              onClick={() => { window.dispatchEvent(new CustomEvent('hl:open-pocket')) }}
-            >
-              <PhoneIcon />
-            </button>
+            {SHOW_PHONE_BUTTON && (
+              <button
+                type="button"
+                className={css.sideAction}
+                aria-label="连接手机"
+                onClick={() => { window.dispatchEvent(new CustomEvent('hl:open-pocket')) }}
+              >
+                <PhoneIcon />
+              </button>
+            )}
           </div>
         )}
       </div>

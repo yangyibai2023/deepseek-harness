@@ -210,7 +210,7 @@ export function PlanCreditsSection(): React.ReactElement {
             <div style={{ fontSize: 16, fontWeight: 600, marginTop: 2 }}>{formatUnits(data?.displayPlanUnits ?? 0)}</div>
           </div>
           <div>
-            <div style={{ fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' }}>加油包与奖励积分</div>
+            <div style={{ fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' }}>{canBuyBooster ? '加油包与奖励积分' : '奖励积分'}</div>
             <div style={{ fontSize: 16, fontWeight: 600, marginTop: 2 }}>
               {formatUnits((data?.displayBoosterUnits ?? 0) + (data?.displayRewardUnits ?? 0))}
             </div>
@@ -257,7 +257,7 @@ export function PlanCreditsSection(): React.ReactElement {
         {tab === 'overview' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {(data?.buckets ?? []).length === 0
-              ? <div style={{ fontSize: 13, color: 'var(--dsw-alias-label-tertiary)' }}>暂无可用积分。升级套餐或购买加油包后，积分会在这里按来源与有效期展示。</div>
+              ? <div style={{ fontSize: 13, color: 'var(--dsw-alias-label-tertiary)' }}>暂无可用积分。升级套餐后，积分会在这里按来源与有效期展示。</div>
               : (data?.buckets ?? []).map(bucket => (
                 <div key={`${bucket.kind}-${bucket.expiresAt}-${bucket.units}`}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
@@ -297,71 +297,72 @@ export function PlanCreditsSection(): React.ReactElement {
         )}
       </div>
 
-      {/* 加油包（未购套餐 → 整区灰置 + 悬浮提示） */}
-      <div style={{ ...cardStyle }} title={canBuyBooster ? undefined : '成为标准或旗舰会员后才能单独购买加油包'}>
-        <div style={{ fontSize: 14, fontWeight: 600 }}>加油包</div>
-        {!canBuyBooster && (
-          <div style={{ fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' }}>
-            成为标准或旗舰会员后才能单独购买加油包。升级套餐后即可按需补充积分。
+      {/* 加油包（未购套餐 → 整区灰置 + 悬浮提示）
+       * 2026-11-25（用户拍板「加油包那些 UI 取消掉，隐藏掉后面再说」）：
+       * 整个区块按 canBuyBooster 隐藏，而 canBuyBooster 由服务端
+       * BOOSTER_ENABLED 单点控制（当前 false）。恢复销售只需把服务端
+       * 开关改 true——前端无需再改，也不需要发版。 */}
+      {canBuyBooster && (
+        <div style={{ ...cardStyle }} title={undefined}>
+          <div style={{ fontSize: 14, fontWeight: 600 }}>加油包</div>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            {boosters.map((sku) => {
+              const selected = selectedSku === sku.id
+              const disabled = !canBuyBooster || busySku !== null
+              return (
+                <div
+                  key={sku.id}
+                  onClick={() => { if (!disabled) setSelectedSku(sku.id) }}
+                  style={{
+                    flex: '1 1 160px', padding: '12px 14px', borderRadius: 12, cursor: disabled ? 'not-allowed' : 'pointer',
+                    border: selected ? '2px solid var(--dsw-alias-button-primary-fill, #111)' : '1px solid var(--dsw-alias-border-l2)',
+                    background: disabled ? 'var(--dsw-alias-bg-layer-2, rgba(0,0,0,0.03))' : selected ? 'rgba(0,0,0,0.03)' : 'transparent',
+                    opacity: disabled ? 0.55 : 1,
+                    display: 'flex', flexDirection: 'column', gap: 4,
+                  }}
+                >
+                  <div style={{ fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' }}>{sku.tagline}</div>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{sku.name}</div>
+                  <div style={{ fontSize: 15, fontWeight: 700 }}>¥{sku.amount}</div>
+                  <div style={{ fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' }}>{formatUnits(sku.displayCredits ?? sku.credits)} 积分 · 12 个月有效</div>
+                </div>
+              )
+            })}
           </div>
-        )}
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          {boosters.map((sku) => {
-            const selected = selectedSku === sku.id
-            const disabled = !canBuyBooster || busySku !== null
-            return (
-              <div
-                key={sku.id}
-                onClick={() => { if (!disabled) setSelectedSku(sku.id) }}
-                style={{
-                  flex: '1 1 160px', padding: '12px 14px', borderRadius: 12, cursor: disabled ? 'not-allowed' : 'pointer',
-                  border: selected ? '2px solid var(--dsw-alias-button-primary-fill, #111)' : '1px solid var(--dsw-alias-border-l2)',
-                  background: disabled ? 'var(--dsw-alias-bg-layer-2, rgba(0,0,0,0.03))' : selected ? 'rgba(0,0,0,0.03)' : 'transparent',
-                  opacity: disabled ? 0.55 : 1,
-                  display: 'flex', flexDirection: 'column', gap: 4,
-                }}
-              >
-                <div style={{ fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' }}>{sku.tagline}</div>
-                <div style={{ fontSize: 13, fontWeight: 600 }}>{sku.name}</div>
-                <div style={{ fontSize: 15, fontWeight: 700 }}>¥{sku.amount}</div>
-                <div style={{ fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' }}>{formatUnits(sku.displayCredits ?? sku.credits)} 积分 · 12 个月有效</div>
-              </div>
-            )
-          })}
-        </div>
-        {canBuyBooster && boosters.length > 0 && (
-          <>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--dsw-alias-label-secondary)', cursor: 'pointer', userSelect: 'none' }}>
-              <input type="checkbox" checked={agreementAccepted} onChange={(event) => { setAgreementAccepted(event.target.checked) }} style={{ margin: 0, cursor: 'pointer' }} />
-              <span>
+          {canBuyBooster && boosters.length > 0 && (
+            <>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--dsw-alias-label-secondary)', cursor: 'pointer', userSelect: 'none' }}>
+                <input type="checkbox" checked={agreementAccepted} onChange={(event) => { setAgreementAccepted(event.target.checked) }} style={{ margin: 0, cursor: 'pointer' }} />
+                <span>
                 我已阅读并同意
-                <a
-                  role="button"
-                  tabIndex={0}
-                  onClick={(event) => { event.preventDefault(); setAgreementOpen(true) }}
-                  onKeyDown={(event) => { if (event.key === 'Enter') setAgreementOpen(true) }}
-                  style={{ color: 'var(--dsw-alias-label-primary, #111)', textDecoration: 'underline', cursor: 'pointer', marginLeft: 2 }}
-                >《{MEMBER_AGREEMENT_TITLE}》</a>
-              </span>
-            </label>
-            <button
-              type="button"
-              disabled={selectedSku === null || !agreementAccepted || busySku !== null}
-              onClick={() => {
-                const sku = boosters.find(item => item.id === selectedSku)
-                if (sku !== undefined) void buyBooster(sku.id, sku.amount)
-              }}
-              style={{
-                alignSelf: 'flex-start', padding: '9px 26px', borderRadius: 10, border: 'none', cursor: 'pointer',
-                background: 'var(--dsw-alias-button-primary-fill, #111)',
-                color: 'var(--dsw-alias-label-primary-foreground, #fff)', fontSize: 13, fontWeight: 600,
-                opacity: selectedSku === null || !agreementAccepted || busySku !== null ? 0.5 : 1,
-              }}
-            >{busySku !== null ? '正在下单…' : '购买加油包'}</button>
-            {buyError !== undefined && <div style={{ fontSize: 12, color: 'var(--dsw-alias-danger, #c0392b)' }}>{buyError}</div>}
-          </>
-        )}
-      </div>
+                  <a
+                    role="button"
+                    tabIndex={0}
+                    onClick={(event) => { event.preventDefault(); setAgreementOpen(true) }}
+                    onKeyDown={(event) => { if (event.key === 'Enter') setAgreementOpen(true) }}
+                    style={{ color: 'var(--dsw-alias-label-primary, #111)', textDecoration: 'underline', cursor: 'pointer', marginLeft: 2 }}
+                  >《{MEMBER_AGREEMENT_TITLE}》</a>
+                </span>
+              </label>
+              <button
+                type="button"
+                disabled={selectedSku === null || !agreementAccepted || busySku !== null}
+                onClick={() => {
+                  const sku = boosters.find(item => item.id === selectedSku)
+                  if (sku !== undefined) void buyBooster(sku.id, sku.amount)
+                }}
+                style={{
+                  alignSelf: 'flex-start', padding: '9px 26px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                  background: 'var(--dsw-alias-button-primary-fill, #111)',
+                  color: 'var(--dsw-alias-label-primary-foreground, #fff)', fontSize: 13, fontWeight: 600,
+                  opacity: selectedSku === null || !agreementAccepted || busySku !== null ? 0.5 : 1,
+                }}
+              >{busySku !== null ? '正在下单…' : '购买加油包'}</button>
+              {buyError !== undefined && <div style={{ fontSize: 12, color: 'var(--dsw-alias-danger, #c0392b)' }}>{buyError}</div>}
+            </>
+          )}
+        </div>
+      )}
 
       {planUpgradeOpen && <PlanUpgrade close={() => { setPlanUpgradeOpen(false) }} />}
       {agreementOpen && <AgreementModal close={() => { setAgreementOpen(false) }} />}
