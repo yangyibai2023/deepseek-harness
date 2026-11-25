@@ -110,16 +110,19 @@ function AnnouncementCenter({
 const SHOW_MORE_PLUGINS = false
 
 /**
- * 2026-11-25（用户拍板）：侧栏底部「连接手机」按钮隐藏。
+ * 2026-11-25（用户澄清后定稿）：**连接手机 = 账户行原生按钮（通知左侧）**，
+ * 必须显示。
  *
- * 原因：Pocket（手机端配对）当前不对外，按钮留在底栏会让用户点开一个
- * 用不了的功能。配套：侧栏 Pocket 入口由插件侧控制（dsh-pocket-glide
- * 未随包时自然不出现）。
+ * 案情修正：用户报「连接手机按钮那个插件隐藏了又出来了」，指的是
+ * dsh-pocket-glide 插件浏览器半区自己注册的侧栏 footer「Pocket」入口
+ * （0.5.8 热修随包预置带来的副作用，0.5.7 没有它）；而不是本按钮。
+ * 我此前误判成隐藏本按钮 —— 方向反了，已在本日事故日志里复盘。
  *
- * 恢复：改成 true，并确认 Pocket 配对链可用（docs/30-GUIDES/
- * 2026-11-15-手机远程Pocket中继运维手册.md）。
+ * 本按钮派发 hl:open-pocket；插件的模态监听该事件（2026-11-25 补上的
+ * 监听，此前事件无人消费、按钮是死键）。插件自己的侧栏入口已在插件
+ * client 里 gate 掉（见 verify-pocket-entry 门禁）。
  */
-const SHOW_PHONE_BUTTON = false
+const SHOW_PHONE_BUTTON = true
 
 /** HeightLab：账户余额（/hl/balance 的形状，只取展示需要的字段）。 */
 interface BalanceInfo {
@@ -771,15 +774,7 @@ export function HeightLabAccountFoot({ wide, openSettings }: HeightLabAccountFoo
                 </button>
               </Tooltip>
             )}
-            <button
-              type="button"
-              className={css.sideAction}
-              aria-label="通知"
-              onClick={openNotices}
-            >
-              <BellIcon />
-              {notices.some(item => !item.read) && <span className={css.bellDot} />}
-            </button>
+            {/* 2026-11-25 用户定稿：连接手机在通知按钮**左侧** */}
             {SHOW_PHONE_BUTTON && (
               <button
                 type="button"
@@ -790,6 +785,15 @@ export function HeightLabAccountFoot({ wide, openSettings }: HeightLabAccountFoo
                 <PhoneIcon />
               </button>
             )}
+            <button
+              type="button"
+              className={css.sideAction}
+              aria-label="通知"
+              onClick={openNotices}
+            >
+              <BellIcon />
+              {notices.some(item => !item.read) && <span className={css.bellDot} />}
+            </button>
           </div>
         )}
       </div>
