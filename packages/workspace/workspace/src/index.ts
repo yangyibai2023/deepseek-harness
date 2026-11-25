@@ -202,6 +202,14 @@ export class WorkspaceRegistry extends Service {
     this.state = domain.global.get()
 
     await this.recoverPendingMutation()
+    /* HeightLab 2026-11-25（0.5.9 升级自愈，用户 Windows 实证）：
+     * 0.4.28 时代的旧数据存在「同一会话被两个工作区登记」的双归属——0.5.8 的
+     * 校验器直接 throw → workspaceRegistry 拒绝 init → 7 个下游服务全体
+     * pending → 目录服务不可用 → 界面自动开会话重试 15 次全败 → 永远停在
+     * 粒子页（且重装无效，因为坏的是用户数据不是程序文件）。
+     * 自愈策略：跨工作区重复的会话按 updatedAt 较新的工作区优先保留，
+     * 从较旧的记录里摘除该会话 id 并回写。幂等：干净数据零改动直接通过。 */
+    await this.healDuplicateSessionOwnership()
     this.validateStoredState(this.state)
     if (!this.state.initialized) {
       const headers = await this.listStoredHeaders()
@@ -737,6 +745,50 @@ export class WorkspaceRegistry extends Service {
       archivedSessionIds: state.archivedSessionIds,
       pinnedSessionIds: state.pinnedSessionIds,
     })
+  }
+
+  /**
+   * HeightLab 0.5.9 升级自愈：摘除跨工作区的重复会话归属。
+   * 一个会话出现在多个工作区的 `sessionIds` 里时，保留 `updatedAt`（不足时
+   * 退回 `createdAt`）较新的工作区，从其余记录里删除该会话并回写。严格幂等：
+   * 无双归属时零写入。仅覆盖"会话双归属"这一种损坏形态；路径冲突/registry
+   * order 错乱仍由 {@link validateStoredState} 硬失败（那是另一类损坏，静默
+   * "修"掉反而危险）。
+   */
+  private async healDuplicateSessionOwnership(): Promise<void> {
+    const table = this.requireTable()
+    if (table.size === 0) return
+    // 收集重复：sessionId → 出现过它的工作区记录列表
+    const owners = new Map<SessionId, { id: WorkspaceId; record: WorkspaceRecord }[]>()
+    for (const [id, record] of table.entries()) {
+      for (const sessionId of record.sessionIds) {
+        const list = owners.get(sessionId) ?? []
+        list.push({ id, record })
+        owners.set(sessionId, list)
+      }
+    }
+    const freshness = (record: WorkspaceRecord): number =>
+      Date.parse(record.updatedAt) || Date.parse(record.createdAt) || 0
+    const dirty: { id: WorkspaceId; record: WorkspaceRecord }[] = []
+    for (const [sessionId, list] of owners.entries()) {
+      if (list.length < 2) continue
+      const sorted = [...list].sort((a, b) => freshness(b.record) - freshness(a.record))
+      for (const loser of sorted.slice(1)) {
+        const next = loser.record.sessionIds.filter(sid => sid !== sessionId)
+        if (next.length === loser.record.sessionIds.length) continue
+        loser.record.sessionIds = next
+        if (!dirty.some(d => d.id === loser.id)) dirty.push(loser)
+      }
+    }
+    if (dirty.length === 0) return
+    for (const { id, record } of dirty) {
+      await table.put(id, record)
+    }
+    // 同步内存态（state.global 里没有 sessionIds，records 即真相），并留痕。
+    console.warn(
+      `[workspace-heal] removed duplicate session ownership across ${dirty.length} workspace(s): `
+      + dirty.map(d => `${d.id}(${d.record.sessionIds.length} sessions)`).join(', '),
+    )
   }
 
   private validateStoredState(state: WorkspaceDomainState): void {
