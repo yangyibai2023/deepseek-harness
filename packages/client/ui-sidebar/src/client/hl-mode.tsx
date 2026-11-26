@@ -84,8 +84,8 @@ const nextFrame = (): Promise<void> => new Promise((resolve) => {
 /* 启动归位（落个人页）在本页面生命周期内只允许发生一次。折叠侧栏会卸载
  * HlModeSwitcher、展开会重挂——重挂不是启动（2026-11-09 用户实测翻模式
  * 事故），模块级标记让重挂直接跳过归位；整页刷新后本模块重新求值，标记
- * 自然复位，启动归位语义不变。 */
-let homedThisLoad = false
+ * 自然复位，启动归位语义不变。
+ * 2026-11-27（O97）：标记移到模块级归位函数里（见文件底部 ensureHomedToPersonal）。 */
 
 /** 等一小段时间（菜单展开有过渡动画，单帧不够）。 */
 const wait = (ms: number): Promise<void> => new Promise((resolve) => {
@@ -180,6 +180,45 @@ export async function openDsBotSettings(): Promise<boolean> {
   }
   account.click() // 没找到就收起菜单，不留浮层
   return false
+}
+
+/* 2026-11-27（O97 根因修复）：启动归位个人模式——**模块级执行，不依赖组件挂载**。
+ * 原实现在 HlModeSwitcher 的 useEffect 里，而组件只在侧栏宽（≥1024px）时挂载
+ * （SidebarRoot.tsx:327），小窗口用户组件不挂载 → 归位不执行 → 落团队页。
+ * 现在模块加载即执行（页面生命周期内只一次），组件内只保留状态同步。 */
+let homedThisLoad = false
+function ensureHomedToPersonal(): void {
+  if (homedThisLoad) return
+  homedThisLoad = true
+  try {
+    window.localStorage.setItem(LS_MODE, 'personal')
+    window.localStorage.setItem(LS_ORG, '')
+  } catch { /* 隐私模式等：仅内存态 */ }
+  window.dispatchEvent(new CustomEvent('hl:mode-changed', { detail: { mode: 'personal', orgId: '' } }))
+  let tries = 0
+  const settle = (): void => {
+    tries += 1
+    if (readDsBotSurface() === 'agent') return
+    void switchDsBotSurface('agent').then((switched) => {
+      if (switched) return
+      if (tries >= 60) {
+        try {
+          void fetch('/hl/boot-marker', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ hlSettle: true, stage: 'settle-exhausted', tries, surface: readDsBotSurface() }),
+          }).catch(() => { /* 非致命 */ })
+        } catch { /* 非致命 */ }
+        return
+      }
+      window.setTimeout(settle, 500)
+    })
+  }
+  settle()
+}
+// 模块加载即归位（不依赖组件挂载）
+if (typeof window !== 'undefined') {
+  ensureHomedToPersonal()
 }
 
 export function HlModeSwitcher() {
@@ -295,38 +334,21 @@ export function HlModeSwitcher() {
    * 被当成了「启动」，把用户正在使用的团队模式无条件抢回个人（hl.mode 与
    * ds-bot:surface 双存储被翻转）。归位的真实语义是「页面加载落个人页」，
    * 与组件挂载解耦：模块级标记保证本页面生命周期内只归位一次；整页刷新
-   * （登录/重启）标记复位，启动归位语义不变。 */
+   * （登录/重启）标记复位，启动归位语义不变。
+   *
+   * 2026-11-27（O97 根因修复）：归位逻辑**从组件 effect 移到模块级**——
+   * 原实现依赖 HlModeSwitcher 挂载，而组件只在侧栏宽（≥1024px）时挂载
+   * （SidebarRoot.tsx:327 `{wide && <HlModeSwitcher />}`）。小窗口用户组件
+   * 不挂载 → 归位不执行 → 上次 surface='bot' 存活 → 落团队页。
+   * 现在归位在模块加载时执行（不依赖任何组件），组件内只保留状态同步。 */
   useEffect(() => {
-    if (homedThisLoad) return
-    homedThisLoad = true
-    enter('personal', '')
-    let tries = 0
-    let stopped = false
-    const settle = (): void => {
-      if (stopped || userTouchedRef.current) return
-      tries += 1
-      // surface 已是 agent：归位完成，停止。
-      if (readDsBotSurface() === 'agent') return
-      void switchDsBotSurface('agent').then((switched) => {
-        if (stopped || userTouchedRef.current) return
-        if (switched) return
-        /* L1-B5（0.5.7）：归位耗尽不再静默放弃——落宿主日志（/hl/boot-marker
-         * 诊断通道），把「归位失败 30 秒」变成可观测事件，而不是用户机黑盒。 */
-        if (tries >= 60) {
-          try {
-            void fetch('/hl/boot-marker', {
-              method: 'POST',
-              headers: { 'content-type': 'application/json' },
-              body: JSON.stringify({ hlSettle: true, stage: 'settle-exhausted', tries, surface: readDsBotSurface() }),
-            }).catch(() => { /* 非致命 */ })
-          } catch { /* 非致命 */ }
-          return
-        }
-        window.setTimeout(settle, 500)
-      })
+    // 归位已移到模块级（见文件底部 ensureHomedToPersonal），这里只同步状态
+    const sync = (): void => {
+      const next = readDsBotSurface()
+      setSurface(current => current === next ? current : next)
     }
-    settle()
-    return () => { stopped = true }
+    const id = window.setInterval(sync, 600)
+    return () => window.clearInterval(id)
   }, [])
 
   const personalActive = surface === undefined ? sel.mode === 'personal' : surface === 'agent'

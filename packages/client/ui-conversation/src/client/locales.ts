@@ -42,7 +42,11 @@ export const zh = {
   'attachment.scrollRight': '向右滚动附件',
   'attachment.dropTitle': '文件或图片拖动到此处即可添加',
   'attachment.dropDesc': '图片限制：最多 {count} 张，每张 {size}',
-  'attachment.dropBlocked': '当前无法添加文件或图片',
+  /* 2026-11-27（O99 根因修复）：原「当前无法添加文件或图片」被用户读成
+   * 「文件类型不支持」→ 换格式换文件全无效后归因为「产品不支持拖拽」。
+   * 实际原因是「还没选工作区」（hero 态 sessionId 未定 → addFiles undefined）。
+   * 改为可操作文案 + 点击唤起工作区选择器（复用既有 onRequestWorkspace 通道）。 */
+  'attachment.dropBlocked': '请先选择工作区',
   'attachment.directoryDesktopOnly': '只有桌面端支持添加文件夹，浏览器里请添加单个文件',
   'attachment.pathUnavailable': '无法获取文件夹路径，请重新拖入',
   'attachment.pathUnsupported': '路径含有无法引用的字符，请改名后再试',
