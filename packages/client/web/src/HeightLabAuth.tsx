@@ -157,7 +157,13 @@ function jwtSub(token: string): string | null {
   }
 }
 
-async function hostAcceptsToken(token: string): Promise<boolean> {
+/* O111（2026-11-27）：三态判定——'unreachable'（宿主 503 LOGIN_UNREACHABLE，
+ * JWKS 取不到=离线/认证服务不可达）与 'invalid'（真过期/伪造）必须区分：
+ * 旧二态实现把离线也判 false → 登录门清掉本地 token → 用户被登出且离线
+ * 重登也失败（「登录已过期」文案还是错的）。unreachable 保留凭据。 */
+type HostTokenVerdict = 'ok' | 'invalid' | 'unreachable'
+
+async function hostAcceptsToken(token: string): Promise<HostTokenVerdict> {
   try {
     const res = await Promise.race([
       // 2026-11-02 修复（未登录可直接进软件的 BUG）：
@@ -175,18 +181,19 @@ async function hostAcceptsToken(token: string): Promise<boolean> {
         window.setTimeout(() => reject(new Error('me timeout')), 8_000)
       }),
     ])
-    if (!res.ok) return false
+    if (res.status === 503) return 'unreachable'
+    if (!res.ok) return 'invalid'
     // token 自校验：解析 JWT payload 的 sub，与 /hl/me 回显的 userId 比对。
     // 拿不到 payload 或对不上 → 视为无效（宁可让用户重登，也不放行）。
     const expectedSub = jwtSub(token)
-    if (expectedSub === null) return false
+    if (expectedSub === null) return 'invalid'
     const body = (await res.json().catch(() => null)) as { userId?: string } | null
     /* 2026-11-03 调试：记录 hostAcceptsToken 结果 */
     console.log('[hl/auth] hostAcceptsToken:', { expectedSub, bodyUserId: body?.userId, match: body?.userId === expectedSub })
-    return body?.userId === expectedSub
+    return body?.userId === expectedSub ? 'ok' : 'invalid'
   } catch (error) {
     console.log('[hl/auth] hostAcceptsToken error:', error)
-    return false
+    return 'invalid'
   }
 }
 
@@ -542,9 +549,16 @@ export function HeightLabAuthGate({
         }
         const existing = storedToken()
         if (existing) {
-          if (await hostAcceptsToken(existing)) {
+          const verdict = await hostAcceptsToken(existing)
+          if (verdict === 'ok') {
             await pushTokenToHost(existing, storedRefreshToken() ?? undefined, storedAccountToken() ?? undefined)
             finish('signed-in')
+            return
+          }
+          if (verdict === 'unreachable') {
+            /* O111：网络不可达不清凭据——留在登录页给出可重试的错误条，
+             * 网络恢复后用户点登录（或下次启动）即恢复，不会被误登出。 */
+            finish('signed-out', '无法连接登录服务，请检查网络后重试。您的登录状态未失效。')
             return
           }
           // Invalid or expired credential: never grant access, clear it.
