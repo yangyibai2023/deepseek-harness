@@ -358,7 +358,7 @@ export function SidebarRoot({
             { key: 'library', label: '资产空间', Icon: IconWorkspaceTreeOutlineRegular, page: 'library' },
             /* O81 R3（2026-11-22 用户拍板）：共享空间=主区独立面板入口（像
                运营面板；WorkBuddy 同款形态），不占侧栏 tab。 */
-            { key: 'shared-space', label: '共享空间', Icon: IconShareOutlineRegular, page: 'shared-space' },
+            { key: 'shared-space', label: '共享协作', Icon: IconShareOutlineRegular, page: 'shared-space' },
           ]
           return (
             <>
