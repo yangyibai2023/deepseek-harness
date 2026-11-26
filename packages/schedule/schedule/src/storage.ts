@@ -56,5 +56,8 @@ export type ScheduleTask = z.infer<typeof scheduleTaskSchema>
 /** Authoritative Schedule storage; malformed tasks reject opening the domain. */
 export const scheduleDomain = defineDomain({
   name: 'schedule', version: 1,
+  /* 2026-11-27（O101/P0 修复）：启用 backup-and-skip——单条坏任务（time_zone
+   * 非法/字段类型错）不再导致整个 schedule 域 reject → 定时功能整体消失。 */
+  invalidRecords: 'backup-and-skip',
   tables: { tasks: domainTable<ScheduleId, ScheduleTask>(scheduleTaskSchema) },
 })

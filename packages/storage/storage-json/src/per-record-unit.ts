@@ -237,6 +237,14 @@ export class PerRecordJsonUnit implements KvUnit {
    */
   async backupRecord(table: string, key: string): Promise<string> {
     this.assertOpen()
+    /* HeightLab 2026-11-27（O101）：`table === ''` 是 domain 层的 global 槽
+     * 哨兵——坏 global 文档（global.json）整体挪走，域层随后以 initial 继续。 */
+    if (table === '') {
+      const globalPath = join(this.dir, 'global.json')
+      const movedGlobal = `${globalPath}.bak.${backupStamp(new Date())}`
+      await this.tracked(rename(globalPath, movedGlobal))
+      return movedGlobal
+    }
     assertSafeKey(this.descriptor.name, key)
     const path = join(this.tableDir(table), `${key}.json`)
     const moved = `${path}.bak.${backupStamp(new Date())}`

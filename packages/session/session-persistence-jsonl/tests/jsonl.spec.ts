@@ -517,8 +517,11 @@ describe('JsonlSessionPersistence: stored-format refusals', () => {
   afterEach(async () => { await ctx.fiber.dispose() })
 
   it('propagates a non-format header failure from stat and list unchanged', async () => {
-    // Only foreign-version refusals are enriched (stat) or skipped (list);
-    // any other header failure stays fail-loud on both paths.
+    // Foreign-version refusals are enriched (stat) or skipped (list).
+    // HeightLab 2026-11-27（O101）：退役字段头从「两条路径都整体抛错」改为
+    // 「stat 响亮报错 / list 按条跳过」——裸 Error 曾穿透 list 的按条跳过，
+    // 一条旧头让全量会话列表崩溃（全站不可用 P0）。跳过的会话不是被静默
+    // 吞掉：直接打开它仍报同样的错。
     const id = SessionId('retired-policy-header')
     const path = rawLogPath(root, '/work', id)
     await mkdir(dirname(path), { recursive: true })
@@ -532,7 +535,8 @@ describe('JsonlSessionPersistence: stored-format refusals', () => {
     }
     await writeFile(path, `${JSON.stringify(line)}\n`)
     await expect(ctx.sessionPersistence.stat(id)).rejects.toThrow('retired policy baseline fields')
-    await expect(ctx.sessionPersistence.list()).rejects.toThrow('retired policy baseline fields')
+    // 列表不再整体崩：坏会话被跳过，其余会话照常列出（此 root 只有这一条）。
+    await expect(ctx.sessionPersistence.list()).resolves.toEqual([])
   })
 
   it('refuses a structurally foreign future header as unsupported, not corrupt or absent', async () => {

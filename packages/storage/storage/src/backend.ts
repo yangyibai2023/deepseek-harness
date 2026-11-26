@@ -71,6 +71,15 @@ export interface KvUnitDescriptor {
    * exact-version.
    */
   readonly compatibleVersions?: readonly number[]
+  /**
+   * HeightLab 2026-11-27（O101）：domain spec 的 `invalidRecords` 投影。
+   * 声明 `'backup-and-skip'` 的 unit 在打开时若整份文档损坏（非法 JSON、
+   * 非对象、表非对象），后端把坏文件改名 `.bak.<stamp>` 后按空 unit 继续，
+   * 而不是让整个域打不开。版本不符（`version-mismatch`）与异主文件
+   * （foreign header）**不在**降级范围——那意味着数据属于别的格式时代，
+   * 静默挪走等于丢数据，必须保持硬抛。
+   */
+  readonly invalidRecords?: 'backup-and-skip'
 }
 
 /**

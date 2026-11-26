@@ -1114,7 +1114,19 @@ class JsonlSessionPersistence extends SessionPersistence {
     } catch {
       return undefined
     }
-    assertNoRetiredHeaderFields(value)
+    /* HeightLab 2026-11-27（O101）：退役字段错误必须归类为 CorruptionError。
+     * 裸 Error 会穿透 listArtifacts 的按条跳过（那里只认
+     * SessionFormatUnsupportedError / SessionPersistenceCorruptionError），
+     * 一条带退役字段的旧头就让**全量会话列表**崩溃（全站不可用 P0）。
+     * 归类后：列表路径按条跳过该会话；直接打开该会话仍响亮报错。 */
+    try {
+      assertNoRetiredHeaderFields(value)
+    } catch (error) {
+      throw new SessionPersistenceCorruptionError(
+        `session header uses retired policy baseline fields (raw log: ${selected.sourcePath})`,
+        { cause: error },
+      )
+    }
     const result = sessionFormatCatalog.readHeader(value)
     if ('storedVersion' in result && result.storedVersion !== selected.sourceVersion) {
       throw new Error(

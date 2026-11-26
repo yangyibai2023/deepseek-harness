@@ -155,6 +155,66 @@ describe('DomainFacility.open', () => {
     })
   })
 
+  /* HeightLab 2026-11-27（O101）：global 槽降级——声明 backup-and-skip 的域，
+   * 坏 global 挪走并以 initial 继续，而不是整个域打不开（workspace 域 D-2
+   * 事故：global 一个字段类型错 → 7 服务 pending → 全站不可用）。 */
+  it('degrades a schema-failing global to initial under backup-and-skip', async () => {
+    const salvageSpec = defineDomain({
+      name: 'salvage_global',
+      version: 1,
+      invalidRecords: 'backup-and-skip',
+      global: { schema: settingsSchema, initial: { theme: 'plain' } },
+      tables: { items: domainTable<string, Item>(itemSchema) },
+    })
+    const { ctx, facility } = await harness({ config: { backend: 'salvage' } })
+    const backupCalls: Array<[string, string]> = []
+    ctx.storage.backend.register('salvage', {
+      kv: {
+        open: async () => ({
+          // 坏 global（theme 是 number）+ 一条好记录
+          loadAll: async () => ({ tables: { items: { ok: { label: 'x', count: 1 } } }, global: { theme: 42 } }),
+          putRecord: async () => {},
+          deleteRecord: async () => {},
+          setGlobal: async () => {},
+          backupRecord: async (table: string, key: string) => {
+            backupCalls.push([table, key])
+            return '/tmp/salvage_global.json.bak.202611270000'
+          },
+          close: async () => {},
+        }),
+      },
+      close: async () => {},
+    })
+    const domain = await facility.open(salvageSpec)
+    expect(domain.global?.get()).toEqual({ theme: 'plain' })
+    expect(domain.table('items').get('ok')).toEqual({ label: 'x', count: 1 })
+    expect(backupCalls).toEqual([['', '']])
+  })
+
+  it('keeps the rejecting global default when the policy is not declared', async () => {
+    const strictSpec = defineDomain({
+      name: 'strict_global',
+      version: 1,
+      global: { schema: settingsSchema, initial: { theme: 'plain' } },
+      tables: {},
+    })
+    const { ctx, facility } = await harness({ config: { backend: 'strict' } })
+    ctx.storage.backend.register('strict', {
+      kv: {
+        open: async () => ({
+          loadAll: async () => ({ tables: {}, global: { theme: 42 } }),
+          putRecord: async () => {},
+          deleteRecord: async () => {},
+          setGlobal: async () => {},
+          backupRecord: async () => '/tmp/should-not-be-called',
+          close: async () => {},
+        }),
+      },
+      close: async () => {},
+    })
+    await expect(facility.open(strictSpec)).rejects.toMatchObject({ code: 'invalid-record' })
+  })
+
   it('keeps the rejecting default under backup-and-skip when the backend cannot move documents', async () => {
     // The memory backend has no backupRecord, so the declared policy cannot
     // apply and the open falls back to failing loud.

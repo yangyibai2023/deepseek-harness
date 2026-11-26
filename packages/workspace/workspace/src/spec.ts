@@ -76,6 +76,11 @@ export type WorkspaceDomainState = z.infer<typeof workspaceDomainState>
 export const workspaceDomainSpec = defineDomain({
   name: 'workspace',
   version: 2,
+  /* 2026-11-27（O101/P0-1 修复）：启用 backup-and-skip 降级——坏记录改名
+   * `.bak.<stamp>` 后跳过，其余照常加载；不再因单条坏数据（跨区重复/悬空 id/
+   * 非法 JSON/path 冲突）导致整域 reject → 7 服务 pending → 全站不可用。
+   * 机制由上游 fcd109d29a（imccyu）提供，此前只有 projcache 声明。 */
+  invalidRecords: 'backup-and-skip',
   global: {
     schema: workspaceDomainState,
     initial: { initialized: false, workspaceIds: [], archivedSessionIds: [], pinnedSessionIds: [] },

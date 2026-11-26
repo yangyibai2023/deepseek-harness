@@ -144,11 +144,31 @@ export class DomainFacility {
         // A null stored global means "never written": serve `initial` without
         // materializing it — the first `set` writes.
         const globalSpec = spec.global
-        const globalValue = globalSpec === undefined
-          ? undefined
-          : snapshot.global === null
-            ? globalSpec.initial
-            : parseRecord(spec.name, '', '', () => globalSpec.schema.parse(snapshot.global))
+        let globalValue: unknown
+        if (globalSpec === undefined) {
+          globalValue = undefined
+        } else if (snapshot.global === null) {
+          globalValue = globalSpec.initial
+        } else {
+          try {
+            globalValue = parseRecord(spec.name, '', '', () => globalSpec.schema.parse(snapshot.global))
+          } catch (error) {
+            /* HeightLab 2026-11-27（O101）：上游设计「global slot always
+             * rejects」，理由是 global 多为权威状态。但 workspace 域的 global
+             * （initialized/workspaceIds/归档钉选集）坏一个字段类型就全站
+             * 不可用（D-2 事故），代价远超「用 initial 重新引导」。声明
+             * backup-and-skip 的域：把坏 global 挪进 .bak 快照，以 initial
+             * 继续打开，失败原因进日志。未声明的域保持上游硬抛语义。 */
+            if (spec.invalidRecords !== 'backup-and-skip' || unit.backupRecord === undefined) throw error
+            const moved = await unit.backupRecord('', '')
+            this.ctx.logger.error(
+              `domain '${spec.name}': stored global failed schema validation; `
+              + `moved to '${moved}' and reinitialised from the spec's initial value. `
+              + `Cause: ${String((error as DomainError).cause)}`,
+            )
+            globalValue = globalSpec.initial
+          }
+        }
         // The onClosed hook runs strictly after teardown completes: writes
         // landing during the drain still emit domain/changed, and the name
         // frees up for reopening only once the domain is fully closed.

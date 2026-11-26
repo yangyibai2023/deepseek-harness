@@ -248,6 +248,81 @@ describe('json backend specifics', () => {
   })
 })
 
+/* HeightLab 2026-11-27（O101）：single 布局的 backup-and-skip 降级测试。
+ * 钉住四条新路径：记录级挪走 / global 槽降级 / 整文件损坏降级 /
+ * version-mismatch 不降级（防止把「数据属于别的格式时代」误判成损坏）。 */
+describe('single-layout backup-and-skip (HeightLab O101)', () => {
+  const lenient = { name: 'shape', version: 1, tables: ['t'], hasGlobal: true, invalidRecords: 'backup-and-skip' as const }
+
+  it('backupRecord snapshots the file, drops the record, and republishes without it', async () => {
+    const root = await freshRoot()
+    const backend = new JsonStorageBackend(root)
+    const unit = await backend.kv.open(lenient)
+    await unit.putRecord('t', 'good', { v: 1 })
+    await unit.putRecord('t', 'bad', { v: 2 })
+    const moved = await unit.backupRecord!('t', 'bad')
+    expect(moved).toMatch(/shape\.json\.bak\.\d{12}$/)
+    // 快照含坏记录（案发完整现场），主文件不再含
+    expect(await readFile(moved, 'utf8')).toContain('"bad"')
+    const text = await readFile(join(root, 'shape.json'), 'utf8')
+    expect(text).not.toContain('"bad"')
+    expect(JSON.parse(text).tables.t).toEqual({ good: { v: 1 } })
+    expect(await unit.loadAll()).toEqual({ tables: { t: { good: { v: 1 } } }, global: null })
+    await backend.close()
+  })
+
+  it("backupRecord('', '') reinitialises the global slot", async () => {
+    const root = await freshRoot()
+    const backend = new JsonStorageBackend(root)
+    const unit = await backend.kv.open(lenient)
+    await unit.setGlobal({ g: 'corrupt-shape' })
+    const moved = await unit.backupRecord!('', '')
+    expect(moved).toMatch(/shape\.json\.bak\.\d{12}$/)
+    expect(JSON.parse(await readFile(moved, 'utf8')).global).toEqual({ g: 'corrupt-shape' })
+    expect((await unit.loadAll()).global).toBeNull()
+    expect(JSON.parse(await readFile(join(root, 'shape.json'), 'utf8')).global).toBeNull()
+    await backend.close()
+  })
+
+  it('opens a corrupt whole file as empty after moving it aside', async () => {
+    const root = await freshRoot()
+    await writeFile(join(root, 'shape.json'), '{"unit":{"name":"shape","version":1},"tables":{"t":{"k":', 'utf8')
+    const backend = new JsonStorageBackend(root)
+    const unit = await backend.kv.open(lenient)
+    expect(await unit.loadAll()).toEqual({ tables: { t: {} }, global: null })
+    const entries = await readdir(root)
+    const bak = entries.find(e => /^shape\.json\.bak\.\d{12}$/.test(e))
+    expect(bak).toBeDefined()
+    // 坏文件原样保留在 bak 里（可人工恢复），主路径已由后续写重建或待写
+    expect(await readFile(join(root, bak!), 'utf8')).toContain('"k":')
+    // 域以空状态继续：后续写正常落盘
+    await unit.putRecord('t', 'fresh', { ok: true })
+    expect(JSON.parse(await readFile(join(root, 'shape.json'), 'utf8')).tables.t).toEqual({ fresh: { ok: true } })
+    await backend.close()
+  })
+
+  it('still rejects a version mismatch even under backup-and-skip', async () => {
+    const root = await freshRoot()
+    await writeFile(join(root, 'shape.json'), JSON.stringify({
+      unit: { name: 'shape', version: 99 }, global: null, tables: { t: {} },
+    }), 'utf8')
+    const backend = new JsonStorageBackend(root)
+    await expect(backend.kv.open(lenient)).rejects.toMatchObject({ code: 'version-mismatch' })
+    // 版本不符的文件必须原地保留（不是损坏，是别的格式时代）
+    expect(await readFile(join(root, 'shape.json'), 'utf8')).toContain('"version":99')
+    await backend.close()
+  })
+
+  it('keeps the loud path when the spec does not declare the policy', async () => {
+    const root = await freshRoot()
+    await writeFile(join(root, 'shape.json'), 'not json at all', 'utf8')
+    const backend = new JsonStorageBackend(root)
+    await expect(backend.kv.open({ name: 'shape', version: 1, tables: ['t'], hasGlobal: true }))
+      .rejects.toMatchObject({ code: 'malformed-medium' })
+    await backend.close()
+  })
+})
+
 describe('per-record layout', () => {
   const descriptor = { name: 'recs', version: 2, layout: 'per-record' as const, tables: ['t'], hasGlobal: true }
   const recordPath = (root: string, key: string): string => join(root, 'recs', 't', `${key}.json`)

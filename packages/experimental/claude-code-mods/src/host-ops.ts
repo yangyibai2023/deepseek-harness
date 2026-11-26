@@ -77,6 +77,9 @@ const REGISTERED_NAME = /^[A-Za-z0-9_-]{1,64}$/u
 const storeDomainSpec = defineDomain({
   name: 'claude_code_mods',
   version: 1,
+  /* 2026-11-27（O101/P0 修复）：启用 backup-and-skip——单条坏记录不再导致
+   * 整个 claude_code_mods 域 reject。 */
+  invalidRecords: 'backup-and-skip',
   tables: { store: domainTable<string, Record<string, JsonValue>>(zod.record(zod.string(), zod.json())) },
 })
 

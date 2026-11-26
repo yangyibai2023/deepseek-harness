@@ -62,7 +62,11 @@ export interface DomainSpec {
    * document aside (`KvUnit.backupRecord`), the failure is logged with
    * its cause, and the open continues with the record absent. A backend
    * without `backupRecord` (no per-record document to move) falls back
-   * to the rejecting default. The global slot always rejects.
+   * to the rejecting default. Upstream kept the global slot always
+   * rejecting; HeightLab (2026-11-27, O101) degrades it under this flag
+   * too — a global that fails its schema is backed up and reinitialised
+   * from `initial`, because a corrupt workspace global must not take the
+   * whole app down. Version mismatches and foreign files still reject.
    */
   readonly invalidRecords?: 'backup-and-skip'
   /** Optional global singleton slot. */
@@ -159,5 +163,9 @@ export function descriptorOf(spec: DomainSpec): KvUnitDescriptor {
     hasGlobal: spec.global !== undefined,
     ...spec.layout === undefined ? {} : { layout: spec.layout },
     ...spec.compatibleVersions === undefined ? {} : { compatibleVersions: spec.compatibleVersions },
+    // HeightLab 2026-11-27（O101）：把降级策略投影给后端——single 布局的
+    // 整文件损坏降级（改名 .bak 后按空 unit 打开）发生在 unit 打开阶段，
+    // 那时 domain 层还拿不到 unit 句柄，策略必须随 descriptor 下发。
+    ...spec.invalidRecords === undefined ? {} : { invalidRecords: spec.invalidRecords },
   }
 }
