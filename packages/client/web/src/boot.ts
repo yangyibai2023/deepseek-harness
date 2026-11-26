@@ -169,7 +169,14 @@ export class AppWebEntry {
     for (const entry of ctx.loader.entries()) {
       const name = entry.options.name
       if (entry.fiber === undefined) {
-        failures.push(`${name}: import failed (see console for the import error)`)
+        /* 2026-11-26（O96 粒子页第四层固化）：import 失败的真实原因存在
+         * 模块系统的 importErrors 表里，但这个断言只报 "(see console)"——
+         * WebView console 在用户机器上不可达，等于零证据。把原因直接带进
+         * 断言消息（经 console.error → 宿主日志桥接落地）。 */
+        const importErrors = (this.modules as unknown as { importErrors?: Map<string, unknown> }).importErrors
+        const detail = importErrors?.get(name)
+        const detailText = detail instanceof Error ? detail.message : detail !== undefined ? String(detail) : 'see console for the import error'
+        failures.push(`${name}: import failed — ${detailText}`)
         continue
       }
       const state = STATE_LABELS[entry.fiber.state]
