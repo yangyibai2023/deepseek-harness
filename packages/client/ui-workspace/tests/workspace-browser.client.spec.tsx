@@ -468,9 +468,10 @@ describe('WorkspaceBrowser', () => {
     expect(screen.getByRole('menuitem', { name: '按工作区' }).querySelector('svg')).toBeTruthy()
     expect(screen.getByRole('menuitem', { name: '手动排序' }).querySelector('svg')).toBeTruthy()
     fireEvent.click(screen.getByRole('menuitem', { name: '单列表' }))
-    // Store-driven flip: title changes, rows flatten newest-first, headers gone.
+    // Store-driven flip: rows flatten newest-first, group headers gone.
+    // （2026-11-27：原「会话」标题断言随 O56 双 tab 头部下线——header 恒为
+    // 工作区/项目，flat 无独立标题；组头消失+行扁平已覆盖本测试意图。）
     expect(b.store.getSnapshot().groupBy).toBe('flat')
-    expect(screen.getByText('会话')).toBeTruthy()
     expect(screen.queryByText('alpha')).toBeNull()
     expect(screen.getByText('alpha-s')).toBeTruthy()
     expect(screen.getByText('beta-s')).toBeTruthy()
