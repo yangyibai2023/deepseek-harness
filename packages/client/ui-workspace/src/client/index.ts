@@ -44,6 +44,7 @@ import {
 } from './contract/slots.ts'
 import { createWorkspaceShortcutControls, installWorkspaceShortcuts } from './shortcuts.ts'
 import { UiWorkspaceService } from './navigation.ts'
+import { resolveDefaultWorkspace } from './default-workspace.ts'
 import { createWorkspaceViewStore } from './stores.ts'
 import { WorkspaceBrowser } from './rows/WorkspaceBrowser.tsx'
 import { ArchiveSessionMenuItem, ArchiveSessionRowButton, SessionArchiveConfirmDialog } from './session-actions/ArchiveSession.tsx'
@@ -414,7 +415,11 @@ export function apply(ctx: Context): void {
         let workspaceList = workspaces.list.getSnapshot()
         debug({ at: 'enter', attempts, wsCount: workspaceList.items.length })
         if (hasOpenedSession()) return
-        let workspaceId = workspaceList.items[0]?.workspaceId
+        // 2026-11-27（O105）：不再用 items[0]——注册表顺序不保证个人优先，
+        // 第一项若是团队工作区，启动即把会话建进团队目录（违反个人绝不停
+        // 团队铁律）。统一走 resolveDefaultWorkspace（排除团队+标题/路径
+        // 优先+recent 兜底）。
+        let workspaceId = resolveDefaultWorkspace(workspaceList.items)
         if (workspaceId === undefined && workspaceList.items.length === 0) {
           // 兜底：初始化脚本没种成功时，走宿主端默认工作区初始化。
           // 1126 修（用户 Windows 实机实锤的粒子页第二层根因）：原实现调
@@ -440,7 +445,7 @@ export function apply(ctx: Context): void {
           }
           workspaceList = workspaces.list.getSnapshot()
         }
-        workspaceId = workspaceId ?? workspaceList.items[0]?.workspaceId
+        workspaceId = workspaceId ?? resolveDefaultWorkspace(workspaceList.items)
         if (workspaceId !== undefined && !hasOpenedSession()) {
           debug({ at: 'startSession', workspaceId })
           try {
@@ -515,10 +520,12 @@ export function apply(ctx: Context): void {
       }
     }
     const pickPersonalWorkspace = (): string | undefined => {
-      const items = workspaces.list.getSnapshot().items
-      // 官方默认工作区标题即「我的工作区」；用户改过名则退回路径末段 HeightLab。
-      return items.find(item => item.title === '我的工作区')?.workspaceId
-        ?? items.find(item => /[\\/]HeightLab$/i.test(item.path))?.workspaceId
+      // 2026-11-27（O105）：与 auto-start/navigation 共用同一选择器——
+      // 排除团队（权威 id + 标题兜底）→ 标题/路径精确 → recent → 非团队
+      // 第一项。原实现无兜底（找不到精确匹配就放弃归位），统一后归位到
+      // 最近使用的个人工作区，优于未分组堆积，且不违反绝不停团队。
+      const snap = workspaces.list.getSnapshot()
+      return resolveDefaultWorkspace(snap.items, sessions.list.getSnapshot().byId)
     }
     /* 2026-11-03 诊断埋点（问题定位后撤除）：把判定依据落宿主日志，
      * 用来区分「索引命中 / cwd 命中 / 查不到」三种情况，避免再靠猜。
@@ -859,8 +866,9 @@ export function apply(ctx: Context): void {
       // 第一个工作区」近似，复刻入口恒有 HeightLab 工作区，实际不受影响。）
       const snap = workspaces.list.getSnapshot()
       const sessionsSnap = sessions.list.getSnapshot()
-      const recent = snap.items.find(item => item.sessionIds.some(id => sessionsSnap.byId[id] !== undefined))?.workspaceId
-      const resolved = workspaceId ?? recent
+      // 2026-11-27（O105）：第四处漂移（「含会话的第一个工作区」近似）并入
+      // 统一选择器——排除团队 + 标题/路径优先 + recent 兜底。
+      const resolved = workspaceId ?? resolveDefaultWorkspace(snap.items, sessionsSnap.byId)
       if (resolved === undefined) {
         // 与 navigation.startSession 的 target===undefined 分支同语义：清空主区回新会话页。
         uiWorkspace.startSession(undefined, undefined)

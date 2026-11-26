@@ -21,6 +21,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type { DraftInitializationOptions } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { RowToast } from './contract/slots.ts'
 import { pinOrderAccounts, pinOrderSource } from './pin-order.ts'
+import { resolveDefaultWorkspace } from './default-workspace.ts'
 import type { WorkspaceViewStoreActions } from './stores.ts'
 
 interface MainSelection {
@@ -311,8 +312,10 @@ class UiWorkspaceService extends Service implements UiWorkspace {
     const currentWorkspaceId = current === undefined
       ? undefined
       : workspace.items.find(item => item.sessionIds.includes(current))?.workspaceId
+    // 2026-11-27（O105）：此处原用 recentWorkspace(workspace.items, …)——
+    // 未排除团队，「最近更新的工作区」若是团队即被选中。并入统一选择器。
     const recent = workspace.phase === 'ready' && sessions.phase === 'ready'
-      ? recentWorkspace(workspace.items, sessions.byId)
+      ? resolveDefaultWorkspace(workspace.items, sessions.byId)
       : undefined
     const target = workspaceId ?? currentWorkspaceId ?? recent
     if (target === undefined) {
@@ -481,13 +484,14 @@ class UiWorkspaceService extends Service implements UiWorkspace {
       && !workspaces.archivedSessionIds.includes(summary.id)) {
       sessionId = await this.reuseBlank(workspace.workspaceId, summary.id)
     }
-    // 回退目标同样排除团队工作区：否则「最近更新的工作区」可能正好是团队。
+    // 2026-11-27（O105）：统一选择器自带团队排除（权威 id + 标题兜底），
+    // 优先级 = 标题「我的工作区」→ 路径 HeightLab → recent → 非团队首项。
     const eligible = teamWorkspaceId === undefined
       ? workspaces.items
       : workspaces.items.filter(item => item.workspaceId !== teamWorkspaceId)
     let target = workspace !== undefined && workspace.workspaceId !== teamWorkspaceId
       ? workspace.workspaceId
-      : recentWorkspace(eligible, _sessions.byId)
+      : resolveDefaultWorkspace(eligible, _sessions.byId)
     if (target === undefined && workspaces.items.length === 0 && _sessions.ids.length === 0) {
       const prepared = await this.initializeDefaultWorkspace(navigation)
       if (navigation.aborted) return
@@ -578,26 +582,8 @@ function creationFailureMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
-/** Stable tie-breaking follows Host Workspace order. */
-function recentWorkspace(
-  workspaces: readonly WorkspaceView[],
-  sessions: SessionListState['byId'],
-): WorkspaceId | undefined {
-  let selected: WorkspaceId | undefined
-  let selectedTime = Number.NEGATIVE_INFINITY
-  for (const workspace of workspaces) {
-    let latest = Number.NEGATIVE_INFINITY
-    for (const sessionId of workspace.sessionIds) {
-      const session = sessions[sessionId]
-      if (session !== undefined) latest = Math.max(latest, session.updatedAt)
-    }
-    if (latest === Number.NEGATIVE_INFINITY) latest = Date.parse(workspace.createdAt)
-    if (selected === undefined || latest > selectedTime) {
-      selected = workspace.workspaceId
-      selectedTime = latest
-    }
-  }
-  return selected
-}
+/* recentWorkspace 已删除（2026-11-27，O105）：唯一调用点全部并入
+ * ./default-workspace.ts 的 resolveDefaultWorkspace（recent 是其第 4 层级，
+ * 且统一排除团队）。*/
 
 export { UiWorkspaceService }
