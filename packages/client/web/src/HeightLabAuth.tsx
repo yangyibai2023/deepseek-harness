@@ -129,6 +129,12 @@ async function pushTokenToHost(token: string, refreshToken?: string, accountToke
       }),
     })
     const data = await res.json().catch(() => null)
+    /* O103（2026-11-27）：宿主可能已在后台轮换 refresh token（浏览器副本
+     * 陈旧）；/hl/auth 响应回传宿主最终采用的 refresh，此处同步
+     * localStorage——双源收敛到宿主单源，下次重推不再是旧的。 */
+    if (typeof data?.refreshToken === 'string' && data.refreshToken !== '') {
+      if (data.refreshToken !== storedRefreshToken()) setStoredRefreshToken(data.refreshToken)
+    }
     return { restartExpected: data?.restartExpected === true }
   } catch {
     // non-fatal: balance routes fall back；无法得知是否需重启时按“不等待”处理。
