@@ -21,6 +21,93 @@ import {
 import type { ConnectionIndicatorState } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SettingsRootComponentProps, SettingsSectionRow } from './shell-contract.ts'
 import css from './SettingsRoot.module.css'
+
+/* ── O102（2026-11-27）：连接超时诊断弹层 ────────────────────────────────
+ * 「重新连接中」永久转圈 = 用户零可操作信息（O100/O102 P0）。连接态持续
+ * 15s 未恢复时拉 /hl/boot-diag 展示真实原因，并给两个可执行动作：
+ * 导出诊断包（发给支持）与重置工作区索引（坏索引自救，O101 降级之外的
+ * 手动兜底）。非侵入：不改动 ConnectionIndicator 本体。 */
+function ConnectionDoctor({ onClose }: { onClose: () => void }) {
+  const [diag, setDiag] = useState<{
+    workspace?: { ok: boolean; records: number; quarantined: string[] }
+    recentErrors?: string[]
+    uptimeSec?: number
+  } | null>(null)
+  const [busy, setBusy] = useState<'idle' | 'exporting' | 'resetting'>('idle')
+  const [note, setNote] = useState<string>('')
+  useEffect(() => {
+    let alive = true
+    fetch('/hl/boot-diag')
+      .then(r => r.json())
+      .then((d) => { if (alive) setDiag(d as typeof diag) })
+      .catch(() => { if (alive) setNote('诊断信息获取失败（宿主不可达）') })
+    return () => { alive = false }
+  }, [])
+  const exportDiag = () => {
+    setBusy('exporting')
+    fetch('/hl/diag/export', { method: 'POST' })
+      .then(r => r.json())
+      .then((d: { ok?: boolean; path?: string }) => {
+        setNote(d.ok === true ? `诊断包已导出：${String(d.path).split('/').slice(-2).join('/')}（可发给支持人员）` : '导出失败')
+      })
+      .catch(() => setNote('导出失败（宿主不可达）'))
+      .finally(() => setBusy('idle'))
+  }
+  const resetWorkspace = () => {
+    if (!window.confirm('重置工作区索引？\n\n会话文件全部保留，仅重建工作区索引（原索引自动备份）。重置后需要重启应用。')) return
+    setBusy('resetting')
+    fetch('/hl/workspace/reset', { method: 'POST' })
+      .then(r => r.json())
+      .then((d: { ok?: boolean; message?: string }) => {
+        setNote(d.ok === true ? String(d.message ?? '已重置，请重启应用。') : '重置失败')
+      })
+      .catch(() => setNote('重置失败（宿主不可达）'))
+      .finally(() => setBusy('idle'))
+  }
+  const errors = diag?.recentErrors ?? []
+  return createPortal(
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 9999, display: 'flex',
+      alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.35)',
+    }} onClick={onClose}>
+      <div style={{
+        width: 440, maxWidth: '90vw', background: 'var(--dsw-alias-bg-primary, #fff)',
+        borderRadius: 12, padding: 20, boxShadow: '0 12px 40px rgba(0,0,0,0.25)',
+        fontSize: 13, lineHeight: '20px', color: 'var(--dsw-alias-label-primary, #1a1a1a)',
+      }} onClick={e => e.stopPropagation()}>
+        <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>连接长时间未恢复</div>
+        <div style={{ color: 'var(--dsw-alias-label-secondary, #666)', marginBottom: 12 }}>
+          界面服务一直在重试。可能原因：工作区数据异常、宿主服务未就绪。
+          {diag?.workspace !== undefined && (
+            <div style={{ marginTop: 6 }}>
+              工作区索引：{diag.workspace.ok ? `正常（${String(diag.workspace.records)} 个工作区）` : '读取失败（可能已损坏）'}
+              {diag.workspace.quarantined.length > 0 && ` · 已自动隔离 ${String(diag.workspace.quarantined.length)} 条坏数据`}
+            </div>
+          )}
+        </div>
+        {errors.length > 0 && (
+          <pre style={{
+            maxHeight: 120, overflow: 'auto', background: 'var(--dsw-alias-bg-secondary, #f5f5f5)',
+            borderRadius: 8, padding: 8, fontSize: 11, whiteSpace: 'pre-wrap', wordBreak: 'break-all',
+          }}>{errors.slice(-6).join('\n')}</pre>
+        )}
+        {note !== '' && <div style={{ margin: '8px 0', color: 'var(--dsw-alias-label-secondary, #666)' }}>{note}</div>}
+        <div style={{ display: 'flex', gap: 8, marginTop: 12, justifyContent: 'flex-end' }}>
+          <button type="button" disabled={busy !== 'idle'} onClick={exportDiag} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--dsw-alias-line-primary, #ddd)', background: 'transparent', cursor: 'pointer' }}>
+            {busy === 'exporting' ? '导出中…' : '导出诊断包'}
+          </button>
+          <button type="button" disabled={busy !== 'idle'} onClick={resetWorkspace} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--dsw-alias-line-primary, #ddd)', background: 'transparent', cursor: 'pointer', color: 'var(--dsw-alias-state-error, #c33)' }}>
+            {busy === 'resetting' ? '重置中…' : '重置工作区'}
+          </button>
+          <button type="button" onClick={onClose} style={{ padding: '6px 12px', borderRadius: 6, border: 'none', background: 'var(--dsw-alias-btn-primary, #1a1a1a)', color: '#fff', cursor: 'pointer' }}>
+            关闭
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  )
+}
 import { DesktopUpdateIndicator } from './DesktopUpdateIndicator.tsx'
 import { IconPersonVoiceOutline16, IconInfoOutline16 } from './settings-nav-icons.tsx'
 
@@ -265,6 +352,18 @@ export function SettingsRoot(props: SettingsRootComponentProps) {
     connectionIndicator = 'recovered'
   }
 
+  /* O102：连接态持续 15s 未恢复 → 弹出诊断层（真实原因+可执行动作）。
+   * 恢复即收起并重置计时。 */
+  const [doctorOpen, setDoctorOpen] = useState(false)
+  useEffect(() => {
+    if (connectionIndicator !== 'connecting' && connectionIndicator !== 'disconnected') {
+      setDoctorOpen(false)
+      return
+    }
+    const timer = window.setTimeout(() => setDoctorOpen(true), 15_000)
+    return () => window.clearTimeout(timer)
+  }, [connectionIndicator])
+
   return (
     <>
       <div className={clsx(css.triggerRow, !wide && css.railRow)}>
@@ -297,6 +396,7 @@ export function SettingsRoot(props: SettingsRootComponentProps) {
         <DesktopUpdateIndicator wide={wide} hidden={connectionIndicator !== undefined && desktopUpdate.presentation?.phase !== 'installing'}
           t={t} view={desktopUpdate} onOpen={openDesktopUpdate} />
       </div>
+      {doctorOpen && <ConnectionDoctor onClose={() => setDoctorOpen(false)} />}
       {open && (
         <SettingsPanel
           rows={rows}
