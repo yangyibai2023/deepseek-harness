@@ -14,6 +14,7 @@
  */
 
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { ChangeEvent, KeyboardEvent, MouseEvent } from 'react'
 import clsx from 'clsx'
 import {
@@ -44,6 +45,90 @@ import css from './InputBar.module.css'
 
 export type InputBarProps = ComposerBarProps
 
+/* ── O133（2026-11-28 用户两轮定稿）：「+」合并菜单 ──────────────────────
+ * + 与回形针合一：点击 + 弹两级浮层（悬浮一级项→右侧二级），回形针移除
+ * （并入「添加文件」）。四项一级=全量能力：添加文件/使用技能/引用对话/指令
+ * （六条斜杠原样触发）。动作 v1=「帮用户打出触发符」：指令插 "/xxx "、
+ * 引用插 "@"、技能插 "/"——全部走既有 revision 守卫通道，零行为风险；
+ * 深集成（浮层内直接列技能/直接执行）留 v2。/ 和 @ 快捷键不受影响。 */
+type PlusSubItem = { label: string; hint?: string; run: () => void }
+type PlusItem = { id: string; label: string; icon: string; sub: PlusSubItem[] }
+
+function PlusMenu({ items, onClose, anchor }: { items: PlusItem[]; onClose: () => void; anchor: { left: number; top: number } }) {
+  const [hoverId, setHoverId] = useState<string | null>(null)
+  const wrapRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    const onDown = (event: globalThis.MouseEvent): void => {
+      if (wrapRef.current !== null && !wrapRef.current.contains(event.target as Node)) onClose()
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => { document.removeEventListener('mousedown', onDown) }
+  }, [onClose])
+  const hovered = items.find(item => item.id === hoverId)
+  /* O133：portal 到 body + fixed 定位——composerHero(z1) 层叠上下文困住
+   * absolute 浮层被 sticky 品牌层(z3) 盖住（四项只露两项实锤）。 */
+  return createPortal(
+    <div ref={wrapRef} style={{ position: 'fixed', left: anchor.left, top: anchor.top, transform: 'translateY(-100%)', display: 'flex', alignItems: 'flex-end', gap: 6, zIndex: 1000 }}>
+      <div style={{
+        minWidth: 168, background: 'var(--dsw-alias-bg-layer-1, #fff)',
+        border: '1px solid var(--dsw-alias-border-l1, #e8e8e8)', borderRadius: 14,
+        boxShadow: '0 8px 28px rgba(0,0,0,0.12)', padding: 6,
+      }} role="menu" aria-label="添加与指令">
+        {items.map(item => (
+          <button
+            key={item.id}
+            type="button"
+            role="menuitem"
+            onMouseEnter={() => { setHoverId(item.id) }}
+            onClick={() => { const first = item.sub[0]; if (first !== undefined) { first.run(); onClose() } }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+              border: 'none', borderRadius: 9, padding: '8px 10px', fontSize: 13,
+              cursor: 'pointer', textAlign: 'left', color: 'inherit',
+              background: hoverId === item.id ? 'var(--dsw-alias-interactive-bg-hover, #f0f0f0)' : 'transparent',
+            }}
+          >
+            <span aria-hidden style={{ fontSize: 13, width: 16, textAlign: 'center' }}>{item.icon}</span>
+            <span style={{ flex: 1 }}>{item.label}</span>
+            <span aria-hidden style={{ color: 'var(--dsw-alias-label-tertiary, #aaa)', fontSize: 11 }}>›</span>
+          </button>
+        ))}
+      </div>
+      {hovered !== undefined && (
+        <div style={{
+          minWidth: 200, maxWidth: 280, background: 'var(--dsw-alias-bg-layer-1, #fff)',
+          border: '1px solid var(--dsw-alias-border-l1, #e8e8e8)', borderRadius: 14,
+          boxShadow: '0 8px 28px rgba(0,0,0,0.12)', padding: 6,
+        }} role="menu" aria-label={`${hovered.label}子菜单`}
+        onMouseEnter={() => { setHoverId(hovered.id) }}
+        >
+          {hovered.sub.map(sub => (
+            <button
+              key={sub.label}
+              type="button"
+              role="menuitem"
+              onClick={() => { sub.run(); onClose() }}
+              style={{
+                display: 'flex', flexDirection: 'column', gap: 2, width: '100%',
+                border: 'none', borderRadius: 9, padding: '8px 10px', fontSize: 13,
+                cursor: 'pointer', textAlign: 'left', color: 'inherit', background: 'transparent',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--dsw-alias-interactive-bg-hover, #f0f0f0)' }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+            >
+              <span>{sub.label}</span>
+              {sub.hint !== undefined && (
+                <span style={{ fontSize: 11, color: 'var(--dsw-alias-label-tertiary, #999)' }}>{sub.hint}</span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>,
+    document.body,
+  )
+}
+
 export const InputBar = memo(function InputBar({
   useSession, useInput, inputActions, keyboard, addFiles, removeAttachment, resolveDraftAttachments,
   retryFileUpload,
@@ -59,6 +144,10 @@ export const InputBar = memo(function InputBar({
   const stopKeys = useStopShortcut(keys => keys)
   void useLexicon // hook seat stays bound by the inject compartment; text-ref decoration rides the shell's editor transforms
   const commandMenuOpen = useMenuLauncher(source => source === 'command')
+  /* O133：「+」合并菜单开关（点击 + 开浮层；/ 快捷键仍走原命令菜单）。 */
+  const [plusMenuOpen, setPlusMenuOpen] = useState(false)
+  const plusAnchorRef = useRef<HTMLSpanElement | null>(null)
+  void IconPaperclipOutlineRegular // O133 回滚保留（见回形针注释块）
   const [activity, setActivity] = useState(false)
   useEffect(() => { setActivity(false) }, [sessionId])
   const promptError = useSession(s => s.promptError) ?? null
@@ -460,6 +549,15 @@ export const InputBar = memo(function InputBar({
     toggleCommandMenu?.(keyboard.caretSpan())
   }
 
+  /* O133：+ 浮层的动作通道——插入触发文本（"/plan "、"@"、" /"）并聚焦，
+   * 原生 trigger 菜单接管后续（选技能/选引用/回车执行）。 */
+  const insertSlashFromPlus = (text: string): void => {
+    if (inputActions === undefined) return
+    if (editor !== null) focusDraftEditor(editor, revealSelection)
+    const span = inputActions.captureInsertion()
+    inputActions.insertText(text, span)
+  }
+
   // The no-session Workspace trigger: the resident editable div acts as the
   // picker trigger for keyboard users (no editor is bound in this state).
   const onWorkspaceKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
@@ -597,21 +695,80 @@ export const InputBar = memo(function InputBar({
         />
         <div ref={rowRef} className={css.row}>
           <div className={css.tools} hidden={activity}>
-            <Tooltip label={t('input.commands')} side="top" delayMs={500}>
-              <button
-                type="button"
-                className={css.add}
-                aria-label={t('input.commands')}
-                aria-haspopup="listbox"
-                aria-expanded={commandMenuOpen}
-                disabled={locked || toggleCommandMenu === undefined}
-                onMouseDown={keepFocus}
-                onClick={onToggleCommandMenu}
-              >
-                <IconPlusOutlineMedium size={14} />
-              </button>
-            </Tooltip>
-            {/* HeightLab：附件纸夹按钮（0.4.1 布局；上游 0.2.1 收进了命令菜单）。 */}
+            {/* O133（2026-11-28 用户定稿）：+ 与回形针合一——点击 + 弹两级
+             * 浮层（PlusMenu）；回形针按钮移除（并入「添加文件」，回滚=恢复
+             * 下方注释块并把 + 的 onClick 换回 onToggleCommandMenu）。
+             * / 快捷键仍走原命令菜单（onToggleCommandMenu 保留）。 */}
+            {/* O133：relative 锚点——浮层 absolute 相对此容器定位（.tools 无
+             * 定位上下文，直接 absolute 会飞到错误位置实锤）。 */}
+            <span ref={plusAnchorRef} style={{ position: 'relative', display: 'inline-flex' }}>
+              <Tooltip label="可添加文件、使用技能、引用对话、指令" side="top" delayMs={500}>
+                <button
+                  type="button"
+                  className={css.add}
+                  aria-label="添加与指令"
+                  aria-haspopup="menu"
+                  aria-expanded={plusMenuOpen}
+                  disabled={locked}
+                  onMouseDown={keepFocus}
+                  onClick={() => { setPlusMenuOpen(open => !open) }}
+                >
+                  <IconPlusOutlineMedium size={14} />
+                </button>
+              </Tooltip>
+              {plusMenuOpen && (
+                <PlusMenu
+                  onClose={() => { setPlusMenuOpen(false) }}
+                  anchor={(() => {
+                    const rect = plusAnchorRef.current?.getBoundingClientRect()
+                    return rect !== undefined
+                      ? { left: rect.left, top: rect.top - 8 }
+                      : { left: 0, top: window.innerHeight / 2 }
+                  })()}
+                  items={[
+                    {
+                      id: 'file', label: '添加文件', icon: '📎',
+                      sub: [{
+                        label: '本地文件', hint: '从电脑选择文件作为附件',
+                        run: () => { fileInputRef.current?.click() },
+                      }],
+                    },
+                    {
+                      id: 'skill', label: '使用技能', icon: '✨',
+                      sub: [{
+                        label: '打开技能列表', hint: '浏览并插入已安装的技能',
+                        run: () => { onToggleCommandMenu() },
+                      }],
+                    },
+                    {
+                      id: 'mention', label: '引用对话', icon: '@',
+                      sub: [
+                        {
+                          label: '引用文件', hint: '在消息中引用工作区文件',
+                          run: () => { insertSlashFromPlus('@') },
+                        },
+                        {
+                          label: '引用对话', hint: '在消息中引用其他会话',
+                          run: () => { insertSlashFromPlus('@') },
+                        },
+                      ],
+                    },
+                    {
+                      id: 'command', label: '指令', icon: '⌘',
+                      sub: [
+                        { label: '计划模式', hint: '进入或退出计划模式', run: () => { insertSlashFromPlus('/plan ') } },
+                        { label: '目标', hint: '设置或查看长期任务目标', run: () => { insertSlashFromPlus('/goal ') } },
+                        { label: '模型', hint: '选择本会话使用的模型', run: () => { insertSlashFromPlus('/model ') } },
+                        { label: '权限', hint: '切换沙箱模式与审批策略', run: () => { insertSlashFromPlus('/permission ') } },
+                        { label: '压缩', hint: '压缩以上对话内容', run: () => { insertSlashFromPlus('/compact') } },
+                        { label: '反馈', hint: '发送关于当前会话的反馈', run: () => { insertSlashFromPlus('/feedback ') } },
+                      ],
+                    },
+                  ]}
+                />
+              )}
+            </span>
+            {/* O133 回滚保留：原回形针按钮
             <Tooltip label={t('file.attach')} side="top" delayMs={500}>
               <button
                 type="button"
@@ -624,6 +781,7 @@ export const InputBar = memo(function InputBar({
                 <IconPaperclipOutlineRegular size={14} />
               </button>
             </Tooltip>
+            */}
             <input
               ref={fileInputRef}
               type="file"
