@@ -16,19 +16,81 @@
  *   营销策略=创意洞察+广告投放；账号运营=占位（内容后续由用户补）。
  * 点击卡片=打开模板工作台（与场景创作整卡同款 hl:open-template-console）。
  */
-import type { CSSProperties } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { useMemo } from 'react'
 import { VIDEO_CATALOG } from './HeightLabVideoCatalog.ts'
 
 export type HeroCategory = 'all' | 'copy' | 'image' | 'video' | 'ops' | 'marketing'
 
-const CATEGORIES: Array<{ id: HeroCategory; label: string; icon: string }> = [
-  { id: 'all', label: '全能创作', icon: '✦' },
-  { id: 'copy', label: '文案编写', icon: '✎' },
-  { id: 'image', label: '图片生成', icon: '❑' },
-  { id: 'video', label: '视频创作', icon: '▶' },
-  { id: 'ops', label: '账号运营', icon: '◉' },
-  { id: 'marketing', label: '营销策略', icon: '◈' },
+/* 2026-11-27（用户反馈「按钮太丑，要场景创作那种彩色 logo」）：六个渐变
+ * SVG 图标，与 HeightLabHubPage 的 Art* 组件同款规范（36×36、linearGradient）。 */
+const artSvg = { fill: 'none', viewBox: '0 0 36 36' } as const
+
+const ArtAll = (): ReactNode => (
+  <svg {...artSvg} width={30} height={30} aria-hidden="true">
+    <path d="M18 5l2.6 7.4L28 15l-7.4 2.6L18 25l-2.6-7.4L8 15l7.4-2.6L18 5Z" fill="url(#hlc-a)" />
+    <circle cx="27" cy="26" r="3" fill="#FFC24A" />
+    <defs><linearGradient id="hlc-a" x1="8" y1="5" x2="28" y2="25" gradientUnits="userSpaceOnUse">
+      <stop stopColor="#A797FC" /><stop offset="1" stopColor="#E23AA0" />
+    </linearGradient></defs>
+  </svg>
+)
+const ArtCopy = (): ReactNode => (
+  <svg {...artSvg} width={30} height={30} aria-hidden="true">
+    <rect x="7" y="5" width="22" height="26" rx="3" stroke="url(#hlc-c)" strokeWidth="2.6" />
+    <path d="M12 12h12M12 17h12M12 22h8" stroke="#658EFF" strokeWidth="2.4" strokeLinecap="round" />
+    <defs><linearGradient id="hlc-c" x1="7" y1="5" x2="29" y2="31" gradientUnits="userSpaceOnUse">
+      <stop stopColor="#45C8E7" /><stop offset="1" stopColor="#3A5AE2" />
+    </linearGradient></defs>
+  </svg>
+)
+const ArtImage = (): ReactNode => (
+  <svg {...artSvg} width={30} height={30} aria-hidden="true">
+    <rect x="5" y="8" width="26" height="20" rx="3" stroke="url(#hlc-i)" strokeWidth="2.6" />
+    <circle cx="13" cy="15" r="2.6" fill="#FFC24A" />
+    <path d="m9 24 6-5 5 4 4-3.5 6 5" stroke="#41E1AC" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+    <defs><linearGradient id="hlc-i" x1="5" y1="8" x2="31" y2="28" gradientUnits="userSpaceOnUse">
+      <stop stopColor="#41E1AC" /><stop offset="1" stopColor="#658EFF" />
+    </linearGradient></defs>
+  </svg>
+)
+const ArtVideo = (): ReactNode => (
+  <svg {...artSvg} width={30} height={30} aria-hidden="true">
+    <rect x="5" y="8" width="26" height="20" rx="4" fill="url(#hlc-v)" fillOpacity="0.92" />
+    <path d="m15 13.5 8 4.5-8 4.5v-9Z" fill="#FFFFFF" />
+    <defs><linearGradient id="hlc-v" x1="5" y1="8" x2="31" y2="28" gradientUnits="userSpaceOnUse">
+      <stop stopColor="#FF9E45" /><stop offset="1" stopColor="#F0503C" />
+    </linearGradient></defs>
+  </svg>
+)
+const ArtOps = (): ReactNode => (
+  <svg {...artSvg} width={30} height={30} aria-hidden="true">
+    <circle cx="18" cy="18" r="12" stroke="url(#hlc-o)" strokeWidth="2.6" />
+    <circle cx="18" cy="18" r="6.5" stroke="#45C8E7" strokeWidth="2.2" />
+    <circle cx="18" cy="18" r="2.2" fill="#3A5AE2" />
+    <path d="M18 6v4M30 18h-4" stroke="#45C8E7" strokeWidth="2.2" strokeLinecap="round" />
+    <defs><linearGradient id="hlc-o" x1="6" y1="6" x2="30" y2="30" gradientUnits="userSpaceOnUse">
+      <stop stopColor="#45E7A4" /><stop offset="1" stopColor="#0E9888" />
+    </linearGradient></defs>
+  </svg>
+)
+const ArtMarketing = (): ReactNode => (
+  <svg {...artSvg} width={30} height={30} aria-hidden="true">
+    <path d="M8 26V16M15 26V10M22 26v-9M29 26V14" stroke="url(#hlc-m)" strokeWidth="3" strokeLinecap="round" />
+    <path d="m8 12 7-5 6 4 6-6" stroke="#FFC24A" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    <defs><linearGradient id="hlc-m" x1="8" y1="10" x2="29" y2="26" gradientUnits="userSpaceOnUse">
+      <stop stopColor="#FF8FC7" /><stop offset="1" stopColor="#A23AE7" />
+    </linearGradient></defs>
+  </svg>
+)
+
+const CATEGORIES: Array<{ id: HeroCategory; label: string; Art: () => ReactNode }> = [
+  { id: 'all', label: '全能创作', Art: ArtAll },
+  { id: 'copy', label: '文案编写', Art: ArtCopy },
+  { id: 'image', label: '图片生成', Art: ArtImage },
+  { id: 'video', label: '视频创作', Art: ArtVideo },
+  { id: 'ops', label: '账号运营', Art: ArtOps },
+  { id: 'marketing', label: '营销策略', Art: ArtMarketing },
 ]
 
 const CATEGORY_SOURCES: Record<Exclude<HeroCategory, 'all' | 'ops'>, string[]> = {
@@ -65,17 +127,19 @@ function itemsFor(category: HeroCategory): typeof VIDEO_CATALOG {
 /* ── 按钮条（输入框上方，小灰条横排） ─────────────────────────────────── */
 
 const barStyle: CSSProperties = {
-  display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center',
-  margin: '18px 0 14px',
+  display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'center',
+  margin: '14px 0 10px',
 }
 
 export function HeroCategoryBar({ selected, onSelect }: {
   selected: HeroCategory
   onSelect: (category: HeroCategory) => void
 }) {
+  /* 2026-11-27（用户反馈）：彩色 logo 形态（场景创作 Art* 同款渐变 SVG），
+   * 图标上文字下轻量块；选中=浅灰底，无边框无重色。 */
   return (
     <div style={barStyle} role="tablist" aria-label="创作分类">
-      {CATEGORIES.map(({ id, label, icon }) => {
+      {CATEGORIES.map(({ id, label, Art }) => {
         const active = selected === id
         return (
           <button
@@ -85,16 +149,19 @@ export function HeroCategoryBar({ selected, onSelect }: {
             aria-selected={active}
             onClick={() => { onSelect(id) }}
             style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-              border: active ? '1px solid transparent' : '1px solid var(--dsw-alias-border-l1, #e5e5e5)',
-              background: active ? 'var(--dsw-alias-label-primary, #1a1a1a)' : 'var(--dsw-alias-bg-layer-2, #f5f5f5)',
-              color: active ? 'var(--dsw-alias-bg-layer-1, #fff)' : 'inherit',
-              borderRadius: 10, padding: '9px 16px', fontSize: 13, cursor: 'pointer',
-              transition: 'background 0.15s ease',
+              display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+              border: 'none',
+              background: active ? 'var(--dsw-alias-bg-layer-2, #f2f2f2)' : 'transparent',
+              color: 'inherit',
+              borderRadius: 12, padding: '10px 14px 8px', fontSize: 12, cursor: 'pointer',
+              transition: 'background 0.15s ease', minWidth: 76,
+              opacity: active ? 1 : 0.82,
             }}
+            onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = 'var(--dsw-alias-bg-layer-2, #f6f6f6)' }}
+            onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = 'transparent' }}
           >
-            <span aria-hidden style={{ fontSize: 12 }}>{icon}</span>
-            {label}
+            <Art />
+            <span style={{ fontWeight: active ? 600 : 400 }}>{label}</span>
           </button>
         )
       })}
@@ -115,52 +182,65 @@ export function HeroCategoryCards({ category }: { category: HeroCategory }) {
 
   if (category === 'ops') {
     return (
-      <div style={{ display: 'flex', gap: 12, justifyContent: 'center', padding: '8px 0 4px', flexWrap: 'wrap' }}>
+      <div style={{
+        display: 'flex', gap: 10, justifyContent: 'center', padding: '6px 0 2px', flexWrap: 'wrap',
+        width: 'min(960px, 94vw)', marginLeft: '50%', transform: 'translateX(-50%)',
+      }}>
         {['对标监控', '选题池', '发布排期'].map(label => (
           <div key={label} style={{
-            width: 200, borderRadius: 14, border: '1px dashed var(--dsw-alias-border-l1, #ddd)',
-            padding: '18px 16px', color: 'var(--dsw-alias-label-tertiary, #999)', fontSize: 13,
-            display: 'flex', flexDirection: 'column', gap: 6,
+            width: 232, height: 64, borderRadius: 12, border: '1px dashed var(--dsw-alias-border-l1, #ddd)',
+            padding: '0 14px', color: 'var(--dsw-alias-label-tertiary, #999)', fontSize: 12,
+            display: 'flex', flexDirection: 'column', gap: 2, justifyContent: 'center',
           }}>
-            <span style={{ fontWeight: 600, color: 'var(--dsw-alias-label-secondary, #666)' }}>{label}</span>
-            <span>内容筹备中——先在「运营面板」使用完整能力</span>
+            <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--dsw-alias-label-secondary, #666)' }}>{label}</span>
+            <span>内容筹备中——先在「运营面板」使用</span>
           </div>
         ))}
       </div>
     )
   }
 
+  /* 2026-11-27（用户反馈「太大了，一排至少 4 个」）：横条小卡（参考截图①
+   * 灰条卡形式）——左名称+一句话（截断），右小缩略图；宽 232px，一排 4-5。 */
   return (
-    <div style={{ display: 'flex', gap: 12, justifyContent: 'center', padding: '8px 0 4px', flexWrap: 'wrap' }}>
+    /* 2026-11-27（用户「一排至少 4 个」）：容器脱离对话列宽（~720px）居中
+     * 展开到 960px——232px 小卡一排正好 4 个。 */
+    <div style={{
+      display: 'flex', gap: 10, justifyContent: 'center', padding: '6px 0 2px', flexWrap: 'wrap',
+      width: 'min(960px, 94vw)', marginLeft: '50%', transform: 'translateX(-50%)',
+    }}>
       {items.map(item => (
         <button
           key={item.id}
           type="button"
           onClick={() => { openTemplatePanel(item) }}
           style={{
-            width: 200, border: '1px solid var(--dsw-alias-border-l1, #ececec)', borderRadius: 14,
-            background: 'var(--dsw-alias-bg-layer-1, #fff)', cursor: 'pointer', padding: 0,
-            overflow: 'hidden', textAlign: 'left', color: 'inherit',
+            width: 232, height: 64, border: 'none', borderRadius: 12,
+            background: 'var(--dsw-alias-bg-layer-2, #f5f5f5)', cursor: 'pointer',
+            padding: '0 8px 0 14px', textAlign: 'left', color: 'inherit',
+            display: 'flex', alignItems: 'center', gap: 10, overflow: 'hidden',
+            transition: 'background 0.15s ease',
           }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--dsw-alias-interactive-bg-hover, #ececec)' }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--dsw-alias-bg-layer-2, #f5f5f5)' }}
         >
+          <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <span style={{ fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.name}</span>
+            <span style={{
+              fontSize: 11, color: 'var(--dsw-alias-label-tertiary, #999)',
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            }}>{item.tagline}</span>
+          </span>
           <img
             src={item.cover}
             alt=""
             loading="lazy"
-            style={{ width: '100%', aspectRatio: '16 / 10', objectFit: 'cover', display: 'block', objectPosition: item.pos }}
+            style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover', objectPosition: item.pos, flexShrink: 0 }}
             onError={(event) => {
               const fallback = (item as { coverFallback?: string }).coverFallback
               if (fallback !== undefined && event.currentTarget.src !== fallback) event.currentTarget.src = fallback
             }}
           />
-          <span style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 12px' }}>
-            <span aria-hidden style={{ fontSize: 13 }}>✦</span>
-            <span style={{ fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap' }}>{item.name}</span>
-            <span style={{
-              fontSize: 12, color: 'var(--dsw-alias-label-tertiary, #999)',
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            }}>{item.tagline}</span>
-          </span>
         </button>
       ))}
     </div>

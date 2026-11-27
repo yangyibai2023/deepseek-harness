@@ -267,10 +267,10 @@ export function ConversationContent(props: ConversationContentProps) {
         // （贴顶引导）不参与，保持原结构。
         <div className={css.heroBrandWrap}>
           <HeroShell t={t} renderSlot={renderSlot} />
-          {heroWorkspaceRow}
-          {/* O131（2026-11-27 用户拍板）：六项分类按钮条——轮播标题与输入框
-              中间，小灰条横排；点击切换下方大卡区类目。 */}
+          {/* O131（2026-11-27 用户二次修正）：按钮条在**标题与「我的工作区」
+              中间**（工作区行保持原位贴近输入框，不要动）。 */}
           <HeroCategoryBar selected={heroCategory} onSelect={setHeroCategory} />
+          {heroWorkspaceRow}
         </div>
       ))}
       {zone !== undefined && renderSlot('conversation.input.dock', zone)}
