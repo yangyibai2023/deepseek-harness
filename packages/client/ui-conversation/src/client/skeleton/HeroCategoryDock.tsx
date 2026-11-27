@@ -110,7 +110,7 @@ function mixedSelection(): typeof VIDEO_CATALOG {
   }
   const picks: typeof VIDEO_CATALOG = []
   for (const list of byCategory.values()) {
-    if (picks.length >= 8) break
+    if (picks.length >= 9) break
     const first = list[0]
     if (first !== undefined) picks.push(first)
   }
@@ -121,7 +121,7 @@ function itemsFor(category: HeroCategory): typeof VIDEO_CATALOG {
   if (category === 'all') return mixedSelection()
   if (category === 'ops') return []
   const sources = CATEGORY_SOURCES[category]
-  return VIDEO_CATALOG.filter(item => sources.includes(item.category)).slice(0, 8)
+  return VIDEO_CATALOG.filter(item => sources.includes(item.category)).slice(0, 9)
 }
 
 /* ── 按钮条（输入框上方，小灰条横排） ─────────────────────────────────── */
@@ -149,13 +149,15 @@ export function HeroCategoryBar({ selected, onSelect }: {
             aria-selected={active}
             onClick={() => { onSelect(id) }}
             style={{
+              /* 2026-11-27（用户四次修正）：选中态去描边——灰底（比悬浮略深）
+               * +微阴影+文字加粗；悬浮灰底保留。 */
               display: 'inline-flex', alignItems: 'center', gap: 7,
-              border: active ? '1px solid var(--dsw-alias-border-l2, #d8d8d8)' : '1px solid transparent',
-              background: active ? 'var(--dsw-alias-bg-layer-1, #fff)' : 'var(--dsw-alias-bg-layer-2, #f4f4f4)',
+              border: 'none',
+              background: active ? 'var(--dsw-alias-interactive-bg-hover, #e9e9e9)' : 'var(--dsw-alias-bg-layer-2, #f4f4f4)',
               color: 'inherit',
               borderRadius: 999, padding: '7px 16px 7px 10px', fontSize: 13, cursor: 'pointer',
-              transition: 'background 0.15s ease, border-color 0.15s ease',
-              boxShadow: active ? '0 1px 4px rgba(0,0,0,0.06)' : 'none',
+              transition: 'background 0.15s ease, box-shadow 0.15s ease',
+              boxShadow: active ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
             }}
             onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = 'var(--dsw-alias-interactive-bg-hover, #ececec)' }}
             onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = 'var(--dsw-alias-bg-layer-2, #f4f4f4)' }}
@@ -182,10 +184,10 @@ export function HeroCategoryCards({ category }: { category: HeroCategory }) {
 
   if (category === 'ops') {
     return (
-      <div style={{ display: 'flex', gap: 12, justifyContent: 'center', padding: '8px 0 2px', flexWrap: 'wrap' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, padding: '8px 0 2px', width: '100%' }}>
         {['对标监控', '选题池', '发布排期'].map(label => (
           <div key={label} style={{
-            width: 165, height: 64, borderRadius: 12, border: '1px dashed var(--dsw-alias-border-l1, #ddd)',
+            height: 64, borderRadius: 12, border: '1px dashed var(--dsw-alias-border-l1, #ddd)',
             padding: '0 14px', color: 'var(--dsw-alias-label-tertiary, #999)', fontSize: 12,
             display: 'flex', flexDirection: 'column', gap: 2, justifyContent: 'center',
           }}>
@@ -201,10 +203,11 @@ export function HeroCategoryCards({ category }: { category: HeroCategory }) {
    * 底部一行：图标+标题粗+简介灰截断），比第一版缩小——宽 218px，容器
    * 960px 一排 4 个。 */
   return (
-    /* 2026-11-27（实锤修正）：对话列 overflow 会裁掉突破容器——不再突破，
-     * 列内 4 张/行：卡宽 165px（720 列 - 3×12 gap ≈ 4×165）。 */
+    /* 2026-11-27（用户四次修正）：grid 3 列×3 排，容器=对话列全宽——卡片
+     * 左右边缘与输入框严格齐平（flex 居中会内缩不齐，实锤）。 */
     <div style={{
-      display: 'flex', gap: 12, justifyContent: 'center', padding: '8px 0 2px', flexWrap: 'wrap',
+      display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12,
+      padding: '8px 0 2px', width: '100%',
     }}>
       {items.map(item => (
         <button
@@ -212,7 +215,7 @@ export function HeroCategoryCards({ category }: { category: HeroCategory }) {
           type="button"
           onClick={() => { openTemplatePanel(item) }}
           style={{
-            width: 165, border: '1px solid var(--dsw-alias-border-l1, #ececec)', borderRadius: 12,
+            border: '1px solid var(--dsw-alias-border-l1, #ececec)', borderRadius: 12,
             background: 'var(--dsw-alias-bg-layer-1, #fff)', cursor: 'pointer', padding: 0,
             overflow: 'hidden', textAlign: 'left', color: 'inherit',
             transition: 'box-shadow 0.15s ease',
