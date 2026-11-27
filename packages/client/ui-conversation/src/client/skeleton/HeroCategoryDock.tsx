@@ -110,7 +110,7 @@ function mixedSelection(): typeof VIDEO_CATALOG {
   }
   const picks: typeof VIDEO_CATALOG = []
   for (const list of byCategory.values()) {
-    if (picks.length >= 9) break
+    if (picks.length >= 8) break
     const first = list[0]
     if (first !== undefined) picks.push(first)
   }
@@ -121,7 +121,7 @@ function itemsFor(category: HeroCategory): typeof VIDEO_CATALOG {
   if (category === 'all') return mixedSelection()
   if (category === 'ops') return []
   const sources = CATEGORY_SOURCES[category]
-  return VIDEO_CATALOG.filter(item => sources.includes(item.category)).slice(0, 9)
+  return VIDEO_CATALOG.filter(item => sources.includes(item.category)).slice(0, 8)
 }
 
 /* ── 按钮条（输入框上方，小灰条横排） ─────────────────────────────────── */
@@ -185,7 +185,7 @@ export function HeroCategoryCards({ category }: { category: HeroCategory }) {
   if (category === 'ops') {
     return (
       <div style={{
-        display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, padding: '8px 0 2px',
+        display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, padding: '8px 0 2px',
         width: 'min(var(--dsh-composer-card-max-width, 100%), 100%)', margin: '0 auto',
       }}>
         {['对标监控', '选题池', '发布排期'].map(label => (
@@ -210,7 +210,7 @@ export function HeroCategoryCards({ category }: { category: HeroCategory }) {
      * max-width，stack 全宽比它每侧宽 16px 实锤超出）；grid 3 列×3 排，
      * 卡片压矮（图 56px+底行）保证 3 排在输入框下方一屏内直出。 */
     <div style={{
-      display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10,
+      display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10,
       padding: '8px 0 2px',
       width: 'min(var(--dsh-composer-card-max-width, 100%), 100%)',
       margin: '0 auto',
@@ -241,7 +241,7 @@ export function HeroCategoryCards({ category }: { category: HeroCategory }) {
           />
           <span style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 9px' }}>
             <span aria-hidden style={{ fontSize: 12, flexShrink: 0 }}>✦</span>
-            <span style={{ fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 118, flexShrink: 0 }}>{item.name}</span>
+            <span style={{ fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 96, flexShrink: 0 }}>{item.name}</span>
             <span style={{
               fontSize: 11.5, color: 'var(--dsw-alias-label-tertiary, #999)',
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0,
