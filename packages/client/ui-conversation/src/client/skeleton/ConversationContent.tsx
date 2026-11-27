@@ -185,9 +185,14 @@ export function ConversationContent(props: ConversationContentProps) {
         ?? (workspaces.phase === 'ready' || cwd === undefined || cwd === ''
           ? undefined
           : workspaceLabel(cwd)))
-  const chipTitle = storedChipTitle === undefined
+  /* O134 十一轮澄清（2026-11-28）：用户「直接就是工作区」=只改**官方默认
+   * 工作区**的读法（「我的工作区」→「工作区」），不是静态文案——选了别的
+   * 工作区要显示真实名字（DSH 原生数据驱动，用户实测纠偏）。命名锚与
+   * ui-workspace default-workspace.ts 的官方默认名匹配同源。 */
+  const nativeChipTitle = storedChipTitle === undefined
     ? undefined
     : workspaceDisplayTitle(storedChipTitle, t('workspace.defaultName'))
+  const chipTitle = nativeChipTitle === '我的工作区' ? '工作区' : nativeChipTitle
 
   // The placeholder chip ("Choose workspace") and the Workspace-trigger input travel
   // together: no workspace picked yet (cold start, no session at all), or a
@@ -208,7 +213,7 @@ export function ConversationContent(props: ConversationContentProps) {
          * 工作区」——选中后 chip 显示静态「工作区」（不再回显数据驱动的
          * 工作区名）；未选时仍走 placeholder「选择工作区」。chipTitle 仍
          * 参与 inert 判定（下方），语义不变。 */
-        label={chipTitle === undefined ? undefined : '工作区'}
+        label={chipTitle}
         menuOpen={pickerOpen}
         onClick={() => { setPickerOpen(open => !open) }}
         t={t}
