@@ -22,65 +22,45 @@ import { VIDEO_CATALOG } from './HeightLabVideoCatalog.ts'
 
 export type HeroCategory = 'all' | 'copy' | 'image' | 'video' | 'ops' | 'marketing'
 
-/* 2026-11-27（用户反馈「按钮太丑，要场景创作那种彩色 logo」）：六个渐变
- * SVG 图标，与 HeightLabHubPage 的 Art* 组件同款规范（36×36、linearGradient）。 */
+/* 2026-11-28（用户六次修正）：去彩色 logo（太抢眼）——六个单色线性图标
+ * （currentColor，与 DSH 原生 Outline 图标同视觉语言）。 */
 const artSvg = { fill: 'none', viewBox: '0 0 36 36' } as const
+const S = { stroke: 'currentColor', strokeWidth: 2.4, strokeLinecap: 'round', strokeLinejoin: 'round' } as const
 
 const ArtAll = (): ReactNode => (
-  <svg {...artSvg} width={22} height={22} aria-hidden="true">
-    <path d="M18 5l2.6 7.4L28 15l-7.4 2.6L18 25l-2.6-7.4L8 15l7.4-2.6L18 5Z" fill="url(#hlc-a)" />
-    <circle cx="27" cy="26" r="3" fill="#FFC24A" />
-    <defs><linearGradient id="hlc-a" x1="8" y1="5" x2="28" y2="25" gradientUnits="userSpaceOnUse">
-      <stop stopColor="#A797FC" /><stop offset="1" stopColor="#E23AA0" />
-    </linearGradient></defs>
+  <svg {...artSvg} width={16} height={16} aria-hidden="true">
+    <path d="M18 6l2.4 6.8L27 15.2l-6.6 2.4L18 24.4l-2.4-6.8L9 15.2l6.6-2.4L18 6Z" {...S} />
   </svg>
 )
 const ArtCopy = (): ReactNode => (
-  <svg {...artSvg} width={22} height={22} aria-hidden="true">
-    <rect x="7" y="5" width="22" height="26" rx="3" stroke="url(#hlc-c)" strokeWidth="2.6" />
-    <path d="M12 12h12M12 17h12M12 22h8" stroke="#658EFF" strokeWidth="2.4" strokeLinecap="round" />
-    <defs><linearGradient id="hlc-c" x1="7" y1="5" x2="29" y2="31" gradientUnits="userSpaceOnUse">
-      <stop stopColor="#45C8E7" /><stop offset="1" stopColor="#3A5AE2" />
-    </linearGradient></defs>
+  <svg {...artSvg} width={16} height={16} aria-hidden="true">
+    <rect x="8" y="5" width="20" height="26" rx="3" {...S} />
+    <path d="M13 12h10M13 17h10M13 22h7" {...S} />
   </svg>
 )
 const ArtImage = (): ReactNode => (
-  <svg {...artSvg} width={22} height={22} aria-hidden="true">
-    <rect x="5" y="8" width="26" height="20" rx="3" stroke="url(#hlc-i)" strokeWidth="2.6" />
-    <circle cx="13" cy="15" r="2.6" fill="#FFC24A" />
-    <path d="m9 24 6-5 5 4 4-3.5 6 5" stroke="#41E1AC" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-    <defs><linearGradient id="hlc-i" x1="5" y1="8" x2="31" y2="28" gradientUnits="userSpaceOnUse">
-      <stop stopColor="#41E1AC" /><stop offset="1" stopColor="#658EFF" />
-    </linearGradient></defs>
+  <svg {...artSvg} width={16} height={16} aria-hidden="true">
+    <rect x="5" y="8" width="26" height="20" rx="3" {...S} />
+    <circle cx="13" cy="15" r="2.4" {...S} />
+    <path d="m9 24 6-5 5 4 4-3.5 6 5" {...S} />
   </svg>
 )
 const ArtVideo = (): ReactNode => (
-  <svg {...artSvg} width={22} height={22} aria-hidden="true">
-    <rect x="5" y="8" width="26" height="20" rx="4" fill="url(#hlc-v)" fillOpacity="0.92" />
-    <path d="m15 13.5 8 4.5-8 4.5v-9Z" fill="#FFFFFF" />
-    <defs><linearGradient id="hlc-v" x1="5" y1="8" x2="31" y2="28" gradientUnits="userSpaceOnUse">
-      <stop stopColor="#FF9E45" /><stop offset="1" stopColor="#F0503C" />
-    </linearGradient></defs>
+  <svg {...artSvg} width={16} height={16} aria-hidden="true">
+    <rect x="5" y="8" width="26" height="20" rx="4" {...S} />
+    <path d="m15 13.5 8 4.5-8 4.5v-9Z" {...S} />
   </svg>
 )
 const ArtOps = (): ReactNode => (
-  <svg {...artSvg} width={22} height={22} aria-hidden="true">
-    <circle cx="18" cy="18" r="12" stroke="url(#hlc-o)" strokeWidth="2.6" />
-    <circle cx="18" cy="18" r="6.5" stroke="#45C8E7" strokeWidth="2.2" />
-    <circle cx="18" cy="18" r="2.2" fill="#3A5AE2" />
-    <path d="M18 6v4M30 18h-4" stroke="#45C8E7" strokeWidth="2.2" strokeLinecap="round" />
-    <defs><linearGradient id="hlc-o" x1="6" y1="6" x2="30" y2="30" gradientUnits="userSpaceOnUse">
-      <stop stopColor="#45E7A4" /><stop offset="1" stopColor="#0E9888" />
-    </linearGradient></defs>
+  <svg {...artSvg} width={16} height={16} aria-hidden="true">
+    <circle cx="18" cy="18" r="12" {...S} />
+    <circle cx="18" cy="18" r="6" {...S} />
+    <circle cx="18" cy="18" r="1.6" fill="currentColor" />
   </svg>
 )
 const ArtMarketing = (): ReactNode => (
-  <svg {...artSvg} width={22} height={22} aria-hidden="true">
-    <path d="M8 26V16M15 26V10M22 26v-9M29 26V14" stroke="url(#hlc-m)" strokeWidth="3" strokeLinecap="round" />
-    <path d="m8 12 7-5 6 4 6-6" stroke="#FFC24A" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-    <defs><linearGradient id="hlc-m" x1="8" y1="10" x2="29" y2="26" gradientUnits="userSpaceOnUse">
-      <stop stopColor="#FF8FC7" /><stop offset="1" stopColor="#A23AE7" />
-    </linearGradient></defs>
+  <svg {...artSvg} width={16} height={16} aria-hidden="true">
+    <path d="M8 27V17M15 27V11M22 27v-9M29 27V15" {...S} />
   </svg>
 )
 
@@ -92,20 +72,6 @@ const CATEGORIES: Array<{ id: HeroCategory; label: string; Art: () => ReactNode 
   { id: 'ops', label: '账号运营', Art: ArtOps },
   { id: 'marketing', label: '营销策略', Art: ArtMarketing },
 ]
-
-/* 2026-11-27（用户拍板无图实验版）：模板卡片去封面图，改按 category 映射
- * 六渐变 Art 图标（场景创作同款视觉语言）。基线带图版锚在 tag
- * o131-home-baseline，回滚=reset 到该 tag。 */
-const ART_BY_SOURCE: Record<string, () => ReactNode> = {
-  'UGC 广告': ArtVideo,
-  '视频创意模板': ArtVideo,
-  '电商图片创作': ArtImage,
-  '商品详情页': ArtImage,
-  '文案与 SEO': ArtCopy,
-  '品牌与人群': ArtCopy,
-  '创意洞察': ArtMarketing,
-  '广告投放': ArtMarketing,
-}
 
 const CATEGORY_SOURCES: Record<Exclude<HeroCategory, 'all' | 'ops'>, string[]> = {
   copy: ['文案与 SEO', '品牌与人群'],
@@ -140,9 +106,13 @@ function itemsFor(category: HeroCategory): typeof VIDEO_CATALOG {
 
 /* ── 按钮条（输入框上方，小灰条横排） ─────────────────────────────────── */
 
+/* 2026-11-28（用户六次修正）：整体收进一个大胶囊容器（WorkBuddy 形态）——
+ * 灰底长胶囊内嵌选项，选中项=白底小胶囊浮起+微阴影。 */
 const barStyle: CSSProperties = {
-  display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'center',
-  margin: '14px 0 10px',
+  display: 'inline-flex', gap: 2, flexWrap: 'wrap', justifyContent: 'center',
+  margin: '14px auto 10px',
+  background: 'rgba(0, 0, 0, 0.055)',
+  borderRadius: 999, padding: 4,
 }
 
 export function HeroCategoryBar({ selected, onSelect }: {
@@ -152,35 +122,35 @@ export function HeroCategoryBar({ selected, onSelect }: {
   /* 2026-11-27（用户三次修正）：横排**胶囊**——彩色 logo 在左、文字在右
    * （第一版灰条胶囊形状 + 场景创作渐变 SVG 图标）。 */
   return (
-    <div style={barStyle} role="tablist" aria-label="创作分类">
-      {CATEGORIES.map(({ id, label, Art }) => {
-        const active = selected === id
-        return (
-          <button
-            key={id}
-            type="button"
-            role="tab"
-            aria-selected={active}
-            onClick={() => { onSelect(id) }}
-            style={{
-              /* 2026-11-27（用户四次修正）：选中态去描边——灰底（比悬浮略深）
-               * +微阴影+文字加粗；悬浮灰底保留。 */
-              display: 'inline-flex', alignItems: 'center', gap: 7,
-              border: 'none',
-              background: active ? 'var(--dsw-alias-interactive-bg-hover, #e9e9e9)' : 'var(--dsw-alias-bg-layer-2, #f4f4f4)',
-              color: 'inherit',
-              borderRadius: 999, padding: '7px 16px 7px 10px', fontSize: 13, cursor: 'pointer',
-              transition: 'background 0.15s ease, box-shadow 0.15s ease',
-              boxShadow: active ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
-            }}
-            onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = 'var(--dsw-alias-interactive-bg-hover, #ececec)' }}
-            onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = 'var(--dsw-alias-bg-layer-2, #f4f4f4)' }}
-          >
-            <Art />
-            <span style={{ fontWeight: active ? 600 : 400 }}>{label}</span>
-          </button>
-        )
-      })}
+    <div style={{ display: 'flex', justifyContent: 'center' }}>
+      <div style={barStyle} role="tablist" aria-label="创作分类">
+        {CATEGORIES.map(({ id, label, Art }) => {
+          const active = selected === id
+          return (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => { onSelect(id) }}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                border: 'none',
+                background: active ? 'var(--dsw-alias-bg-layer-1, #fff)' : 'transparent',
+                color: active ? 'var(--dsw-alias-label-primary, #1a1a1a)' : 'var(--dsw-alias-label-secondary, #666)',
+                borderRadius: 999, padding: '7px 14px', fontSize: 13, cursor: 'pointer',
+                transition: 'background 0.15s ease, box-shadow 0.15s ease, color 0.15s ease',
+                boxShadow: active ? '0 1px 4px rgba(0,0,0,0.10)' : 'none',
+              }}
+              onMouseEnter={(e) => { if (!active) e.currentTarget.style.color = 'var(--dsw-alias-label-primary, #1a1a1a)' }}
+              onMouseLeave={(e) => { if (!active) e.currentTarget.style.color = 'var(--dsw-alias-label-secondary, #666)' }}
+            >
+              <Art />
+              <span style={{ fontWeight: active ? 600 : 400 }}>{label}</span>
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -229,36 +199,62 @@ export function HeroCategoryCards({ category }: { category: HeroCategory }) {
       width: 'min(var(--dsh-composer-card-max-width, 100%), 100%)',
       margin: '0 auto',
     }}>
-      {items.map((item) => {
-        const Art = ART_BY_SOURCE[item.category] ?? ArtAll
+      {items.map((item, index) => {
+        /* 2026-11-28（用户六次修正，参考截图②）：横条卡——左侧文字为主，
+         * 右侧 2 张同类目封面错落叠放（纯装饰，突出文字）。 */
+        const stackMate = items[(index + 1) % items.length] ?? item
         return (
           <button
             key={item.id}
             type="button"
             onClick={() => { openTemplatePanel(item) }}
             style={{
-              border: '1px solid var(--dsw-alias-border-l1, #ececec)', borderRadius: 12,
-              background: 'var(--dsw-alias-bg-layer-1, #fff)', cursor: 'pointer',
-              padding: '12px 12px', textAlign: 'left', color: 'inherit',
-              display: 'flex', alignItems: 'center', gap: 10, overflow: 'hidden',
-              transition: 'box-shadow 0.15s ease',
+              height: 76, border: 'none', borderRadius: 14,
+              background: 'rgba(0, 0, 0, 0.045)', cursor: 'pointer',
+              padding: '0 10px 0 14px', textAlign: 'left', color: 'inherit',
+              display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden',
+              transition: 'background 0.15s ease',
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.boxShadow = '0 4px 14px rgba(0,0,0,0.08)' }}
-            onMouseLeave={(e) => { e.currentTarget.style.boxShadow = 'none' }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(0, 0, 0, 0.075)' }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(0, 0, 0, 0.075)' }}
           >
-            <span style={{
-              flexShrink: 0, width: 40, height: 40, borderRadius: 10,
-              background: 'var(--dsw-alias-bg-layer-2, #f5f5f5)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <Art />
-            </span>
-            <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <span style={{ fontWeight: 600, fontSize: 12.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.name}</span>
+            <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <span style={{ fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.name}</span>
               <span style={{
                 fontSize: 11, color: 'var(--dsw-alias-label-tertiary, #999)',
                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               }}>{item.tagline}</span>
+            </span>
+            <span style={{ position: 'relative', width: 58, height: 52, flexShrink: 0 }} aria-hidden="true">
+              <img
+                src={stackMate.cover}
+                alt=""
+                loading="lazy"
+                style={{
+                  position: 'absolute', right: 0, top: 4, width: 40, height: 44,
+                  borderRadius: 8, objectFit: 'cover', objectPosition: stackMate.pos,
+                  transform: 'rotate(6deg)', border: '2px solid var(--dsw-alias-bg-layer-1, #fff)',
+                }}
+                onError={(event) => {
+                  const fallback = (stackMate as { coverFallback?: string }).coverFallback
+                  if (fallback !== undefined && event.currentTarget.src !== fallback) event.currentTarget.src = fallback
+                }}
+              />
+              <img
+                src={item.cover}
+                alt=""
+                loading="lazy"
+                style={{
+                  position: 'absolute', left: 0, top: 0, width: 40, height: 44,
+                  borderRadius: 8, objectFit: 'cover', objectPosition: item.pos,
+                  border: '2px solid var(--dsw-alias-bg-layer-1, #fff)',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.10)',
+                }}
+                onError={(event) => {
+                  const fallback = (item as { coverFallback?: string }).coverFallback
+                  if (fallback !== undefined && event.currentTarget.src !== fallback) event.currentTarget.src = fallback
+                }}
+              />
             </span>
           </button>
         )
