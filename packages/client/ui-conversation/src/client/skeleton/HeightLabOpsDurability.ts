@@ -106,6 +106,7 @@ export async function pullOpsStore(): Promise<void> {
       lastPushed = {}
     }
     const remoteHas = new Set<string>()
+    let displayOverrideChanged = false
     for (const key of SYNCED_KEYS) {
       const remote = data.values[key]
       if (typeof remote === 'string') {
@@ -113,6 +114,10 @@ export async function pullOpsStore(): Promise<void> {
         if (remote !== window.localStorage.getItem(key)) {
           window.localStorage.setItem(key, remote)
           changed = true
+          /* O130 实锤（用户 APP 实测「项目组里是空的」）：pull 灌入移动归属
+           * 后必须补发重排事件——APP 容器首次收到该键时首渲染已过，
+           * 只发 groups-changed 重排器听不到，显示永不更新。 */
+          if (key === 'hl-project-display-v1') displayOverrideChanged = true
         }
       }
     }
@@ -128,6 +133,7 @@ export async function pullOpsStore(): Promise<void> {
       try { window.localStorage.setItem(LS_STORE_USER, remoteUser) } catch { /* ignore */ }
     }
     if (changed) window.dispatchEvent(new CustomEvent('hl-ops-groups-changed'))
+    if (displayOverrideChanged) window.dispatchEvent(new CustomEvent('hl:project-display-changed'))
   } catch { /* 同上静默 */ }
 }
 
