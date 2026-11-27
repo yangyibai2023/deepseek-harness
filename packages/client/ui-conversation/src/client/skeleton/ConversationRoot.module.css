@@ -514,8 +514,11 @@
    * （与 2026-10-22「输入框周边必须绝对干净」同款审美）。 */
   margin: -16px 0 0;
   border-radius: 0 0 var(--dsw-radius-panel) var(--dsw-radius-panel);
-  background: rgba(0, 0, 0, 0.035);
-  color: var(--dsw-alias-label-primary);
+  /* O134 六次拍板（2026-11-28）：全页灰色统一——托盘底=侧栏底同一 token
+   * （--dsw-specific-sidebar-fill），与分类胶囊底一致；「工作区」文字降灰
+   * （label-secondary，不抢视觉）。 */
+  background: var(--dsw-specific-sidebar-fill, #f9fafb);
+  color: var(--dsw-alias-label-secondary);
   /* 上 padding=藏进卡片的 16+可见带 10；可见带≈48px（上下加长，用户拍板）。 */
   padding: 26px 20px 10px;
 }

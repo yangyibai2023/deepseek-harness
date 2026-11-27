@@ -129,8 +129,11 @@ function itemsFor(category: HeroCategory): HeroCardItem[] {
 const barStyle: CSSProperties = {
   display: 'inline-flex', gap: 2, flexWrap: 'wrap', justifyContent: 'center',
   margin: '14px auto 10px',
-  background: 'rgba(0, 0, 0, 0.055)',
-  borderRadius: 999, padding: 4,
+  /* O134（2026-11-28 用户六次拍板）：全页灰色统一——胶囊底/托盘底/侧栏底
+   * 同一个 token（--dsw-specific-sidebar-fill），不再各调各的 rgba。 */
+  background: 'var(--dsw-specific-sidebar-fill, #f9fafb)',
+  /* 六次拍板：内边距收紧（4→3）——窄边框紧凑感，对齐 WorkBuddy 胶囊。 */
+  borderRadius: 999, padding: 3,
 }
 
 export function HeroCategoryBar({ selected, onSelect }: {
@@ -156,7 +159,7 @@ export function HeroCategoryBar({ selected, onSelect }: {
                 border: 'none',
                 background: active ? 'var(--dsw-alias-bg-layer-1, #fff)' : 'transparent',
                 color: active ? 'var(--dsw-alias-label-primary, #1a1a1a)' : 'var(--dsw-alias-label-secondary, #666)',
-                borderRadius: 999, padding: '7px 14px', fontSize: 13, cursor: 'pointer',
+                borderRadius: 999, padding: '5px 13px', fontSize: 13, cursor: 'pointer',
                 transition: 'background 0.15s ease, box-shadow 0.15s ease, color 0.15s ease',
                 boxShadow: active ? '0 1px 4px rgba(0,0,0,0.10)' : 'none',
               }}
