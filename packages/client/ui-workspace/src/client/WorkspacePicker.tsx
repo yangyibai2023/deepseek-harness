@@ -251,6 +251,9 @@ export function WorkspacePicker({
       selectedId={selectedId}
       onPick={onPick}
       onClose={onClose}
+      /* O134（2026-11-28 用户拍板）：hero 托盘在输入卡下方，菜单与权限
+       * 按钮一致**向上弹出**（此前默认向下，被卡片/托盘遮挡观感差）。 */
+      side="top"
     />
   )
 }
