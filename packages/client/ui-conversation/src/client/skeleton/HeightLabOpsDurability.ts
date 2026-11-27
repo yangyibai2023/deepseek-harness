@@ -27,6 +27,10 @@ export const SYNCED_KEYS = [
    * hl-projects-v1，但它不在镜像清单：MCP 建的项目面板永远拉不到（pull 只
    * 拉清单内键），面板写的也从不备份。补入。 */
   'hl-projects-v1',
+  /* O130（2026-11-27 实锤）：「移动到项目」的显示归属若只存 localStorage =
+   * 容器私有（APP WebView 与浏览器各一份，用户实测 APP 里看不到浏览器端
+   * 的移动）——纳入宿主镜像：写→push，启动/换容器→pull，宿主文件为权威。 */
+  'hl-project-display-v1',
 ] as const
 
 let pushTimer: number | null = null
@@ -101,15 +105,25 @@ export async function pullOpsStore(): Promise<void> {
       }
       lastPushed = {}
     }
+    const remoteHas = new Set<string>()
     for (const key of SYNCED_KEYS) {
       const remote = data.values[key]
-      if (typeof remote === 'string' && remote !== window.localStorage.getItem(key)) {
-        window.localStorage.setItem(key, remote)
-        changed = true
+      if (typeof remote === 'string') {
+        remoteHas.add(key)
+        if (remote !== window.localStorage.getItem(key)) {
+          window.localStorage.setItem(key, remote)
+          changed = true
+        }
       }
     }
-    // 拉到的即远端现状——同步推送快照，避免把刚拉来的值又当脏键推回去。
-    lastPushed = readAll()
+    /* O130 实锤修正（O104 脏键推送真 bug）：lastPushed 只能标记「远端真有
+     * 的键」。原实现 lastPushed=readAll() 把「本地有、远端 null」的键也标成
+     * 已推送 → 该键从此不再上行（用户实测：浏览器端「移动到项目」写了
+     * override，宿主永远收不到，APP 容器 pull 不到=两边不一致）。
+     * 正确语义：远端 null 而本地有值的键保持 dirty，由随后的 push 补上行。 */
+    lastPushed = Object.fromEntries(
+      Object.entries(readAll()).filter(([key]) => remoteHas.has(key)),
+    )
     if (remoteUser !== null) {
       try { window.localStorage.setItem(LS_STORE_USER, remoteUser) } catch { /* ignore */ }
     }
@@ -122,9 +136,13 @@ export function startOpsDurability(): void {
   if (started) return
   started = true
   if (typeof window === 'undefined') return
-  window.addEventListener('hl-ops-groups-changed', () => {
+  const schedulePush = (): void => {
     if (pushTimer !== null) window.clearTimeout(pushTimer)
     pushTimer = window.setTimeout(() => { void pushOpsStore() }, 5_000)
-  })
+  }
+  /* O130：「移动到项目」写 override 后 dispatch 此事件——同走防抖 push，
+   * 让宿主镜像即时更新（其他容器下次 pull 即一致）。 */
+  window.addEventListener('hl:project-display-changed', schedulePush)
+  window.addEventListener('hl-ops-groups-changed', schedulePush)
   void pullOpsStore().then(() => { void pushOpsStore() })
 }
