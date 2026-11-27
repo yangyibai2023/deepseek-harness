@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { once } from 'node:events'
-import { lstat, mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, writeFile } from 'node:fs/promises'
+import { lstat, mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -479,5 +479,24 @@ describe('withFileLock', () => {
     release()
     await holder
     expect(await patient).toBe('patient')
+  })
+
+  /* HeightLab 2026-11-27：0 字节孤儿锁（写入 PID 前进程死亡）——mtime 老于
+   * 阈值按孤儿接管（dev 实锤：0 字节锁残留数小时，settings-import 202 次
+   * 全部超时 FAILED）；mtime 新（可能正在写入）不动。 */
+  it('takes over a stale empty lock but leaves a fresh empty lock alone', async () => {
+    const dir = await scratch()
+    const target = join(dir, 'document')
+    const lockPath = `${target}.lock`
+    // 老 0 字节锁（mtime 拨回 2 分钟前）→ 接管成功
+    await writeFile(lockPath, '')
+    const past = new Date(Date.now() - 120_000)
+    await utimes(lockPath, past, past)
+    await expect(withFileLock(target, async () => 'acquired', { waitMs: 0 })).resolves.toBe('acquired')
+
+    // 新 0 字节锁（可能正在写入）→ 等待超时，不接管
+    await writeFile(lockPath, '')
+    await expect(withFileLock(target, async () => 'never', { waitMs: 300 }))
+      .rejects.toThrow(/timed out/)
   })
 })

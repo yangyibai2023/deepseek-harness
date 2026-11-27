@@ -12,7 +12,7 @@
  */
 
 import { createHash, randomBytes } from 'node:crypto'
-import { lstat, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { lstat, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 
 const WINDOWS_TRANSIENT_RENAME_ERRORS: ReadonlySet<string> = new Set(['EACCES', 'EBUSY', 'EPERM'])
@@ -125,10 +125,12 @@ function holderExited(record: string): boolean {
   }
 }
 
-/** The lock file's content, or undefined when it cannot be read. */
-async function readLockRecord(lockPath: string): Promise<string | undefined> {
+/** The lock file's content and mtime, or undefined when it cannot be read. */
+async function readLockRecord(lockPath: string): Promise<{ content: string; mtimeMs: number } | undefined> {
   try {
-    return await readFile(lockPath, 'utf8')
+    const content = await readFile(lockPath, 'utf8')
+    const { mtimeMs } = await stat(lockPath)
+    return { content, mtimeMs }
   } catch (error) {
     // A lock that vanished, or that Windows is still deleting, proves nothing about a holder.
     void error
@@ -146,10 +148,20 @@ async function readLockRecord(lockPath: string): Promise<string | undefined> {
  * acquired after the dead holder's, including one whose holder reused the PID.
  * @returns Whether this call removed the dead holder's lock.
  */
+/* HeightLab 2026-11-27（0.5.12 排查实锤）：0 字节孤儿锁永久卡死所有写者。
+ * 上游把「内容不是 <pid>\n」一律当「正在写入，不动」——但 writeFile 创建
+ * 文件后、写入 PID 前进程死亡会留下**永久 0 字节锁**（dev 机实锤：0 字节
+ * 锁残留数小时，settings-import 202 次全部超时 FAILED = 0.4.17 导入接管
+ * 静默失效）。正在写入的 0 字节窗口是毫秒级——mtime 老于阈值的 0 字节
+ * 锁不可能是活的，按孤儿接管。 */
+const EMPTY_LOCK_ORPHAN_MS = 60_000
+
 async function takeOverExitedLock(lockPath: string): Promise<boolean> {
   const record = await readLockRecord(lockPath)
-  if (record === undefined || !holderExited(record)) return false
-  const claim = `${lockPath}.takeover-${createHash('sha256').update(record).digest('hex').slice(0, 16)}`
+  if (record === undefined) return false
+  const staleEmpty = record.content === '' && Date.now() - record.mtimeMs > EMPTY_LOCK_ORPHAN_MS
+  if (!staleEmpty && !holderExited(record.content)) return false
+  const claim = `${lockPath}.takeover-${createHash('sha256').update(record.content === '' ? `empty-${String(record.mtimeMs)}` : record.content).digest('hex').slice(0, 16)}`
   try {
     await writeFile(claim, `${process.pid}\n`, { mode: 0o600, flag: 'wx' })
   } catch (error) {
@@ -159,7 +171,9 @@ async function takeOverExitedLock(lockPath: string): Promise<boolean> {
     throw error
   }
   try {
-    if (await readLockRecord(lockPath) !== record || !holderExited(record)) return false
+    const reread = await readLockRecord(lockPath)
+    if (reread === undefined || reread.content !== record.content || reread.mtimeMs !== record.mtimeMs) return false
+    if (!staleEmpty && !holderExited(reread.content)) return false
     try {
       await rm(lockPath, { force: true })
     } catch (error) {
