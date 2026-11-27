@@ -10,6 +10,21 @@
   padding: 0 var(--dsh-composer-side-clearance) 4px;
 }
 
+/* O134（2026-11-28 用户三次拍板）：footer（工作区底栏）与输入卡**连成一体**
+ * ——等宽、零间隙；卡片底角改直角，外轮廓=一个圆角矩形的上下两段
+ * （WorkBuddy 形态：白色输入区+灰色底栏是一个整体的两层）。 */
+.footer {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: var(--dsh-composer-card-max-width);
+  display: flex;
+}
+
+.root:has(> .footer) .card {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
 .dock {
   display: flex;
   align-items: center;

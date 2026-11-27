@@ -870,8 +870,9 @@ export const InputBar = memo(function InputBar({
           : null}
       </div>
       {/* O134：底栏（工作区行）在根容器内、卡片之后——随 sticky 根一起停靠，
-       * 滚动时不再被输入卡盖住（详见 slots.ts footer 注释）。 */}
-      {footer}
+       * 滚动时不再被输入卡盖住（详见 slots.ts footer 注释）。wrapper 负责
+       * 与卡片等宽+零间隙连成一体（用户拍板 WorkBuddy 形态，见 .footer）。 */}
+      {footer !== undefined && <div className={css.footer} data-composer-footer>{footer}</div>}
     </div>
   )
 })

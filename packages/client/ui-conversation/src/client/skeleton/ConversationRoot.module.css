@@ -497,13 +497,14 @@
    * pointer-events:none 的 sticky 白罩，不参与命中但照常绘制——底栏曾在
    * 栈内裸放被它整段涂白（DOM 量测全对但视觉隐形，红字实验定位）。 */
   position: relative;
-  /* O134 二次拍板（2026-11-28）：「是在输入框下方加圆角和灰色」——灰底
-   * 圆角条（WorkBuddy 底部条形态），替代白底+边框+投影（白底在浅灰页上
-   * 用户实测「只有横线」）。宽度对齐输入卡（root 是 align-items:center 的
-   * flex 列，stretch 会超出卡宽，用卡片同款 max-width 公式）。 */
-  width: min(var(--dsh-composer-card-max-width, 100%), 100%);
-  margin-top: 8px;
-  border-radius: 12px;
+  /* O134 三次拍板（2026-11-28）：底栏与输入卡**连成一体**（WorkBuddy 形态）
+   * ——等宽（wrapper 已按卡宽约束，这里 flex:1 填满）、零间隙、只留底部
+   * 圆角（顶角由卡片底角改直角配对，见 InputBar.module.css .footer）；
+   * 灰底=卡片灰段。历史：白底+边框+投影被否「只有横线」；分离灰条被否
+   * 「要和输入框连在一起」。 */
+  flex: 1;
+  margin-top: 0;
+  border-radius: 0 0 var(--dsw-radius-panel) var(--dsw-radius-panel);
   background: rgba(0, 0, 0, 0.055);
   color: var(--dsw-alias-label-primary);
   /* figma drew px 8; left nudged +12 so the chip's folder glyph lines up

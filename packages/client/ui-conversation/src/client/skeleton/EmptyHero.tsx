@@ -50,6 +50,13 @@ export function WorkspaceChip({ buttonRef, label, menuOpen = false, onClick, t }
       aria-label={t('hero.chooseWorkspace')}
       aria-haspopup="menu"
       aria-expanded={menuOpen}
+      /* O134 交互 bug 根治（用户实测「点击有时候不弹出来」）：选择器 Menu
+       * 的外部关闭挂在 document pointerdown 冒泡上，而 picker 传 anchor=null
+       * ——chip 永远算「外部」。菜单开着时点 chip：pointerdown 先触发
+       * onClose(关)，click 再 toggle(开)→关了又开/开态闪烁，时序随容器
+       * 漂移=间歇性「不弹出」。截停冒泡让 document 监听收不到 chip 的
+       * pointerdown，toggle 恢复干净的 开↔关。 */
+      onPointerDown={(e) => { e.stopPropagation() }}
       onClick={onClick}
     >
       {label === undefined
