@@ -17,7 +17,7 @@ export const zh = {
   'section.subagents': '子智能体',
   'section.sessions': '对话',
   'candidate.noCwd': '（无工作目录）',
-  'crumb.root': '工作区',
+  'crumb.root': '项目',
   'time.now': '刚刚',
   'time.minutes': '{n}分钟',
   'time.hours': '{n}小时',

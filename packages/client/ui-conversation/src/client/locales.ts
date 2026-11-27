@@ -28,7 +28,7 @@ export const zh = {
   'placeholder.unavailable': '会话不可用',
   'placeholder.parentOffline': '父会话已离线，无法继续发送；仍可停止当前运行',
   'placeholder.hero': '描述你想要构建的内容, / 调用指令, @ 文件或对话',
-  'placeholder.workspace': '选择一个工作区开始',
+  'placeholder.workspace': '选择一个项目开始',
   'placeholder.steerQueue': 'Cmd/Ctrl+Enter 插话发送全部排队消息',
   'input.commands': '添加文件或调用指令',
   'input.file': '文件',
@@ -46,7 +46,7 @@ export const zh = {
    * 「文件类型不支持」→ 换格式换文件全无效后归因为「产品不支持拖拽」。
    * 实际原因是「还没选工作区」（hero 态 sessionId 未定 → addFiles undefined）。
    * 改为可操作文案 + 点击唤起工作区选择器（复用既有 onRequestWorkspace 通道）。 */
-  'attachment.dropBlocked': '请先选择工作区',
+  'attachment.dropBlocked': '请先选择项目',
   'attachment.directoryDesktopOnly': '只有桌面端支持添加文件夹，浏览器里请添加单个文件',
   'attachment.pathUnavailable': '无法获取文件夹路径，请重新拖入',
   'attachment.pathUnsupported': '路径含有无法引用的字符，请改名后再试',
@@ -87,7 +87,7 @@ export const zh = {
   'settings.enter.queue': '排队发送',
   'settings.enter.steer': '插话发送',
   'access.preset.readOnly': '仅可查看',
-  'access.preset.workspaceWrite': '工作区内修改',
+  'access.preset.workspaceWrite': '项目内修改',
   'access.preset.fullAccess': '完全权限',
   'access.confirm.title': '确认启用完全权限？',
   'access.confirm.description': '启用完全权限后，智能体将减少确认步骤，并且可以直接执行更多操作，包括敏感操作、文件修改或外部命令。仅建议在你信任当前任务时使用。',
@@ -100,7 +100,7 @@ export const zh = {
   'hero.preview': 'Beta',
   'rail.aria': '会话步骤',
   'rail.step': '步骤 {n}',
-  'hero.chooseWorkspace': '选择工作区',
+  'hero.chooseWorkspace': '选择项目',
   'session.hierarchy': '会话层级',
   'todo.title': '任务',
   'todo.progress.done': '{done} 已完成',

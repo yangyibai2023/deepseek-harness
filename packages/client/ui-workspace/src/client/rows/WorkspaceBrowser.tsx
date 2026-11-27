@@ -21,8 +21,7 @@ import {
   IconChevronsUpDownOutlineRegular, IconClockOutlineRegular, IconCloseFillRegular,
   IconFlatListOutlineRegular, IconFolderCloseRegular, IconProjectAddOutlineRegular,
   IconQueueOutlineRegular, IconSearchOutlineRegular, IconSlidersTwoOutlineRegular,
-  IconWorkspaceTreeOutlineRegular, Menu, Modal, Toast, Tooltip,
-  IconFolderOpenOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
+  IconWorkspaceTreeOutlineRegular, Menu, Modal, Toast, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {
   SessionListState, SessionSearchResultItem,
 } from '@deepseek-ai/dsh-api-session-controller/client'
@@ -32,6 +31,7 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import type { WorkspaceBrowserProps } from '../contract/slots.ts'
 import { FUSION_EVENT, readFusion, teamWorkspaceId } from '../fusion.ts'
+import { applyDisplayOverrides, PROJECT_DISPLAY_CHANGED } from '../display-overrides.ts'
 import type { ArchivedFilter, GroupNode, SessionNode, SessionOrderBy, SessionRowState } from '../tree.ts'
 import {
   deriveFlat, deriveGroups, deriveSearchResults, orderByRecency, owningGroupKey, owningParentFolder,
@@ -41,7 +41,6 @@ import { ProjectRowItem, SearchResultItem, SessionNodeItem } from './Rows.tsx'
 import { AnimatedRows } from './AnimatedRows.tsx'
 import { FLAT_SESSION_ORDER_KEY, type SessionGroupBy } from '../stores.ts'
 import { WorkspacePickFlow } from '../WorkspacePicker.tsx'
-import { HeightLabProjectTree } from './HeightLabProjectTree.tsx'
 import css from './WorkspaceBrowser.module.css'
 
 /**
@@ -126,7 +125,8 @@ function ViewOptionsMenu({ groupBy, orderBy, archivedFilter, onGroupPick, onOrde
         { id: 'flat', label: t('groupBy.flat'), icon: <IconFlatListOutlineRegular /> },
         /* HeightLab（2026-11-14，O56）：按项目分组——项目层（引用标签），
          * 与目录语义的 workspace 解耦。 */
-        { id: 'projects', label: '按项目', icon: <IconFolderOpenOutlineRegular /> },
+        /* O130（2026-11-27 用户拍板「侧栏项目化」）：自研「按项目」分组视图退场——
+         * 单概念「我的项目」=原生工作区；显示归组由 display-override 重排器承担。 */
         { type: 'separator' as const, id: 'order-by-separator' },
         { type: 'label' as const, id: 'order-by', text: t('orderBy.label') },
         { id: 'manual', label: t('orderBy.manual'), icon: <IconChevronsUpDownOutlineRegular /> },
@@ -143,7 +143,7 @@ function ViewOptionsMenu({ groupBy, orderBy, archivedFilter, onGroupPick, onOrde
         { default: 'hide-archived', show: 'show-archived', only: 'only-archived' }[archivedFilter],
       ]}
       onSelect={(id) => {
-        if (id === 'workspace' || id === 'workspace-tree' || id === 'flat' || id === 'projects') onGroupPick(id)
+        if (id === 'workspace' || id === 'workspace-tree' || id === 'flat') onGroupPick(id)
         else if (id === 'manual' || id === 'updated') onOrderPick(id)
         else if (id === 'hide-archived') onArchivedFilterPick('default')
         else if (id === 'show-archived') onArchivedFilterPick('show')
@@ -922,13 +922,58 @@ export function WorkspaceBrowser({
       : storedWorkspaces),
     [storedWorkspaces, hideTeamWorkspace, teamId],
   )
+  /* O130：「移动到项目」= 显示重排（标签层，零 cwd 约束）——写入方
+   * （heightlab-projects 三点菜单）dispatch PROJECT_DISPLAY_CHANGED，
+   * bump 版本号让本 memo 重算；无 override 时 applyDisplayOverrides
+   * 原样返回（引用相等，下游不抖动）。 */
+  const [displayVersion, setDisplayVersion] = useState(0)
+  useEffect(() => {
+    const bump = (): void => { setDisplayVersion(v => v + 1) }
+    window.addEventListener(PROJECT_DISPLAY_CHANGED, bump)
+    return () => { window.removeEventListener(PROJECT_DISPLAY_CHANGED, bump) }
+  }, [])
   const workspaces = useMemo(
-    () => visibleWorkspaces.map(workspace => ({
+    () => applyDisplayOverrides(visibleWorkspaces.map(workspace => ({
       ...workspace,
       title: workspaceDisplayTitle(workspace.title, defaultWorkspaceName),
-    })),
-    [visibleWorkspaces, defaultWorkspaceName],
+    }))),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- displayVersion 是重排信号
+    [visibleWorkspaces, defaultWorkspaceName, displayVersion],
   )
+
+  /* O130（2026-11-27 用户拍板）：「新建项目」= 自动建独立目录（免目录弹窗）。
+   * 按钮先弹原生 Modal 输名字 → 宿主 /hl/project/mkdir 建 ~/HeightLab/<名>
+   * → createWorkspace({path})；「选择已有文件夹…」退回原生 directoryFlow。 */
+  const [newProjectOpen, setNewProjectOpen] = useState(false)
+  const [newProjectName, setNewProjectName] = useState('')
+  const [newProjectBusy, setNewProjectBusy] = useState(false)
+  const [newProjectError, setNewProjectError] = useState<string | null>(null)
+  const createNamedProject = async (): Promise<void> => {
+    const name = newProjectName.trim()
+    if (name === '' || newProjectBusy) return
+    setNewProjectBusy(true)
+    setNewProjectError(null)
+    try {
+      const res = await fetch('/hl/project/mkdir', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name }),
+      })
+      const data = (await res.json().catch(() => null)) as { ok?: boolean; path?: string; error?: string } | null
+      if (data?.ok !== true || typeof data.path !== 'string') {
+        setNewProjectError(typeof data?.error === 'string' ? data.error : '创建目录失败')
+        return
+      }
+      const workspace = await createWorkspace({ path: data.path })
+      setNewProjectOpen(false)
+      setNewProjectName('')
+      startSession(workspace.workspaceId, { clearPreviousDraft: false })
+    } catch (error) {
+      setNewProjectError(String(error instanceof Error ? error.message : error).slice(0, 120))
+    } finally {
+      setNewProjectBusy(false)
+    }
+  }
   const workspacePhase = useWorkspaces(state => state.phase)
   const workspaceStreamState = useWorkspaces(state => state.state)
   const archivedSessionIds = useWorkspaces(state => state.archivedSessionIds)
@@ -942,9 +987,6 @@ export function WorkspaceBrowser({
   // without the field; they read as the default hide-archived view.
   const archivedFilter = useStore(s => s.archivedFilter ?? 'default')
   const groupExpansion = useStore(s => s.groupExpansion)
-  /* 项目树（HeightLabProjectTree）与 SessionTree 一样自取状态 store；
-   * 调用点在 JSX 条件分支内，hook 必须提到组件体顶层。 */
-  const statuses = useSessionStatus(s => s)
   const sessionOrderByAccount = useStore(s => s.sessionOrderByAccount)
   // Archived sessions are not openable: the row stays visible under the
   // filter but a click explains instead of navigating.
@@ -1258,35 +1300,10 @@ export function WorkspaceBrowser({
       <div className={css.sectionHeader}>
         {wide && (
           <span className={clsx(css.sectionLabel, css.wide, searchExpanded && css.sectionLabelHidden)}>
-            {/* HeightLab（2026-11-14，O56 用户拍板）：工作区 与 项目 并列两个灰字 tab——
-                保留原 label、在其右侧加 项目；不做替换式滑块。激活态=不透明，
-                未激活=45% 透明，字体与原 sectionLabel 同款。 */}
-            {([
-              { id: 'workspace', label: t('section.workspaces') },
-              { id: 'projects', label: '项目' },
-            ]).map(({ id, label }) => {
-              const active = id === 'projects' ? groupBy === 'projects' : groupBy !== 'projects'
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => { actions.setGroupBy(id === 'projects' ? 'projects' : 'workspace') }}
-                  style={{
-                    border: 'none',
-                    background: 'transparent',
-                    padding: 0,
-                    font: 'inherit',
-                    color: 'inherit',
-                    /* 两个 tab 之间留一手间距（用户实测「离得太近」） */
-                    marginRight: 10,
-                    opacity: active ? 1 : 0.45,
-                    cursor: 'pointer',
-                  }}
-                >
-                  {label}
-                </button>
-              )
-            })}
+            {/* HeightLab（2026-11-27，O130 用户拍板「侧栏项目化」）：O56 的
+                工作区/项目双 tab 退役——单概念「我的项目」（=原生工作区换名，
+                自研项目树同步退场）。label 回到静态文本（原生形态）。 */}
+            {t('section.workspaces')}
           </span>
         )}
         {wide && (
@@ -1347,7 +1364,7 @@ export function WorkspaceBrowser({
           </div>
         )}
         <div className={clsx(css.headerActions, wide && searchExpanded && css.headerActionsHidden)}>
-          {wide && groupBy !== 'projects' && (
+          {wide && (
             <ViewOptionsMenu
               groupBy={groupBy}
               orderBy={orderBy}
@@ -1361,7 +1378,7 @@ export function WorkspaceBrowser({
           {/* Adding is the button's one action, so a composition with no
               picking affordance has nothing to offer here: the region hides the
               button rather than leaving a dead one in the header. */}
-          {directoryFlowAvailable && groupBy !== 'projects' && (
+          {directoryFlowAvailable && (
             <Tooltip label={t('workspace.add')} shortcutKeys={addShortcut?.keys} side="bottom" delayMs={500}>
               <button
                 ref={wsPlusRef}
@@ -1370,7 +1387,10 @@ export function WorkspaceBrowser({
                 aria-label={t('workspace.add')}
                 aria-keyshortcuts={addShortcut?.aria}
                 onClick={() => {
-                  requestAddWorkspace()
+                  /* O130：先弹「新建项目」命名 Modal（自动建目录）；原生目录
+                   * flow 降为 Modal 内「选择已有文件夹…」高级路径。 */
+                  setNewProjectError(null)
+                  setNewProjectOpen(true)
                 }}
               >
                 <IconProjectAddOutlineRegular size={wide ? 16 : 18} />
@@ -1378,6 +1398,40 @@ export function WorkspaceBrowser({
             </Tooltip>
           )}
         </div>
+        {newProjectOpen && (
+          <Modal
+            open
+            onClose={() => { setNewProjectOpen(false) }}
+            closeLabel={t('cancel')}
+            title="新建项目"
+            footer={(
+              <>
+                <Button variant="outline" onClick={() => { setNewProjectOpen(false); requestAddWorkspace() }}>选择已有文件夹…</Button>
+                <Button disabled={newProjectBusy || newProjectName.trim() === ''} onClick={() => { void createNamedProject() }}>
+                  {newProjectBusy ? '创建中…' : '创建'}
+                </Button>
+              </>
+            )}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <input
+                autoFocus
+                value={newProjectName}
+                placeholder="项目名称（将在 ~/HeightLab 下创建同名文件夹）"
+                onChange={(event) => { setNewProjectName(event.target.value) }}
+                onKeyDown={(event) => { if (event.key === 'Enter') void createNamedProject() }}
+                style={{
+                  border: '1px solid var(--dsw-alias-border-l1,#ddd)', borderRadius: 8,
+                  padding: '8px 10px', fontSize: 13, outline: 'none',
+                  background: 'transparent', color: 'inherit',
+                }}
+              />
+              {newProjectError !== null && (
+                <div style={{ color: 'var(--dsw-alias-label-danger,#c33)', fontSize: 12 }}>{newProjectError}</div>
+              )}
+            </div>
+          </Modal>
+        )}
         {/* Add flow + its error dialog (same package — direct composition). */}
         <WorkspacePickFlow
           t={t}
@@ -1435,81 +1489,68 @@ export function WorkspaceBrowser({
               t={t}
             />
           )
-          : groupBy === 'projects'
+          /* O130：自研 HeightLabProjectTree 分支摘除（组件文件保留，运营面板
+           * hl-projects-v1 独立运行不受影响）。存量 localStorage groupBy='projects'
+           * 落到下方默认树视图（条件不再命中）。 */
+          : groupBy === 'flat'
             ? (
-              <HeightLabProjectTree
+              <FlatList
+                usePanelInfo={usePanelInfo}
                 list={list}
-                statuses={statuses}
+                sessionIds={orderedFlatSessionIds}
                 rowState={rowState}
-                groupExpansion={groupExpansion}
-                setGroupExpanded={actions.setGroupExpanded}
-                query={normalizedQuery}
+                onLeaveArchivedOnly={leaveArchivedOnly}
+                workspaceReady={workspaceReady}
+                animationResetKey={`${groupBy}/${orderBy}/${archivedFilter}`}
+                useSessionStatus={useSessionStatus}
                 open={guardedOpen}
                 onSessionRenameRequest={requestSessionRename}
                 renderSlot={renderSlot}
-                startSession={startSession}
+                setSessionOrder={saveSessionOrder}
+                revealSessionId={revealSessionId}
+                onSessionRevealed={acknowledgeSessionReveal}
                 t={t}
               />
             )
-            : groupBy === 'flat'
-              ? (
-                <FlatList
-                  usePanelInfo={usePanelInfo}
-                  list={list}
-                  sessionIds={orderedFlatSessionIds}
-                  rowState={rowState}
-                  onLeaveArchivedOnly={leaveArchivedOnly}
-                  workspaceReady={workspaceReady}
-                  animationResetKey={`${groupBy}/${orderBy}/${archivedFilter}`}
-                  useSessionStatus={useSessionStatus}
-                  open={guardedOpen}
-                  onSessionRenameRequest={requestSessionRename}
-                  renderSlot={renderSlot}
-                  setSessionOrder={saveSessionOrder}
-                  revealSessionId={revealSessionId}
-                  onSessionRevealed={acknowledgeSessionReveal}
-                  t={t}
-                />
-              )
-              : (
-                <SessionTree
-                  usePanelInfo={usePanelInfo}
-                  list={list}
-                  shortcuts={shortcuts}
-                  useSessionStatus={useSessionStatus}
-                  onSessionRenameRequest={requestSessionRename}
-                  renderSlot={renderSlot}
-                  workspaces={orderedWorkspaces}
-                  ungroupedSessionIds={orderedUngroupedSessionIds}
-                  workspaceReady={workspaceReady}
-                  nestWorkspaces={groupBy === 'workspace-tree'}
-                  animationResetKey={`${groupBy}/${orderBy}/${archivedFilter}`}
-                  groupExpansion={groupExpansion}
-                  setGroupExpanded={actions.setGroupExpanded}
-                  setSessionOrder={saveSessionOrder}
-                  rowState={rowState}
-                  onLeaveArchivedOnly={leaveArchivedOnly}
-                  startSession={startSession}
-                  open={guardedOpen}
-                  insertWorkspaceBefore={insertWorkspaceBefore}
-                  revealSessionId={revealSessionId}
-                  onSessionRevealed={acknowledgeSessionReveal}
-                  home={home}
-                  t={t}
-                  onRenameRequest={(workspaceId, displayTitle) => {
-                    setRenameTarget({
-                      workspaceId,
-                      storedTitle: storedWorkspaces.find(w => w.workspaceId === workspaceId)?.title ?? displayTitle,
-                    })
-                    setRenameDraft(displayTitle)
-                    setRenameError(null)
-                  }}
-                  onDeleteRequest={(workspaceId, title) => {
-                    setDeleteTarget({ workspaceId, title })
-                    setDeleteError(null)
-                  }}
-                />
-              ))}
+            : (
+              <SessionTree
+                usePanelInfo={usePanelInfo}
+                list={list}
+                shortcuts={shortcuts}
+                useSessionStatus={useSessionStatus}
+                onSessionRenameRequest={requestSessionRename}
+                renderSlot={renderSlot}
+                workspaces={orderedWorkspaces}
+                ungroupedSessionIds={orderedUngroupedSessionIds}
+                workspaceReady={workspaceReady}
+                nestWorkspaces={groupBy === 'workspace-tree'}
+                animationResetKey={`${groupBy}/${orderBy}/${archivedFilter}`}
+                groupExpansion={groupExpansion}
+                setGroupExpanded={actions.setGroupExpanded}
+                setSessionOrder={saveSessionOrder}
+                rowState={rowState}
+                onLeaveArchivedOnly={leaveArchivedOnly}
+                startSession={startSession}
+                open={guardedOpen}
+                insertWorkspaceBefore={insertWorkspaceBefore}
+                revealSessionId={revealSessionId}
+                onSessionRevealed={acknowledgeSessionReveal}
+                home={home}
+                t={t}
+                onRenameRequest={(workspaceId, displayTitle) => {
+                  setRenameTarget({
+                    workspaceId,
+                    storedTitle: storedWorkspaces.find(w => w.workspaceId === workspaceId)?.title ?? displayTitle,
+                  })
+                  setRenameDraft(displayTitle)
+                  setRenameError(null)
+                }}
+                onDeleteRequest={(workspaceId, title) => {
+                  setDeleteTarget({ workspaceId, title })
+                  setDeleteError(null)
+                }}
+              />
+            ))}
       </div>
 
       <Modal

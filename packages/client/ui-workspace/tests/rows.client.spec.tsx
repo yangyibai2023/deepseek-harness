@@ -439,20 +439,20 @@ describe('workspace browser rows', () => {
       group={group} onToggle={onToggle} onCreate={vi.fn()}
       actions={{ rename: onRename, delete: onDelete }} t={t}
     />)
-    fireEvent.click(screen.getByRole('button', { name: '工作区“Project”的操作' }))
+    fireEvent.click(screen.getByRole('button', { name: '项目“Project”的操作' }))
     // Opening the menu neither toggles the group nor renames yet.
     expect(onToggle).not.toHaveBeenCalled()
-    expect(screen.getByRole('menuitem', { name: '删除工作区' }).className).toMatch(/danger/)
+    expect(screen.getByRole('menuitem', { name: '删除项目' }).className).toMatch(/danger/)
     fireEvent.click(screen.getByRole('menuitem', { name: '重命名' }))
     expect(onRename).toHaveBeenCalledOnce()
     expect(screen.queryByRole('menu')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: '工作区“Project”的操作' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: '删除工作区' }))
+    fireEvent.click(screen.getByRole('button', { name: '项目“Project”的操作' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '删除项目' }))
     expect(screen.queryByRole('menu')).toBeNull()
     expect(onRename).toHaveBeenCalledOnce()
     expect(onDelete).toHaveBeenCalledOnce()
     // Escape closes without selecting (Menu onClose path).
-    fireEvent.click(screen.getByRole('button', { name: '工作区“Project”的操作' }))
+    fireEvent.click(screen.getByRole('button', { name: '项目“Project”的操作' }))
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(screen.queryByRole('menu')).toBeNull()
   })
