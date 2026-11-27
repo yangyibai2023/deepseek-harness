@@ -184,10 +184,13 @@ export function HeroCategoryCards({ category }: { category: HeroCategory }) {
 
   if (category === 'ops') {
     return (
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, padding: '8px 0 2px', width: '100%' }}>
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, padding: '8px 0 2px',
+        width: 'min(var(--dsh-composer-card-max-width, 100%), 100%)', margin: '0 auto',
+      }}>
         {['对标监控', '选题池', '发布排期'].map(label => (
           <div key={label} style={{
-            height: 64, borderRadius: 12, border: '1px dashed var(--dsw-alias-border-l1, #ddd)',
+            height: 88, borderRadius: 12, border: '1px dashed var(--dsw-alias-border-l1, #ddd)',
             padding: '0 14px', color: 'var(--dsw-alias-label-tertiary, #999)', fontSize: 12,
             display: 'flex', flexDirection: 'column', gap: 2, justifyContent: 'center',
           }}>
@@ -203,11 +206,14 @@ export function HeroCategoryCards({ category }: { category: HeroCategory }) {
    * 底部一行：图标+标题粗+简介灰截断），比第一版缩小——宽 218px，容器
    * 960px 一排 4 个。 */
   return (
-    /* 2026-11-27（用户四次修正）：grid 3 列×3 排，容器=对话列全宽——卡片
-     * 左右边缘与输入框严格齐平（flex 居中会内缩不齐，实锤）。 */
+    /* 2026-11-27（用户五次修正）：容器宽=输入框卡片宽（--dsh-composer-card-
+     * max-width，stack 全宽比它每侧宽 16px 实锤超出）；grid 3 列×3 排，
+     * 卡片压矮（图 56px+底行）保证 3 排在输入框下方一屏内直出。 */
     <div style={{
-      display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12,
-      padding: '8px 0 2px', width: '100%',
+      display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10,
+      padding: '8px 0 2px',
+      width: 'min(var(--dsh-composer-card-max-width, 100%), 100%)',
+      margin: '0 auto',
     }}>
       {items.map(item => (
         <button
@@ -227,13 +233,13 @@ export function HeroCategoryCards({ category }: { category: HeroCategory }) {
             src={item.cover}
             alt=""
             loading="lazy"
-            style={{ width: '100%', aspectRatio: '16 / 9', objectFit: 'cover', display: 'block', objectPosition: item.pos }}
+            style={{ width: '100%', height: 56, objectFit: 'cover', display: 'block', objectPosition: item.pos }}
             onError={(event) => {
               const fallback = (item as { coverFallback?: string }).coverFallback
               if (fallback !== undefined && event.currentTarget.src !== fallback) event.currentTarget.src = fallback
             }}
           />
-          <span style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 10px' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 9px' }}>
             <span aria-hidden style={{ fontSize: 12, flexShrink: 0 }}>✦</span>
             <span style={{ fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 118, flexShrink: 0 }}>{item.name}</span>
             <span style={{
