@@ -233,7 +233,7 @@ export function HeroCategoryCards({ category }: { category: HeroCategory }) {
             src={item.cover}
             alt=""
             loading="lazy"
-            style={{ width: '100%', height: 56, objectFit: 'cover', display: 'block', objectPosition: item.pos }}
+            style={{ width: '100%', aspectRatio: '16 / 9', objectFit: 'cover', display: 'block', objectPosition: item.pos }}
             onError={(event) => {
               const fallback = (item as { coverFallback?: string }).coverFallback
               if (fallback !== undefined && event.currentTarget.src !== fallback) event.currentTarget.src = fallback
