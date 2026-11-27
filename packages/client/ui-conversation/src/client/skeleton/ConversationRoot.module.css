@@ -509,12 +509,12 @@
   /* wrapper pe:none（见 InputBar.module.css .footer），托盘层显式收回事件。 */
   pointer-events: auto;
   flex: 1;
-  margin: -16px -8px 0;
+  /* O134 五次拍板（2026-11-28）：**等宽**（撤掉左右各 8px 外扩）+**边缘干脆**
+   * ——24px 模糊落影被否「边缘模糊」，托盘边缘=纯色边界+圆角，零光晕
+   * （与 2026-10-22「输入框周边必须绝对干净」同款审美）。 */
+  margin: -16px 0 0;
   border-radius: 0 0 var(--dsw-radius-panel) var(--dsw-radius-panel);
-  /* 灰浅一档：0.055→0.035（深了抢视觉锚点，用户实测）；柔和落影强化
-   * 「垫在输入框底下」的层级感。 */
   background: rgba(0, 0, 0, 0.035);
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.045);
   color: var(--dsw-alias-label-primary);
   /* 上 padding=藏进卡片的 16+可见带 10；可见带≈48px（上下加长，用户拍板）。 */
   padding: 26px 20px 10px;
