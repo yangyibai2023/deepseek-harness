@@ -67,13 +67,19 @@ import { REPLICATION_GROUPS } from './HeightLabTemplateDock.tsx'
 
 /** HeightLab 2026-09-19：主页空状态 headline 打字机（官网式，循环播放）。 */
 // 与新官网 hero 完全一致的两句轮播（data-hero-typewriter / -secondary）。
+/* 2026-11-27（用户拍板）：末尾加品牌句；全部跑完一遍后**永久固定**在
+ * 最后一句（不再循环删除）。 */
 const HERO_TYPING_PHRASES = [
   '从一张产品图，到一支带货视频',
   '文案、图片、视频，电商内容一站生成',
+  'HeightLab 高能实验室',
 ]
 
-function useTypewriter(phrases: readonly string[], typeMs = 95, holdMs = 2600, deleteMs = 42, gapMs = 600): string {
+function useTypewriter(
+  phrases: readonly string[], typeMs = 95, holdMs = 2600, deleteMs = 42, gapMs = 600,
+): { text: string; done: boolean } {
   const [text, setText] = useState('')
+  const [done, setDone] = useState(false)
   useEffect(() => {
     let phrase = 0
     let chars = 0
@@ -85,6 +91,11 @@ function useTypewriter(phrases: readonly string[], typeMs = 95, holdMs = 2600, d
         chars += 1
         setText(current.slice(0, chars))
         if (chars >= current.length) {
+          /* 2026-11-27（用户拍板）：最后一句打完即永久固定（不删除不循环）。 */
+          if (phrase === phrases.length - 1) {
+            setDone(true)
+            return
+          }
           deleting = true
           timer = window.setTimeout(step, holdMs)
           return
@@ -95,7 +106,7 @@ function useTypewriter(phrases: readonly string[], typeMs = 95, holdMs = 2600, d
         setText(current.slice(0, chars))
         if (chars <= 0) {
           deleting = false
-          phrase = (phrase + 1) % phrases.length
+          phrase += 1
           timer = window.setTimeout(step, gapMs)
           return
         }
@@ -105,7 +116,7 @@ function useTypewriter(phrases: readonly string[], typeMs = 95, holdMs = 2600, d
     timer = window.setTimeout(step, 500)
     return () => { window.clearTimeout(timer) }
   }, [phrases, typeMs, holdMs, deleteMs, gapMs])
-  return text
+  return { text, done }
 }
 
 /** Hero chrome props. The workspace row rides the InputBar accessory hole, not here. */
@@ -126,7 +137,7 @@ export interface HeroShellProps {
  * @returns the centered hero element tree.
  */
 export function HeroShell({ t, renderSlot, children }: HeroShellProps) {
-  const typed = useTypewriter(HERO_TYPING_PHRASES)
+  const { text: typed, done: typedDone } = useTypewriter(HERO_TYPING_PHRASES)
   // HeightLab V24b：视频复刻二级页面的空状态 = 引导选项区（无品牌 logo/品牌语）。
   const [replicationMode, setReplicationMode] = useState(
     () => localStorage.getItem('hl-console-mode') === 'replication',
@@ -246,7 +257,7 @@ export function HeroShell({ t, renderSlot, children }: HeroShellProps) {
                     <button
                       key={chip.label}
                       type="button"
-                      onClick={() => chipClick(chip.kind, chip.value)}
+                      onClick={() => { chipClick(chip.kind, chip.value) }}
                       style={{
                         padding: '6px 10px',
                         border: '1px solid #d9d9d9',
@@ -289,7 +300,8 @@ export function HeroShell({ t, renderSlot, children }: HeroShellProps) {
                 HeightLab 2026-09-19：headline 打字机循环（官网式动效）。 */}
             <span>
               {typed}
-              <span className={css.typingCaret}>▍</span>
+              {/* 2026-11-27：固定后光标隐藏（用户拍板「跑完固定住」）。 */}
+              {!typedDone && <span className={css.typingCaret}>▍</span>}
             </span>
             <span className={css.previewBadge}>{t('hero.preview')}</span>
           </span>

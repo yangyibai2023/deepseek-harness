@@ -4,7 +4,9 @@ import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
 import { workspaceDisplayTitle } from '@deepseek-ai/dsh-api-workspace-controller/default-workspace'
 import type { ConversationContentProps, ConversationViewsProps, InputZone } from '../contract/slots.ts'
 import { HeroShell, WorkspaceChip, workspaceLabel } from './EmptyHero.tsx'
+import { HeroCategoryBar, HeroCategoryCards, type HeroCategory } from './HeroCategoryDock.tsx'
 // HeightLab：首页视频模板网格（V32：hero 输入卡下方、栈内滚动）与余额提示条。
+// O131：精选网格隐藏保留（回滚=恢复下方 JSX 注释行）；void 引用保持 import 活性。
 import { HeightLabVideoGrid } from './HeightLabVideoGrid.tsx'
 import { QuotaNotice } from './QuotaNotice.tsx'
 import css from './ConversationRoot.module.css'
@@ -57,6 +59,9 @@ export function ConversationContent(props: ConversationContentProps) {
   } catch { /* 隐私模式等存储不可用时跳过 */ }
   // HeightLab V24b：视频复刻模式（侧边栏「视频创作」→「爆款复刻」进入）——
   // 空状态布局切换：hero 引导贴顶、输入卡贴底（.composerHeroReplication）。
+  /* O131（2026-11-27 用户拍板）：主页分类选中态——按钮条（输入框上方）与大卡区（下方）共享。 */
+  const [heroCategory, setHeroCategory] = useState<HeroCategory>('all')
+  void HeightLabVideoGrid // O131 回滚保留（见下方 JSX 注释）
   const [replicationMode, setReplicationMode] = useState(
     () => localStorage.getItem('hl-console-mode') === 'replication',
   )
@@ -263,12 +268,18 @@ export function ConversationContent(props: ConversationContentProps) {
         <div className={css.heroBrandWrap}>
           <HeroShell t={t} renderSlot={renderSlot} />
           {heroWorkspaceRow}
+          {/* O131（2026-11-27 用户拍板）：六项分类按钮条——轮播标题与输入框
+              中间，小灰条横排；点击切换下方大卡区类目。 */}
+          <HeroCategoryBar selected={heroCategory} onSelect={setHeroCategory} />
         </div>
       ))}
       {zone !== undefined && renderSlot('conversation.input.dock', zone)}
       {inputBar}
-      {/* HeightLab V32：首页视频模板网格（仅普通 hero；复刻态不渲染）。 */}
-      {hero && !replicationMode && !moduleMode && <HeightLabVideoGrid />}
+      {/* O131（2026-11-27 用户拍板）：输入框下方=类目模板大卡区。原「精选
+          模板网格」HeightLabVideoGrid 隐藏保留（回滚=恢复下行、摘除
+          HeroCategoryCards）：
+      {hero && !replicationMode && !moduleMode && <HeightLabVideoGrid />} */}
+      {hero && !replicationMode && !moduleMode && <HeroCategoryCards category={heroCategory} />}
     </div>
   )
 
