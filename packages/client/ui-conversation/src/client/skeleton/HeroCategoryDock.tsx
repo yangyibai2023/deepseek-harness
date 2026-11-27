@@ -240,13 +240,15 @@ export function HeroCategoryCards({ category }: { category: HeroCategory }) {
             onClick={() => { openTemplatePanel(item) }}
             style={{
               height: 76, border: 'none', borderRadius: 14,
-              background: 'rgba(0, 0, 0, 0.045)', cursor: 'pointer',
+              /* O134（2026-11-28 用户拍板）：模板卡底色与全页灰统一
+               * （--dsw-specific-sidebar-fill，同胶囊/托盘/侧栏）。 */
+              background: 'var(--dsw-specific-sidebar-fill, #f9fafb)', cursor: 'pointer',
               padding: '0 10px 0 14px', textAlign: 'left', color: 'inherit',
               display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden',
               transition: 'background 0.15s ease',
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(0, 0, 0, 0.075)' }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(0, 0, 0, 0.075)' }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, 0.06))' }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--dsw-specific-sidebar-fill, #f9fafb)' }}
           >
             <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
               <span style={{ fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.displayName ?? item.name}</span>

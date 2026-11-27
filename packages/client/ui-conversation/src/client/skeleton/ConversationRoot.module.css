@@ -488,39 +488,13 @@
 }
 
 .heroWorkspaceRow {
+  /* O134 七轮（2026-11-28 用户拍板）：托盘样式上移到 .footer wrapper
+   * （InputBar.module.css）——row 只剩内容宽透明行，权限 seat 紧随其后
+   * （slot 单父约束下 seat 必须在 wrapper 层，见 InputBar.tsx footer）。 */
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
-  /* O134 层级契约：底栏在输入卡 sticky 根容器内（footer 通道），根已 z2
-   * 压 composerShield 白罩，这里保持 relative 即可。历史教训：shield 是
-   * pointer-events:none 的 sticky 白罩，不参与命中但照常绘制——底栏曾在
-   * 栈内裸放被它整段涂白（DOM 量测全对但视觉隐形，红字实验定位）。 */
-  position: relative;
-  /* O134 四次拍板（2026-11-28，用户：灰再浅一点+上下加长+左右加宽，「视觉上
-   * 是从输入框下层延伸出来的」）：**托盘层**（stacked-tray）方案——真元素+
-   * 负 margin+z-index 分层。该 UI 模式三种实现：①负 margin 真元素（本方案，
-   * 唯一能承载可点 chip 的）②伪元素叠纸（::after inset 外扩，纯装饰）
-   * ③box-shadow spread 同心层（0 12px 0 -4px 灰，无真元素）。
-   * z-index:-1 在 sticky 根（z2 stacking context）内压到卡片（z auto）之下：
-   * 上缩 16px 藏进卡片背后，只露下沿与左右各 8px——卡片保持完整圆角，
-   * 托盘从卡底下「伸出来」。 */
-  z-index: -1;
-  /* wrapper pe:none（见 InputBar.module.css .footer），托盘层显式收回事件。 */
-  pointer-events: auto;
-  flex: 1;
-  /* O134 五次拍板（2026-11-28）：**等宽**（撤掉左右各 8px 外扩）+**边缘干脆**
-   * ——24px 模糊落影被否「边缘模糊」，托盘边缘=纯色边界+圆角，零光晕
-   * （与 2026-10-22「输入框周边必须绝对干净」同款审美）。 */
-  margin: -16px 0 0;
-  border-radius: 0 0 var(--dsw-radius-panel) var(--dsw-radius-panel);
-  /* O134 六次拍板（2026-11-28）：全页灰色统一——托盘底=侧栏底同一 token
-   * （--dsw-specific-sidebar-fill），与分类胶囊底一致；「工作区」文字降灰
-   * （label-secondary，不抢视觉）。 */
-  background: var(--dsw-specific-sidebar-fill, #f9fafb);
-  color: var(--dsw-alias-label-secondary);
-  /* 上 padding=藏进卡片的 16+可见带 10；可见带≈48px（上下加长，用户拍板）。 */
-  padding: 26px 20px 10px;
 }
 
 /* Hero: the composer sits inside the session scroll body; center there so

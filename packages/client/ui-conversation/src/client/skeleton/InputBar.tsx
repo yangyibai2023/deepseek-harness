@@ -793,7 +793,10 @@ export const InputBar = memo(function InputBar({
               onChange={onPickFiles}
             />
             <div className={css.modes}>
-              {sessionId === undefined ? null : renderSlot('conversation.input.permission', { locked })}
+              {/* O134（2026-11-28 用户拍板）：hero 态权限按钮挪到托盘层
+               * （ConversationContent heroPermissionSeat），工具行只在
+               * 活跃会话渲染。 */}
+              {sessionId === undefined || variant === 'hero' ? null : renderSlot('conversation.input.permission', { locked })}
               {sessionId === undefined ? null : renderSlot('conversation.input.plan', { locked })}
             </div>
             {input === undefined || sessionId === undefined
@@ -871,8 +874,20 @@ export const InputBar = memo(function InputBar({
       </div>
       {/* O134：底栏（工作区行）在根容器内、卡片之后——随 sticky 根一起停靠，
        * 滚动时不再被输入卡盖住（详见 slots.ts footer 注释）。wrapper 负责
-       * 与卡片等宽+零间隙连成一体（用户拍板 WorkBuddy 形态，见 .footer）。 */}
-      {footer !== undefined && <div className={css.footer} data-composer-footer>{footer}</div>}
+       * 与卡片等宽+零间隙连成一体（用户拍板 WorkBuddy 形态，见 .footer）。
+       * O134 七轮：hero 态权限按钮挪进托盘层（工作区 chip 右侧，「它俩是
+       * 关联的」）——slot 仍归本工厂（composer.bar）单父，双父声明=启动
+       * 挂死（1128 实锤回退），字体颜色大小对齐 chip（见 .footerSeat）。 */}
+      {footer !== undefined && (
+        <div className={css.footer} data-composer-footer>
+          {footer}
+          {variant === 'hero' && sessionId !== undefined && (
+            <span className={css.footerSeat}>
+              {renderSlot('conversation.input.permission', { locked })}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   )
 })

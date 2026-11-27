@@ -189,6 +189,17 @@ export function ConversationContent(props: ConversationContentProps) {
     ? undefined
     : workspaceDisplayTitle(storedChipTitle, t('workspace.defaultName'))
 
+  // The placeholder chip ("Choose workspace") and the Workspace-trigger input travel
+  // together: no workspace picked yet (cold start, no session at all), or a
+  // blank session whose workspace vanished (deleted from the sidebar). The
+  // bar is ONE session-maybe slot rendered unconditionally — inert is a prop,
+  // not a different tree, so the textarea DOM survives the transition.
+  const inert = sessionId === undefined || (hero && chipTitle === undefined)
+  // A raised block is the same inert posture with the blocker's own reason:
+  // one disabled textarea, never a second tree. The no-workspace state wins
+  // when both hold — picking a workspace is the earlier prerequisite.
+  const blocked = !inert && composerBlock !== undefined
+
   const heroWorkspaceRow = (
     <div className={css.heroWorkspaceRow}>
       <WorkspaceChip
@@ -202,6 +213,9 @@ export function ConversationContent(props: ConversationContentProps) {
         onClick={() => { setPickerOpen(open => !open) }}
         t={t}
       />
+      {/* O134：权限按钮也在托盘层（工作区 chip 右侧）——但 slot 归
+       * composer.bar 单父（双父声明=启动挂死，1128 实锤回退），由
+       * InputBar 的 footer wrapper 渲染（见 InputBar.tsx）。 */}
       {renderSlot('conversation.hero.workspace', {
         open: pickerOpen,
         anchorRef: pickerAnchor,
@@ -218,17 +232,6 @@ export function ConversationContent(props: ConversationContentProps) {
       {renderSlot('conversation.hero.agentPreset', {})}
     </div>
   )
-
-  // The placeholder chip ("Choose workspace") and the Workspace-trigger input travel
-  // together: no workspace picked yet (cold start, no session at all), or a
-  // blank session whose workspace vanished (deleted from the sidebar). The
-  // bar is ONE session-maybe slot rendered unconditionally — inert is a prop,
-  // not a different tree, so the textarea DOM survives the transition.
-  const inert = sessionId === undefined || (hero && chipTitle === undefined)
-  // A raised block is the same inert posture with the blocker's own reason:
-  // one disabled textarea, never a second tree. The no-workspace state wins
-  // when both hold — picking a workspace is the earlier prerequisite.
-  const blocked = !inert && composerBlock !== undefined
   /* O134（2026-11-28 用户拍板）：工作区底栏作为 composer.bar 的 footer 传进
    * 输入卡 sticky 根容器——滚动停靠时随卡片一起走，不再被卡片盖住（此前放
    * 栈内卡片之后，用户实测「选择工作区看不到了」）。复刻/模块态底栏保持在
