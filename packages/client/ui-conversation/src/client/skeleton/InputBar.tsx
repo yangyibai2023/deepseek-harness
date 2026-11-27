@@ -15,10 +15,11 @@
 
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import type { ChangeEvent, KeyboardEvent, MouseEvent } from 'react'
+import type { ChangeEvent, KeyboardEvent, MouseEvent, ReactNode } from 'react'
 import clsx from 'clsx'
 import {
   IconPlusOutlineMedium, IconPaperclipOutlineRegular, IconWarningOutlineRegular, Toast, Tooltip,
+  IconChevronRightOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 // Type-only: the `plan` projection key merge (the TodoDock posture — the
 // composer reads a host-computed value; the domain owns the key).
@@ -52,10 +53,35 @@ export type InputBarProps = ComposerBarProps
  * 引用插 "@"、技能插 "/"——全部走既有 revision 守卫通道，零行为风险；
  * 深集成（浮层内直接列技能/直接执行）留 v2。/ 和 @ 快捷键不受影响。 */
 type PlusSubItem = { label: string; hint?: string; run: () => void }
-type PlusItem = { id: string; label: string; icon: string; sub: PlusSubItem[] }
+/* O134 十三轮（用户拍板）：一级菜单图标全部换**单色线性 SVG**（emoji 彩色
+ * 图形与 DSH 图标语言冲突）。绘制风格对齐 primitives icons（viewBox 16、
+ * stroke currentColor、fill none）。 */
+type PlusItem = { id: string; label: string; icon: ReactNode; sub: PlusSubItem[] }
+
+const PlusIconSkill = (): ReactNode => (
+  <svg width={15} height={15} viewBox="0 0 16 16" fill="none" aria-hidden="true" stroke="currentColor">
+    <path d="M6.5 4L7.6 7.4L11 8.5L7.6 9.6L6.5 13L5.4 9.6L2 8.5L5.4 7.4L6.5 4Z" strokeLinejoin="round" />
+    <path d="M11.5 2.5L12.1 4.4L14 5L12.1 5.6L11.5 7.5L10.9 5.6L9 5L10.9 4.4L11.5 2.5Z" strokeLinejoin="round" />
+  </svg>
+)
+const PlusIconMention = (): ReactNode => (
+  <svg width={15} height={15} viewBox="0 0 16 16" fill="none" aria-hidden="true" stroke="currentColor">
+    <circle cx="8" cy="8" r="2.7" />
+    <path d="M10.7 8V9C10.7 10.5 11.6 11.2 12.6 11.2C14.1 11.2 14.5 9.8 14.5 8C14.5 4.7 11.6 2.5 8 2.5C4.4 2.5 1.5 4.9 1.5 8C1.5 11.1 4.4 13.5 8 13.5" strokeLinecap="round" />
+  </svg>
+)
+const PlusIconCommand = (): ReactNode => (
+  <svg width={15} height={15} viewBox="0 0 16 16" fill="none" aria-hidden="true" stroke="currentColor">
+    <rect x="2.5" y="2.5" width="11" height="11" rx="3" />
+    <path d="M9.6 5.2L6.4 10.8" strokeLinecap="round" />
+  </svg>
+)
 
 function PlusMenu({ items, onClose, anchor }: { items: PlusItem[]; onClose: () => void; anchor: { left: number; top: number } }) {
-  const [hoverId, setHoverId] = useState<string | null>(null)
+  /* O134 十三轮：hover 记录**行内 offsetTop**——二级菜单 absolute 定位到
+   * 一级面板右侧、与悬浮行顶对齐（此前 flex 尾对齐=只对齐面板底缘，
+   * 用户实测「没有精准落到一级菜单右侧」）。 */
+  const [hover, setHover] = useState<{ id: string; top: number } | null>(null)
   const wrapRef = useRef<HTMLDivElement | null>(null)
   useEffect(() => {
     const onDown = (event: globalThis.MouseEvent): void => {
@@ -64,43 +90,44 @@ function PlusMenu({ items, onClose, anchor }: { items: PlusItem[]; onClose: () =
     document.addEventListener('mousedown', onDown)
     return () => { document.removeEventListener('mousedown', onDown) }
   }, [onClose])
-  const hovered = items.find(item => item.id === hoverId)
+  const hovered = items.find(item => item.id === hover?.id)
   /* O133：portal 到 body + fixed 定位——composerHero(z1) 层叠上下文困住
    * absolute 浮层被 sticky 品牌层(z3) 盖住（四项只露两项实锤）。 */
   return createPortal(
-    <div ref={wrapRef} style={{ position: 'fixed', left: anchor.left, top: anchor.top, transform: 'translateY(-100%)', display: 'flex', alignItems: 'flex-end', gap: 6, zIndex: 1000 }}>
+    <div ref={wrapRef} style={{ position: 'fixed', left: anchor.left, top: anchor.top, transform: 'translateY(-100%)', zIndex: 1000 }}>
       <div style={{
         minWidth: 168, background: 'var(--dsw-alias-bg-layer-1, #fff)',
         border: '1px solid var(--dsw-alias-border-l1, #e8e8e8)', borderRadius: 14,
-        boxShadow: '0 8px 28px rgba(0,0,0,0.12)', padding: 6,
+        boxShadow: '0 8px 28px rgba(0,0,0,0.12)', padding: 6, position: 'relative',
       }} role="menu" aria-label="添加与指令">
         {items.map(item => (
           <button
             key={item.id}
             type="button"
             role="menuitem"
-            onMouseEnter={() => { setHoverId(item.id) }}
+            onMouseEnter={(e) => { setHover({ id: item.id, top: e.currentTarget.offsetTop }) }}
             onClick={() => { const first = item.sub[0]; if (first !== undefined) { first.run(); onClose() } }}
             style={{
               display: 'flex', alignItems: 'center', gap: 8, width: '100%',
               border: 'none', borderRadius: 9, padding: '8px 10px', fontSize: 13,
               cursor: 'pointer', textAlign: 'left', color: 'inherit',
-              background: hoverId === item.id ? 'var(--dsw-alias-interactive-bg-hover, #f0f0f0)' : 'transparent',
+              background: hover?.id === item.id ? 'var(--dsw-alias-interactive-bg-hover, #f0f0f0)' : 'transparent',
             }}
           >
-            <span aria-hidden style={{ fontSize: 13, width: 16, textAlign: 'center' }}>{item.icon}</span>
+            <span aria-hidden style={{ width: 16, display: 'inline-flex', justifyContent: 'center', color: 'var(--dsw-alias-label-secondary, #666)' }}>{item.icon}</span>
             <span style={{ flex: 1 }}>{item.label}</span>
-            <span aria-hidden style={{ color: 'var(--dsw-alias-label-tertiary, #aaa)', fontSize: 11 }}>›</span>
+            <IconChevronRightOutlineRegular size={12} className="" />
           </button>
         ))}
       </div>
       {hovered !== undefined && (
         <div style={{
+          position: 'absolute', left: '100%', marginLeft: 6, top: Math.max(0, hover?.top ?? 0),
           minWidth: 200, maxWidth: 280, background: 'var(--dsw-alias-bg-layer-1, #fff)',
           border: '1px solid var(--dsw-alias-border-l1, #e8e8e8)', borderRadius: 14,
           boxShadow: '0 8px 28px rgba(0,0,0,0.12)', padding: 6,
         }} role="menu" aria-label={`${hovered.label}子菜单`}
-        onMouseEnter={() => { setHoverId(hovered.id) }}
+        onMouseEnter={() => { setHover({ id: hovered.id, top: hover?.top ?? 0 }) }}
         >
           {hovered.sub.map(sub => (
             <button
@@ -147,7 +174,6 @@ export const InputBar = memo(function InputBar({
   /* O133：「+」合并菜单开关（点击 + 开浮层；/ 快捷键仍走原命令菜单）。 */
   const [plusMenuOpen, setPlusMenuOpen] = useState(false)
   const plusAnchorRef = useRef<HTMLSpanElement | null>(null)
-  void IconPaperclipOutlineRegular // O133 回滚保留（见回形针注释块）
   const [activity, setActivity] = useState(false)
   useEffect(() => { setActivity(false) }, [sessionId])
   const promptError = useSession(s => s.promptError) ?? null
@@ -729,21 +755,21 @@ export const InputBar = memo(function InputBar({
                   })()}
                   items={[
                     {
-                      id: 'file', label: '添加文件', icon: '📎',
+                      id: 'file', label: '添加文件', icon: <IconPaperclipOutlineRegular size={14} />,
                       sub: [{
                         label: '本地文件', hint: '从电脑选择文件作为附件',
                         run: () => { fileInputRef.current?.click() },
                       }],
                     },
                     {
-                      id: 'skill', label: '使用技能', icon: '✨',
+                      id: 'skill', label: '使用技能', icon: <PlusIconSkill />,
                       sub: [{
                         label: '打开技能列表', hint: '浏览并插入已安装的技能',
                         run: () => { onToggleCommandMenu() },
                       }],
                     },
                     {
-                      id: 'mention', label: '引用对话', icon: '@',
+                      id: 'mention', label: '引用对话', icon: <PlusIconMention />,
                       sub: [
                         {
                           label: '引用文件', hint: '在消息中引用工作区文件',
@@ -756,7 +782,7 @@ export const InputBar = memo(function InputBar({
                       ],
                     },
                     {
-                      id: 'command', label: '指令', icon: '⌘',
+                      id: 'command', label: '指令', icon: <PlusIconCommand />,
                       sub: [
                         { label: '计划模式', hint: '进入或退出计划模式', run: () => { insertSlashFromPlus('/plan ') } },
                         { label: '目标', hint: '设置或查看长期任务目标', run: () => { insertSlashFromPlus('/goal ') } },
