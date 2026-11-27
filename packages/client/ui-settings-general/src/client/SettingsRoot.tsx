@@ -71,7 +71,7 @@ function ConnectionDoctor({ onClose }: { onClose: () => void }) {
       alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.35)',
     }} onClick={onClose}>
       <div style={{
-        width: 440, maxWidth: '90vw', background: 'var(--dsw-alias-bg-primary, #fff)',
+        width: 440, maxWidth: '90vw', background: 'var(--dsw-alias-bg-layer-1, #fff)',
         borderRadius: 12, padding: 20, boxShadow: '0 12px 40px rgba(0,0,0,0.25)',
         fontSize: 13, lineHeight: '20px', color: 'var(--dsw-alias-label-primary, #1a1a1a)',
       }} onClick={e => e.stopPropagation()}>
@@ -93,13 +93,13 @@ function ConnectionDoctor({ onClose }: { onClose: () => void }) {
         )}
         {note !== '' && <div style={{ margin: '8px 0', color: 'var(--dsw-alias-label-secondary, #666)' }}>{note}</div>}
         <div style={{ display: 'flex', gap: 8, marginTop: 12, justifyContent: 'flex-end' }}>
-          <button type="button" disabled={busy !== 'idle'} onClick={exportDiag} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--dsw-alias-line-primary, #ddd)', background: 'transparent', cursor: 'pointer' }}>
+          <button type="button" disabled={busy !== 'idle'} onClick={exportDiag} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--dsw-alias-border-l1, #ddd)', background: 'transparent', cursor: 'pointer' }}>
             {busy === 'exporting' ? '导出中…' : '导出诊断包'}
           </button>
-          <button type="button" disabled={busy !== 'idle'} onClick={resetWorkspace} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--dsw-alias-line-primary, #ddd)', background: 'transparent', cursor: 'pointer', color: 'var(--dsw-alias-state-error, #c33)' }}>
+          <button type="button" disabled={busy !== 'idle'} onClick={resetWorkspace} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--dsw-alias-border-l1, #ddd)', background: 'transparent', cursor: 'pointer', color: 'var(--dsw-alias-label-danger, #c33)' }}>
             {busy === 'resetting' ? '重置中…' : '重置工作区'}
           </button>
-          <button type="button" onClick={onClose} style={{ padding: '6px 12px', borderRadius: 6, border: 'none', background: 'var(--dsw-alias-btn-primary, #1a1a1a)', color: '#fff', cursor: 'pointer' }}>
+          <button type="button" onClick={onClose} style={{ padding: '6px 12px', borderRadius: 6, border: 'none', background: 'var(--dsw-alias-state-business-primary, #1a1a1a)', color: '#fff', cursor: 'pointer' }}>
             关闭
           </button>
         </div>
