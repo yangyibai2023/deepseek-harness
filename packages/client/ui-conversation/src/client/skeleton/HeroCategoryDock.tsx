@@ -80,24 +80,42 @@ const CATEGORY_SOURCES: Record<Exclude<HeroCategory, 'all' | 'ops'>, string[]> =
   marketing: ['创意洞察', '广告投放'],
 }
 
-/** 全能创作：每个原生类目取前 1 个，凑齐混排精选（最多 8 张）。 */
-function mixedSelection(): typeof VIDEO_CATALOG {
-  const byCategory = new Map<string, typeof VIDEO_CATALOG>()
-  for (const item of VIDEO_CATALOG) {
-    const list = byCategory.get(item.category) ?? []
-    list.push(item)
-    byCategory.set(item.category, list)
-  }
-  const picks: typeof VIDEO_CATALOG = []
-  for (const list of byCategory.values()) {
-    if (picks.length >= 8) break
-    const first = list[0]
-    if (first !== undefined) picks.push(first)
-  }
-  return picks
+/* 2026-11-28（用户定稿）：全能创作=八个产品级入口（自定义名称/简介），
+ * refId 指向目录里最接近的模板——取封面（叠图装饰）与 skill（点击打开
+ * 对应工作台）；PPT 暂无模板，点击走插入指令（chatOnly）。 */
+const HERO_ALL_ITEMS: Array<{ name: string; tagline: string; refId: string; chatOnly?: boolean }> = [
+  { name: '爆款视频复刻', tagline: '对标爆款，逐镜复刻', refId: 'yunjing-video-replication-cloud' },
+  { name: '口播视频制作', tagline: '真人感口播，一键成片', refId: 'skill-test-38-jimeng-zixuan-changjing-koubo' },
+  { name: '带货视频制作', tagline: 'UGC 带货，脚本到成片', refId: 'yj-301-original-ugc' },
+  { name: 'Vlog 视频制作', tagline: '生活记录，电影感剪辑', refId: 'skill-test-05-shenghuo-weijuchang' },
+  { name: '小红书图文生成', tagline: '种草图文，爆款排版', refId: 'skill-test-03-tandian-daka-zhongcao' },
+  { name: '电商图片制作', tagline: '主图详情，整套出图', refId: 'yj-401-original-main-detail' },
+  { name: '海报图片制作', tagline: '营销海报，品牌质感', refId: 'yj-401-commercial-poster' },
+  { name: 'PPT 一键生成', tagline: '一句话生成演示文稿', refId: 'yj-402-white-background-main', chatOnly: true },
+]
+
+type ResolvedHeroItem = typeof VIDEO_CATALOG[number] & {
+  displayName: string
+  displayTagline: string
+  chatOnly?: boolean
 }
 
-function itemsFor(category: HeroCategory): typeof VIDEO_CATALOG {
+function resolveHeroItem(entry: typeof HERO_ALL_ITEMS[number]): ResolvedHeroItem {
+  const ref = VIDEO_CATALOG.find(item => item.id === entry.refId)
+  const base = ref ?? VIDEO_CATALOG[0]
+  if (base === undefined) throw new Error('VIDEO_CATALOG is empty')
+  return entry.chatOnly === true
+    ? { ...base, displayName: entry.name, displayTagline: entry.tagline, chatOnly: true }
+    : { ...base, displayName: entry.name, displayTagline: entry.tagline }
+}
+
+function mixedSelection(): Array<ReturnType<typeof resolveHeroItem>> {
+  return HERO_ALL_ITEMS.map(resolveHeroItem)
+}
+
+type HeroCardItem = typeof VIDEO_CATALOG[number] & { displayName?: string; displayTagline?: string; chatOnly?: boolean }
+
+function itemsFor(category: HeroCategory): HeroCardItem[] {
   if (category === 'all') return mixedSelection()
   if (category === 'ops') return []
   const sources = CATEGORY_SOURCES[category]
@@ -159,7 +177,14 @@ export function HeroCategoryBar({ selected, onSelect }: {
 
 export function HeroCategoryCards({ category }: { category: HeroCategory }) {
   const items = useMemo(() => itemsFor(category), [category])
-  const openTemplatePanel = (item: typeof VIDEO_CATALOG[number]): void => {
+  const openTemplatePanel = (item: HeroCardItem): void => {
+    /* PPT 等暂无模板的入口：插入通用创作指令（走输入框胶囊通道）。 */
+    if (item.chatOnly === true) {
+      window.dispatchEvent(new CustomEvent('hl:insert-template-chip', {
+        detail: { label: item.displayName ?? item.name, prompt: `请帮我${item.displayName ?? item.name}：` },
+      }))
+      return
+    }
     try {
       sessionStorage.setItem('hl-template-console', JSON.stringify({ id: item.id, template: item.name, skill: item.skill }))
     } catch { /* 非致命 */ }
@@ -193,11 +218,13 @@ export function HeroCategoryCards({ category }: { category: HeroCategory }) {
     /* 2026-11-27（用户五次修正）：容器宽=输入框卡片宽（--dsh-composer-card-
      * max-width，stack 全宽比它每侧宽 16px 实锤超出）；grid 3 列×3 排，
      * 卡片压矮（图 56px+底行）保证 3 排在输入框下方一屏内直出。 */
+    /* 2026-11-28（用户定稿）：卡片区整体下移——离输入框远一些，居中于
+     * 输入框与窗口底之间（不贴输入框也不贴底）。 */
     <div style={{
       display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10,
-      padding: '8px 0 2px',
+      padding: '0 0 2px',
       width: 'min(var(--dsh-composer-card-max-width, 100%), 100%)',
-      margin: '0 auto',
+      margin: '56px auto 0',
     }}>
       {items.map((item, index) => {
         /* 2026-11-28（用户六次修正，参考截图②）：横条卡——左侧文字为主，
@@ -219,11 +246,11 @@ export function HeroCategoryCards({ category }: { category: HeroCategory }) {
             onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(0, 0, 0, 0.075)' }}
           >
             <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
-              <span style={{ fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.name}</span>
+              <span style={{ fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.displayName ?? item.name}</span>
               <span style={{
                 fontSize: 11, color: 'var(--dsw-alias-label-tertiary, #999)',
                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              }}>{item.tagline}</span>
+              }}>{item.displayTagline ?? item.tagline}</span>
             </span>
             <span style={{ position: 'relative', width: 58, height: 52, flexShrink: 0 }} aria-hidden="true">
               <img
