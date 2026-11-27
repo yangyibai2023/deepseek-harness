@@ -14,12 +14,12 @@
  */
 
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import type { ChangeEvent, KeyboardEvent, MouseEvent, ReactNode } from 'react'
+import type { MenuItem } from '@deepseek-ai/dsh-client-ui-primitives'
 import clsx from 'clsx'
 import {
   IconPlusOutlineMedium, IconPaperclipOutlineRegular, IconWarningOutlineRegular, Toast, Tooltip,
-  IconChevronRightOutlineRegular,
+  Menu,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 // Type-only: the `plan` projection key merge (the TodoDock posture — the
 // composer reads a host-computed value; the domain owns the key).
@@ -52,12 +52,10 @@ export type InputBarProps = ComposerBarProps
  * （六条斜杠原样触发）。动作 v1=「帮用户打出触发符」：指令插 "/xxx "、
  * 引用插 "@"、技能插 "/"——全部走既有 revision 守卫通道，零行为风险；
  * 深集成（浮层内直接列技能/直接执行）留 v2。/ 和 @ 快捷键不受影响。 */
-type PlusSubItem = { label: string; hint?: string; run: () => void }
-/* O134 十三轮（用户拍板）：一级菜单图标全部换**单色线性 SVG**（emoji 彩色
- * 图形与 DSH 图标语言冲突）。绘制风格对齐 primitives icons（viewBox 16、
- * stroke currentColor、fill none）。 */
-type PlusItem = { id: string; label: string; icon: ReactNode; sub: PlusSubItem[] }
-
+/* O133（2026-11-28 用户两轮定稿）：「+」合并菜单。十四轮（用户拍板「统一浮层
+ * UI」）：手写两级浮层退役，换 **DSH 原生 Menu**（MenuItem.submenu——hover
+ * 开合/350ms 宽限/键盘走查/portal/越界翻转全原生），与工作区/权限/模型选择
+ * 同一套浮层；emoji 已在十三轮 SVG 化（图标沿用）。动作仍是「打出触发符」。 */
 const PlusIconSkill = (): ReactNode => (
   <svg width={15} height={15} viewBox="0 0 16 16" fill="none" aria-hidden="true" stroke="currentColor">
     <path d="M6.5 4L7.6 7.4L11 8.5L7.6 9.6L6.5 13L5.4 9.6L2 8.5L5.4 7.4L6.5 4Z" strokeLinejoin="round" />
@@ -76,85 +74,6 @@ const PlusIconCommand = (): ReactNode => (
     <path d="M9.6 5.2L6.4 10.8" strokeLinecap="round" />
   </svg>
 )
-
-function PlusMenu({ items, onClose, anchor }: { items: PlusItem[]; onClose: () => void; anchor: { left: number; top: number } }) {
-  /* O134 十三轮：hover 记录**行内 offsetTop**——二级菜单 absolute 定位到
-   * 一级面板右侧、与悬浮行顶对齐（此前 flex 尾对齐=只对齐面板底缘，
-   * 用户实测「没有精准落到一级菜单右侧」）。 */
-  const [hover, setHover] = useState<{ id: string; top: number } | null>(null)
-  const wrapRef = useRef<HTMLDivElement | null>(null)
-  useEffect(() => {
-    const onDown = (event: globalThis.MouseEvent): void => {
-      if (wrapRef.current !== null && !wrapRef.current.contains(event.target as Node)) onClose()
-    }
-    document.addEventListener('mousedown', onDown)
-    return () => { document.removeEventListener('mousedown', onDown) }
-  }, [onClose])
-  const hovered = items.find(item => item.id === hover?.id)
-  /* O133：portal 到 body + fixed 定位——composerHero(z1) 层叠上下文困住
-   * absolute 浮层被 sticky 品牌层(z3) 盖住（四项只露两项实锤）。 */
-  return createPortal(
-    <div ref={wrapRef} style={{ position: 'fixed', left: anchor.left, top: anchor.top, transform: 'translateY(-100%)', zIndex: 1000 }}>
-      <div style={{
-        minWidth: 168, background: 'var(--dsw-alias-bg-layer-1, #fff)',
-        border: '1px solid var(--dsw-alias-border-l1, #e8e8e8)', borderRadius: 14,
-        boxShadow: '0 8px 28px rgba(0,0,0,0.12)', padding: 6, position: 'relative',
-      }} role="menu" aria-label="添加与指令">
-        {items.map(item => (
-          <button
-            key={item.id}
-            type="button"
-            role="menuitem"
-            onMouseEnter={(e) => { setHover({ id: item.id, top: e.currentTarget.offsetTop }) }}
-            onClick={() => { const first = item.sub[0]; if (first !== undefined) { first.run(); onClose() } }}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-              border: 'none', borderRadius: 9, padding: '8px 10px', fontSize: 13,
-              cursor: 'pointer', textAlign: 'left', color: 'inherit',
-              background: hover?.id === item.id ? 'var(--dsw-alias-interactive-bg-hover, #f0f0f0)' : 'transparent',
-            }}
-          >
-            <span aria-hidden style={{ width: 16, display: 'inline-flex', justifyContent: 'center', color: 'var(--dsw-alias-label-secondary, #666)' }}>{item.icon}</span>
-            <span style={{ flex: 1 }}>{item.label}</span>
-            <IconChevronRightOutlineRegular size={12} className="" />
-          </button>
-        ))}
-      </div>
-      {hovered !== undefined && (
-        <div style={{
-          position: 'absolute', left: '100%', marginLeft: 6, top: Math.max(0, hover?.top ?? 0),
-          minWidth: 200, maxWidth: 280, background: 'var(--dsw-alias-bg-layer-1, #fff)',
-          border: '1px solid var(--dsw-alias-border-l1, #e8e8e8)', borderRadius: 14,
-          boxShadow: '0 8px 28px rgba(0,0,0,0.12)', padding: 6,
-        }} role="menu" aria-label={`${hovered.label}子菜单`}
-        onMouseEnter={() => { setHover({ id: hovered.id, top: hover?.top ?? 0 }) }}
-        >
-          {hovered.sub.map(sub => (
-            <button
-              key={sub.label}
-              type="button"
-              role="menuitem"
-              onClick={() => { sub.run(); onClose() }}
-              style={{
-                display: 'flex', flexDirection: 'column', gap: 2, width: '100%',
-                border: 'none', borderRadius: 9, padding: '8px 10px', fontSize: 13,
-                cursor: 'pointer', textAlign: 'left', color: 'inherit', background: 'transparent',
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--dsw-alias-interactive-bg-hover, #f0f0f0)' }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
-            >
-              <span>{sub.label}</span>
-              {sub.hint !== undefined && (
-                <span style={{ fontSize: 11, color: 'var(--dsw-alias-label-tertiary, #999)' }}>{sub.hint}</span>
-              )}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>,
-    document.body,
-  )
-}
 
 export const InputBar = memo(function InputBar({
   useSession, useInput, inputActions, keyboard, addFiles, removeAttachment, resolveDraftAttachments,
@@ -584,6 +503,55 @@ export const InputBar = memo(function InputBar({
     inputActions.insertText(text, span)
   }
 
+  /* O134 十四轮：+ 菜单数据走原生 Menu（MenuItem.submenu）。hint=双行 label
+   * 副文本（tertiary 11px）；runners 按 id 派发（Menu onSelect 只给 id）。 */
+  const plusSubHint = (label: string, hint: string): ReactNode => (
+    <span style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+      <span>{label}</span>
+      <span style={{ fontSize: 11, lineHeight: '14px', color: 'var(--dsw-alias-label-tertiary, #999)' }}>{hint}</span>
+    </span>
+  )
+  const plusMenuItems: readonly MenuItem[] = [
+    {
+      id: 'file', label: '添加文件', icon: <IconPaperclipOutlineRegular size={14} />,
+      submenu: [{ id: 'file.local', label: plusSubHint('本地文件', '从电脑选择文件作为附件') }],
+    },
+    {
+      id: 'skill', label: '使用技能', icon: <PlusIconSkill />,
+      submenu: [{ id: 'skill.open', label: plusSubHint('打开技能列表', '浏览并插入已安装的技能') }],
+    },
+    {
+      id: 'mention', label: '引用对话', icon: <PlusIconMention />,
+      submenu: [
+        { id: 'mention.file', label: plusSubHint('引用文件', '在消息中引用工作区文件') },
+        { id: 'mention.chat', label: plusSubHint('引用对话', '在消息中引用其他会话') },
+      ],
+    },
+    {
+      id: 'command', label: '指令', icon: <PlusIconCommand />,
+      submenu: [
+        { id: 'command.plan', label: plusSubHint('计划模式', '进入或退出计划模式') },
+        { id: 'command.goal', label: plusSubHint('目标', '设置或查看长期任务目标') },
+        { id: 'command.model', label: plusSubHint('模型', '选择本会话使用的模型') },
+        { id: 'command.permission', label: plusSubHint('权限', '切换沙箱模式与审批策略') },
+        { id: 'command.compact', label: plusSubHint('压缩', '压缩以上对话内容') },
+        { id: 'command.feedback', label: plusSubHint('反馈', '发送关于当前会话的反馈') },
+      ],
+    },
+  ]
+  const plusMenuRunners: ReadonlyMap<string, () => void> = new Map([
+    ['file.local', () => { fileInputRef.current?.click() }],
+    ['skill.open', () => { onToggleCommandMenu() }],
+    ['mention.file', () => { insertSlashFromPlus('@') }],
+    ['mention.chat', () => { insertSlashFromPlus('@') }],
+    ['command.plan', () => { insertSlashFromPlus('/plan ') }],
+    ['command.goal', () => { insertSlashFromPlus('/goal ') }],
+    ['command.model', () => { insertSlashFromPlus('/model ') }],
+    ['command.permission', () => { insertSlashFromPlus('/permission ') }],
+    ['command.compact', () => { insertSlashFromPlus('/compact') }],
+    ['command.feedback', () => { insertSlashFromPlus('/feedback ') }],
+  ])
+
   // The no-session Workspace trigger: the resident editable div acts as the
   // picker trigger for keyboard users (no editor is bound in this state).
   const onWorkspaceKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
@@ -744,57 +712,23 @@ export const InputBar = memo(function InputBar({
                   <IconPlusOutlineMedium size={14} />
                 </button>
               </Tooltip>
-              {plusMenuOpen && (
-                <PlusMenu
-                  onClose={() => { setPlusMenuOpen(false) }}
-                  anchor={(() => {
-                    const rect = plusAnchorRef.current?.getBoundingClientRect()
-                    return rect !== undefined
-                      ? { left: rect.left, top: rect.top - 8 }
-                      : { left: 0, top: window.innerHeight / 2 }
-                  })()}
-                  items={[
-                    {
-                      id: 'file', label: '添加文件', icon: <IconPaperclipOutlineRegular size={14} />,
-                      sub: [{
-                        label: '本地文件', hint: '从电脑选择文件作为附件',
-                        run: () => { fileInputRef.current?.click() },
-                      }],
-                    },
-                    {
-                      id: 'skill', label: '使用技能', icon: <PlusIconSkill />,
-                      sub: [{
-                        label: '打开技能列表', hint: '浏览并插入已安装的技能',
-                        run: () => { onToggleCommandMenu() },
-                      }],
-                    },
-                    {
-                      id: 'mention', label: '引用对话', icon: <PlusIconMention />,
-                      sub: [
-                        {
-                          label: '引用文件', hint: '在消息中引用工作区文件',
-                          run: () => { insertSlashFromPlus('@') },
-                        },
-                        {
-                          label: '引用对话', hint: '在消息中引用其他会话',
-                          run: () => { insertSlashFromPlus('@') },
-                        },
-                      ],
-                    },
-                    {
-                      id: 'command', label: '指令', icon: <PlusIconCommand />,
-                      sub: [
-                        { label: '计划模式', hint: '进入或退出计划模式', run: () => { insertSlashFromPlus('/plan ') } },
-                        { label: '目标', hint: '设置或查看长期任务目标', run: () => { insertSlashFromPlus('/goal ') } },
-                        { label: '模型', hint: '选择本会话使用的模型', run: () => { insertSlashFromPlus('/model ') } },
-                        { label: '权限', hint: '切换沙箱模式与审批策略', run: () => { insertSlashFromPlus('/permission ') } },
-                        { label: '压缩', hint: '压缩以上对话内容', run: () => { insertSlashFromPlus('/compact') } },
-                        { label: '反馈', hint: '发送关于当前会话的反馈', run: () => { insertSlashFromPlus('/feedback ') } },
-                      ],
-                    },
-                  ]}
-                />
-              )}
+              <Menu
+                open={plusMenuOpen}
+                anchor={null}
+                items={plusMenuItems}
+                onSelect={(id) => {
+                  const run = plusMenuRunners.get(id)
+                  /* 未知 id=子菜单父行（原生派发 select 仅开子菜单）——绝不能
+                    关整个菜单（十四轮实锤：无条件关=点一级整菜单消失）。 */
+                  if (run === undefined) return
+                  run()
+                  setPlusMenuOpen(false)
+                }}
+                onClose={() => { setPlusMenuOpen(false) }}
+                side="top"
+                portal
+                getAnchorRect={() => plusAnchorRef.current?.getBoundingClientRect() ?? null}
+              />
             </span>
             {/* O133 回滚保留：原回形针按钮
             <Tooltip label={t('file.attach')} side="top" delayMs={500}>
