@@ -84,7 +84,7 @@ const CATEGORY_SOURCES: Record<Exclude<HeroCategory, 'all' | 'ops'>, string[]> =
  * refId 指向目录里最接近的模板——取封面（叠图装饰）与 skill（点击打开
  * 对应工作台）；PPT 暂无模板，点击走插入指令（chatOnly）。 */
 const HERO_ALL_ITEMS: Array<{ name: string; tagline: string; refId: string; chatOnly?: boolean }> = [
-  { name: '爆款视频复刻', tagline: '对标爆款，逐镜复刻', refId: 'yunjing-video-replication-cloud' },
+  { name: '爆款视频复刻', tagline: '对标爆款，逐镜复刻', refId: 'skill-test-41-baokuan-1bi1-duibiao-fuke' },
   { name: '口播视频制作', tagline: '真人感口播，一键成片', refId: 'skill-test-38-jimeng-zixuan-changjing-koubo' },
   { name: '带货视频制作', tagline: 'UGC 带货，脚本到成片', refId: 'yj-301-original-ugc' },
   { name: 'Vlog 视频制作', tagline: '生活记录，电影感剪辑', refId: 'skill-test-05-shenghuo-weijuchang' },
