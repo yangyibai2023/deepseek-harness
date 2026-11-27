@@ -180,15 +180,13 @@ export function PermissionSelect({
             disabled={locked || busy}
             onClick={() => { setOpen(!open) }}
           >
-            {/* HeightLab（2026-09-18 定制回植，2026-10-17）：为输入框腾空间，
-                权限选择只显示图标，不显示文字（与左侧「上传文件/命令」图标按钮
-                一致）。完整名称保留在 aria-label 与弹出菜单里。仅当某取值没有
-                图标字形时才回退显示文字。 */}
-            {permissionGlyph(currentValue) !== undefined ? (
+            {/* O134（2026-11-28 用户拍板）：恢复文字——图标+当前预设名
+             * （「选择什么显示什么」，WorkBuddy「✓ 默认权限 ⌄」形态）。
+             * 2026-09-18 的「只显示图标」定制退役（回滚=恢复原条件渲染）。 */}
+            {permissionGlyph(currentValue) !== undefined && (
               <span className={css.triggerIcon} aria-hidden>{permissionGlyph(currentValue)}</span>
-            ) : (
-              <span className={css.triggerLabel}>{currentLabel}</span>
             )}
+            <span className={css.triggerLabel}>{currentLabel}</span>
             <span className={clsx(css.chevron, open && css.chevronOpen)} aria-hidden>
               <IconChevronDownOutlineRegular />
             </span>

@@ -193,7 +193,11 @@ export function ConversationContent(props: ConversationContentProps) {
     <div className={css.heroWorkspaceRow}>
       <WorkspaceChip
         buttonRef={pickerAnchor}
-        label={chipTitle}
+        /* O134（2026-11-28 用户拍板）：「改名不叫我的工作区了，直接就是
+         * 工作区」——选中后 chip 显示静态「工作区」（不再回显数据驱动的
+         * 工作区名）；未选时仍走 placeholder「选择工作区」。chipTitle 仍
+         * 参与 inert 判定（下方），语义不变。 */
+        label={chipTitle === undefined ? undefined : '工作区'}
         menuOpen={pickerOpen}
         onClick={() => { setPickerOpen(open => !open) }}
         t={t}
@@ -267,14 +271,16 @@ export function ConversationContent(props: ConversationContentProps) {
         // （贴顶引导）不参与，保持原结构。
         <div className={css.heroBrandWrap}>
           <HeroShell t={t} renderSlot={renderSlot} />
-          {/* O131（2026-11-27 用户二次修正）：按钮条在**标题与「我的工作区」
-              中间**（工作区行保持原位贴近输入框，不要动）。 */}
+          {/* O131（2026-11-27 用户二次修正）：按钮条在**标题与工作区行中间**。
+              O134（2026-11-28）：工作区行挪到输入框下方（见 inputBar 之后）。 */}
           <HeroCategoryBar selected={heroCategory} onSelect={setHeroCategory} />
-          {heroWorkspaceRow}
         </div>
       ))}
       {zone !== undefined && renderSlot('conversation.input.dock', zone)}
       {inputBar}
+      {/* O134（2026-11-28 用户拍板）：工作区行挪到输入框**下方**，浅灰底条
+       * （WorkBuddy「选择分组/默认权限」底部条形态）；复刻态保持在上方。 */}
+      {hero && !replicationMode && !moduleMode && heroWorkspaceRow}
       {/* O131（2026-11-27 用户拍板）：输入框下方=类目模板大卡区。原「精选
           模板网格」HeightLabVideoGrid 隐藏保留（回滚=恢复下行、摘除
           HeroCategoryCards）：

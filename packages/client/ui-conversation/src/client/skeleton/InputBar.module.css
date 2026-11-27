@@ -351,7 +351,9 @@
   border: none;
   border-radius: 999px;
   corner-shape: round;
-  background: var(--dsw-specific-selector);
+  /* O134（2026-11-28 用户拍板）：去灰底——加号直接裸在输入框上，整体一致。
+   * 回滚=恢复 background: var(--dsw-specific-selector)。 */
+  background: transparent;
   color: var(--dsw-alias-label-primary);
   cursor: pointer;
 }

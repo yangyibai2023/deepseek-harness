@@ -702,7 +702,9 @@ export const InputBar = memo(function InputBar({
             {/* O133：relative 锚点——浮层 absolute 相对此容器定位（.tools 无
              * 定位上下文，直接 absolute 会飞到错误位置实锤）。 */}
             <span ref={plusAnchorRef} style={{ position: 'relative', display: 'inline-flex' }}>
-              <Tooltip label="可添加文件、使用技能、引用对话、指令" side="top" delayMs={500}>
+              {/* O134（2026-11-28）：tooltip 改右侧——top 气泡中心对齐最左按钮，
+                  左半截超出卡片被裁（用户截图实锤）。JSX 树内注释必须花括号形态。 */}
+              <Tooltip label="可添加文件、使用技能、引用对话、指令" side="right" delayMs={500}>
                 <button
                   type="button"
                   className={css.add}
