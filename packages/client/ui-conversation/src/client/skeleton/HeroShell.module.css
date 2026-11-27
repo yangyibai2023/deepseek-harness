@@ -181,9 +181,9 @@
   border: none;
   border-radius: 16px;
   background: transparent;
-  /* O134（2026-11-28 用户拍板）：「工作区」文字降灰——label-secondary，
-   * 不抢视觉锚点（chip 在托盘层上，深字太跳）。 */
-  color: var(--dsw-alias-label-secondary);
+  /* O134（2026-11-28 用户两轮拍板）：「工作区」文字降灰——七轮 secondary
+   * 仍太突出，十轮降到 tertiary（再灰一档）。 */
+  color: var(--dsw-alias-label-tertiary);
   font-size: 13px;
   line-height: 20px;
   font-weight: 500;
@@ -203,8 +203,8 @@
 
 .folder {
   flex: none;
-  /* O134：跟随 chip 文字降灰（图标同色不抢视觉）。 */
-  color: var(--dsw-alias-label-secondary);
+  /* O134：跟随 chip 文字降灰（图标同色不抢视觉，十轮 tertiary）。 */
+  color: var(--dsw-alias-label-tertiary);
 }
 
 .workspaceLabel {

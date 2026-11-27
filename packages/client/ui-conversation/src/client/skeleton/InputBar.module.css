@@ -41,7 +41,9 @@
 }
 
 .footerSeat button {
-  color: var(--dsw-alias-label-secondary);
+  /* O134 十轮（2026-11-28 用户拍板）：secondary 仍太突出，与工作区 chip
+   * 一同降到 tertiary。 */
+  color: var(--dsw-alias-label-tertiary);
   font-size: 13px;
   font-weight: 500;
 }
