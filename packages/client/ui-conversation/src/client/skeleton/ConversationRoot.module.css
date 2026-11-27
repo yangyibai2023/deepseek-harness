@@ -497,21 +497,27 @@
    * pointer-events:none 的 sticky 白罩，不参与命中但照常绘制——底栏曾在
    * 栈内裸放被它整段涂白（DOM 量测全对但视觉隐形，红字实验定位）。 */
   position: relative;
-  /* O134 三次拍板（2026-11-28）：底栏与输入卡**连成一体**（WorkBuddy 形态）
-   * ——等宽（wrapper 已按卡宽约束，这里 flex:1 填满）、零间隙、只留底部
-   * 圆角（顶角由卡片底角改直角配对，见 InputBar.module.css .footer）；
-   * 灰底=卡片灰段。历史：白底+边框+投影被否「只有横线」；分离灰条被否
-   * 「要和输入框连在一起」。 */
+  /* O134 四次拍板（2026-11-28，用户：灰再浅一点+上下加长+左右加宽，「视觉上
+   * 是从输入框下层延伸出来的」）：**托盘层**（stacked-tray）方案——真元素+
+   * 负 margin+z-index 分层。该 UI 模式三种实现：①负 margin 真元素（本方案，
+   * 唯一能承载可点 chip 的）②伪元素叠纸（::after inset 外扩，纯装饰）
+   * ③box-shadow spread 同心层（0 12px 0 -4px 灰，无真元素）。
+   * z-index:-1 在 sticky 根（z2 stacking context）内压到卡片（z auto）之下：
+   * 上缩 16px 藏进卡片背后，只露下沿与左右各 8px——卡片保持完整圆角，
+   * 托盘从卡底下「伸出来」。 */
+  z-index: -1;
+  /* wrapper pe:none（见 InputBar.module.css .footer），托盘层显式收回事件。 */
+  pointer-events: auto;
   flex: 1;
-  margin-top: 0;
+  margin: -16px -8px 0;
   border-radius: 0 0 var(--dsw-radius-panel) var(--dsw-radius-panel);
-  background: rgba(0, 0, 0, 0.055);
+  /* 灰浅一档：0.055→0.035（深了抢视觉锚点，用户实测）；柔和落影强化
+   * 「垫在输入框底下」的层级感。 */
+  background: rgba(0, 0, 0, 0.035);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.045);
   color: var(--dsw-alias-label-primary);
-  /* figma drew px 8; left nudged +12 so the chip's folder glyph lines up
-     closer to the card's inner controls below; right keeps the trailing
-     preset seat off the card edge. O134：垂直补 4px——底栏要有「条」的体量，
-     0 垂直 padding 时整条只有 30px 像一根线（用户看不见实锤之一）。 */
-  padding: 4px 16px 4px 20px;
+  /* 上 padding=藏进卡片的 16+可见带 10；可见带≈48px（上下加长，用户拍板）。 */
+  padding: 26px 20px 10px;
 }
 
 /* Hero: the composer sits inside the session scroll body; center there so

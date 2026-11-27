@@ -10,19 +10,19 @@
   padding: 0 var(--dsh-composer-side-clearance) 4px;
 }
 
-/* O134（2026-11-28 用户三次拍板）：footer（工作区底栏）与输入卡**连成一体**
- * ——等宽、零间隙；卡片底角改直角，外轮廓=一个圆角矩形的上下两段
- * （WorkBuddy 形态：白色输入区+灰色底栏是一个整体的两层）。 */
+/* O134（2026-11-28 用户四次拍板）：footer=卡片宽度锚——托盘层（底栏）以
+ * 卡宽为基准左右各外扩 8px、上缩 16px 藏进卡片背后（样式在
+ * ConversationRoot.module.css .heroWorkspaceRow，z-index:-1 压到卡下）。
+ * 卡片保持完整圆角，不再改直角（托盘方案：灰层从卡底下伸出来）。 */
 .footer {
   box-sizing: border-box;
   width: 100%;
   max-width: var(--dsh-composer-card-max-width);
   display: flex;
-}
-
-.root:has(> .footer) .card {
-  border-bottom-left-radius: 0;
-  border-bottom-right-radius: 0;
+  /* 托盘层 z-index:-1 后，wrapper（z-auto）在命中序上反压整条底栏——
+   * 实测 chip 点不中（elementsFromPoint 顶层=wrapper）。wrapper 纯布局
+   * 壳不吃事件，穿透给托盘层（.heroWorkspaceRow 已显式 pe:auto）。 */
+  pointer-events: none;
 }
 
 .dock {
