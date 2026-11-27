@@ -411,6 +411,12 @@ export interface ComposerBarOwnerProps {
   placeholder?: string
   /** Optional content rendered above the composer surface. */
   accessory?: ReactNode
+  /* O134（2026-11-28 用户拍板）：底栏（工作区行）渲染在**根容器内、卡片
+   * 之后**——root 是 hero 态的 sticky 停靠单元，footer 放这里才能随输入卡
+   * 一起停靠；之前放栈内卡片之后，滚动停靠时底栏滑到卡片下面被盖住
+   * （用户实测「选择工作区看不到了，被输入框盖住」）。 */
+  /** Optional content rendered after the composer card, inside the sticky root. */
+  footer?: ReactNode
 }
 
 /** Package-private operations injected into the resident composer bar. */

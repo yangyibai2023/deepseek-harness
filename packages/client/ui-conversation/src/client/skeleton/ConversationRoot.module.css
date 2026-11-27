@@ -492,25 +492,19 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
-  /* O134 真凶实锤：.composerShield（sticky 白罩 z1，遮滚动模板用）把底栏
-   * 文字整段涂白——pointer-events:none 不参与命中，DOM 量测全对但视觉
-   * 隐形（红字实验+全量扫描定位）。输入卡靠 z2 压罩（见 :has 规则注释
-   * 「低于输入卡(2)与标题(3)」），底栏同属输入框套件，同款 z2 处理。 */
+  /* O134 层级契约：底栏在输入卡 sticky 根容器内（footer 通道），根已 z2
+   * 压 composerShield 白罩，这里保持 relative 即可。历史教训：shield 是
+   * pointer-events:none 的 sticky 白罩，不参与命中但照常绘制——底栏曾在
+   * 栈内裸放被它整段涂白（DOM 量测全对但视觉隐形，红字实验定位）。 */
   position: relative;
-  z-index: 2;
-  /* O134（2026-11-28 用户拍板）：挪到输入框下方+浅灰底条（WorkBuddy 底部
-   * 条形态）。margin-top 10px——2px 时与卡片底缘重叠 12px 被盖住（实测）。
-   * 回滚=恢复原 margin-top:4px 无底色。 */
-  margin-top: 10px;
+  /* O134 二次拍板（2026-11-28）：「是在输入框下方加圆角和灰色」——灰底
+   * 圆角条（WorkBuddy 底部条形态），替代白底+边框+投影（白底在浅灰页上
+   * 用户实测「只有横线」）。宽度对齐输入卡（root 是 align-items:center 的
+   * flex 列，stretch 会超出卡宽，用卡片同款 max-width 公式）。 */
+  width: min(var(--dsh-composer-card-max-width, 100%), 100%);
+  margin-top: 8px;
   border-radius: 12px;
-  /* O134 实锤：页面本身是浅灰（#f5f6f7），半透明黑叠加对比不足=视觉隐形
-   * （DOM 正常但用户看不到）。改白底+细边框——与输入框卡片同族，浅灰页
-   * 上明确分层。 */
-  background: var(--dsw-alias-bg-layer-1, #fff);
-  border: 1px solid var(--dsw-alias-border-l1, #e8e8e8);
-  /* O134（2026-11-28 用户拍板）：「在输入框下方也加个阴影」——白底细边框
-   * 在浅灰页上仍偏弱（实测用户看不见），补双层柔和投影抬出浮层感。 */
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.06);
+  background: rgba(0, 0, 0, 0.055);
   color: var(--dsw-alias-label-primary);
   /* figma drew px 8; left nudged +12 so the chip's folder glyph lines up
      closer to the card's inner controls below; right keeps the trailing

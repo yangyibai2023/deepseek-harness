@@ -136,7 +136,7 @@ export const InputBar = memo(function InputBar({
   renderSlot, useBusyEnter, useFileUploads, useNotices, useLexicon, useMenuLauncher, useStopShortcut,
   useProjection, sessionId, variant, disabled: inert = false, blocked,
   workspacePickerOpen = false, onRequestWorkspace,
-  placeholder, accessory,
+  placeholder, accessory, footer,
 }: InputBarProps) {
   const input = useInput(s => s)
   const notice = useNotices(s => s)
@@ -869,6 +869,9 @@ export const InputBar = memo(function InputBar({
           ? renderSlot('conversation.composer.dock', {})
           : null}
       </div>
+      {/* O134：底栏（工作区行）在根容器内、卡片之后——随 sticky 根一起停靠，
+       * 滚动时不再被输入卡盖住（详见 slots.ts footer 注释）。 */}
+      {footer}
     </div>
   )
 })

@@ -229,6 +229,11 @@ export function ConversationContent(props: ConversationContentProps) {
   // one disabled textarea, never a second tree. The no-workspace state wins
   // when both hold — picking a workspace is the earlier prerequisite.
   const blocked = !inert && composerBlock !== undefined
+  /* O134（2026-11-28 用户拍板）：工作区底栏作为 composer.bar 的 footer 传进
+   * 输入卡 sticky 根容器——滚动停靠时随卡片一起走，不再被卡片盖住（此前放
+   * 栈内卡片之后，用户实测「选择工作区看不到了」）。复刻/模块态底栏保持在
+   * 输入框上方（下方独立渲染处），不传 footer。 */
+  const composerFooter = hero && !replicationMode && !moduleMode ? heroWorkspaceRow : undefined
   const inputBar = renderSlot('conversation.composer.bar', {
     variant: hero ? 'hero' : 'composer',
     ...(inert
@@ -244,6 +249,7 @@ export function ConversationContent(props: ConversationContentProps) {
         // user clears it.
         ? { blocked: composerBlock, placeholder: composerBlock.reason }
         : hero ? { placeholder: t('placeholder.hero') } : {}),
+    ...(composerFooter !== undefined ? { footer: composerFooter } : {}),
   })
 
   const composerBar = (
@@ -278,9 +284,8 @@ export function ConversationContent(props: ConversationContentProps) {
       ))}
       {zone !== undefined && renderSlot('conversation.input.dock', zone)}
       {inputBar}
-      {/* O134（2026-11-28 用户拍板）：工作区行挪到输入框**下方**，浅灰底条
-       * （WorkBuddy「选择分组/默认权限」底部条形态）；复刻态保持在上方。 */}
-      {hero && !replicationMode && !moduleMode && heroWorkspaceRow}
+      {/* O134：hero 态工作区底栏已作为 footer 进入 inputBar 的 sticky 根容器
+       * （见上方 composerFooter）；复刻/模块态仍在上方独立渲染。 */}
       {/* O131（2026-11-27 用户拍板）：输入框下方=类目模板大卡区。原「精选
           模板网格」HeightLabVideoGrid 隐藏保留（回滚=恢复下行、摘除
           HeroCategoryCards）：
