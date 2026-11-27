@@ -93,6 +93,20 @@ const CATEGORIES: Array<{ id: HeroCategory; label: string; Art: () => ReactNode 
   { id: 'marketing', label: '营销策略', Art: ArtMarketing },
 ]
 
+/* 2026-11-27（用户拍板无图实验版）：模板卡片去封面图，改按 category 映射
+ * 六渐变 Art 图标（场景创作同款视觉语言）。基线带图版锚在 tag
+ * o131-home-baseline，回滚=reset 到该 tag。 */
+const ART_BY_SOURCE: Record<string, () => ReactNode> = {
+  'UGC 广告': ArtVideo,
+  '视频创意模板': ArtVideo,
+  '电商图片创作': ArtImage,
+  '商品详情页': ArtImage,
+  '文案与 SEO': ArtCopy,
+  '品牌与人群': ArtCopy,
+  '创意洞察': ArtMarketing,
+  '广告投放': ArtMarketing,
+}
+
 const CATEGORY_SOURCES: Record<Exclude<HeroCategory, 'all' | 'ops'>, string[]> = {
   copy: ['文案与 SEO', '品牌与人群'],
   image: ['电商图片创作', '商品详情页'],
@@ -215,40 +229,40 @@ export function HeroCategoryCards({ category }: { category: HeroCategory }) {
       width: 'min(var(--dsh-composer-card-max-width, 100%), 100%)',
       margin: '0 auto',
     }}>
-      {items.map(item => (
-        <button
-          key={item.id}
-          type="button"
-          onClick={() => { openTemplatePanel(item) }}
-          style={{
-            border: '1px solid var(--dsw-alias-border-l1, #ececec)', borderRadius: 12,
-            background: 'var(--dsw-alias-bg-layer-1, #fff)', cursor: 'pointer', padding: 0,
-            overflow: 'hidden', textAlign: 'left', color: 'inherit',
-            transition: 'box-shadow 0.15s ease',
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.boxShadow = '0 4px 14px rgba(0,0,0,0.08)' }}
-          onMouseLeave={(e) => { e.currentTarget.style.boxShadow = 'none' }}
-        >
-          <img
-            src={item.cover}
-            alt=""
-            loading="lazy"
-            style={{ width: '100%', aspectRatio: '16 / 9', objectFit: 'cover', display: 'block', objectPosition: item.pos }}
-            onError={(event) => {
-              const fallback = (item as { coverFallback?: string }).coverFallback
-              if (fallback !== undefined && event.currentTarget.src !== fallback) event.currentTarget.src = fallback
+      {items.map((item) => {
+        const Art = ART_BY_SOURCE[item.category] ?? ArtAll
+        return (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => { openTemplatePanel(item) }}
+            style={{
+              border: '1px solid var(--dsw-alias-border-l1, #ececec)', borderRadius: 12,
+              background: 'var(--dsw-alias-bg-layer-1, #fff)', cursor: 'pointer',
+              padding: '12px 12px', textAlign: 'left', color: 'inherit',
+              display: 'flex', alignItems: 'center', gap: 10, overflow: 'hidden',
+              transition: 'box-shadow 0.15s ease',
             }}
-          />
-          <span style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 9px' }}>
-            <span aria-hidden style={{ fontSize: 12, flexShrink: 0 }}>✦</span>
-            <span style={{ fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 96, flexShrink: 0 }}>{item.name}</span>
+            onMouseEnter={(e) => { e.currentTarget.style.boxShadow = '0 4px 14px rgba(0,0,0,0.08)' }}
+            onMouseLeave={(e) => { e.currentTarget.style.boxShadow = 'none' }}
+          >
             <span style={{
-              fontSize: 11.5, color: 'var(--dsw-alias-label-tertiary, #999)',
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0,
-            }}>{item.tagline}</span>
-          </span>
-        </button>
-      ))}
+              flexShrink: 0, width: 40, height: 40, borderRadius: 10,
+              background: 'var(--dsw-alias-bg-layer-2, #f5f5f5)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Art />
+            </span>
+            <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <span style={{ fontWeight: 600, fontSize: 12.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.name}</span>
+              <span style={{
+                fontSize: 11, color: 'var(--dsw-alias-label-tertiary, #999)',
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}>{item.tagline}</span>
+            </span>
+          </button>
+        )
+      })}
     </div>
   )
 }
