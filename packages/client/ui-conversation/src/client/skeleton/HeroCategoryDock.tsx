@@ -247,10 +247,19 @@ export function HeroCategoryCards({ category }: { category: HeroCategory }) {
               background: 'var(--dsw-specific-sidebar-fill, #f9fafb)', cursor: 'pointer',
               padding: '0 10px 0 14px', textAlign: 'left', color: 'inherit',
               display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden',
-              transition: 'background 0.15s ease',
+              /* O134 十二轮（用户拍板）：悬浮除底色加深外**轻微放大**
+               * （scale 1.02，动态交互感）；transform+底色同一过渡节拍。 */
+              transition: 'background 0.15s ease, transform 0.18s ease',
+              willChange: 'transform',
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, 0.06))' }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--dsw-specific-sidebar-fill, #f9fafb)' }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, 0.06))'
+              e.currentTarget.style.transform = 'scale(1.02)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'var(--dsw-specific-sidebar-fill, #f9fafb)'
+              e.currentTarget.style.transform = 'scale(1)'
+            }}
           >
             <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
               <span style={{ fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.displayName ?? item.name}</span>
