@@ -1000,7 +1000,17 @@ export class LlmRuntime extends TypertRemoteService {
   private forAdapter(options: GenerateOptions, adapter: LlmAdapter): GenerateOptions {
     const messages: RequestMessage[] = options.messages.map((message) => {
       if (message.role !== 'assistant') return message
-      const source = message.source
+      /* HeightLab 2026-11-28（共享对话崩溃根治）：
+       * 共享/导入的历史里可能存在**缺 source 的 assistant 消息**（跨用户、跨版本、
+       * 或早期持久化形态）。原实现直接 `source.replayState` → TypeError:
+       * Cannot read properties of undefined (reading 'replayState')
+       * → 整个会话一发消息就「本轮运行失败」，且重试永远失败。
+       * 这类消息没有 replay 能力可丢，原样透传即可（target adapter 会按普通
+       * assistant 文本处理）。防御放在读取前，不改变任何正常路径语义。 */
+      const source = message.source as
+        | { kind: 'model'; provider: string; model: string; replayState?: unknown }
+        | undefined
+      if (source === undefined) return message
       if (source.replayState === undefined) return message
       if (this.adapters.get(source.provider)?.adapter === adapter) return message
       return freezeMessage({

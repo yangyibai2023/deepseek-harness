@@ -245,7 +245,10 @@ function replayedAssistant(message: HarnessAssistantMessage, source: ModelMessag
  * @returns a native pi-ai assistant message reconstructed from durable content.
  */
 export function toPiAssistant(message: HarnessAssistantMessage, onDegrade?: (reason: string) => void): AssistantMessage {
+  /* HeightLab 2026-11-28：历史消息可能缺 source（共享/导入/早期持久化），
+   * 裸读会 TypeError。无 source 走 provider-neutral 降级。 */
   const source = message.source
+  if (source === undefined) return foreignAssistant(message)
   if (source.replayState === undefined) return foreignAssistant(message)
   try {
     return replayedAssistant(message, source, source.replayState)

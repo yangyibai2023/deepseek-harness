@@ -46,6 +46,9 @@ export function readReplay(message: Message, model: string, onDegrade?: (reason:
 }
 
 function validateReplay(message: Message, model: string): ReplayBlock[] | undefined {
+  /* HeightLab 2026-11-28：历史消息可能缺 source（共享/导入/早期持久化），
+   * 裸读 `message.source.kind` 会 TypeError。无 source 即无 replay 能力。 */
+  if (message.source === undefined) return undefined
   if (message.source.kind !== 'model' || message.source.replayState === undefined) return undefined
   const fail = (detail: string): never => { throw new LlmError(`DeepSeek Messages replay: ${detail}`, 'INVALID_REPLAY_STATE') }
   const envelope = object(message.source.replayState, 'INVALID_REPLAY_STATE')
