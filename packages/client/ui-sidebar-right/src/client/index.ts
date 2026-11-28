@@ -121,6 +121,20 @@ export function apply(ctx: ClientContext): void {
     return () => { unsubscribe(); views.dispose() }
   }, 'ui-sidebar-right: retained Session views')
   const layout: ILayout = ctx.layout
+  /* O134 十五轮（用户拍板「创作台打开→中间 UI 自动压缩」）：右栏可见性
+   * 全局事件——生产代码里 open/close 只有本文件两处调用（其余是测试桩），
+   * 包一层派发 hl:rightbar-open 覆盖全部转换；ui-conversation 订阅它驱动
+   * 分类胶囊/模板卡压缩形态。 */
+  const rawOpenRightbar = layout.openRightbar.bind(layout)
+  const rawCloseRightbar = layout.closeRightbar.bind(layout)
+  layout.openRightbar = (track: boolean, fullscreen: boolean): void => {
+    rawOpenRightbar(track, fullscreen)
+    window.dispatchEvent(new CustomEvent('hl:rightbar-open', { detail: { open: true } }))
+  }
+  layout.closeRightbar = (): void => {
+    rawCloseRightbar()
+    window.dispatchEvent(new CustomEvent('hl:rightbar-open', { detail: { open: false } }))
+  }
   // The automatic fullscreen rule as the seats last rendered it: the frame
   // hands them its width as owner props, and every seat reports the same rule.
   let autoFullscreen = false

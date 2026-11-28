@@ -70,6 +70,17 @@ export function ConversationContent(props: ConversationContentProps) {
   const [moduleMode, setModuleMode] = useState(
     () => localStorage.getItem('hl-console-mode') === 'module',
   )
+  /* O134 十五轮（用户拍板「创作台打开→中间 UI 自动压缩」）：右栏可见性——
+   * 订阅 ui-sidebar-right 派发的 hl:rightbar-open（open/close 包层派发，
+   * 覆盖全部转换）。初值探一次（面板先于本组件打开的时序）。 */
+  const [rightbarOpen, setRightbarOpen] = useState(false)
+  useEffect(() => {
+    const sync = (event: Event): void => {
+      setRightbarOpen((event as CustomEvent<{ open?: boolean }>).detail?.open === true)
+    }
+    window.addEventListener('hl:rightbar-open', sync)
+    return () => { window.removeEventListener('hl:rightbar-open', sync) }
+  }, [])
   useEffect(() => {
     const sync = (): void => {
       const mode = localStorage.getItem('hl-console-mode')
@@ -287,7 +298,7 @@ export function ConversationContent(props: ConversationContentProps) {
           <HeroShell t={t} renderSlot={renderSlot} />
           {/* O131（2026-11-27 用户二次修正）：按钮条在**标题与工作区行中间**。
               O134（2026-11-28）：工作区行挪到输入框下方（见 inputBar 之后）。 */}
-          <HeroCategoryBar selected={heroCategory} onSelect={setHeroCategory} />
+          <HeroCategoryBar selected={heroCategory} onSelect={setHeroCategory} compact={hero && rightbarOpen} />
         </div>
       ))}
       {zone !== undefined && renderSlot('conversation.input.dock', zone)}
@@ -298,7 +309,10 @@ export function ConversationContent(props: ConversationContentProps) {
           模板网格」HeightLabVideoGrid 隐藏保留（回滚=恢复下行、摘除
           HeroCategoryCards）：
       {hero && !replicationMode && !moduleMode && <HeightLabVideoGrid />} */}
-      {hero && !replicationMode && !moduleMode && <HeroCategoryCards category={heroCategory} />}
+      {/* O134 十五轮：创作台打开（右栏挤压）→ 卡片压缩形态（两字+图）；
+        * moduleMode 且右栏未开（0.5.7 创作模式中间不放模板）→ 维持隐藏。 */}
+      {hero && !replicationMode && (!moduleMode || rightbarOpen)
+        && <HeroCategoryCards category={heroCategory} compact={hero && rightbarOpen} />}
     </div>
   )
 

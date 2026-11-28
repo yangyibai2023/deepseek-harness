@@ -64,13 +64,13 @@ const ArtMarketing = (): ReactNode => (
   </svg>
 )
 
-const CATEGORIES: Array<{ id: HeroCategory; label: string; Art: () => ReactNode }> = [
-  { id: 'all', label: '全能创作', Art: ArtAll },
-  { id: 'copy', label: '文案编写', Art: ArtCopy },
-  { id: 'image', label: '图片生成', Art: ArtImage },
-  { id: 'video', label: '视频创作', Art: ArtVideo },
-  { id: 'ops', label: '账号运营', Art: ArtOps },
-  { id: 'marketing', label: '营销策略', Art: ArtMarketing },
+const CATEGORIES: Array<{ id: HeroCategory; label: string; short: string; Art: () => ReactNode }> = [
+  { id: 'all', label: '全能创作', short: '全能', Art: ArtAll },
+  { id: 'copy', label: '文案编写', short: '文案', Art: ArtCopy },
+  { id: 'image', label: '图片生成', short: '图片', Art: ArtImage },
+  { id: 'video', label: '视频创作', short: '视频', Art: ArtVideo },
+  { id: 'ops', label: '账号运营', short: '账号', Art: ArtOps },
+  { id: 'marketing', label: '营销策略', short: '营销', Art: ArtMarketing },
 ]
 
 const CATEGORY_SOURCES: Record<Exclude<HeroCategory, 'all' | 'ops'>, string[]> = {
@@ -83,19 +83,21 @@ const CATEGORY_SOURCES: Record<Exclude<HeroCategory, 'all' | 'ops'>, string[]> =
 /* 2026-11-28（用户定稿）：全能创作=八个产品级入口（自定义名称/简介），
  * refId 指向目录里最接近的模板——取封面（叠图装饰）与 skill（点击打开
  * 对应工作台）；PPT 暂无模板，点击走插入指令（chatOnly）。 */
-const HERO_ALL_ITEMS: Array<{ name: string; tagline: string; refId: string; chatOnly?: boolean }> = [
-  { name: '爆款视频复刻', tagline: '对标爆款，逐镜复刻', refId: 'skill-test-41-baokuan-1bi1-duibiao-fuke' },
-  { name: '口播视频制作', tagline: '真人感口播，一键成片', refId: 'skill-test-38-jimeng-zixuan-changjing-koubo' },
-  { name: '带货视频制作', tagline: 'UGC 带货，脚本到成片', refId: 'yj-301-original-ugc' },
-  { name: 'Vlog 视频制作', tagline: '生活记录，电影感剪辑', refId: 'skill-test-05-shenghuo-weijuchang' },
-  { name: '小红书图文生成', tagline: '种草图文，爆款排版', refId: 'skill-test-03-tandian-daka-zhongcao' },
-  { name: '电商图片制作', tagline: '主图详情，整套出图', refId: 'yj-401-original-main-detail' },
-  { name: '海报图片制作', tagline: '营销海报，品牌质感', refId: 'yj-401-commercial-poster' },
-  { name: 'PPT 一键生成', tagline: '一句话生成演示文稿', refId: 'yj-402-white-background-main', chatOnly: true },
+/* O134 十五轮（用户拍板）：压缩态（创作工作台打开）卡名=两字缩写+图。 */
+const HERO_ALL_ITEMS: Array<{ name: string; short: string; tagline: string; refId: string; chatOnly?: boolean }> = [
+  { name: '爆款视频复刻', short: '爆款', tagline: '对标爆款，逐镜复刻', refId: 'skill-test-41-baokuan-1bi1-duibiao-fuke' },
+  { name: '口播视频制作', short: '口播', tagline: '真人感口播，一键成片', refId: 'skill-test-38-jimeng-zixuan-changjing-koubo' },
+  { name: '带货视频制作', short: '带货', tagline: 'UGC 带货，脚本到成片', refId: 'yj-301-original-ugc' },
+  { name: 'Vlog 视频制作', short: 'Vlog', tagline: '生活记录，电影感剪辑', refId: 'skill-test-05-shenghuo-weijuchang' },
+  { name: '小红书图文生成', short: '小红', tagline: '种草图文，爆款排版', refId: 'skill-test-03-tandian-daka-zhongcao' },
+  { name: '电商图片制作', short: '电商', tagline: '主图详情，整套出图', refId: 'yj-401-original-main-detail' },
+  { name: '海报图片制作', short: '海报', tagline: '营销海报，品牌质感', refId: 'yj-401-commercial-poster' },
+  { name: 'PPT 一键生成', short: 'PPT', tagline: '一句话生成演示文稿', refId: 'yj-402-white-background-main', chatOnly: true },
 ]
 
 type ResolvedHeroItem = typeof VIDEO_CATALOG[number] & {
   displayName: string
+  shortName: string
   displayTagline: string
   chatOnly?: boolean
 }
@@ -105,15 +107,15 @@ function resolveHeroItem(entry: typeof HERO_ALL_ITEMS[number]): ResolvedHeroItem
   const base = ref ?? VIDEO_CATALOG[0]
   if (base === undefined) throw new Error('VIDEO_CATALOG is empty')
   return entry.chatOnly === true
-    ? { ...base, displayName: entry.name, displayTagline: entry.tagline, chatOnly: true }
-    : { ...base, displayName: entry.name, displayTagline: entry.tagline }
+    ? { ...base, displayName: entry.name, shortName: entry.short, displayTagline: entry.tagline, chatOnly: true }
+    : { ...base, displayName: entry.name, shortName: entry.short, displayTagline: entry.tagline }
 }
 
 function mixedSelection(): Array<ReturnType<typeof resolveHeroItem>> {
   return HERO_ALL_ITEMS.map(resolveHeroItem)
 }
 
-type HeroCardItem = typeof VIDEO_CATALOG[number] & { displayName?: string; displayTagline?: string; chatOnly?: boolean }
+type HeroCardItem = typeof VIDEO_CATALOG[number] & { displayName?: string; shortName?: string; displayTagline?: string; chatOnly?: boolean }
 
 function itemsFor(category: HeroCategory): HeroCardItem[] {
   if (category === 'all') return mixedSelection()
@@ -138,16 +140,18 @@ const barStyle: CSSProperties = {
   borderRadius: 999, padding: 4,
 }
 
-export function HeroCategoryBar({ selected, onSelect }: {
+export function HeroCategoryBar({ selected, onSelect, compact = false }: {
   selected: HeroCategory
   onSelect: (category: HeroCategory) => void
+  /* O134 十五轮：创作工作台打开（右栏挤压）→ 两字缩写单排。 */
+  compact?: boolean
 }) {
   /* 2026-11-27（用户三次修正）：横排**胶囊**——彩色 logo 在左、文字在右
    * （第一版灰条胶囊形状 + 场景创作渐变 SVG 图标）。 */
   return (
     <div style={{ display: 'flex', justifyContent: 'center' }}>
       <div style={barStyle} role="tablist" aria-label="创作分类">
-        {CATEGORIES.map(({ id, label, Art }) => {
+        {CATEGORIES.map(({ id, label, short, Art }) => {
           const active = selected === id
           return (
             <button
@@ -169,7 +173,7 @@ export function HeroCategoryBar({ selected, onSelect }: {
               onMouseLeave={(e) => { if (!active) e.currentTarget.style.color = 'var(--dsw-alias-label-secondary, #666)' }}
             >
               <Art />
-              <span style={{ fontWeight: active ? 600 : 400 }}>{label}</span>
+              <span style={{ fontWeight: active ? 600 : 400 }}>{compact ? short : label}</span>
             </button>
           )
         })}
@@ -180,7 +184,11 @@ export function HeroCategoryBar({ selected, onSelect }: {
 
 /* ── 类目大卡区（输入框下方） ─────────────────────────────────────────── */
 
-export function HeroCategoryCards({ category }: { category: HeroCategory }) {
+export function HeroCategoryCards({ category, compact = false }: {
+  category: HeroCategory
+  /* O134 十五轮：创作工作台打开 → 两字+图窄卡（图左字右）。 */
+  compact?: boolean
+}) {
   const items = useMemo(() => itemsFor(category), [category])
   const openTemplatePanel = (item: HeroCardItem): void => {
     /* PPT 等暂无模板的入口：插入通用创作指令（走输入框胶囊通道）。 */
@@ -219,12 +227,58 @@ export function HeroCategoryCards({ category }: { category: HeroCategory }) {
   /* 2026-11-27（用户三次修正）：竖版卡=参考站「你想做什么」样式（上图片、
    * 底部一行：图标+标题粗+简介灰截断），比第一版缩小——宽 218px，容器
    * 960px 一排 4 个。 */
+  if (compact) {
+    return (
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8,
+        width: 'min(var(--dsh-composer-card-max-width, 100%), 100%)', margin: '10px auto 0',
+      }}>
+        {items.map(item => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => { openTemplatePanel(item) }}
+            style={{
+              height: 52, border: 'none', borderRadius: 12,
+              background: 'var(--dsw-specific-sidebar-fill, #f9fafb)', cursor: 'pointer',
+              padding: '0 8px 0 6px', textAlign: 'left', color: 'inherit',
+              display: 'flex', alignItems: 'center', gap: 7, overflow: 'hidden',
+              transition: 'background 0.15s ease, transform 0.18s ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, 0.06))'
+              e.currentTarget.style.transform = 'scale(1.03)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'var(--dsw-specific-sidebar-fill, #f9fafb)'
+              e.currentTarget.style.transform = 'scale(1)'
+            }}
+          >
+            <img
+              src={item.cover}
+              alt=""
+              loading="lazy"
+              style={{
+                width: 42, height: 44, borderRadius: 9, objectFit: 'cover',
+                objectPosition: item.pos, flexShrink: 0,
+              }}
+              onError={(event) => {
+                const fallback = (item as { coverFallback?: string }).coverFallback
+                if (fallback !== undefined && event.currentTarget.src !== fallback) event.currentTarget.src = fallback
+              }}
+            />
+            <span style={{ fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap' }}>{item.shortName ?? item.name.slice(0, 2)}</span>
+          </button>
+        ))}
+      </div>
+    )
+  }
   return (
-    /* 2026-11-27（用户五次修正）：容器宽=输入框卡片宽（--dsh-composer-card-
-     * max-width，stack 全宽比它每侧宽 16px 实锤超出）；grid 3 列×3 排，
-     * 卡片压矮（图 56px+底行）保证 3 排在输入框下方一屏内直出。 */
-    /* 2026-11-28（用户定稿）：卡片区整体下移——离输入框远一些，居中于
-     * 输入框与窗口底之间（不贴输入框也不贴底）。 */
+  /* 2026-11-27（用户五次修正）：容器宽=输入框卡片宽（--dsh-composer-card-
+       * max-width，stack 全宽比它每侧宽 16px 实锤超出）；grid 3 列×3 排，
+       * 卡片压矮（图 56px+底行）保证 3 排在输入框下方一屏内直出。 */
+  /* 2026-11-28（用户定稿）：卡片区整体下移——离输入框远一些，居中于
+       * 输入框与窗口底之间（不贴输入框也不贴底）。 */
     <div style={{
       display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10,
       padding: '0 0 2px',
