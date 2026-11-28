@@ -129,7 +129,10 @@ function itemsFor(category: HeroCategory): HeroCardItem[] {
 /* 2026-11-28（用户六次修正）：整体收进一个大胶囊容器（WorkBuddy 形态）——
  * 灰底长胶囊内嵌选项，选中项=白底小胶囊浮起+微阴影。 */
 const barStyle: CSSProperties = {
-  display: 'inline-flex', gap: 2, flexWrap: 'wrap', justifyContent: 'center',
+  /* O134 十七轮（用户拍板）：胶囊 width=输入框宽后药丸**分布两端顶满**——
+   * 首末贴胶囊内缘、中间等距（space-between），不再两侧留白。gap 仅作
+   * 换行兜底的最小间距。 */
+  display: 'inline-flex', gap: 2, flexWrap: 'wrap', justifyContent: 'space-between',
   margin: '14px auto 10px',
   /* O134（2026-11-28 用户六次拍板）：全页灰色统一——胶囊底/托盘底/侧栏底
    * 同一个 token（--dsw-specific-sidebar-fill），不再各调各的 rgba。 */
