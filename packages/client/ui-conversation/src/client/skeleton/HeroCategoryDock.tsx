@@ -149,8 +149,15 @@ export function HeroCategoryBar({ selected, onSelect, compact = false }: {
   /* 2026-11-27（用户三次修正）：横排**胶囊**——彩色 logo 在左、文字在右
    * （第一版灰条胶囊形状 + 场景创作渐变 SVG 图标）。 */
   return (
-    <div style={{ display: 'flex', justifyContent: 'center' }}>
-      <div style={barStyle} role="tablist" aria-label="创作分类">
+    /* O134 十六轮（用户拍板）：横排与**输入框同宽**——挤压态下输入框比 stack
+     * 窄 32px（root 自带 16px 侧距），横排/卡片不收这 32px 就会「挤到边缘
+     * 没有边距」。公式=min(卡宽, 100%-32px)，宽屏时卡宽仍胜出。 */
+    <div style={{
+      display: 'flex', justifyContent: 'center',
+      width: 'min(var(--dsh-composer-card-max-width, 100%), calc(100% - 32px))',
+      margin: '0 auto',
+    }}>
+      <div style={{ ...barStyle, width: '100%' }} role="tablist" aria-label="创作分类">
         {CATEGORIES.map(({ id, label, short, Art }) => {
           const active = selected === id
           return (
@@ -165,7 +172,9 @@ export function HeroCategoryBar({ selected, onSelect, compact = false }: {
                 border: 'none',
                 background: active ? 'var(--dsw-alias-bg-layer-1, #fff)' : 'transparent',
                 color: active ? 'var(--dsw-alias-label-primary, #1a1a1a)' : 'var(--dsw-alias-label-secondary, #666)',
-                borderRadius: 999, padding: '8px 13px', fontSize: 13, cursor: 'pointer',
+                /* O134 十六轮：压缩态药丸收窄（6/9 vs 完整态 8/13）——挤压态
+                 * 一排 6 颗正好放下（16 轮实锤：8/13 在 413px 里换行）。 */
+                borderRadius: 999, padding: compact ? '6px 9px' : '8px 13px', fontSize: 13, cursor: 'pointer',
                 transition: 'background 0.15s ease, box-shadow 0.15s ease, color 0.15s ease',
                 boxShadow: active ? '0 1px 4px rgba(0,0,0,0.10)' : 'none',
               }}
@@ -231,7 +240,7 @@ export function HeroCategoryCards({ category, compact = false }: {
     return (
       <div style={{
         display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8,
-        width: 'min(var(--dsh-composer-card-max-width, 100%), 100%)', margin: '10px auto 0',
+        width: 'min(var(--dsh-composer-card-max-width, 100%), calc(100% - 32px))', margin: '10px auto 0',
       }}>
         {items.map(item => (
           <button
@@ -254,6 +263,9 @@ export function HeroCategoryCards({ category, compact = false }: {
               e.currentTarget.style.transform = 'scale(1)'
             }}
           >
+            {/* O134 十六轮：压缩不改布局——**文字在左、图片在右**（与完整态
+             * 同构），只缩体量。 */}
+            <span style={{ flex: 1, fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', textAlign: 'left' }}>{item.shortName ?? item.name.slice(0, 2)}</span>
             <img
               src={item.cover}
               alt=""
@@ -267,7 +279,6 @@ export function HeroCategoryCards({ category, compact = false }: {
                 if (fallback !== undefined && event.currentTarget.src !== fallback) event.currentTarget.src = fallback
               }}
             />
-            <span style={{ fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap' }}>{item.shortName ?? item.name.slice(0, 2)}</span>
           </button>
         ))}
       </div>
@@ -282,7 +293,7 @@ export function HeroCategoryCards({ category, compact = false }: {
     <div style={{
       display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10,
       padding: '0 0 2px',
-      width: 'min(var(--dsh-composer-card-max-width, 100%), 100%)',
+      width: 'min(var(--dsh-composer-card-max-width, 100%), calc(100% - 32px))',
       margin: '56px auto 0',
     }}>
       {items.map((item, index) => {
