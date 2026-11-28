@@ -242,7 +242,10 @@ export function HeroCategoryCards({ category, compact = false }: {
   if (compact) {
     return (
       <div style={{
-        display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8,
+        /* O137 v2 实验（1128 用户拍板）：4 列×2 排 → **2 列×4 排**——挤压列
+         * 里竖排更从容，每卡保持两字+图文左图右。回滚=checkout
+         * o135-compact-baseline。 */
+        display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8,
         width: 'min(var(--dsh-composer-card-max-width, 100%), calc(100% - 32px))', margin: '10px auto 0',
       }}>
         {items.map(item => (
