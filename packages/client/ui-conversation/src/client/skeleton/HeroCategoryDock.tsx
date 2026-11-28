@@ -239,57 +239,6 @@ export function HeroCategoryCards({ category, compact = false }: {
   /* 2026-11-27（用户三次修正）：竖版卡=参考站「你想做什么」样式（上图片、
    * 底部一行：图标+标题粗+简介灰截断），比第一版缩小——宽 218px，容器
    * 960px 一排 4 个。 */
-  if (compact) {
-    return (
-      <div style={{
-        /* O137 v2 实验（1128 用户拍板）：4 列×2 排 → **2 列×4 排**——挤压列
-         * 里竖排更从容，每卡保持两字+图文左图右。回滚=checkout
-         * o135-compact-baseline。 */
-        display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8,
-        width: 'min(var(--dsh-composer-card-max-width, 100%), calc(100% - 32px))', margin: '10px auto 0',
-      }}>
-        {items.map(item => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => { openTemplatePanel(item) }}
-            style={{
-              height: 52, border: 'none', borderRadius: 12,
-              background: 'var(--dsw-specific-sidebar-fill, #f9fafb)', cursor: 'pointer',
-              padding: '0 8px 0 6px', textAlign: 'left', color: 'inherit',
-              display: 'flex', alignItems: 'center', gap: 7, overflow: 'hidden',
-              transition: 'background 0.15s ease, transform 0.18s ease',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, 0.06))'
-              e.currentTarget.style.transform = 'scale(1.03)'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'var(--dsw-specific-sidebar-fill, #f9fafb)'
-              e.currentTarget.style.transform = 'scale(1)'
-            }}
-          >
-            {/* O134 十六轮：压缩不改布局——**文字在左、图片在右**（与完整态
-             * 同构），只缩体量。 */}
-            <span style={{ flex: 1, fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', textAlign: 'left' }}>{item.shortName ?? item.name.slice(0, 2)}</span>
-            <img
-              src={item.cover}
-              alt=""
-              loading="lazy"
-              style={{
-                width: 42, height: 44, borderRadius: 9, objectFit: 'cover',
-                objectPosition: item.pos, flexShrink: 0,
-              }}
-              onError={(event) => {
-                const fallback = (item as { coverFallback?: string }).coverFallback
-                if (fallback !== undefined && event.currentTarget.src !== fallback) event.currentTarget.src = fallback
-              }}
-            />
-          </button>
-        ))}
-      </div>
-    )
-  }
   return (
   /* 2026-11-27（用户五次修正）：容器宽=输入框卡片宽（--dsh-composer-card-
        * max-width，stack 全宽比它每侧宽 16px 实锤超出）；grid 3 列×3 排，
@@ -297,7 +246,10 @@ export function HeroCategoryCards({ category, compact = false }: {
   /* 2026-11-28（用户定稿）：卡片区整体下移——离输入框远一些，居中于
        * 输入框与窗口底之间（不贴输入框也不贴底）。 */
     <div style={{
-      display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10,
+      /* O137 v2 修正（用户澄清）：压缩=**只调位置不改形态**——创作台打开
+       * 时 4 列→2 列（一排两张、共 4 排，正好 8 张卡），卡片文字与不压缩
+       * 完全一致（全名+简介+叠图）。回滚=checkout o135-compact-baseline。 */
+      display: 'grid', gridTemplateColumns: compact ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 10,
       padding: '0 0 2px',
       width: 'min(var(--dsh-composer-card-max-width, 100%), calc(100% - 32px))',
       margin: '56px auto 0',
