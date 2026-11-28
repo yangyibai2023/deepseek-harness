@@ -463,8 +463,17 @@ export function HeightLabLoginPage({ initialError }: { initialError?: string | n
             type="button"
             className="hl-auth-btn hl-auth-btn-ghost"
             onClick={() => {
-              setStoredToken('hl-local-mock-token')
-              void pushTokenToHost('hl-local-mock-token')
+              /* O134 十六轮（2026-11-28）：mock 直进改发 **JWT 形态**（sub=
+               * hl-e2e-dev，exp 90 天）——hostAcceptsToken 要求 JWT+sub 与
+               * /hl/me 回显匹配，纯字符串 'hl-local-mock-token' 会被登录门
+               * 判 invalid 清掉（实锤：seed 移除后点 mock 按钮必回登录页）。
+               * 与宿主 parseDevMockToken 的 JWT 分支（sub 前缀 hl-e2e-）配对。 */
+              const b64url = (o: object): string =>
+                btoa(JSON.stringify(o)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+              const now = Math.floor(Date.now() / 1000)
+              const mockJwt = `${b64url({ alg: 'none', typ: 'JWT' })}.${b64url({ sub: 'hl-e2e-dev', iat: now, exp: now + 90 * 24 * 3600 })}.dev-mock`
+              setStoredToken(mockJwt)
+              void pushTokenToHost(mockJwt)
               window.location.reload()
             }}
           >
