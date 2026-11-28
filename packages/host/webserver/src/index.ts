@@ -411,6 +411,9 @@ export class WebServer extends Service {
     const listener = (req: IncomingMessage, res: ServerResponse): void => {
       const next = (): void => {
         void handle(req, res).catch((err: unknown) => {
+          /* O135 诊断（2026-11-28）：logger.warn 进 cordis 缓冲不可见——直出
+           * stderr 抓真实异常（定位 /hl/me 400）。 */
+          console.error('[webserver] handle threw:', err instanceof Error ? err.stack : String(err))
           this.ctx.logger.warn(err instanceof Error ? err : new Error(String(err)))
           if (res.headersSent) {
             res.destroy()
